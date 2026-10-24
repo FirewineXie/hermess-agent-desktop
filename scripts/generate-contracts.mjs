@@ -16,7 +16,7 @@ const fields = Object.entries(schema.properties).map(([name, rule]) => {
 })
 const source = `// Generated from schema/backend-info.schema.json. Run pnpm generate:contracts.\nexport type ${schema.title} = {\n${fields.join('\n')}\n}\n`
 if (process.argv.includes('--check')) {
-  if (readFileSync(outputPath, 'utf8') !== source) throw new Error('Generated contract differs from schema; run pnpm generate:contracts')
+  if (readFileSync(outputPath, 'utf8').replace(/\r\n/g, '\n') !== source) throw new Error('Generated contract differs from schema; run pnpm generate:contracts')
   console.log('Generated contract matches schema')
 } else {
   writeFileSync(outputPath, source, 'utf8')
