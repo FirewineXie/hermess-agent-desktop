@@ -14,7 +14,7 @@
 1. `HERMES_DESKTOP_READY_FILE` 只公布端口。端口本身不是归属证明；必须结合本进程持有的子进程句柄与每次启动凭据。
 2. 固定提交的专用 `serve` 路线通过 loopback `/api/ws` 接受 `HERMES_DASHBOARD_SESSION_TOKEN`。正确凭据通过、错误凭据被拒绝；正式产品还需验证多实例、残留进程和官方 Hermes 并行共存。
 3. WS 断线时上游可停放会话。恢复必须使用 `session.create` 返回的 `stored_session_id` 调 `session.resume`，其结果返回运行时 `session_id`。开发态 UI 提供手动重连；脚本在流式输出中途断线后重附着同一运行时会话。
-4. `session.events.since` 提供序号、epoch、截断标记与未完成请求。脚本已验证水位；当前 UI 尚未按序号渲染重放，因此不宣称无缝重放。
+4. 当前 `serve` 使用旧版网关：`gateway.ready.payload.replay_epoch` 是进程纪元，普通事件携带 `seq`，`session.events.since` 返回 `epoch`、`latest_seq`、`truncated` 和 `open_requests`。开发态 UI 已按序号合并重放与缓冲的实时事件，截断或纪元变化时回退会话快照；脚本验证了固定核心包的纪元与续传响应。原生窗口渲染及截断并发场景尚未验收。
 5. 当前完整 Windows payload 为 6,181,600,280 字节、117,396 个文件：`tools` 3,809,950,489、`venv` 1,237,231,531、`uv-cache` 991,590,926、`hermes-agent` 141,523,794、`pm-runtime` 2,577,494 字节。这是上游全量 bundle，不是首版最小核心包。
 6. payload 内置 CPython 3.14.9；开发态复用本机 CPython 3.14.0 的隔离 venv 是另一条路径。不能把全量 bundle 的成功冒充“payload 复用了本机解释器”。
 7. 首次全量 bundle 直接执行 `pm.cli`，其构建入口使用了这台机器现有的 Hermes PM runtime。`scripts/build-payload.py` 已将后续构建入口指向产品 `.build/pm-bootstrap` 的私有 `HERMES_HOME` 和 `HERMES_RUNTIME_DIR`；私有入口的 `pm status` 已运行，工具和 PM 状态落在该私有目录。这个新入口尚未完成一次全量 bundle 验证。
