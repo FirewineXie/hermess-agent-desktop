@@ -7,6 +7,7 @@
     "dev": "pnpm --dir apps/desktop dev",
     "build": "pnpm --dir apps/desktop build",
     "check:architecture": "node scripts/check-architecture-boundaries.mjs",
+    "check:contracts": "node scripts/check-contract-fixtures.mjs",
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",
     "tauri:build": "pnpm --dir apps/desktop tauri build",
     "setup:hooks": "git config --local core.hooksPath .githooks",

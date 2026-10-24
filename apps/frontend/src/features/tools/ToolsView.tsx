@@ -1,7 +1,9 @@
 import React from 'react'
-import type { RuntimeProbe, BundledToolsInventory, AgentToolset, AgentToolCatalog, ActiveAgentTools } from '@hermess/contracts'
+import type { RuntimeProbe, BundledToolsInventory, AgentToolCatalog, ActiveAgentTools } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useLanguage, translateApp } from '../../i18n'
+import ToolsetCard from './components/ToolsetCard'
+import RuntimeProbeCard from './components/RuntimeProbeCard'
 
 export default function ToolsView({ connected, sessionId }: { connected: boolean; sessionId: string }) {
   const { runtime, tools } = useDesktop()
@@ -73,9 +75,6 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
   const searchTerm = toolSearch.trim().toLowerCase()
   const visibleToolsets = (toolCatalog?.toolsets || []).filter(group =>
     !searchTerm || [group.name, group.description, ...(group.tools || [])].some(value => value.toLowerCase().includes(searchTerm)))
-  const visibleGroupTools = (group: AgentToolset) =>
-    !searchTerm || [group.name, group.description].some(value => value.toLowerCase().includes(searchTerm))
-      ? group.tools || [] : (group.tools || []).filter(name => name.toLowerCase().includes(searchTerm))
 
   return <section className="settings-panel flat-settings-panel tools-panel">
       <div className="row"><h2>{t("ui.tools.and.capabilities")}</h2><button disabled={!connected || toolLoading} onClick={() => void loadAgentTools(sessionId)}>{toolLoading ? t("ui.loading") : t("ui.refresh.tools")}</button></div>
@@ -90,19 +89,7 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
           <details className="config-tree-node" open={Boolean(searchTerm)}>
             <summary>{t("ui.agent.tools")}{toolCatalog && <span>{toolCatalog.toolsets.length} {t("ui.tool.groups")}{activeTools ? t("ui.arg.tools.available.in.this.session", activeTools.total) : t("ui.current.session.tool.state.is.unconfirmed")}</span>}</summary>
             <div className="config-tree-children">
-              <div className="toolset-list">{visibleToolsets.map(group => <details className="config-tree-node" key={group.name} open={Boolean(searchTerm)}>
-                <summary><strong>{group.name}</strong><span>{group.enabled ? t("ui.enabled") : t("ui.disabled")} · {group.tool_count} {t("ui.items")}</span></summary>
-                <div className="config-tree-children">
-                  {group.description && <p>{group.description}</p>}
-                  {visibleGroupTools(group).map(name => {
-                    const description = activeToolDescriptions.get(name)
-                    const content = <><code>{name}</code>{activeTools && <span>{activeToolDescriptions.has(name) ? t("ui.available.in.this.session") : t("ui.unavailable.in.this.session")}</span>}</>
-                    return description
-                      ? <details className="tool-item" key={name}><summary>{content}</summary><p>{description}</p></details>
-                      : <div className="tool-item tool-item-static" key={name}><div>{content}</div></div>
-                  })}
-                </div>
-              </details>)}</div>
+              <div className="toolset-list">{visibleToolsets.map(group => <ToolsetCard key={group.name} group={group} searchTerm={searchTerm} descriptions={activeToolDescriptions} hasActiveState={Boolean(activeTools)} t={t} />)}</div>
               {toolCatalog && visibleToolsets.length === 0 && <p>{t("ui.no.matching.tools")}</p>}
             </div>
           </details>
@@ -124,11 +111,7 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
               <p>{t("ui.detects.python.node.git.ffmpeg.ffprobe.ripgrep.uv.and.github.cli.in.path.py")}</p>
               <button onClick={() => void inspect()} disabled={loading}>{loading ? t("ui.checking") : t("ui.check.again")}</button>
               {error && <p role="alert">{t("ui.check.failed")}{error}</p>}
-              {probes.map(probe => <details className="tool-item" key={probe.tool}>
-                <summary><strong>{probe.tool}</strong><span>{probe.usable ? (probe.kind === 'command' ? t("ui.available") : t("ui.compatible.candidate")) : t("ui.not.available")}</span></summary>
-                <small>{probe.version ?? probe.reason}</small>
-                {probe.path && <code>{probe.path}</code>}
-              </details>)}
+              {probes.map(probe => <RuntimeProbeCard key={probe.tool} probe={probe} t={t} />)}
             </div>
           </details>
         </div>

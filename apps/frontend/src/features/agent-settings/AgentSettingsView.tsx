@@ -1,58 +1,8 @@
 import React from 'react'
-import { useLanguage, translateAgentUi, agentFieldTranslation, agentOptionTranslation, agentCategoryTranslation, localizeAgentMessage } from '../../i18n'
+import { useLanguage, translateAgentUi, agentFieldTranslation, localizeAgentMessage } from '../../i18n'
 import { useDesktop } from '../../app/DesktopContext'
-
-type Field = { type: string; description?: string; category?: string; options?: unknown[] }
-type Schema = { fields: Record<string, Field>; category_order: string[] }
-type RawConfig = { yaml: string; path: string }
-type Provider = { slug: string; name: string; models: string[]; authenticated?: boolean; api_url?: string }
-type Endpoint = { id: string; name: string; base_url: string; models: string[]; model: string; source: string }
-type FieldEntry = [string, Field]
-type FieldNode = { path: string; children: Map<string, FieldNode>; field?: FieldEntry }
-
-function fieldTree(entries: FieldEntry[]): FieldNode {
-  const root: FieldNode = { path: '', children: new Map() }
-  for (const entry of entries) {
-    let node = root
-    for (const part of entry[0].split('.')) {
-      if (!node.children.has(part)) node.children.set(part, { path: node.path ? `${node.path}.${part}` : part, children: new Map() })
-      node = node.children.get(part)!
-    }
-    node.field = entry
-  }
-  return root
-}
-
-function leafLabel(language: ReturnType<typeof useLanguage>, key: string): string {
-  return agentFieldTranslation(language, key)?.label.split(/\s*\/\s*/).at(-1) || key.split('.').at(-1) || key
-}
-
-function nodeLabel(language: ReturnType<typeof useLanguage>, node: FieldNode, entries: FieldEntry[]): string {
-  const parts = node.path.split('.')
-  const segment = parts[parts.length - 1]
-  if (parts.length === 1) {
-    const category = agentCategoryTranslation(language, segment)
-    if (category !== segment) return category
-  }
-  const candidates = entries.filter(([key]) => key.startsWith(`${node.path}.`))
-    .map(([key]) => {
-      const labels = agentFieldTranslation(language, key)?.label.split(/\s*\/\s*/)
-      return labels?.length === key.split('.').length ? labels[parts.length - 1] : undefined
-    }).filter((label): label is string => Boolean(label))
-  return candidates.sort((a, b) => a.length - b.length)[0] || segment.replaceAll('_', ' ')
-}
-
-function getField(config: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce<unknown>((value, key) =>
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)[key] : undefined, config)
-}
-
-function fieldText(value: unknown, type: string): string {
-  if (value == null) return ''
-  if (type === 'list' || type === 'object') return JSON.stringify(value, null, 2)
-  return String(value)
-}
+import ConfigFieldEditor from './components/ConfigFieldEditor'
+import { fieldTree, nodeLabel, getField, fieldText, type Field, type Schema, type RawConfig, type Provider, type Endpoint, type FieldEntry, type FieldNode } from './model'
 
 export default function AgentSettingsView({ connected, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
   const { invoke } = useDesktop()
@@ -240,40 +190,12 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     `${key} ${field.description || ''} ${agentFieldTranslation(language, key)?.label || ''} ${agentFieldTranslation(language, key)?.description || ''}`.toLowerCase().includes(query))
   const tree = fieldTree(visible)
 
-  function renderField([key, field]: FieldEntry) {
-    const current = fieldText(getField(config, key), field.type)
-    const value = drafts[key] ?? current
-    const changed = drafts[key] !== undefined && value !== current
-    const localized = agentFieldTranslation(language, key)
-    const label = leafLabel(language, key)
-    const editing = editingKey === key
-    const secret = /(?:api_key|secret|token|password)$/i.test(key)
-    const preview = secret && current ? '••••••' : current ? field.type === 'boolean' ? t(current === 'true' ? 'ui.on' : 'ui.off') : current.replace(/\s+/g, ' ') : t('ui.not.set')
-    return <div className={`config-field${editing ? ' editing' : ''}`} key={key}>
-      {!editing ? <button type="button" className="config-field-preview" onClick={() => editField(key)}>
-        <span className="config-field-name">{label}</span>
-        <span className="config-field-value" title={preview}>{preview}</span>
-        <span className="config-field-edit">{t('ui.edit')}</span>
-      </button> : <>
-      <label htmlFor={`config-${key}`}>{label}</label>
-      <code className="config-field-key">{key}</code>
-      {(localized?.description || (!localized && field.description)) && <small>{localized?.description || field.description}</small>}
-      {field.type === 'boolean'
-        ? <select id={`config-${key}`} value={value} onChange={event => setDrafts(previous => ({ ...previous, [key]: event.target.value }))}><option value="true">{t("ui.on")}</option><option value="false">{t("ui.off")}</option></select>
-        : field.type === 'select'
-          ? <select id={`config-${key}`} value={value} onChange={event => setDrafts(previous => ({ ...previous, [key]: event.target.value }))}>
-            {!field.options?.some(option => String(option) === value) && <option value={value}>{value || t("ui.not.set")}</option>}
-            {field.options?.map(option => <option key={String(option)} value={String(option)}>{agentOptionTranslation(language, String(option))}</option>)}
-          </select>
-          : field.type === 'list' || field.type === 'object'
-            ? <textarea id={`config-${key}`} value={value} rows={Math.min(12, Math.max(3, value.split('\n').length))} onChange={event => setDrafts(previous => ({ ...previous, [key]: event.target.value }))} spellCheck={false} />
-            : <input id={`config-${key}`} type={secret ? 'password' : field.type === 'number' ? 'number' : 'text'} value={value} onChange={event => setDrafts(previous => ({ ...previous, [key]: event.target.value }))} />}
-      <div className="config-field-actions">
-        <button disabled={busy || !changed} onClick={() => void saveField(key, field)}>{t("ui.save.setting")}</button>
-        <button type="button" className="config-field-cancel" disabled={busy} onClick={cancelEdit}>{t('ui.cancel')}</button>
-      </div>
-      </>}
-    </div>
+  function renderField(entry: FieldEntry) {
+    const [key] = entry
+    return <ConfigFieldEditor key={key} entry={entry} config={config} draft={drafts[key]}
+      editing={editingKey === key} busy={busy} language={language} t={t}
+      onEdit={editField} onChange={(fieldKey, value) => setDrafts(previous => ({ ...previous, [fieldKey]: value }))}
+      onSave={([fieldKey, field]) => void saveField(fieldKey, field)} onCancel={cancelEdit} />
   }
 
   function renderNode(node: FieldNode): React.ReactNode {

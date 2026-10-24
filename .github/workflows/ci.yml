@@ -29,6 +29,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check architecture boundaries
         run: pnpm check:architecture
+      - name: Check shared contract fixtures
+        run: pnpm check:contracts
       - name: Build frontend preview
         run: pnpm --dir apps/frontend build
       - name: Build frontend

@@ -714,6 +714,7 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::models::{load_model_lists, parse_saved_model_config, save_model_lists};
+    use super::BackendInfo;
     use super::{
         acquire_storage_lock, install_packed_payload, read_storage_location, validate_payload,
         write_storage_location,
@@ -725,6 +726,22 @@ mod tests {
     use std::fs;
     use std::process::Command;
     use uuid::Uuid;
+
+    #[test]
+    fn backend_info_matches_shared_contract_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../packages/contracts/fixtures/backend-info.json"
+        )))
+        .unwrap();
+        let actual = serde_json::to_value(BackendInfo {
+            port: 1421,
+            pid: 421,
+            replay_epoch: "fixture-epoch".to_owned(),
+        })
+        .unwrap();
+        assert_eq!(actual, fixture);
+    }
 
     #[test]
     fn model_lists_survive_a_second_read() {

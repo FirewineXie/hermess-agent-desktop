@@ -15,6 +15,27 @@ export type BundledToolsInventory = { has_manifest: boolean; tools: Array<{ name
 export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
 export type AgentToolCatalog = { toolsets: AgentToolset[] }
 export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
+export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
+export type GatewayRequest = {
+  id: string
+  method: 'approval' | 'clarify'
+  params: {
+    session_id?: string
+    command?: string
+    description?: string
+    tool_name?: string
+    choices?: ApprovalChoice[]
+    questions?: Array<{ qid: string; question: string; choices?: string[] }>
+  }
+}
+export type GatewayEvent = { kind: string; session_id?: string; seq?: number; payload: Record<string, unknown> }
+export type ReplayResult = {
+  events: Array<{ type: string; session_id?: string; seq?: number; payload?: Record<string, unknown> }>
+  latest_seq: number
+  epoch: string
+  truncated: boolean
+  open_requests?: GatewayRequest[]
+}
 
 export type DesktopEvent<T> = { payload: T }
 
