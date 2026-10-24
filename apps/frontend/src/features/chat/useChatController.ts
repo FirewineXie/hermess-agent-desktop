@@ -5,6 +5,7 @@ import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import type { ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, updateTool, type TimelineItem } from './timeline'
+import { mergeRecoveredRequests } from './requestRecovery'
 
 type Options = {
   backend: BackendInfo | null
@@ -513,7 +514,12 @@ export function useChatController({ backend, activeModel, language, storagePath,
         setSessionId(id)
         setActiveModel(snapshot.info?.provider && snapshot.info.model ? { provider: snapshot.info.provider, model: snapshot.info.model } : null)
         setClarifyDraft({ requestId: '', answers: {} })
-        setServerRequests((replay?.open_requests || snapshot.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
+        const buffered = bufferedEventsRef.current.splice(0)
+          .sort((a, b) => (a.seq || 0) - (b.seq || 0))
+        setServerRequests(mergeRecoveredRequests(
+          id, replay?.open_requests || snapshot.open_requests || [], bufferedRequestsRef.current.splice(0),
+          replay?.events || [], buffered,
+        ))
         setTurnBusy(Boolean(snapshot.running))
         if (useSnapshot) {
           turnStartedAtRef.current = null
@@ -529,14 +535,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
           })).sort((a, b) => (a.seq || 0) - (b.seq || 0))
           for (const event of ordered) eventProcessorRef.current(event)
         }
-        const buffered = bufferedEventsRef.current.splice(0)
-          .sort((a, b) => (a.seq || 0) - (b.seq || 0))
         for (const event of buffered) eventProcessorRef.current(event)
-        for (const request of bufferedRequestsRef.current.splice(0)) {
-          if (request.params.session_id === id) {
-            setServerRequests(current => current.some(item => item.id === request.id) ? current : [...current, request])
-          }
-        }
         if (useSnapshot) setChatStatus(replay?.truncated ? t("ui.event.window.truncated.restored.from.session.snapshot") : t("ui.restored.from.session.snapshot"))
         else if (replay?.events.length === 0) setChatStatus(snapshot.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
       }

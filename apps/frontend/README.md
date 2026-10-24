@@ -20,6 +20,7 @@ React 界面代码位于 `src/`。桌面客户端通过 `mountApp(root, api)` �
 ```sh
 pnpm --dir apps/frontend typecheck
 pnpm --dir apps/frontend build
+pnpm --dir apps/frontend test:recovery
 pnpm --dir apps/frontend dev
 ```
 
