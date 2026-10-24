@@ -11,6 +11,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
+- `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，启动自有 Hermes 实例前部署并注册为 `powershell_execute`；使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
 

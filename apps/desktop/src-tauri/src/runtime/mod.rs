@@ -3,6 +3,8 @@ pub mod config;
 mod location;
 pub mod models;
 mod payload;
+#[cfg(windows)]
+mod powershell_tool;
 pub mod tools;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
@@ -274,6 +276,8 @@ async fn launch_backend(
         .canonicalize()
         .map_err(|_| "无法解析产品存储目录".to_string())?;
     let storage_lock = acquire_storage_lock(&storage)?;
+    #[cfg(windows)]
+    powershell_tool::install(&storage)?;
     let _ = append_client_event(&storage, "backend_starting");
     let run = storage.join("control").join(Uuid::new_v4().to_string());
     fs::create_dir_all(&run).map_err(|_| "无法创建私有控制目录".to_string())?;

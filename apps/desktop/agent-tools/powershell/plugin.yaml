@@ -1,0 +1,8 @@
+name: hermess-windows-powershell
+version: 0.1.0
+description: Run PowerShell commands in the current Windows user's environment.
+kind: standalone
+platforms:
+  - windows
+provides_tools:
+  - powershell_execute
