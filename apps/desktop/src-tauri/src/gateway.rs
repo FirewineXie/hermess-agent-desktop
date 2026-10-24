@@ -188,21 +188,32 @@ impl GatewayClient {
             }
             let _ = app.emit("hermes-disconnected", ());
         });
-        let replay_epoch = timeout(Duration::from_secs(5), ready_receiver)
-            .await
-            .map_err(|_| "等待网关就绪事件超时".to_string())?
-            .map_err(|_| "网关在就绪前断开".to_string())?;
+        let replay_epoch = match timeout(Duration::from_secs(5), ready_receiver).await {
+            Ok(Ok(epoch)) => epoch,
+            Ok(Err(_)) => {
+                task.abort();
+                return Err("网关在就绪前断开".to_string());
+            }
+            Err(_) => {
+                task.abort();
+                return Err("等待网关就绪事件超时".to_string());
+            }
+        };
         let client = Self {
             sender,
             task,
             replay_epoch,
         };
-        client
+        if let Err(error) = client
             .request(
                 "client.capabilities",
                 json!({"server_requests":true,"desktop_local":true}),
             )
-            .await?;
+            .await
+        {
+            client.close();
+            return Err(error);
+        }
         Ok(client)
     }
 
