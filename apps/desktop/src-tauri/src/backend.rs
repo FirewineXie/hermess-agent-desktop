@@ -16,6 +16,7 @@ use uuid::Uuid;
 pub struct BackendState(Mutex<Option<OwnedBackend>>);
 
 struct OwnedBackend {
+    _storage_lock: fs::File,
     child: Child,
     port: u16,
     token: String,
@@ -32,6 +33,18 @@ pub struct BackendInfo {
 pub struct DevDefaults {
     python_path: String,
     storage_path: String,
+}
+
+fn acquire_storage_lock(storage: &std::path::Path) -> Result<fs::File, String> {
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(storage.join("control").join("owner.lock"))
+        .map_err(|_| "无法打开产品存储锁".to_string())?;
+    lock.try_lock()
+        .map_err(|_| "同一存储位置已有本产品实例，不能同时写入".to_string())?;
+    Ok(lock)
 }
 
 #[tauri::command]
@@ -153,6 +166,11 @@ pub async fn start_dev_backend(
         .canonicalize()
         .map_err(|_| "无法解析存储位置".to_string())?
         .join("HermessAgentDesktop");
+    fs::create_dir_all(storage.join("control")).map_err(|_| "无法创建产品控制目录".to_string())?;
+    let storage = storage
+        .canonicalize()
+        .map_err(|_| "无法解析产品存储目录".to_string())?;
+    let storage_lock = acquire_storage_lock(&storage)?;
     let run = storage.join("control").join(Uuid::new_v4().to_string());
     fs::create_dir_all(&run).map_err(|_| "无法创建私有控制目录".to_string())?;
     let ready = run.join("ready.json");
@@ -215,6 +233,7 @@ pub async fn start_dev_backend(
     }
     let gateway = GatewayClient::connect(port, &token, app).await?;
     *owned = Some(OwnedBackend {
+        _storage_lock: storage_lock,
         child,
         port,
         token,
@@ -407,4 +426,56 @@ pub async fn interrupt_chat_session(
         .gateway
         .request("session.interrupt", json!({"session_id":session_id}))
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::acquire_storage_lock;
+    use std::fs;
+    use std::process::Command;
+    use uuid::Uuid;
+
+    #[test]
+    fn storage_lock_child() {
+        let Ok(path) = std::env::var("HERMESS_TEST_STORAGE_LOCK_PATH") else {
+            return;
+        };
+        let acquired = acquire_storage_lock(std::path::Path::new(&path)).is_ok();
+        let expected =
+            std::env::var("HERMESS_TEST_STORAGE_LOCK_AVAILABLE").unwrap_or_default() == "1";
+        assert_eq!(acquired, expected);
+    }
+
+    fn check_child_lock(root: &std::path::Path, available: bool) {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "backend::tests::storage_lock_child"])
+            .env("HERMESS_TEST_STORAGE_LOCK_PATH", root)
+            .env(
+                "HERMESS_TEST_STORAGE_LOCK_AVAILABLE",
+                if available { "1" } else { "0" },
+            )
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "child lock check failed: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+
+    #[test]
+    fn storage_lock_rejects_second_owner_and_recovers_after_release() {
+        let root = std::env::temp_dir().join(format!("hermess-storage-lock-{}", Uuid::new_v4()));
+        fs::create_dir_all(root.join("control")).unwrap();
+        let first = acquire_storage_lock(&root).unwrap();
+        assert!(acquire_storage_lock(&root).is_err());
+        check_child_lock(&root, false);
+        drop(first);
+        let second = acquire_storage_lock(&root).unwrap();
+        drop(second);
+        check_child_lock(&root, true);
+        fs::remove_file(root.join("control").join("owner.lock")).unwrap();
+        fs::remove_dir(root.join("control")).unwrap();
+        fs::remove_dir(root).unwrap();
+    }
 }

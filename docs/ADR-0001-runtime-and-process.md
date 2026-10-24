@@ -20,10 +20,12 @@
 7. 首次全量 bundle 直接执行 `pm.cli`，其构建入口使用了这台机器现有的 Hermes PM runtime。`scripts/build-payload.py` 已将后续构建入口指向产品 `.build/pm-bootstrap` 的私有 `HERMES_HOME` 和 `HERMES_RUNTIME_DIR`；私有入口的 `pm status` 已运行，工具和 PM 状态落在该私有目录。这个新入口尚未完成一次全量 bundle 验证。
 8. 产品外置适配 `scripts/build-core-payload.py` 调用上游 PM 的 `stage_tools`、`stage_manager_runtime`、`build_environment`、`record_tools` 和原版 assembler，以全量包作为固定工具与轮文件输入，只暂存 Python/uv 和基础 venv。成功的 Windows 核心候选为 1,536,868,250 字节、55,760 个文件；`tools` 190,953,914、`venv` 209,104,745、`uv-cache` 992,347,881 字节。实际特性探测记录 `doc-extract`、`nemo-relay`、`pty`、`vision`、`web`，不等于主动启用全部上游 extras。
 9. 从全量 payload 的 uv 缓存直接离线重建核心包连续缺少 PM runtime 的 `ruamel-yaml==0.18.16` 和项目构建依赖 `wheel==0.48.0`。构建脚本现允许**构建阶段**补齐锁定依赖，并把缓存放在核心包内；核心成品以禁用按需安装和不可达代理完成完整假模型冒烟。`scripts/verify-offline-rebuild.py` 随后从核心包缓存离线重建 PM runtime 与基础 venv，按上游 assembler 写入源码 `.pth` 后可导入服务端模块。完整包的 uv 缓存不能被宣称为自足的离线重建材料；产品修复事务仍未实现。
+10. Windows 核心包复制到新的中文空格目录后，发行源码校验和完整冒烟均通过。Rust 进程持有产品数据根的 OS 文件锁；另一进程不能同时取得同一锁，原进程释放后可重新取得。当前锁覆盖本产品开发态后端，不是正式多窗口/托盘实例协调的最终设计。
+11. 在同一用户会话并行运行固定源码 CLI 和核心 payload，分别使用临时 `HERMES_HOME`、锁目录和随机凭据。两个监听端口、会话列表及凭据互不混用；停止产品后来源 CLI 继续响应。此为隔离来源 CLI 测试，不能替代用户现有官方安装或数据的并行验收。
 
 ## 验证证据与剩余决策
 
 - payload 启动器在独立临时数据根、`HERMES_DISABLE_LAZY_INSTALLS=1`、不可达公共代理条件下，通过鉴权、流式对话、文件工具、审批拒绝、澄清、运行中断和断线重附着脚本测试。假模型仅通过 loopback 提供回答；该实验没有证明系统物理断网。
 - 核心候选已与可选工具分层并通过源码、manifest、启动、基础工具和依赖离线重建验证；还需产品修复事务、版本配对、升级验收，以及按能力安装可选工具的 UI 与存储策略。
-- Windows 的中文空格数据根已通过完整 payload 冒烟；仍需验证中文空格安装路径、权限、多实例和现有官方 Hermes 并行。macOS arm64、Linux x64 与 Intel Mac 仍待原生设备或 CI 资源。
+- Windows 的中文空格数据根与核心包复制后安装路径已通过冒烟；仍需验证权限、多窗口实例和用户现有官方 Hermes 并行。macOS arm64、Linux x64 与 Intel Mac 仍待原生设备或 CI 资源。
 - 正式构建应记录上游 SHA、manifest 摘要、工具 facts、Python/Node 来源、平台和签名材料；当前上游 manifest 的 `ref` 为 `HEAD`，不能单独当作提交身份。
