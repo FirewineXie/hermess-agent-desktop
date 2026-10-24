@@ -16,6 +16,34 @@ struct RpcRequest {
     reply: oneshot::Sender<Result<Value, String>>,
 }
 
+type PendingRpc = HashMap<u64, (&'static str, oneshot::Sender<Result<Value, String>>)>;
+
+fn prune_abandoned_rpc(pending: &mut PendingRpc) {
+    pending.retain(|_, (_, reply)| !reply.is_closed());
+}
+
+#[cfg(test)]
+mod pending_tests {
+    use super::{prune_abandoned_rpc, PendingRpc};
+    use serde_json::Value;
+    use tokio::sync::oneshot;
+
+    #[test]
+    fn timed_out_calls_release_pending_capacity() {
+        let mut pending = PendingRpc::new();
+        for id in 0..64 {
+            let (reply, received) = oneshot::channel::<Result<Value, String>>();
+            pending.insert(id, ("session.resume", reply));
+            drop(received);
+        }
+        let (reply, _received) = oneshot::channel::<Result<Value, String>>();
+        pending.insert(64, ("session.resume", reply));
+        prune_abandoned_rpc(&mut pending);
+        assert_eq!(pending.len(), 1);
+        assert!(pending.contains_key(&64));
+    }
+}
+
 enum GatewayCommand {
     Rpc(RpcRequest),
     Answer {
@@ -60,8 +88,7 @@ impl GatewayClient {
         let (ready_sender, ready_receiver) = oneshot::channel();
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
-            let mut pending =
-                HashMap::<u64, (&'static str, oneshot::Sender<Result<Value, String>>)>::new();
+            let mut pending = PendingRpc::new();
             let mut server_requests = HashMap::<String, (String, Value)>::new();
             let mut ready_sender = Some(ready_sender);
             loop {
@@ -70,6 +97,8 @@ impl GatewayClient {
                         let Some(command) = command else { break };
                         match command {
                             GatewayCommand::Rpc(request) => {
+                                if request.reply.is_closed() { continue; }
+                                prune_abandoned_rpc(&mut pending);
                                 if pending.len() >= 64 {
                                     let _ = request.reply.send(Err("待处理的网关请求过多".into()));
                                     continue;
