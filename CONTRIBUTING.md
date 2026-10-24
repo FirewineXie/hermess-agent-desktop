@@ -4,7 +4,7 @@
 
 ## 分支与提交
 
-- `main` 作为长期主干，合入的变更应保持可构建。所有人（包括自动化代理）从最新 `main` 建立短期分支，例如 `feature/...`、`fix/...`、`docs/...`；不要直接向 `main` 提交或推送。仅在确需维护旧版本时建立 `release/vX.Y` 分支。
+- `main` 作为长期主干，合入的变更应保持可构建。按 [README 的按版本开发流程](README.md#按版本开发) 检查并复用 `feature/vX.Y.Z`；只有该版本分支在本地和远端都不存在时，才从最新 `origin/main` 创建。紧急修复使用从最新 `origin/main` 创建的 `fix/...` 分支；不要直接向 `main` 提交或推送。仅在确需维护旧版本时建立 `release/vX.Y` 分支。
 - 提交信息采用 Conventional Commits，例如 `feat: add attachment preview`、`fix: preserve runtime location`、`docs: update capability matrix`。标题使用简短英文祈使句；必要时在正文解释原因和兼容影响。
 - 保持改动聚焦。涉及架构、运行时契约、平台验收或发布状态时，同步更新对应文档与证据，避免只修改结论。
 
@@ -12,10 +12,10 @@
 
 ## 合并流程
 
-1. 在任务分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
+1. 在版本分支或修复分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
 2. 等待 [PR checks](.github/workflows/ci.yml) 的 `Build and test (Windows)` 作业成功，并处理代码审查意见。该作业验证锁定上游、前端构建、Rust 格式、编译和测试。
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
-4. CI 全部通过后，维护者检查 PR 差异并手动合并，再删除任务分支。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
+4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
 当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 

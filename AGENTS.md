@@ -2,7 +2,7 @@
 
 本文件适用于本仓库中的自动化开发代理。贡献流程与验证命令见 [CONTRIBUTING.md](CONTRIBUTING.md)；具体实现事实以当前代码、锁文件和实际验证为准。
 
-1. 修改前检查 `git status`，保留已有未提交改动，不对他人的工作树执行破坏性重置。克隆后运行 `pnpm setup:hooks`；开发必须在从最新 `main` 建立的任务分支进行，不要直接向 `main` 提交或推送。
+1. 修改前检查 `git status`，保留已有未提交改动，不对他人的工作树执行破坏性重置。克隆后运行 `pnpm setup:hooks`；每次开发前按 [README 的按版本开发流程](README.md#按版本开发) 检查并复用当前版本分支，只有本地和远端均不存在时才从最新 `origin/main` 创建。紧急修复从最新 `origin/main` 建立独立分支；不要直接向 `main` 提交或推送。
 2. 不使用 submodule，不修改 `vendor/hermes-agent` 的源码。用 `pnpm fetch:upstream` 克隆 `runtime/upstream.lock.json` 锁定的正式 Release tag，并以完整 SHA 和干净工作树验证；上游接口行为须按固定提交核实。最新 Release 仅在明确升级时重新选择，不在每次构建时动态选择。
 3. 只管理本产品创建的进程、数据与凭据。连接、存储、升级和卸载改动须保留与用户现有 Hermes 安装的隔离边界。
 4. 不从 `cankao/Hermes-CN-Desktop` 直接复制代码或素材。参考其设计时，按本项目实际技术栈和许可重新实现。

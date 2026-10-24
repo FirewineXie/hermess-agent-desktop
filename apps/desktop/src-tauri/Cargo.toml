@@ -1,6 +1,6 @@
 [package]
 name = "hermess-agent-desktop"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 
 [build-dependencies]
@@ -9,12 +9,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["process", "time", "macros", "sync", "rt"] }
+tokio = { version = "1", features = ["process", "time", "macros", "sync", "rt", "io-util"] }
 tokio-tungstenite = "0.29"
 futures-util = "0.3"
 serde_json = "1"
+serde_yaml = "0.9"
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 tar = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 tauri-plugin-dialog = "2"
+chrono = "0.4"

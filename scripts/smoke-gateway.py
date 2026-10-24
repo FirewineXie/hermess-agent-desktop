@@ -48,6 +48,13 @@ def main() -> None:
         model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4)])
         model.start()
         write_hermes_home(home, model.base_url)
+        skill_dir = home / "skills" / "composer-canary"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: composer-canary\ndescription: Verify the desktop skill picker.\n"
+            "platforms: [windows, linux, macos]\n---\n\n# Composer Canary\n\nAnswer the user's request.\n",
+            encoding="utf-8",
+        )
         config_file = home / "config.yaml"
         config_file.write_text(config_file.read_text(encoding="utf-8").replace(
             f"  default: {MODEL_ID}\n", "  default: before-config-canary\n"), encoding="utf-8")
@@ -96,6 +103,28 @@ def main() -> None:
                     answer = asyncio.run(ping())
                     if answer != {"pong": True}:
                         raise RuntimeError(f"unexpected ping reply: {answer!r}")
+
+                    async def tool_catalog(method: str) -> dict:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
+                            await ws.send(json.dumps({"jsonrpc": "2.0", "id": 2, "method": method,
+                                                      "params": {"session_id": None}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
+                                if frame.get("id") == 2:
+                                    if "error" in frame:
+                                        raise RuntimeError(f"{method} failed: {frame['error']}")
+                                    return frame.get("result") or {}
+
+                    catalog = asyncio.run(tool_catalog("tools.list"))
+                    groups = {row["name"]: row for row in catalog.get("toolsets", [])}
+                    if "terminal" not in groups or "terminal" not in groups["terminal"].get("tools", []):
+                        raise RuntimeError("tools.list omitted the terminal tool")
+                    if "browser" not in groups or "browser_navigate" not in groups["browser"].get("tools", []):
+                        raise RuntimeError("tools.list omitted browser navigation")
+                    active_tools = asyncio.run(tool_catalog("tools.show"))
+                    if not isinstance(active_tools.get("sections"), list):
+                        raise RuntimeError("tools.show did not return active tool sections")
 
                     async def reject_wrong_token() -> None:
                         url = f"ws://127.0.0.1:{port}/api/ws?token=invalid-i0-probe"
@@ -240,6 +269,20 @@ def main() -> None:
                                                                          "cwd_explicit": True,
                                                                          "idempotency_key": secrets.token_hex(16)})
                             sid = created["session_id"]
+                            catalog = await rpc(35, "commands.catalog", {"session_id": sid})
+                            if not any(pair[0] == "/help" for pair in catalog.get("pairs", [])):
+                                raise RuntimeError("command catalog did not include /help")
+                            if not any(pair[0] == "/model" for pair in catalog.get("pairs", [])):
+                                raise RuntimeError("command catalog did not include /model")
+                            if "/composer-canary" not in catalog.get("skills", {}):
+                                raise RuntimeError("command catalog did not include the installed skill")
+                            help_result = await rpc(36, "slash.exec", {"session_id": sid, "command": "/help"})
+                            if not help_result.get("output"):
+                                raise RuntimeError(f"/help returned no output: {help_result}")
+                            skill_result = await rpc(37, "command.dispatch", {
+                                "session_id": sid, "name": "composer-canary", "arg": "check the picker"})
+                            if skill_result.get("type") != "skill" or not skill_result.get("message"):
+                                raise RuntimeError(f"skill command did not resolve: {skill_result}")
                             file_result = await rpc(31, "file.attach", {"session_id": sid, "path": str(fixture)})
                             if not file_result.get("attached") or not file_result.get("ref_text", "").startswith("@file:"):
                                 raise RuntimeError(f"file attachment failed: {file_result}")
@@ -371,7 +414,7 @@ def main() -> None:
                         raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, auth rejection, streamed chat, file/image attachment, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
+                    print(f"owned serve, auth rejection, command catalog, /help, skill dispatch, streamed chat, file/image attachment, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()

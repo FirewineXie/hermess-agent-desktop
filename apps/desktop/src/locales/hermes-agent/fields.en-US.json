@@ -1,0 +1,2762 @@
+{
+  "model": {
+    "label": "model",
+    "description": "Default model (e.g. anthropic/claude-sonnet-4.6)"
+  },
+  "fallback_providers": {
+    "label": "fallback providers"
+  },
+  "fallback.min_switch_reset_seconds": {
+    "label": "fallback / min switch reset seconds"
+  },
+  "toolsets": {
+    "label": "toolsets"
+  },
+  "database.journal_mode": {
+    "label": "database / journal mode"
+  },
+  "database.wal_autocheckpoint": {
+    "label": "database / wal autocheckpoint"
+  },
+  "database.journal_size_limit": {
+    "label": "database / journal size limit"
+  },
+  "runtime.nofile_soft_limit": {
+    "label": "runtime / nofile soft limit"
+  },
+  "max_concurrent_sessions": {
+    "label": "max concurrent sessions"
+  },
+  "max_live_sessions": {
+    "label": "max live sessions"
+  },
+  "session.terminal_continue": {
+    "label": "session / terminal continue"
+  },
+  "attachments.storage": {
+    "label": "attachments / storage"
+  },
+  "agent.max_turns": {
+    "label": "agent / max turns"
+  },
+  "agent.budget_warning_ratio": {
+    "label": "agent / budget warning ratio"
+  },
+  "agent.run_budget_seconds": {
+    "label": "agent / run budget seconds"
+  },
+  "agent.gateway_timeout": {
+    "label": "agent / gateway timeout"
+  },
+  "agent.gateway_turn_lease_timeout": {
+    "label": "agent / gateway turn lease timeout"
+  },
+  "agent.agent_cache.max_size": {
+    "label": "agent / agent cache / max size"
+  },
+  "agent.agent_cache.idle_ttl_secs": {
+    "label": "agent / agent cache / idle ttl secs"
+  },
+  "agent.agent_cache.memory_high_mb": {
+    "label": "agent / agent cache / memory high mb"
+  },
+  "agent.agent_cache.max_evictions_per_pass": {
+    "label": "agent / agent cache / max evictions per pass"
+  },
+  "agent.agent_cache.protect_recent": {
+    "label": "agent / agent cache / protect recent"
+  },
+  "agent.restart_drain_timeout": {
+    "label": "agent / restart drain timeout"
+  },
+  "agent.cron_drain_timeout": {
+    "label": "agent / cron drain timeout"
+  },
+  "agent.restart_after_turn_timeout": {
+    "label": "agent / restart after turn timeout"
+  },
+  "agent.build_wait_timeout": {
+    "label": "agent / build wait timeout"
+  },
+  "agent.api_max_retries": {
+    "label": "agent / api max retries"
+  },
+  "agent.auto_recovery_cycles": {
+    "label": "agent / auto recovery cycles"
+  },
+  "agent.stream_drain_timeout": {
+    "label": "agent / stream drain timeout"
+  },
+  "agent.empty_response_guard.enabled": {
+    "label": "agent / empty response guard / enabled"
+  },
+  "agent.empty_response_guard.cost_threshold_usd": {
+    "label": "agent / empty response guard / cost threshold usd"
+  },
+  "agent.service_tier": {
+    "label": "agent / service tier",
+    "description": "Fast mode: fast = always, auto = first N seconds of each turn, cold = first turn only"
+  },
+  "agent.fast_auto_seconds": {
+    "label": "agent / fast auto seconds"
+  },
+  "agent.text_verbosity": {
+    "label": "agent / text verbosity"
+  },
+  "agent.tool_use_enforcement": {
+    "label": "agent / tool use enforcement"
+  },
+  "agent.execution_guidance": {
+    "label": "agent / execution guidance"
+  },
+  "agent.intent_ack_continuation": {
+    "label": "agent / intent ack continuation"
+  },
+  "agent.stall_guards": {
+    "label": "agent / stall guards"
+  },
+  "agent.task_completion_guidance": {
+    "label": "agent / task completion guidance"
+  },
+  "agent.parallel_tool_call_guidance": {
+    "label": "agent / parallel tool call guidance"
+  },
+  "agent.environment_probe": {
+    "label": "agent / environment probe"
+  },
+  "agent.bot_mode_protocol": {
+    "label": "agent / bot mode protocol"
+  },
+  "agent.environment_hint": {
+    "label": "agent / environment hint"
+  },
+  "agent.coding_context": {
+    "label": "agent / coding context"
+  },
+  "agent.coding_instructions": {
+    "label": "agent / coding instructions"
+  },
+  "agent.verify_guidance": {
+    "label": "agent / verify guidance"
+  },
+  "agent.max_verify_nudges": {
+    "label": "agent / max verify nudges"
+  },
+  "agent.verify_on_stop": {
+    "label": "agent / verify on stop"
+  },
+  "agent.gateway_timeout_warning": {
+    "label": "agent / gateway timeout warning"
+  },
+  "agent.clarify_timeout": {
+    "label": "agent / clarify timeout"
+  },
+  "agent.gateway_notify_interval": {
+    "label": "agent / gateway notify interval"
+  },
+  "agent.session_stall_timeout": {
+    "label": "agent / session stall timeout"
+  },
+  "agent.sanitizer_heal_escalation_threshold": {
+    "label": "agent / sanitizer heal escalation threshold"
+  },
+  "agent.reconnect_attention_after": {
+    "label": "agent / reconnect attention after"
+  },
+  "agent.gateway_auto_continue_freshness": {
+    "label": "agent / gateway auto continue freshness"
+  },
+  "agent.gateway_startup_restore_drain_timeout": {
+    "label": "agent / gateway startup restore drain timeout"
+  },
+  "agent.gateway_startup_warmup_timeout": {
+    "label": "agent / gateway startup warmup timeout"
+  },
+  "agent.local_stream_stale_timeout": {
+    "label": "agent / local stream stale timeout"
+  },
+  "agent.image_input_mode": {
+    "label": "agent / image input mode"
+  },
+  "agent.disabled_toolsets": {
+    "label": "agent / disabled toolsets"
+  },
+  "agent.reasoning_echo": {
+    "label": "agent / reasoning echo"
+  },
+  "agent.turn_liveness.timeout_s": {
+    "label": "agent / turn liveness / timeout s"
+  },
+  "agent.turn_liveness.poll_s": {
+    "label": "agent / turn liveness / poll s"
+  },
+  "terminal.backend": {
+    "label": "terminal / backend",
+    "description": "Terminal execution backend"
+  },
+  "terminal.modal_mode": {
+    "label": "terminal / modal mode",
+    "description": "Modal sandbox mode"
+  },
+  "terminal.degraded_mode": {
+    "label": "terminal / degraded mode"
+  },
+  "terminal.cwd": {
+    "label": "terminal / cwd"
+  },
+  "terminal.temp_dir": {
+    "label": "terminal / temp dir"
+  },
+  "terminal.font_family": {
+    "label": "terminal / font family"
+  },
+  "terminal.timeout": {
+    "label": "terminal / timeout"
+  },
+  "terminal.daemon_term_grace_seconds": {
+    "label": "terminal / daemon term grace seconds"
+  },
+  "terminal.oneshot_completion_wait_seconds": {
+    "label": "terminal / oneshot completion wait seconds"
+  },
+  "terminal.process_wait_auto_notify": {
+    "label": "terminal / process wait auto notify"
+  },
+  "terminal.env_passthrough": {
+    "label": "terminal / env passthrough"
+  },
+  "terminal.client_env_passthrough": {
+    "label": "terminal / client env passthrough"
+  },
+  "terminal.sync_back_max_bytes": {
+    "label": "terminal / sync back max bytes"
+  },
+  "terminal.home_mode": {
+    "label": "terminal / home mode"
+  },
+  "terminal.shell_init_files": {
+    "label": "terminal / shell init files"
+  },
+  "terminal.auto_source_bashrc": {
+    "label": "terminal / auto source bashrc"
+  },
+  "terminal.docker_image": {
+    "label": "terminal / docker image"
+  },
+  "terminal.docker_forward_env": {
+    "label": "terminal / docker forward env"
+  },
+  "terminal.modal_image": {
+    "label": "terminal / modal image"
+  },
+  "terminal.daytona_image": {
+    "label": "terminal / daytona image"
+  },
+  "terminal.vercel_image": {
+    "label": "terminal / vercel image",
+    "description": "Vercel Sandbox image: a Vercel managed image (vercel/sandbox/universal:latest) or a VCR repository[:tag]"
+  },
+  "terminal.vercel_runtime": {
+    "label": "terminal / vercel runtime",
+    "description": "Legacy Vercel Sandbox runtime (deprecated by Vercel; a pinned runtime overrides the image; clear to use the image)"
+  },
+  "terminal.container_cpu": {
+    "label": "terminal / container cpu"
+  },
+  "terminal.container_memory": {
+    "label": "terminal / container memory"
+  },
+  "terminal.container_disk": {
+    "label": "terminal / container disk"
+  },
+  "terminal.container_persistent": {
+    "label": "terminal / container persistent"
+  },
+  "terminal.docker_volumes": {
+    "label": "terminal / docker volumes"
+  },
+  "terminal.docker_mount_cwd_to_workspace": {
+    "label": "terminal / docker mount cwd to workspace"
+  },
+  "terminal.docker_network": {
+    "label": "terminal / docker network"
+  },
+  "terminal.docker_extra_args": {
+    "label": "terminal / docker extra args"
+  },
+  "terminal.docker_shm_size": {
+    "label": "terminal / docker shm size"
+  },
+  "terminal.docker_run_as_host_user": {
+    "label": "terminal / docker run as host user"
+  },
+  "terminal.docker_snap_compat": {
+    "label": "terminal / docker snap compat"
+  },
+  "terminal.docker_shared_container_key": {
+    "label": "terminal / docker shared container key"
+  },
+  "terminal.persistent_shell": {
+    "label": "terminal / persistent shell"
+  },
+  "web.backend": {
+    "label": "web / backend"
+  },
+  "web.search_backend": {
+    "label": "web / search backend"
+  },
+  "web.extract_backend": {
+    "label": "web / extract backend"
+  },
+  "web.extract_char_limit": {
+    "label": "web / extract char limit"
+  },
+  "web.keyless_fallback": {
+    "label": "web / keyless fallback"
+  },
+  "web.keyless_rescue": {
+    "label": "web / keyless rescue"
+  },
+  "web.cache_enabled": {
+    "label": "web / cache enabled"
+  },
+  "web.cache_ttl_minutes": {
+    "label": "web / cache ttl minutes"
+  },
+  "web.cache_exempt_hosts": {
+    "label": "web / cache exempt hosts"
+  },
+  "browser.backend": {
+    "label": "browser / backend"
+  },
+  "browser.inactivity_timeout": {
+    "label": "browser / inactivity timeout"
+  },
+  "browser.command_timeout": {
+    "label": "browser / command timeout"
+  },
+  "browser.snapshot_threshold": {
+    "label": "browser / snapshot threshold"
+  },
+  "browser.record_sessions": {
+    "label": "browser / record sessions"
+  },
+  "browser.headed": {
+    "label": "browser / headed",
+    "description": "Run the local browser in headed mode (visible window). Also keeps the window open between turns; idle sessions are still reaped after browser.inactivity_timeout."
+  },
+  "browser.allow_private_urls": {
+    "label": "browser / allow private urls"
+  },
+  "browser.engine": {
+    "label": "browser / engine"
+  },
+  "browser.auto_local_for_private_urls": {
+    "label": "browser / auto local for private urls"
+  },
+  "browser.cdp_url": {
+    "label": "browser / cdp url"
+  },
+  "browser.use_real_profile": {
+    "label": "browser / use real profile"
+  },
+  "browser.real_profile_autoclose": {
+    "label": "browser / real profile autoclose"
+  },
+  "browser.real_profile_pin": {
+    "label": "browser / real profile pin"
+  },
+  "browser.allow_unsafe_evaluate": {
+    "label": "browser / allow unsafe evaluate"
+  },
+  "browser.restrict_evaluate": {
+    "label": "browser / restrict evaluate"
+  },
+  "browser.dialog_policy": {
+    "label": "browser / dialog policy"
+  },
+  "browser.dialog_timeout_s": {
+    "label": "browser / dialog timeout s"
+  },
+  "browser.camofox.managed_persistence": {
+    "label": "browser / camofox / managed persistence"
+  },
+  "browser.camofox.user_id": {
+    "label": "browser / camofox / user id"
+  },
+  "browser.camofox.session_key": {
+    "label": "browser / camofox / session key"
+  },
+  "browser.camofox.adopt_existing_tab": {
+    "label": "browser / camofox / adopt existing tab"
+  },
+  "browser.camofox.rewrite_loopback_urls": {
+    "label": "browser / camofox / rewrite loopback urls"
+  },
+  "browser.camofox.loopback_host_alias": {
+    "label": "browser / camofox / loopback host alias"
+  },
+  "browser.extension_control.enabled": {
+    "label": "browser / extension control / enabled"
+  },
+  "browser.extension_control.developer_mode": {
+    "label": "browser / extension control / developer mode"
+  },
+  "worktrees.archive_dirty": {
+    "label": "worktrees / archive dirty"
+  },
+  "worktrees.archive_max_file_mb": {
+    "label": "worktrees / archive max file mb"
+  },
+  "worktrees.archive_retention_days": {
+    "label": "worktrees / archive retention days"
+  },
+  "worktrees.max_total_gb": {
+    "label": "worktrees / max total gb"
+  },
+  "checkpoints.enabled": {
+    "label": "checkpoints / enabled"
+  },
+  "checkpoints.max_snapshots": {
+    "label": "checkpoints / max snapshots"
+  },
+  "checkpoints.max_total_size_mb": {
+    "label": "checkpoints / max total size mb"
+  },
+  "checkpoints.max_file_size_mb": {
+    "label": "checkpoints / max file size mb"
+  },
+  "checkpoints.auto_prune": {
+    "label": "checkpoints / auto prune"
+  },
+  "checkpoints.retention_days": {
+    "label": "checkpoints / retention days"
+  },
+  "checkpoints.min_interval_hours": {
+    "label": "checkpoints / min interval hours"
+  },
+  "context_file_max_chars": {
+    "label": "context file max chars"
+  },
+  "context_file_read_timeout": {
+    "label": "context file read timeout"
+  },
+  "file_read_max_chars": {
+    "label": "file read max chars"
+  },
+  "mcp_discovery_timeout": {
+    "label": "mcp discovery timeout"
+  },
+  "mcp_single_query_discovery_timeout": {
+    "label": "mcp single query discovery timeout"
+  },
+  "mcp.auto_reload_on_config_change": {
+    "label": "mcp / auto reload on config change"
+  },
+  "mcp.discovery_concurrency": {
+    "label": "mcp / discovery concurrency"
+  },
+  "tool_output.max_bytes": {
+    "label": "tool output / max bytes"
+  },
+  "tool_output.max_lines": {
+    "label": "tool output / max lines"
+  },
+  "tool_output.max_line_length": {
+    "label": "tool output / max line length"
+  },
+  "tool_loop_guardrails.warnings_enabled": {
+    "label": "tool loop guardrails / warnings enabled"
+  },
+  "tool_loop_guardrails.hard_stop_enabled": {
+    "label": "tool loop guardrails / hard stop enabled"
+  },
+  "tool_loop_guardrails.non_interactive_hard_stop_enabled": {
+    "label": "tool loop guardrails / non interactive hard stop enabled"
+  },
+  "tool_loop_guardrails.warn_after.exact_failure": {
+    "label": "tool loop guardrails / warn after / exact failure"
+  },
+  "tool_loop_guardrails.warn_after.same_tool_failure": {
+    "label": "tool loop guardrails / warn after / same tool failure"
+  },
+  "tool_loop_guardrails.warn_after.idempotent_no_progress": {
+    "label": "tool loop guardrails / warn after / idempotent no progress"
+  },
+  "tool_loop_guardrails.hard_stop_after.exact_failure": {
+    "label": "tool loop guardrails / hard stop after / exact failure"
+  },
+  "tool_loop_guardrails.hard_stop_after.same_tool_failure": {
+    "label": "tool loop guardrails / hard stop after / same tool failure"
+  },
+  "tool_loop_guardrails.hard_stop_after.idempotent_no_progress": {
+    "label": "tool loop guardrails / hard stop after / idempotent no progress"
+  },
+  "tool_loop_guardrails.loop_caps.max_web_searches": {
+    "label": "tool loop guardrails / loop caps / max web searches"
+  },
+  "tool_loop_guardrails.loop_caps.max_subagents": {
+    "label": "tool loop guardrails / loop caps / max subagents"
+  },
+  "compression.enabled": {
+    "label": "compression / enabled"
+  },
+  "compression.checkpoint_required": {
+    "label": "compression / checkpoint required"
+  },
+  "compression.progress_notices": {
+    "label": "compression / progress notices"
+  },
+  "compression.threshold": {
+    "label": "compression / threshold"
+  },
+  "compression.threshold_tokens": {
+    "label": "compression / threshold tokens"
+  },
+  "compression.target_ratio": {
+    "label": "compression / target ratio"
+  },
+  "compression.tail_mode": {
+    "label": "compression / tail mode"
+  },
+  "compression.protect_last_n": {
+    "label": "compression / protect last n"
+  },
+  "compression.min_tail_user_messages": {
+    "label": "compression / min tail user messages"
+  },
+  "compression.max_attempts": {
+    "label": "compression / max attempts"
+  },
+  "compression.proactive_prune_tokens": {
+    "label": "compression / proactive prune tokens"
+  },
+  "compression.proactive_prune_min_result_chars": {
+    "label": "compression / proactive prune min result chars"
+  },
+  "compression.proactive_prune_min_reclaim_tokens": {
+    "label": "compression / proactive prune min reclaim tokens"
+  },
+  "compression.micro_compact": {
+    "label": "compression / micro compact"
+  },
+  "compression.micro_compact_every_n_turns": {
+    "label": "compression / micro compact every n turns"
+  },
+  "compression.micro_compact_defrag_threshold_tokens": {
+    "label": "compression / micro compact defrag threshold tokens"
+  },
+  "compression.hygiene_hard_message_limit": {
+    "label": "compression / hygiene hard message limit"
+  },
+  "compression.hygiene_timeout_seconds": {
+    "label": "compression / hygiene timeout seconds"
+  },
+  "compression.hygiene_total_ceiling_seconds": {
+    "label": "compression / hygiene total ceiling seconds"
+  },
+  "compression.hygiene_failure_cooldown_seconds": {
+    "label": "compression / hygiene failure cooldown seconds"
+  },
+  "compression.hygiene_max_turn_hold_seconds": {
+    "label": "compression / hygiene max turn hold seconds"
+  },
+  "compression.context_timeout_seconds": {
+    "label": "compression / context timeout seconds"
+  },
+  "compression.context_total_ceiling_seconds": {
+    "label": "compression / context total ceiling seconds"
+  },
+  "compression.protect_first_n": {
+    "label": "compression / protect first n"
+  },
+  "compression.abort_on_summary_failure": {
+    "label": "compression / abort on summary failure"
+  },
+  "compression.codex_gpt55_autoraise": {
+    "label": "compression / codex gpt55 autoraise"
+  },
+  "compression.codex_gpt55_autoraise_notice": {
+    "label": "compression / codex gpt55 autoraise notice"
+  },
+  "compression.codex_app_server_auto": {
+    "label": "compression / codex app server auto"
+  },
+  "compression.codex_responses_native": {
+    "label": "compression / codex responses native"
+  },
+  "compression.codex_responses_compact_threshold": {
+    "label": "compression / codex responses compact threshold"
+  },
+  "compression.in_place": {
+    "label": "compression / in place"
+  },
+  "compression.idle_compact_after_seconds": {
+    "label": "compression / idle compact after seconds"
+  },
+  "prompt_caching.cache_ttl": {
+    "label": "prompt caching / cache ttl"
+  },
+  "openrouter.response_cache": {
+    "label": "openrouter / response cache"
+  },
+  "openrouter.response_cache_ttl": {
+    "label": "openrouter / response cache ttl"
+  },
+  "openrouter.min_coding_score": {
+    "label": "openrouter / min coding score"
+  },
+  "bedrock.region": {
+    "label": "bedrock / region"
+  },
+  "bedrock.discovery.enabled": {
+    "label": "bedrock / discovery / enabled"
+  },
+  "bedrock.discovery.provider_filter": {
+    "label": "bedrock / discovery / provider filter"
+  },
+  "bedrock.discovery.refresh_interval": {
+    "label": "bedrock / discovery / refresh interval"
+  },
+  "bedrock.guardrail.guardrail_identifier": {
+    "label": "bedrock / guardrail / guardrail identifier"
+  },
+  "bedrock.guardrail.guardrail_version": {
+    "label": "bedrock / guardrail / guardrail version"
+  },
+  "bedrock.guardrail.stream_processing_mode": {
+    "label": "bedrock / guardrail / stream processing mode"
+  },
+  "bedrock.guardrail.trace": {
+    "label": "bedrock / guardrail / trace"
+  },
+  "auxiliary.transient_retries": {
+    "label": "auxiliary / transient retries"
+  },
+  "auxiliary.free_only": {
+    "label": "auxiliary / free only"
+  },
+  "auxiliary.openrouter_model": {
+    "label": "auxiliary / openrouter model"
+  },
+  "auxiliary.stream_only_base_urls": {
+    "label": "auxiliary / stream only base urls"
+  },
+  "auxiliary.vision.provider": {
+    "label": "auxiliary / vision / provider"
+  },
+  "auxiliary.vision.model": {
+    "label": "auxiliary / vision / model"
+  },
+  "auxiliary.vision.base_url": {
+    "label": "auxiliary / vision / base url"
+  },
+  "auxiliary.vision.api_key": {
+    "label": "auxiliary / vision / api key"
+  },
+  "auxiliary.vision.timeout": {
+    "label": "auxiliary / vision / timeout"
+  },
+  "auxiliary.vision.reasoning_effort": {
+    "label": "auxiliary / vision / reasoning effort"
+  },
+  "auxiliary.vision.download_timeout": {
+    "label": "auxiliary / vision / download timeout"
+  },
+  "auxiliary.compression.provider": {
+    "label": "auxiliary / compression / provider"
+  },
+  "auxiliary.compression.model": {
+    "label": "auxiliary / compression / model"
+  },
+  "auxiliary.compression.base_url": {
+    "label": "auxiliary / compression / base url"
+  },
+  "auxiliary.compression.api_key": {
+    "label": "auxiliary / compression / api key"
+  },
+  "auxiliary.compression.timeout": {
+    "label": "auxiliary / compression / timeout"
+  },
+  "auxiliary.compression.reasoning_effort": {
+    "label": "auxiliary / compression / reasoning effort"
+  },
+  "auxiliary.compression.no_progress_timeout": {
+    "label": "auxiliary / compression / no progress timeout"
+  },
+  "auxiliary.skills_hub.provider": {
+    "label": "auxiliary / skills hub / provider"
+  },
+  "auxiliary.skills_hub.model": {
+    "label": "auxiliary / skills hub / model"
+  },
+  "auxiliary.skills_hub.base_url": {
+    "label": "auxiliary / skills hub / base url"
+  },
+  "auxiliary.skills_hub.api_key": {
+    "label": "auxiliary / skills hub / api key"
+  },
+  "auxiliary.skills_hub.timeout": {
+    "label": "auxiliary / skills hub / timeout"
+  },
+  "auxiliary.skills_hub.reasoning_effort": {
+    "label": "auxiliary / skills hub / reasoning effort"
+  },
+  "auxiliary.approval.provider": {
+    "label": "auxiliary / approval / provider"
+  },
+  "auxiliary.approval.model": {
+    "label": "auxiliary / approval / model"
+  },
+  "auxiliary.approval.base_url": {
+    "label": "auxiliary / approval / base url"
+  },
+  "auxiliary.approval.api_key": {
+    "label": "auxiliary / approval / api key"
+  },
+  "auxiliary.approval.timeout": {
+    "label": "auxiliary / approval / timeout"
+  },
+  "auxiliary.approval.reasoning_effort": {
+    "label": "auxiliary / approval / reasoning effort"
+  },
+  "auxiliary.review.provider": {
+    "label": "auxiliary / review / provider"
+  },
+  "auxiliary.review.model": {
+    "label": "auxiliary / review / model"
+  },
+  "auxiliary.review.base_url": {
+    "label": "auxiliary / review / base url"
+  },
+  "auxiliary.review.api_key": {
+    "label": "auxiliary / review / api key"
+  },
+  "auxiliary.review.api_mode": {
+    "label": "auxiliary / review / api mode"
+  },
+  "auxiliary.mcp.provider": {
+    "label": "auxiliary / mcp / provider"
+  },
+  "auxiliary.mcp.model": {
+    "label": "auxiliary / mcp / model"
+  },
+  "auxiliary.mcp.base_url": {
+    "label": "auxiliary / mcp / base url"
+  },
+  "auxiliary.mcp.api_key": {
+    "label": "auxiliary / mcp / api key"
+  },
+  "auxiliary.mcp.timeout": {
+    "label": "auxiliary / mcp / timeout"
+  },
+  "auxiliary.mcp.reasoning_effort": {
+    "label": "auxiliary / mcp / reasoning effort"
+  },
+  "auxiliary.title_generation.enabled": {
+    "label": "auxiliary / title generation / enabled"
+  },
+  "auxiliary.title_generation.model_upgrade_enabled": {
+    "label": "auxiliary / title generation / model upgrade enabled"
+  },
+  "auxiliary.title_generation.provider": {
+    "label": "auxiliary / title generation / provider"
+  },
+  "auxiliary.title_generation.model": {
+    "label": "auxiliary / title generation / model"
+  },
+  "auxiliary.title_generation.prefer_fast_model": {
+    "label": "auxiliary / title generation / prefer fast model"
+  },
+  "auxiliary.title_generation.base_url": {
+    "label": "auxiliary / title generation / base url"
+  },
+  "auxiliary.title_generation.api_key": {
+    "label": "auxiliary / title generation / api key"
+  },
+  "auxiliary.title_generation.timeout": {
+    "label": "auxiliary / title generation / timeout"
+  },
+  "auxiliary.title_generation.reasoning_effort": {
+    "label": "auxiliary / title generation / reasoning effort"
+  },
+  "auxiliary.title_generation.language": {
+    "label": "auxiliary / title generation / language"
+  },
+  "auxiliary.memory_query_rewrite.provider": {
+    "label": "auxiliary / memory query rewrite / provider"
+  },
+  "auxiliary.memory_query_rewrite.model": {
+    "label": "auxiliary / memory query rewrite / model"
+  },
+  "auxiliary.memory_query_rewrite.base_url": {
+    "label": "auxiliary / memory query rewrite / base url"
+  },
+  "auxiliary.memory_query_rewrite.api_key": {
+    "label": "auxiliary / memory query rewrite / api key"
+  },
+  "auxiliary.memory_query_rewrite.timeout": {
+    "label": "auxiliary / memory query rewrite / timeout"
+  },
+  "auxiliary.tts_audio_tags.provider": {
+    "label": "auxiliary / tts audio tags / provider"
+  },
+  "auxiliary.tts_audio_tags.model": {
+    "label": "auxiliary / tts audio tags / model"
+  },
+  "auxiliary.tts_audio_tags.base_url": {
+    "label": "auxiliary / tts audio tags / base url"
+  },
+  "auxiliary.tts_audio_tags.api_key": {
+    "label": "auxiliary / tts audio tags / api key"
+  },
+  "auxiliary.tts_audio_tags.timeout": {
+    "label": "auxiliary / tts audio tags / timeout"
+  },
+  "auxiliary.tts_audio_tags.reasoning_effort": {
+    "label": "auxiliary / tts audio tags / reasoning effort"
+  },
+  "auxiliary.voice_chat.provider": {
+    "label": "auxiliary / voice chat / provider"
+  },
+  "auxiliary.voice_chat.model": {
+    "label": "auxiliary / voice chat / model"
+  },
+  "auxiliary.voice_chat.base_url": {
+    "label": "auxiliary / voice chat / base url"
+  },
+  "auxiliary.voice_chat.api_key": {
+    "label": "auxiliary / voice chat / api key"
+  },
+  "auxiliary.voice_chat.timeout": {
+    "label": "auxiliary / voice chat / timeout"
+  },
+  "auxiliary.voice_chat.reasoning_effort": {
+    "label": "auxiliary / voice chat / reasoning effort"
+  },
+  "auxiliary.triage_specifier.provider": {
+    "label": "auxiliary / triage specifier / provider"
+  },
+  "auxiliary.triage_specifier.model": {
+    "label": "auxiliary / triage specifier / model"
+  },
+  "auxiliary.triage_specifier.base_url": {
+    "label": "auxiliary / triage specifier / base url"
+  },
+  "auxiliary.triage_specifier.api_key": {
+    "label": "auxiliary / triage specifier / api key"
+  },
+  "auxiliary.triage_specifier.timeout": {
+    "label": "auxiliary / triage specifier / timeout"
+  },
+  "auxiliary.triage_specifier.reasoning_effort": {
+    "label": "auxiliary / triage specifier / reasoning effort"
+  },
+  "auxiliary.kanban_decomposer.provider": {
+    "label": "auxiliary / kanban decomposer / provider"
+  },
+  "auxiliary.kanban_decomposer.model": {
+    "label": "auxiliary / kanban decomposer / model"
+  },
+  "auxiliary.kanban_decomposer.base_url": {
+    "label": "auxiliary / kanban decomposer / base url"
+  },
+  "auxiliary.kanban_decomposer.api_key": {
+    "label": "auxiliary / kanban decomposer / api key"
+  },
+  "auxiliary.kanban_decomposer.timeout": {
+    "label": "auxiliary / kanban decomposer / timeout"
+  },
+  "auxiliary.kanban_decomposer.reasoning_effort": {
+    "label": "auxiliary / kanban decomposer / reasoning effort"
+  },
+  "auxiliary.profile_describer.provider": {
+    "label": "auxiliary / profile describer / provider"
+  },
+  "auxiliary.profile_describer.model": {
+    "label": "auxiliary / profile describer / model"
+  },
+  "auxiliary.profile_describer.base_url": {
+    "label": "auxiliary / profile describer / base url"
+  },
+  "auxiliary.profile_describer.api_key": {
+    "label": "auxiliary / profile describer / api key"
+  },
+  "auxiliary.profile_describer.timeout": {
+    "label": "auxiliary / profile describer / timeout"
+  },
+  "auxiliary.profile_describer.reasoning_effort": {
+    "label": "auxiliary / profile describer / reasoning effort"
+  },
+  "auxiliary.goal_judge.provider": {
+    "label": "auxiliary / goal judge / provider"
+  },
+  "auxiliary.goal_judge.model": {
+    "label": "auxiliary / goal judge / model"
+  },
+  "auxiliary.goal_judge.base_url": {
+    "label": "auxiliary / goal judge / base url"
+  },
+  "auxiliary.goal_judge.api_key": {
+    "label": "auxiliary / goal judge / api key"
+  },
+  "auxiliary.goal_judge.timeout": {
+    "label": "auxiliary / goal judge / timeout"
+  },
+  "auxiliary.goal_judge.reasoning_effort": {
+    "label": "auxiliary / goal judge / reasoning effort"
+  },
+  "auxiliary.curator.provider": {
+    "label": "auxiliary / curator / provider"
+  },
+  "auxiliary.curator.model": {
+    "label": "auxiliary / curator / model"
+  },
+  "auxiliary.curator.base_url": {
+    "label": "auxiliary / curator / base url"
+  },
+  "auxiliary.curator.api_key": {
+    "label": "auxiliary / curator / api key"
+  },
+  "auxiliary.curator.timeout": {
+    "label": "auxiliary / curator / timeout"
+  },
+  "auxiliary.curator.reasoning_effort": {
+    "label": "auxiliary / curator / reasoning effort"
+  },
+  "auxiliary.monitor.provider": {
+    "label": "auxiliary / monitor / provider"
+  },
+  "auxiliary.monitor.model": {
+    "label": "auxiliary / monitor / model"
+  },
+  "auxiliary.monitor.base_url": {
+    "label": "auxiliary / monitor / base url"
+  },
+  "auxiliary.monitor.api_key": {
+    "label": "auxiliary / monitor / api key"
+  },
+  "auxiliary.monitor.timeout": {
+    "label": "auxiliary / monitor / timeout"
+  },
+  "auxiliary.monitor.reasoning_effort": {
+    "label": "auxiliary / monitor / reasoning effort"
+  },
+  "auxiliary.background_review.enabled": {
+    "label": "auxiliary / background review / enabled"
+  },
+  "auxiliary.background_review.provider": {
+    "label": "auxiliary / background review / provider"
+  },
+  "auxiliary.background_review.model": {
+    "label": "auxiliary / background review / model"
+  },
+  "auxiliary.background_review.base_url": {
+    "label": "auxiliary / background review / base url"
+  },
+  "auxiliary.background_review.api_key": {
+    "label": "auxiliary / background review / api key"
+  },
+  "auxiliary.background_review.timeout": {
+    "label": "auxiliary / background review / timeout"
+  },
+  "auxiliary.background_review.reasoning_effort": {
+    "label": "auxiliary / background review / reasoning effort"
+  },
+  "auxiliary.moa_reference.provider": {
+    "label": "auxiliary / moa reference / provider"
+  },
+  "auxiliary.moa_reference.model": {
+    "label": "auxiliary / moa reference / model"
+  },
+  "auxiliary.moa_reference.base_url": {
+    "label": "auxiliary / moa reference / base url"
+  },
+  "auxiliary.moa_reference.api_key": {
+    "label": "auxiliary / moa reference / api key"
+  },
+  "auxiliary.moa_reference.timeout": {
+    "label": "auxiliary / moa reference / timeout"
+  },
+  "auxiliary.moa_aggregator.provider": {
+    "label": "auxiliary / moa aggregator / provider"
+  },
+  "auxiliary.moa_aggregator.model": {
+    "label": "auxiliary / moa aggregator / model"
+  },
+  "auxiliary.moa_aggregator.base_url": {
+    "label": "auxiliary / moa aggregator / base url"
+  },
+  "auxiliary.moa_aggregator.api_key": {
+    "label": "auxiliary / moa aggregator / api key"
+  },
+  "auxiliary.moa_aggregator.timeout": {
+    "label": "auxiliary / moa aggregator / timeout"
+  },
+  "display.compact": {
+    "label": "display / compact"
+  },
+  "display.personality": {
+    "label": "display / personality"
+  },
+  "display.resume_display": {
+    "label": "display / resume display",
+    "description": "How resumed sessions display history"
+  },
+  "display.resume_exchanges": {
+    "label": "display / resume exchanges"
+  },
+  "display.resume_max_user_chars": {
+    "label": "display / resume max user chars"
+  },
+  "display.resume_max_assistant_chars": {
+    "label": "display / resume max assistant chars"
+  },
+  "display.resume_max_assistant_lines": {
+    "label": "display / resume max assistant lines"
+  },
+  "display.resume_skip_tool_only": {
+    "label": "display / resume skip tool only"
+  },
+  "display.busy_input_mode": {
+    "label": "display / busy input mode",
+    "description": "Input behavior while agent is running"
+  },
+  "display.busy_steer_ack_enabled": {
+    "label": "display / busy steer ack enabled"
+  },
+  "display.cli_multiline_shortcuts": {
+    "label": "display / cli multiline shortcuts"
+  },
+  "display.interface": {
+    "label": "display / interface"
+  },
+  "display.cli_layout": {
+    "label": "display / cli layout"
+  },
+  "display.tui_native": {
+    "label": "display / tui native"
+  },
+  "display.tui_auto_resume_recent": {
+    "label": "display / tui auto resume recent"
+  },
+  "display.resume_last_session": {
+    "label": "display / resume last session"
+  },
+  "display.tui_agents_nudge": {
+    "label": "display / tui agents nudge"
+  },
+  "display.bell_on_complete": {
+    "label": "display / bell on complete"
+  },
+  "display.bell_on_prompt": {
+    "label": "display / bell on prompt"
+  },
+  "display.show_reasoning": {
+    "label": "display / show reasoning"
+  },
+  "display.reasoning_full": {
+    "label": "display / reasoning full"
+  },
+  "display.memory_notifications": {
+    "label": "display / memory notifications"
+  },
+  "display.background_process_notifications": {
+    "label": "display / background process notifications"
+  },
+  "display.streaming": {
+    "label": "display / streaming"
+  },
+  "display.timestamps": {
+    "label": "display / timestamps"
+  },
+  "display.timestamp_format": {
+    "label": "display / timestamp format"
+  },
+  "display.final_response_markdown": {
+    "label": "display / final response markdown"
+  },
+  "display.persistent_output": {
+    "label": "display / persistent output"
+  },
+  "display.persistent_output_max_lines": {
+    "label": "display / persistent output max lines"
+  },
+  "display.cli_rebuild_scrollback_on_redraw": {
+    "label": "display / cli rebuild scrollback on redraw"
+  },
+  "display.persist_prompts": {
+    "label": "display / persist prompts"
+  },
+  "display.inline_diffs": {
+    "label": "display / inline diffs"
+  },
+  "display.file_mutation_verifier": {
+    "label": "display / file mutation verifier"
+  },
+  "display.credits_notices": {
+    "label": "display / credits notices"
+  },
+  "display.turn_completion_explainer": {
+    "label": "display / turn completion explainer"
+  },
+  "display.show_cost": {
+    "label": "display / show cost"
+  },
+  "display.battery": {
+    "label": "display / battery"
+  },
+  "display.focus_view": {
+    "label": "display / focus view"
+  },
+  "display.focus_saved_tool_progress": {
+    "label": "display / focus saved tool progress"
+  },
+  "display.skin": {
+    "label": "display / skin",
+    "description": "CLI visual theme"
+  },
+  "display.language": {
+    "label": "display / language"
+  },
+  "display.tui_status_indicator": {
+    "label": "display / tui status indicator"
+  },
+  "display.cli_refresh_interval": {
+    "label": "display / cli refresh interval"
+  },
+  "display.vim_mode": {
+    "label": "display / vim mode"
+  },
+  "display.user_message_preview.first_lines": {
+    "label": "display / user message preview / first lines"
+  },
+  "display.user_message_preview.last_lines": {
+    "label": "display / user message preview / last lines"
+  },
+  "display.interim_assistant_messages": {
+    "label": "display / interim assistant messages"
+  },
+  "display.suppress_warning_notifications": {
+    "label": "display / suppress warning notifications"
+  },
+  "display.show_commentary": {
+    "label": "display / show commentary"
+  },
+  "display.tool_progress_command": {
+    "label": "display / tool progress command"
+  },
+  "display.tool_preview_length": {
+    "label": "display / tool preview length"
+  },
+  "display.friendly_tool_labels": {
+    "label": "display / friendly tool labels"
+  },
+  "display.turn_summary": {
+    "label": "display / turn summary"
+  },
+  "display.spinner_token_flow": {
+    "label": "display / spinner token flow"
+  },
+  "display.tool_progress_grouping": {
+    "label": "display / tool progress grouping"
+  },
+  "display.reasoning_style": {
+    "label": "display / reasoning style"
+  },
+  "display.ephemeral_system_ttl": {
+    "label": "display / ephemeral system ttl"
+  },
+  "display.platforms.telegram.streaming": {
+    "label": "display / platforms / telegram / streaming"
+  },
+  "display.platforms.discord.streaming": {
+    "label": "display / platforms / discord / streaming"
+  },
+  "display.platforms.slack.streaming": {
+    "label": "display / platforms / slack / streaming"
+  },
+  "display.platforms.wecom.streaming": {
+    "label": "display / platforms / wecom / streaming"
+  },
+  "display.runtime_footer.enabled": {
+    "label": "display / runtime footer / enabled"
+  },
+  "display.runtime_footer.fields": {
+    "label": "display / runtime footer / fields"
+  },
+  "display.status_bar.fields": {
+    "label": "display / status bar / fields"
+  },
+  "display.copy_shortcut": {
+    "label": "display / copy shortcut"
+  },
+  "display.pet.enabled": {
+    "label": "display / pet / enabled"
+  },
+  "display.pet.slug": {
+    "label": "display / pet / slug"
+  },
+  "display.pet.render_mode": {
+    "label": "display / pet / render mode"
+  },
+  "display.pet.scale": {
+    "label": "display / pet / scale"
+  },
+  "display.pet.unicode_cols": {
+    "label": "display / pet / unicode cols"
+  },
+  "dashboard.theme": {
+    "label": "dashboard / theme",
+    "description": "Web dashboard visual theme"
+  },
+  "dashboard.turn_isolation": {
+    "label": "dashboard / turn isolation"
+  },
+  "dashboard.compute_host_heartbeat_secs": {
+    "label": "dashboard / compute host heartbeat secs"
+  },
+  "dashboard.compute_host_respawn_max": {
+    "label": "dashboard / compute host respawn max"
+  },
+  "dashboard.show_token_analytics": {
+    "label": "dashboard / show token analytics"
+  },
+  "dashboard.trusted_proxies": {
+    "label": "dashboard / trusted proxies"
+  },
+  "dashboard.ws_ping_interval": {
+    "label": "dashboard / ws ping interval"
+  },
+  "dashboard.ws_ping_timeout": {
+    "label": "dashboard / ws ping timeout"
+  },
+  "dashboard.ws_orphan_reap_grace_s": {
+    "label": "dashboard / ws orphan reap grace s"
+  },
+  "dashboard.ws_orphan_activity_stale_s": {
+    "label": "dashboard / ws orphan activity stale s"
+  },
+  "dashboard.startup_orphan_sweep": {
+    "label": "dashboard / startup orphan sweep"
+  },
+  "dashboard.oauth.client_id": {
+    "label": "dashboard / oauth / client id"
+  },
+  "dashboard.oauth.portal_url": {
+    "label": "dashboard / oauth / portal url"
+  },
+  "dashboard.basic_auth.username": {
+    "label": "dashboard / basic auth / username"
+  },
+  "dashboard.basic_auth.password_hash": {
+    "label": "dashboard / basic auth / password hash"
+  },
+  "dashboard.basic_auth.password": {
+    "label": "dashboard / basic auth / password"
+  },
+  "dashboard.basic_auth.secret": {
+    "label": "dashboard / basic auth / secret"
+  },
+  "dashboard.basic_auth.session_ttl_seconds": {
+    "label": "dashboard / basic auth / session ttl seconds"
+  },
+  "dashboard.drain_auth.scope": {
+    "label": "dashboard / drain auth / scope"
+  },
+  "dashboard.drain_auth.min_secret_chars": {
+    "label": "dashboard / drain auth / min secret chars"
+  },
+  "dashboard.public_url": {
+    "label": "dashboard / public url"
+  },
+  "privacy.redact_pii": {
+    "label": "privacy / redact pii"
+  },
+  "tts.provider": {
+    "label": "tts / provider",
+    "description": "Text-to-speech provider"
+  },
+  "tts.keep_warm_seconds": {
+    "label": "tts / keep warm seconds"
+  },
+  "tts.streaming.min_len": {
+    "label": "tts / streaming / min len"
+  },
+  "tts.edge.voice": {
+    "label": "tts / edge / voice"
+  },
+  "tts.elevenlabs.voice_id": {
+    "label": "tts / elevenlabs / voice id"
+  },
+  "tts.elevenlabs.model_id": {
+    "label": "tts / elevenlabs / model id"
+  },
+  "tts.openai.model": {
+    "label": "tts / openai / model"
+  },
+  "tts.openai.voice": {
+    "label": "tts / openai / voice"
+  },
+  "tts.openai.consent_attestation": {
+    "label": "tts / openai / consent attestation"
+  },
+  "tts.openai.pcm_sample_rate": {
+    "label": "tts / openai / pcm sample rate"
+  },
+  "tts.gemini.model": {
+    "label": "tts / gemini / model"
+  },
+  "tts.gemini.voice": {
+    "label": "tts / gemini / voice"
+  },
+  "tts.gemini.audio_tags": {
+    "label": "tts / gemini / audio tags"
+  },
+  "tts.gemini.persona_prompt_file": {
+    "label": "tts / gemini / persona prompt file"
+  },
+  "tts.xai.voice_id": {
+    "label": "tts / xai / voice id"
+  },
+  "tts.xai.language": {
+    "label": "tts / xai / language"
+  },
+  "tts.xai.speed": {
+    "label": "tts / xai / speed"
+  },
+  "tts.xai.auto_speech_tags": {
+    "label": "tts / xai / auto speech tags"
+  },
+  "tts.xai.optimize_streaming_latency": {
+    "label": "tts / xai / optimize streaming latency"
+  },
+  "tts.xai.sample_rate": {
+    "label": "tts / xai / sample rate"
+  },
+  "tts.xai.bit_rate": {
+    "label": "tts / xai / bit rate"
+  },
+  "tts.mistral.model": {
+    "label": "tts / mistral / model"
+  },
+  "tts.mistral.voice_id": {
+    "label": "tts / mistral / voice id"
+  },
+  "tts.minimax.model": {
+    "label": "tts / minimax / model"
+  },
+  "tts.minimax.voice_id": {
+    "label": "tts / minimax / voice id"
+  },
+  "tts.kittentts.model": {
+    "label": "tts / kittentts / model"
+  },
+  "tts.kittentts.voice": {
+    "label": "tts / kittentts / voice"
+  },
+  "tts.neutts.ref_audio": {
+    "label": "tts / neutts / ref audio"
+  },
+  "tts.neutts.ref_text": {
+    "label": "tts / neutts / ref text"
+  },
+  "tts.neutts.model": {
+    "label": "tts / neutts / model"
+  },
+  "tts.neutts.device": {
+    "label": "tts / neutts / device"
+  },
+  "tts.piper.voice": {
+    "label": "tts / piper / voice"
+  },
+  "tts.deepinfra.model": {
+    "label": "tts / deepinfra / model"
+  },
+  "tts.deepinfra.voice": {
+    "label": "tts / deepinfra / voice"
+  },
+  "stt.enabled": {
+    "label": "stt / enabled"
+  },
+  "stt.echo_transcripts": {
+    "label": "stt / echo transcripts"
+  },
+  "stt.language": {
+    "label": "stt / language"
+  },
+  "stt.streaming": {
+    "label": "stt / streaming"
+  },
+  "stt.cloud_trim_silence": {
+    "label": "stt / cloud trim silence"
+  },
+  "stt.cloud_trim_threshold_db": {
+    "label": "stt / cloud trim threshold db"
+  },
+  "stt.cloud_trim_keep_ms": {
+    "label": "stt / cloud trim keep ms"
+  },
+  "stt.local.model": {
+    "label": "stt / local / model",
+    "description": "Local faster-whisper model size"
+  },
+  "stt.local.language": {
+    "label": "stt / local / language"
+  },
+  "stt.local.initial_prompt": {
+    "label": "stt / local / initial prompt"
+  },
+  "stt.local.vad": {
+    "label": "stt / local / vad"
+  },
+  "stt.local.vad_min_silence_ms": {
+    "label": "stt / local / vad min silence ms"
+  },
+  "stt.local.no_speech_prob_threshold": {
+    "label": "stt / local / no speech prob threshold"
+  },
+  "stt.local.logprob_threshold": {
+    "label": "stt / local / logprob threshold"
+  },
+  "stt.local.unload_after_idle_seconds": {
+    "label": "stt / local / unload after idle seconds"
+  },
+  "stt.groq.model": {
+    "label": "stt / groq / model",
+    "description": "Groq Whisper model"
+  },
+  "stt.groq.language": {
+    "label": "stt / groq / language"
+  },
+  "stt.openai.model": {
+    "label": "stt / openai / model",
+    "description": "OpenAI transcription model"
+  },
+  "stt.openai.streaming_model": {
+    "label": "stt / openai / streaming model",
+    "description": "OpenAI live transcription model (stt.streaming)"
+  },
+  "stt.openai.language": {
+    "label": "stt / openai / language"
+  },
+  "stt.openai.timeout": {
+    "label": "stt / openai / timeout"
+  },
+  "stt.openai.max_retries": {
+    "label": "stt / openai / max retries"
+  },
+  "stt.mistral.model": {
+    "label": "stt / mistral / model",
+    "description": "Mistral Voxtral transcription model"
+  },
+  "stt.mistral.language": {
+    "label": "stt / mistral / language"
+  },
+  "stt.xai.model": {
+    "label": "stt / xai / model",
+    "description": "xAI transcription model"
+  },
+  "stt.xai.language": {
+    "label": "stt / xai / language"
+  },
+  "stt.elevenlabs.model_id": {
+    "label": "stt / elevenlabs / model id",
+    "description": "ElevenLabs Scribe model"
+  },
+  "stt.elevenlabs.language_code": {
+    "label": "stt / elevenlabs / language code"
+  },
+  "stt.elevenlabs.tag_audio_events": {
+    "label": "stt / elevenlabs / tag audio events"
+  },
+  "stt.elevenlabs.diarize": {
+    "label": "stt / elevenlabs / diarize"
+  },
+  "stt.deepinfra.model": {
+    "label": "stt / deepinfra / model"
+  },
+  "voice.voice_chat_mode": {
+    "label": "voice / voice chat mode"
+  },
+  "voice.gpt_live.model": {
+    "label": "voice / gpt live / model"
+  },
+  "voice.gpt_live.voice": {
+    "label": "voice / gpt live / voice"
+  },
+  "voice.gpt_live.instructions": {
+    "label": "voice / gpt live / instructions"
+  },
+  "voice.record_key": {
+    "label": "voice / record key"
+  },
+  "voice.submit_mode": {
+    "label": "voice / submit mode"
+  },
+  "voice.max_recording_seconds": {
+    "label": "voice / max recording seconds"
+  },
+  "voice.auto_tts": {
+    "label": "voice / auto tts"
+  },
+  "voice.client_direct": {
+    "label": "voice / client direct"
+  },
+  "voice.beep_enabled": {
+    "label": "voice / beep enabled"
+  },
+  "voice.beep_volume": {
+    "label": "voice / beep volume"
+  },
+  "voice.thinking_sound": {
+    "label": "voice / thinking sound"
+  },
+  "voice.silence_threshold": {
+    "label": "voice / silence threshold"
+  },
+  "voice.silence_duration": {
+    "label": "voice / silence duration"
+  },
+  "voice.barge_in": {
+    "label": "voice / barge in"
+  },
+  "voice.barge_in_grace_seconds": {
+    "label": "voice / barge in grace seconds"
+  },
+  "voice.barge_in_threshold_multiplier": {
+    "label": "voice / barge in threshold multiplier"
+  },
+  "voice.stop_phrases": {
+    "label": "voice / stop phrases"
+  },
+  "vision.embed_target_bytes": {
+    "label": "vision / embed target bytes"
+  },
+  "vision.max_calls_per_image": {
+    "label": "vision / max calls per image"
+  },
+  "vision.replay_recent_images": {
+    "label": "vision / replay recent images"
+  },
+  "wake_word.enabled": {
+    "label": "wake word / enabled"
+  },
+  "wake_word.surface": {
+    "label": "wake word / surface"
+  },
+  "wake_word.input_device": {
+    "label": "wake word / input device"
+  },
+  "wake_word.capture": {
+    "label": "wake word / capture"
+  },
+  "wake_word.provider": {
+    "label": "wake word / provider",
+    "description": "Wake engine. Auto selects a platform-supported engine; Porcupine requires PORCUPINE_ACCESS_KEY."
+  },
+  "wake_word.phrase": {
+    "label": "wake word / phrase"
+  },
+  "wake_word.sensitivity": {
+    "label": "wake word / sensitivity"
+  },
+  "wake_word.confirmation_frames": {
+    "label": "wake word / confirmation frames"
+  },
+  "wake_word.start_new_session": {
+    "label": "wake word / start new session"
+  },
+  "wake_word.profile_routing": {
+    "label": "wake word / profile routing"
+  },
+  "wake_word.openwakeword.model": {
+    "label": "wake word / openwakeword / model"
+  },
+  "wake_word.sherpa.model_dir": {
+    "label": "wake word / sherpa / model dir"
+  },
+  "wake_word.porcupine.keyword": {
+    "label": "wake word / porcupine / keyword"
+  },
+  "human_delay.mode": {
+    "label": "human delay / mode",
+    "description": "Simulated typing delay mode"
+  },
+  "human_delay.min_ms": {
+    "label": "human delay / min ms"
+  },
+  "human_delay.max_ms": {
+    "label": "human delay / max ms"
+  },
+  "context.engine": {
+    "label": "context / engine",
+    "description": "Context management engine"
+  },
+  "context.memory_trim.enabled": {
+    "label": "context / memory trim / enabled"
+  },
+  "context.memory_trim.cooldown_seconds": {
+    "label": "context / memory trim / cooldown seconds"
+  },
+  "context.memory_trim.log_every_n": {
+    "label": "context / memory trim / log every n"
+  },
+  "context.memory_trim.info_log_min_delta_mb": {
+    "label": "context / memory trim / info log min delta mb"
+  },
+  "memory.memory_enabled": {
+    "label": "memory / memory enabled"
+  },
+  "memory.user_profile_enabled": {
+    "label": "memory / user profile enabled"
+  },
+  "memory.prefetch_spill_enabled": {
+    "label": "memory / prefetch spill enabled"
+  },
+  "memory.write_approval": {
+    "label": "memory / write approval"
+  },
+  "memory.memory_char_limit": {
+    "label": "memory / memory char limit"
+  },
+  "memory.user_char_limit": {
+    "label": "memory / user char limit"
+  },
+  "memory.nudge_interval": {
+    "label": "memory / nudge interval"
+  },
+  "memory.provider": {
+    "label": "memory / provider",
+    "description": "Memory provider plugin"
+  },
+  "delegation.backend": {
+    "label": "delegation / backend"
+  },
+  "delegation.model": {
+    "label": "delegation / model"
+  },
+  "delegation.provider": {
+    "label": "delegation / provider"
+  },
+  "delegation.fallback_providers": {
+    "label": "delegation / fallback providers"
+  },
+  "delegation.base_url": {
+    "label": "delegation / base url"
+  },
+  "delegation.api_key": {
+    "label": "delegation / api key"
+  },
+  "delegation.api_mode": {
+    "label": "delegation / api mode"
+  },
+  "delegation.compression_threshold_tokens": {
+    "label": "delegation / compression threshold tokens"
+  },
+  "delegation.inherit_mcp_toolsets": {
+    "label": "delegation / inherit mcp toolsets"
+  },
+  "delegation.max_iterations": {
+    "label": "delegation / max iterations"
+  },
+  "delegation.max_summary_chars": {
+    "label": "delegation / max summary chars"
+  },
+  "delegation.child_timeout_seconds": {
+    "label": "delegation / child timeout seconds"
+  },
+  "delegation.reasoning_effort": {
+    "label": "delegation / reasoning effort",
+    "description": "Reasoning effort for delegated subagents"
+  },
+  "delegation.max_concurrent_children": {
+    "label": "delegation / max concurrent children"
+  },
+  "delegation.independent_completions": {
+    "label": "delegation / independent completions"
+  },
+  "delegation.max_spawn_depth": {
+    "label": "delegation / max spawn depth"
+  },
+  "delegation.orchestrator_enabled": {
+    "label": "delegation / orchestrator enabled"
+  },
+  "delegation.oneshot_max_children": {
+    "label": "delegation / oneshot max children"
+  },
+  "delegation.subagent_auto_approve": {
+    "label": "delegation / subagent auto approve"
+  },
+  "delegation.surface_child_process_notifications": {
+    "label": "delegation / surface child process notifications"
+  },
+  "prefill_messages_file": {
+    "label": "prefill messages file"
+  },
+  "goals.max_turns": {
+    "label": "goals / max turns"
+  },
+  "loops.min_interval_seconds": {
+    "label": "loops / min interval seconds"
+  },
+  "loops.max_ticks": {
+    "label": "loops / max ticks"
+  },
+  "loops.self_paced_floor_seconds": {
+    "label": "loops / self paced floor seconds"
+  },
+  "loops.self_paced_ceiling_seconds": {
+    "label": "loops / self paced ceiling seconds"
+  },
+  "moa.default_preset": {
+    "label": "moa / default preset"
+  },
+  "moa.active_preset": {
+    "label": "moa / active preset"
+  },
+  "moa.save_traces": {
+    "label": "moa / save traces"
+  },
+  "moa.trace_dir": {
+    "label": "moa / trace dir"
+  },
+  "moa.privacy_filter": {
+    "label": "moa / privacy filter"
+  },
+  "moa.presets.default.reference_models": {
+    "label": "moa / presets / default / reference models"
+  },
+  "moa.presets.default.aggregator.provider": {
+    "label": "moa / presets / default / aggregator / provider"
+  },
+  "moa.presets.default.aggregator.model": {
+    "label": "moa / presets / default / aggregator / model"
+  },
+  "moa.presets.default.enabled": {
+    "label": "moa / presets / default / enabled"
+  },
+  "skills.external_dirs": {
+    "label": "skills / external dirs"
+  },
+  "skills.create_dir": {
+    "label": "skills / create dir"
+  },
+  "skills.project_discovery": {
+    "label": "skills / project discovery"
+  },
+  "skills.trusted_project_dirs": {
+    "label": "skills / trusted project dirs"
+  },
+  "skills.auto_load": {
+    "label": "skills / auto load"
+  },
+  "skills.template_vars": {
+    "label": "skills / template vars"
+  },
+  "skills.inline_shell": {
+    "label": "skills / inline shell"
+  },
+  "skills.inline_shell_timeout": {
+    "label": "skills / inline shell timeout"
+  },
+  "skills.guard_agent_created": {
+    "label": "skills / guard agent created"
+  },
+  "skills.tier1_advisory": {
+    "label": "skills / tier1 advisory"
+  },
+  "skills.write_approval": {
+    "label": "skills / write approval"
+  },
+  "skills.ledger": {
+    "label": "skills / ledger"
+  },
+  "skills.ledger_max_bytes": {
+    "label": "skills / ledger max bytes"
+  },
+  "curator.enabled": {
+    "label": "curator / enabled"
+  },
+  "curator.interval_hours": {
+    "label": "curator / interval hours"
+  },
+  "curator.min_idle_hours": {
+    "label": "curator / min idle hours"
+  },
+  "curator.stale_after_days": {
+    "label": "curator / stale after days"
+  },
+  "curator.archive_after_days": {
+    "label": "curator / archive after days"
+  },
+  "curator.consolidate": {
+    "label": "curator / consolidate"
+  },
+  "curator.prune_builtins": {
+    "label": "curator / prune builtins"
+  },
+  "curator.archive_ttl_days": {
+    "label": "curator / archive ttl days"
+  },
+  "curator.backup.enabled": {
+    "label": "curator / backup / enabled"
+  },
+  "curator.backup.keep": {
+    "label": "curator / backup / keep"
+  },
+  "timezone": {
+    "label": "timezone",
+    "description": "IANA timezone (e.g. America/New_York). Blank uses the system timezone."
+  },
+  "slack.require_mention": {
+    "label": "slack / require mention"
+  },
+  "slack.free_response_channels": {
+    "label": "slack / free response channels"
+  },
+  "slack.allowed_channels": {
+    "label": "slack / allowed channels"
+  },
+  "slack.require_mention_channels": {
+    "label": "slack / require mention channels"
+  },
+  "slack.ignore_other_user_mentions": {
+    "label": "slack / ignore other user mentions"
+  },
+  "slack.thread_require_mention": {
+    "label": "slack / thread require mention"
+  },
+  "discord.require_mention": {
+    "label": "discord / require mention"
+  },
+  "discord.free_response_channels": {
+    "label": "discord / free response channels"
+  },
+  "discord.allowed_channels": {
+    "label": "discord / allowed channels"
+  },
+  "discord.auto_thread": {
+    "label": "discord / auto thread"
+  },
+  "discord.free_response_auto_thread": {
+    "label": "discord / free response auto thread"
+  },
+  "discord.thread_require_mention": {
+    "label": "discord / thread require mention"
+  },
+  "discord.bots_require_inline_mention": {
+    "label": "discord / bots require inline mention"
+  },
+  "discord.history_backfill": {
+    "label": "discord / history backfill"
+  },
+  "discord.history_backfill_limit": {
+    "label": "discord / history backfill limit"
+  },
+  "discord.missed_message_backfill.enabled": {
+    "label": "discord / missed message backfill / enabled"
+  },
+  "discord.missed_message_backfill.channels": {
+    "label": "discord / missed message backfill / channels"
+  },
+  "discord.missed_message_backfill.window_seconds": {
+    "label": "discord / missed message backfill / window seconds"
+  },
+  "discord.missed_message_backfill.limit": {
+    "label": "discord / missed message backfill / limit"
+  },
+  "discord.missed_message_backfill.max_dispatches": {
+    "label": "discord / missed message backfill / max dispatches"
+  },
+  "discord.missed_message_backfill.max_attempts": {
+    "label": "discord / missed message backfill / max attempts"
+  },
+  "discord.reactions": {
+    "label": "discord / reactions"
+  },
+  "discord.websocket_liveness_interval_seconds": {
+    "label": "discord / websocket liveness interval seconds"
+  },
+  "discord.websocket_liveness_failure_threshold": {
+    "label": "discord / websocket liveness failure threshold"
+  },
+  "discord.websocket_heartbeat_ack_max_age_seconds": {
+    "label": "discord / websocket heartbeat ack max age seconds"
+  },
+  "discord.websocket_max_latency_seconds": {
+    "label": "discord / websocket max latency seconds"
+  },
+  "discord.websocket_event_max_silence_seconds": {
+    "label": "discord / websocket event max silence seconds"
+  },
+  "discord.dm_role_auth_guild": {
+    "label": "discord / dm role auth guild"
+  },
+  "discord.server_actions": {
+    "label": "discord / server actions"
+  },
+  "discord.allow_any_attachment": {
+    "label": "discord / allow any attachment"
+  },
+  "discord.max_attachment_bytes": {
+    "label": "discord / max attachment bytes"
+  },
+  "discord.approval_mentions": {
+    "label": "discord / approval mentions"
+  },
+  "discord.voice_channel_inactivity_timeout_seconds": {
+    "label": "discord / voice channel inactivity timeout seconds"
+  },
+  "discord.voice_playback_timeout_seconds": {
+    "label": "discord / voice playback timeout seconds"
+  },
+  "discord.voice_fx.enabled": {
+    "label": "discord / voice fx / enabled"
+  },
+  "discord.voice_fx.ambient_enabled": {
+    "label": "discord / voice fx / ambient enabled"
+  },
+  "discord.voice_fx.ambient_path": {
+    "label": "discord / voice fx / ambient path"
+  },
+  "discord.voice_fx.ambient_gain": {
+    "label": "discord / voice fx / ambient gain"
+  },
+  "discord.voice_fx.duck_gain": {
+    "label": "discord / voice fx / duck gain"
+  },
+  "discord.voice_fx.speech_gain": {
+    "label": "discord / voice fx / speech gain"
+  },
+  "discord.voice_fx.ack_enabled": {
+    "label": "discord / voice fx / ack enabled"
+  },
+  "discord.voice_fx.ack_phrases": {
+    "label": "discord / voice fx / ack phrases"
+  },
+  "telegram.reactions": {
+    "label": "telegram / reactions"
+  },
+  "telegram.allowed_chats": {
+    "label": "telegram / allowed chats"
+  },
+  "telegram.extra.rich_messages": {
+    "label": "telegram / extra / rich messages"
+  },
+  "telegram.extra.rich_drafts": {
+    "label": "telegram / extra / rich drafts"
+  },
+  "telegram.extra.allow_cjk_rich_messages": {
+    "label": "telegram / extra / allow cjk rich messages"
+  },
+  "telegram.extra.dm_topic_auto_transfer": {
+    "label": "telegram / extra / dm topic auto transfer"
+  },
+  "mattermost.require_mention": {
+    "label": "mattermost / require mention"
+  },
+  "mattermost.free_response_channels": {
+    "label": "mattermost / free response channels"
+  },
+  "mattermost.allowed_channels": {
+    "label": "mattermost / allowed channels"
+  },
+  "matrix.require_mention": {
+    "label": "matrix / require mention"
+  },
+  "matrix.free_response_rooms": {
+    "label": "matrix / free response rooms"
+  },
+  "matrix.allowed_rooms": {
+    "label": "matrix / allowed rooms"
+  },
+  "approvals.mode": {
+    "label": "approvals / mode",
+    "description": "Dangerous command approval mode"
+  },
+  "approvals.timeout": {
+    "label": "approvals / timeout"
+  },
+  "approvals.cron_mode": {
+    "label": "approvals / cron mode"
+  },
+  "approvals.single_query_mode": {
+    "label": "approvals / single query mode"
+  },
+  "approvals.unattended_mode": {
+    "label": "approvals / unattended mode"
+  },
+  "approvals.smart_policy": {
+    "label": "approvals / smart policy"
+  },
+  "approvals.denial_breaker_threshold": {
+    "label": "approvals / denial breaker threshold"
+  },
+  "approvals.deny": {
+    "label": "approvals / deny"
+  },
+  "approvals.mcp_reload_confirm": {
+    "label": "approvals / mcp reload confirm"
+  },
+  "approvals.destructive_slash_confirm": {
+    "label": "approvals / destructive slash confirm"
+  },
+  "command_allowlist": {
+    "label": "command allowlist"
+  },
+  "plugins.clone_timeout_seconds": {
+    "label": "plugins / clone timeout seconds"
+  },
+  "plugins.hook_callback_timeout": {
+    "label": "plugins / hook callback timeout",
+    "description": "Wall-clock cap (seconds) for timeout-bounded in-process Python plugin hook callbacks (hot-path observers + pre_tool_call). Timed-out pre_tool_call fails closed. 0 disables the cap; values above 600 are clamped. Caller-thread hooks such as subagent_stop are never moved onto a timeout worker."
+  },
+  "plugins.load_timeout_seconds": {
+    "label": "plugins / load timeout seconds",
+    "description": "Deadline (seconds) for one plugin's import + register() at load. A plugin that overruns it is skipped with the reason 'load timed out' and the rest keep loading. 0 disables the deadline; values above 600 are clamped."
+  },
+  "plugins.auto_update_check_hours": {
+    "label": "plugins / auto update check hours"
+  },
+  "plugins.auto_apply": {
+    "label": "plugins / auto apply"
+  },
+  "plugins.isolation": {
+    "label": "plugins / isolation"
+  },
+  "plugins.host.launcher": {
+    "label": "plugins / host / launcher"
+  },
+  "hooks_auto_accept": {
+    "label": "hooks auto accept"
+  },
+  "auth.adopt_external_logins": {
+    "label": "auth / adopt external logins",
+    "description": "Borrow and refresh the Codex CLI / Claude Code logins when Hermes has no usable login of its own. Off: Hermes uses only its own logins (`hermes auth add <provider>`)."
+  },
+  "auth.codex_login_flow": {
+    "label": "auth / codex login flow"
+  },
+  "security.allow_private_urls": {
+    "label": "security / allow private urls"
+  },
+  "security.fake_ip_ranges": {
+    "label": "security / fake ip ranges"
+  },
+  "security.redact_secrets": {
+    "label": "security / redact secrets"
+  },
+  "security.allow_data_training_tiers_noninteractive": {
+    "label": "security / allow data training tiers noninteractive"
+  },
+  "security.approval.transport": {
+    "label": "security / approval / transport"
+  },
+  "security.approval.transport_fallback": {
+    "label": "security / approval / transport fallback"
+  },
+  "security.protected_instruction_files": {
+    "label": "security / protected instruction files"
+  },
+  "security.protected_instruction_extra_patterns": {
+    "label": "security / protected instruction extra patterns"
+  },
+  "security.website_blocklist.enabled": {
+    "label": "security / website blocklist / enabled"
+  },
+  "security.website_blocklist.domains": {
+    "label": "security / website blocklist / domains"
+  },
+  "security.website_blocklist.shared_files": {
+    "label": "security / website blocklist / shared files"
+  },
+  "security.acked_advisories": {
+    "label": "security / acked advisories"
+  },
+  "security.allow_lazy_installs": {
+    "label": "security / allow lazy installs"
+  },
+  "cron.catch_up_missed": {
+    "label": "cron / catch up missed"
+  },
+  "cron.allow_agent_scheduling": {
+    "label": "cron / allow agent scheduling"
+  },
+  "cron.preflight": {
+    "label": "cron / preflight"
+  },
+  "cron.model": {
+    "label": "cron / model"
+  },
+  "cron.model_provider": {
+    "label": "cron / model provider"
+  },
+  "cron.provider": {
+    "label": "cron / provider"
+  },
+  "cron.chronos.portal_url": {
+    "label": "cron / chronos / portal url"
+  },
+  "cron.chronos.callback_url": {
+    "label": "cron / chronos / callback url"
+  },
+  "cron.chronos.expected_audience": {
+    "label": "cron / chronos / expected audience"
+  },
+  "cron.chronos.nas_jwks_url": {
+    "label": "cron / chronos / nas jwks url"
+  },
+  "cron.wrap_response": {
+    "label": "cron / wrap response"
+  },
+  "cron.delivery.notify": {
+    "label": "cron / delivery / notify"
+  },
+  "cron.mirror_delivery": {
+    "label": "cron / mirror delivery"
+  },
+  "cron.max_parallel_jobs": {
+    "label": "cron / max parallel jobs"
+  },
+  "cron.output_retention": {
+    "label": "cron / output retention"
+  },
+  "cron.script_timeout_seconds": {
+    "label": "cron / script timeout seconds"
+  },
+  "cron.session_db_timeout_seconds": {
+    "label": "cron / session db timeout seconds"
+  },
+  "cron.media_send_timeout_seconds": {
+    "label": "cron / media send timeout seconds"
+  },
+  "cron.require_restart_safe_scope": {
+    "label": "cron / require restart safe scope"
+  },
+  "cron.failure_repeat_alert_hours": {
+    "label": "cron / failure repeat alert hours"
+  },
+  "kanban.auto_subscribe_on_create": {
+    "label": "kanban / auto subscribe on create"
+  },
+  "kanban.notify_in_gateway": {
+    "label": "kanban / notify in gateway"
+  },
+  "kanban.dispatch_in_gateway": {
+    "label": "kanban / dispatch in gateway"
+  },
+  "kanban.review_dispatch": {
+    "label": "kanban / review dispatch"
+  },
+  "kanban.dispatch_interval_seconds": {
+    "label": "kanban / dispatch interval seconds"
+  },
+  "kanban.failure_limit": {
+    "label": "kanban / failure limit"
+  },
+  "kanban.worker_log_rotate_bytes": {
+    "label": "kanban / worker log rotate bytes"
+  },
+  "kanban.worker_log_backup_count": {
+    "label": "kanban / worker log backup count"
+  },
+  "kanban.orchestrator_profile": {
+    "label": "kanban / orchestrator profile"
+  },
+  "kanban.default_assignee": {
+    "label": "kanban / default assignee"
+  },
+  "kanban.max_in_progress": {
+    "label": "kanban / max in progress"
+  },
+  "kanban.max_in_progress_per_profile": {
+    "label": "kanban / max in progress per profile"
+  },
+  "kanban.dispatch_profiles": {
+    "label": "kanban / dispatch profiles"
+  },
+  "kanban.auto_decompose": {
+    "label": "kanban / auto decompose"
+  },
+  "kanban.auto_decompose_per_tick": {
+    "label": "kanban / auto decompose per tick"
+  },
+  "kanban.dispatch_stale_timeout_seconds": {
+    "label": "kanban / dispatch stale timeout seconds"
+  },
+  "kanban.reconcile_orphans": {
+    "label": "kanban / reconcile orphans"
+  },
+  "kanban.done_sub_retention_days": {
+    "label": "kanban / done sub retention days"
+  },
+  "bot_mode.envelope_ttl_seconds": {
+    "label": "bot mode / envelope ttl seconds"
+  },
+  "bot_mode.turn_wait_seconds": {
+    "label": "bot mode / turn wait seconds"
+  },
+  "code_execution.mode": {
+    "label": "code execution / mode"
+  },
+  "code_execution.kernel_idle_timeout": {
+    "label": "code execution / kernel idle timeout"
+  },
+  "code_execution.max_session_kernels": {
+    "label": "code execution / max session kernels"
+  },
+  "tools.tool_search.enabled": {
+    "label": "tools / tool search / enabled"
+  },
+  "tools.tool_search.threshold_pct": {
+    "label": "tools / tool search / threshold pct"
+  },
+  "tools.tool_search.search_default_limit": {
+    "label": "tools / tool search / search default limit"
+  },
+  "tools.tool_search.max_search_limit": {
+    "label": "tools / tool search / max search limit"
+  },
+  "tools.tool_search.listing": {
+    "label": "tools / tool search / listing"
+  },
+  "tools.tool_search.listing_max_tokens": {
+    "label": "tools / tool search / listing max tokens"
+  },
+  "tools.tool_search.defer": {
+    "label": "tools / tool search / defer"
+  },
+  "tools.connectors.enabled": {
+    "label": "tools / connectors / enabled"
+  },
+  "logging.level": {
+    "label": "logging / level",
+    "description": "Log level for agent.log"
+  },
+  "logging.max_size_mb": {
+    "label": "logging / max size mb"
+  },
+  "logging.backup_count": {
+    "label": "logging / backup count"
+  },
+  "model_catalog.enabled": {
+    "label": "model catalog / enabled"
+  },
+  "model_catalog.url": {
+    "label": "model catalog / url"
+  },
+  "model_catalog.ttl_minutes": {
+    "label": "model catalog / ttl minutes"
+  },
+  "models_dev.url": {
+    "label": "models dev / url"
+  },
+  "network.force_ipv4": {
+    "label": "network / force ipv4"
+  },
+  "monitoring.install_id": {
+    "label": "monitoring / install id"
+  },
+  "monitoring.gateway_health_export.enabled": {
+    "label": "monitoring / gateway health export / enabled"
+  },
+  "monitoring.gateway_health_export.metrics_enabled": {
+    "label": "monitoring / gateway health export / metrics enabled"
+  },
+  "monitoring.gateway_health_export.diagnostic_events_enabled": {
+    "label": "monitoring / gateway health export / diagnostic events enabled"
+  },
+  "monitoring.gateway_health_export.warning_error_events_enabled": {
+    "label": "monitoring / gateway health export / warning error events enabled"
+  },
+  "monitoring.gateway_health_export.export_interval_seconds": {
+    "label": "monitoring / gateway health export / export interval seconds"
+  },
+  "monitoring.gateway_health_export.logs_export_interval_seconds": {
+    "label": "monitoring / gateway health export / logs export interval seconds"
+  },
+  "monitoring.gateway_health_export.resource_attributes.service.name": {
+    "label": "monitoring / gateway health export / resource attributes / service / name"
+  },
+  "monitoring.gateway_health_export.resource_attributes.deployment.environment.name": {
+    "label": "monitoring / gateway health export / resource attributes / deployment / environment / name"
+  },
+  "monitoring.export.otlp.enabled": {
+    "label": "monitoring / export / otlp / enabled"
+  },
+  "monitoring.export.otlp.endpoint": {
+    "label": "monitoring / export / otlp / endpoint"
+  },
+  "gateway.unmanaged_idle_exit_seconds": {
+    "label": "gateway / unmanaged idle exit seconds"
+  },
+  "gateway.signal_interrupt_grace_timeout": {
+    "label": "gateway / signal interrupt grace timeout"
+  },
+  "gateway.service_install_choice": {
+    "label": "gateway / service install choice"
+  },
+  "gateway.delivery_ledger": {
+    "label": "gateway / delivery ledger"
+  },
+  "gateway.platform_connect_timeout": {
+    "label": "gateway / platform connect timeout"
+  },
+  "gateway.loop_watchdog": {
+    "label": "gateway / loop watchdog"
+  },
+  "gateway.loop_watchdog_probe_interval_s": {
+    "label": "gateway / loop watchdog probe interval s"
+  },
+  "gateway.loop_watchdog_probe_timeout_s": {
+    "label": "gateway / loop watchdog probe timeout s"
+  },
+  "gateway.loop_watchdog_max_strikes": {
+    "label": "gateway / loop watchdog max strikes"
+  },
+  "gateway.allow_all_users": {
+    "label": "gateway / allow all users"
+  },
+  "gateway.bot_loop_guard.enabled": {
+    "label": "gateway / bot loop guard / enabled"
+  },
+  "gateway.bot_loop_guard.max_events": {
+    "label": "gateway / bot loop guard / max events"
+  },
+  "gateway.bot_loop_guard.window_seconds": {
+    "label": "gateway / bot loop guard / window seconds"
+  },
+  "gateway.bot_loop_guard.cooldown_seconds": {
+    "label": "gateway / bot loop guard / cooldown seconds"
+  },
+  "gateway.startup_watchdog": {
+    "label": "gateway / startup watchdog"
+  },
+  "gateway.startup_watchdog_timeout_seconds": {
+    "label": "gateway / startup watchdog timeout seconds"
+  },
+  "gateway.write_sessions_json": {
+    "label": "gateway / write sessions json"
+  },
+  "gateway.multiplex_profiles": {
+    "label": "gateway / multiplex profiles"
+  },
+  "gateway.auto_multiplex_migration": {
+    "label": "gateway / auto multiplex migration"
+  },
+  "gateway.profile_routes": {
+    "label": "gateway / profile routes"
+  },
+  "gateway.scale_to_zero.idle_timeout_minutes": {
+    "label": "gateway / scale to zero / idle timeout minutes"
+  },
+  "gateway.restart_loop_guard.max_restarts": {
+    "label": "gateway / restart loop guard / max restarts"
+  },
+  "gateway.restart_loop_guard.window_seconds": {
+    "label": "gateway / restart loop guard / window seconds"
+  },
+  "gateway.restart_loop_guard.max_gap_seconds": {
+    "label": "gateway / restart loop guard / max gap seconds"
+  },
+  "gateway.respawn_storm.max_starts": {
+    "label": "gateway / respawn storm / max starts"
+  },
+  "gateway.respawn_storm.window_seconds": {
+    "label": "gateway / respawn storm / window seconds"
+  },
+  "gateway.message_timestamps.enabled": {
+    "label": "gateway / message timestamps / enabled"
+  },
+  "gateway.max_inbound_media_bytes": {
+    "label": "gateway / max inbound media bytes"
+  },
+  "gateway.trust_env": {
+    "label": "gateway / trust env"
+  },
+  "gateway.strict": {
+    "label": "gateway / strict"
+  },
+  "gateway.media_delivery_allow_dirs": {
+    "label": "gateway / media delivery allow dirs"
+  },
+  "gateway.trust_recent_files": {
+    "label": "gateway / trust recent files"
+  },
+  "gateway.trust_recent_files_seconds": {
+    "label": "gateway / trust recent files seconds"
+  },
+  "gateway.api_server.max_concurrent_runs": {
+    "label": "gateway / api server / max concurrent runs"
+  },
+  "gateway.api_server.history_tool_output_max_chars": {
+    "label": "gateway / api server / history tool output max chars"
+  },
+  "streaming.enabled": {
+    "label": "streaming / enabled"
+  },
+  "streaming.transport": {
+    "label": "streaming / transport"
+  },
+  "streaming.edit_interval": {
+    "label": "streaming / edit interval"
+  },
+  "streaming.buffer_threshold": {
+    "label": "streaming / buffer threshold"
+  },
+  "streaming.cursor": {
+    "label": "streaming / cursor"
+  },
+  "streaming.fresh_final_after_seconds": {
+    "label": "streaming / fresh final after seconds"
+  },
+  "sessions.auto_prune": {
+    "label": "sessions / auto prune"
+  },
+  "sessions.retention_days": {
+    "label": "sessions / retention days"
+  },
+  "sessions.auto_archive": {
+    "label": "sessions / auto archive"
+  },
+  "sessions.auto_archive_days": {
+    "label": "sessions / auto archive days"
+  },
+  "sessions.show_subagents": {
+    "label": "sessions / show subagents"
+  },
+  "sessions.vacuum_after_prune": {
+    "label": "sessions / vacuum after prune"
+  },
+  "sessions.min_vacuum_interval_days": {
+    "label": "sessions / min vacuum interval days"
+  },
+  "sessions.min_interval_hours": {
+    "label": "sessions / min interval hours"
+  },
+  "sessions.fts_optimize_notice": {
+    "label": "sessions / fts optimize notice"
+  },
+  "sessions.cjk_fts": {
+    "label": "sessions / cjk fts"
+  },
+  "sessions.search_slow_ms": {
+    "label": "sessions / search slow ms"
+  },
+  "sessions.max_resume_messages": {
+    "label": "sessions / max resume messages"
+  },
+  "sessions.max_export_messages": {
+    "label": "sessions / max export messages"
+  },
+  "onboarding.profile_build": {
+    "label": "onboarding / profile build"
+  },
+  "onboarding.run": {
+    "label": "onboarding / run"
+  },
+  "telemetry.shared_metrics.enabled": {
+    "label": "telemetry / shared metrics / enabled"
+  },
+  "telemetry.shared_metrics.send": {
+    "label": "telemetry / shared metrics / send"
+  },
+  "telemetry.shared_metrics.endpoint": {
+    "label": "telemetry / shared metrics / endpoint"
+  },
+  "doctor.live_probe_timeout": {
+    "label": "doctor / live probe timeout"
+  },
+  "updates.check": {
+    "label": "updates / check"
+  },
+  "updates.pre_update_backup": {
+    "label": "updates / pre update backup"
+  },
+  "updates.backup_keep": {
+    "label": "updates / backup keep"
+  },
+  "updates.non_interactive_local_changes": {
+    "label": "updates / non interactive local changes",
+    "description": "When the chat app / gateway updates Hermes (no terminal prompt), what to do with uncommitted local source edits. 'stash' keeps them and re-applies them after the update; 'discard' throws them away. Terminal updates always ask, regardless of this setting."
+  },
+  "updates.auto_switch_parked_branch": {
+    "label": "updates / auto switch parked branch"
+  },
+  "updates.parked_branch_strategy": {
+    "label": "updates / parked branch strategy"
+  },
+  "updates.refresh_cua_driver": {
+    "label": "updates / refresh cua driver",
+    "description": "Refresh an already-installed cua-driver during hermes update. Disable this on non-admin macOS accounts where /Applications is not writable."
+  },
+  "lsp.enabled": {
+    "label": "lsp / enabled"
+  },
+  "lsp.wait_mode": {
+    "label": "lsp / wait mode"
+  },
+  "lsp.wait_timeout": {
+    "label": "lsp / wait timeout"
+  },
+  "lsp.warmup_timeout": {
+    "label": "lsp / warmup timeout"
+  },
+  "lsp.broken_retry_seconds": {
+    "label": "lsp / broken retry seconds"
+  },
+  "lsp.exclude_roots": {
+    "label": "lsp / exclude roots"
+  },
+  "lsp.trusted_workspaces": {
+    "label": "lsp / trusted workspaces"
+  },
+  "lsp.install_strategy": {
+    "label": "lsp / install strategy"
+  },
+  "lsp.package_manager": {
+    "label": "lsp / package manager"
+  },
+  "lsp.idle_timeout": {
+    "label": "lsp / idle timeout"
+  },
+  "x_search.model": {
+    "label": "x search / model"
+  },
+  "x_search.reasoning_effort": {
+    "label": "x search / reasoning effort"
+  },
+  "x_search.timeout_seconds": {
+    "label": "x search / timeout seconds"
+  },
+  "x_search.retries": {
+    "label": "x search / retries"
+  },
+  "vault.onepassword.enabled": {
+    "label": "vault / onepassword / enabled"
+  },
+  "vault.onepassword.account": {
+    "label": "vault / onepassword / account"
+  },
+  "vault.onepassword.binary_path": {
+    "label": "vault / onepassword / binary path"
+  },
+  "vault.onepassword.service_account_token_env": {
+    "label": "vault / onepassword / service account token env"
+  },
+  "vault.bitwarden.enabled": {
+    "label": "vault / bitwarden / enabled"
+  },
+  "vault.bitwarden.binary_path": {
+    "label": "vault / bitwarden / binary path"
+  },
+  "secrets.bitwarden.enabled": {
+    "label": "secrets / bitwarden / enabled"
+  },
+  "secrets.bitwarden.access_token_env": {
+    "label": "secrets / bitwarden / access token env"
+  },
+  "secrets.bitwarden.project_id": {
+    "label": "secrets / bitwarden / project id"
+  },
+  "secrets.bitwarden.cache_ttl_seconds": {
+    "label": "secrets / bitwarden / cache ttl seconds"
+  },
+  "secrets.bitwarden.encrypted_cache.enabled": {
+    "label": "secrets / bitwarden / encrypted cache / enabled"
+  },
+  "secrets.bitwarden.encrypted_cache.max_stale_seconds": {
+    "label": "secrets / bitwarden / encrypted cache / max stale seconds"
+  },
+  "secrets.bitwarden.override_existing": {
+    "label": "secrets / bitwarden / override existing"
+  },
+  "secrets.bitwarden.auto_install": {
+    "label": "secrets / bitwarden / auto install"
+  },
+  "secrets.bitwarden.server_url": {
+    "label": "secrets / bitwarden / server url"
+  },
+  "secrets.onepassword.enabled": {
+    "label": "secrets / onepassword / enabled"
+  },
+  "secrets.onepassword.account": {
+    "label": "secrets / onepassword / account"
+  },
+  "secrets.onepassword.service_account_token_env": {
+    "label": "secrets / onepassword / service account token env"
+  },
+  "secrets.onepassword.binary_path": {
+    "label": "secrets / onepassword / binary path"
+  },
+  "secrets.onepassword.cache_ttl_seconds": {
+    "label": "secrets / onepassword / cache ttl seconds"
+  },
+  "secrets.onepassword.override_existing": {
+    "label": "secrets / onepassword / override existing"
+  },
+  "paste_collapse_threshold": {
+    "label": "paste collapse threshold"
+  },
+  "paste_collapse_threshold_fallback": {
+    "label": "paste collapse threshold fallback"
+  },
+  "paste_collapse_char_threshold": {
+    "label": "paste collapse char threshold"
+  },
+  "bot_desktop.geometry": {
+    "label": "bot desktop / geometry"
+  },
+  "bot_desktop.auto_start": {
+    "label": "bot desktop / auto start"
+  },
+  "bot_desktop.min_free_memory_mb": {
+    "label": "bot desktop / min free memory mb"
+  },
+  "bot_desktop.idle_stop_minutes": {
+    "label": "bot desktop / idle stop minutes"
+  },
+  "bot_desktop.placement": {
+    "label": "bot desktop / placement"
+  },
+  "computer_use.cua_telemetry": {
+    "label": "computer use / cua telemetry"
+  },
+  "computer_use.autostart": {
+    "label": "computer use / autostart"
+  },
+  "computer_use.native_wayland": {
+    "label": "computer use / native wayland"
+  },
+  "computer_use.max_image_dimension": {
+    "label": "computer use / max image dimension"
+  },
+  "computer_use.capture_after_mode": {
+    "label": "computer use / capture after mode"
+  },
+  "computer_use.ax_max_elements": {
+    "label": "computer use / ax max elements"
+  },
+  "computer_use.no_overlay": {
+    "label": "computer use / no overlay"
+  },
+  "computer_use.permission_mode": {
+    "label": "computer use / permission mode"
+  },
+  "computer_use.capability_manifest": {
+    "label": "computer use / capability manifest"
+  },
+  "computer_use.allow_unsigned_driver": {
+    "label": "computer use / allow unsigned driver"
+  },
+  "proxy.enabled": {
+    "label": "proxy / enabled",
+    "description": "Docker-only egress credential firewall. Requires `hermes egress setup` and `hermes egress start`; Modal/SSH/Daytona are not wired yet."
+  },
+  "proxy.tunnel_port": {
+    "label": "proxy / tunnel port"
+  },
+  "proxy.auto_install": {
+    "label": "proxy / auto install"
+  },
+  "proxy.credential_source": {
+    "label": "proxy / credential source",
+    "description": "Where iron-proxy loads real upstream secrets at start time"
+  },
+  "proxy.enforce_on_docker": {
+    "label": "proxy / enforce on docker",
+    "description": "Refuse Docker sandboxes when egress is enabled but not configured/running"
+  },
+  "proxy.allow_env_fallback": {
+    "label": "proxy / allow env fallback"
+  },
+  "proxy.upstream_deny_cidrs": {
+    "label": "proxy / upstream deny cidrs"
+  },
+  "proxy.extra_allowed_hosts": {
+    "label": "proxy / extra allowed hosts"
+  },
+  "desktop.font_family": {
+    "label": "desktop / font family"
+  },
+  "desktop.repo_scan_enabled": {
+    "label": "desktop / repo scan enabled"
+  },
+  "desktop.repo_scan_roots": {
+    "label": "desktop / repo scan roots"
+  },
+  "desktop.repo_scan_exclude_paths": {
+    "label": "desktop / repo scan exclude paths"
+  },
+  "desktop.electron_flags": {
+    "label": "desktop / electron flags"
+  },
+  "desktop.renderer_max_old_space_mb": {
+    "label": "desktop / renderer max old space mb"
+  },
+  "desktop.ozone_platform_hint": {
+    "label": "desktop / ozone platform hint"
+  },
+  "desktop.disable_gpu": {
+    "label": "desktop / disable gpu"
+  },
+  "desktop.password_store": {
+    "label": "desktop / password store"
+  },
+  "desktop.renderer_accessibility": {
+    "label": "desktop / renderer accessibility"
+  },
+  "desktop.manage_launcher_entry": {
+    "label": "desktop / manage launcher entry"
+  },
+  "desktop.macos_signing_identity": {
+    "label": "desktop / macos signing identity"
+  },
+  "desktop.ssh_path": {
+    "label": "desktop / ssh path"
+  },
+  "desktop.auto_continue.enabled": {
+    "label": "desktop / auto continue / enabled"
+  },
+  "desktop.auto_continue.freshness_minutes": {
+    "label": "desktop / auto continue / freshness minutes"
+  },
+  "desktop.auto_continue.max_attempts": {
+    "label": "desktop / auto continue / max attempts"
+  },
+  "nous.keepalive_interval_seconds": {
+    "label": "nous / keepalive interval seconds"
+  },
+  "nous.anthropic_wire": {
+    "label": "nous / anthropic wire"
+  },
+  "nous.guest": {
+    "label": "nous / guest"
+  },
+  "vertex.project_id": {
+    "label": "vertex / project id"
+  },
+  "vertex.region": {
+    "label": "vertex / region"
+  },
+  "local_runtime.enabled": {
+    "label": "local runtime / enabled"
+  },
+  "local_runtime.backend": {
+    "label": "local runtime / backend"
+  },
+  "local_runtime.models_max": {
+    "label": "local runtime / models max"
+  },
+  "local_runtime.port": {
+    "label": "local runtime / port"
+  },
+  "local_runtime.detect_ports": {
+    "label": "local runtime / detect ports"
+  },
+  "model_context_length": {
+    "label": "model context length",
+    "description": "Context window override (0 = auto-detect from model metadata)"
+  }
+}
