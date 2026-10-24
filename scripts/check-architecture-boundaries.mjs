@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { relativeImportViolations } from './architecture-dependencies.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const rules = [
@@ -25,6 +26,9 @@ for (const rule of rules) {
       if (entry.isDirectory()) visit(file)
       else if (/\.[cm]?[jt]sx?$/.test(entry.name)) {
         const source = readFileSync(file, 'utf8')
+        for (const violation of relativeImportViolations(source, file, resolve(root, rule.directory))) {
+          failures.push(`${relative(root, file)}: ${violation}`)
+        }
         for (const pattern of rule.forbidden) {
           if (pattern.test(source)) failures.push(`${relative(root, file)}: ${pattern}`)
         }

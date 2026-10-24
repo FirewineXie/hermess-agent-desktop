@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --dir apps/desktop dev",
     "build": "pnpm --dir apps/desktop build",
-    "check:architecture": "node scripts/check-architecture-boundaries.mjs",
+    "check:architecture": "node --test scripts/architecture-dependencies.test.mjs && node scripts/check-architecture-boundaries.mjs",
     "check:contracts": "node scripts/check-contract-fixtures.mjs",
     "generate:contracts": "node scripts/generate-contracts.mjs",
     "check:generated-contracts": "node scripts/generate-contracts.mjs --check",
