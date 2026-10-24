@@ -27,6 +27,10 @@ jobs:
         run: node scripts/fetch-upstream.mjs
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check architecture boundaries
+        run: pnpm check:architecture
+      - name: Build frontend preview
+        run: pnpm --dir apps/frontend build
       - name: Build frontend
         run: pnpm build
       - name: Install Rust formatter

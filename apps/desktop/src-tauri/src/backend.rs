@@ -1,5 +1,6 @@
+use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::gateway::GatewayClient;
-use chrono::Local;
+use crate::storage::product_storage;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -7,14 +8,13 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs,
-    io::{Read, Write},
+    io::Read,
     path::{Component, Path, PathBuf},
     process::Stdio,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tauri::{AppHandle, Manager, State};
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
     process::Child,
     sync::Mutex,
     time::{sleep, timeout, Instant},
@@ -33,19 +33,6 @@ struct OwnedBackend {
     token: String,
     gateway: GatewayClient,
     bundled_tools_root: Option<PathBuf>,
-}
-
-fn product_storage(selected: &Path) -> Result<PathBuf, String> {
-    if !selected.is_absolute() {
-        return Err("存储位置必须是绝对路径".into());
-    }
-    let selected = selected
-        .canonicalize()
-        .map_err(|_| "无法解析存储位置".to_string())?;
-    let storage = selected.join("HermessAgentDesktop");
-    storage
-        .canonicalize()
-        .map_err(|_| "产品存储目录尚未创建".to_string())
 }
 
 #[tauri::command]
@@ -90,206 +77,6 @@ pub fn save_model_lists(
     }
     let file = product_storage(Path::new(&storage_path))?.join("model-candidates.json");
     fs::write(file, bytes).map_err(|_| "无法保存本机模型候选".to_string())
-}
-
-fn append_client_event(storage: &Path, event: &str) -> Result<(), String> {
-    let now = Local::now();
-    let logs = storage.join("logs");
-    fs::create_dir_all(&logs).map_err(|_| "无法创建日志目录".to_string())?;
-    let path = logs.join(format!("client-{}.log", now.format("%Y-%m-%d")));
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|_| "无法写入客户端日志".to_string())?;
-    writeln!(file, "{} {event}", now.format("%Y-%m-%d %H:%M:%S%.3f"))
-        .map_err(|_| "无法写入客户端日志".to_string())
-}
-
-async fn capture_backend_output<R: tokio::io::AsyncRead + Unpin>(
-    storage: PathBuf,
-    stream: R,
-    name: &'static str,
-) {
-    let mut reader = BufReader::new(stream);
-    let mut line = Vec::new();
-    loop {
-        line.clear();
-        match reader.read_until(b'\n', &mut line).await {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {
-                let now = Local::now();
-                let logs = storage.join("logs");
-                if fs::create_dir_all(&logs).is_err() {
-                    break;
-                }
-                let path = logs.join(format!("hermes-backend-{}.log", now.format("%Y-%m-%d")));
-                if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
-                    let _ = writeln!(
-                        file,
-                        "{} [{name}] {}",
-                        now.format("%Y-%m-%d %H:%M:%S%.3f"),
-                        String::from_utf8_lossy(&line).trim_end_matches(['\r', '\n'])
-                    );
-                }
-            }
-        }
-    }
-}
-
-fn daily_log_files(storage: &Path, prefix: &str) -> Result<Vec<PathBuf>, String> {
-    let logs = storage.join("logs");
-    if !logs.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut files = fs::read_dir(logs)
-        .map_err(|_| "无法读取日志目录".to_string())?
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry.file_name().to_string_lossy().starts_with(prefix)
-                && entry.file_name().to_string_lossy().ends_with(".log")
-                && entry.path().is_file()
-        })
-        .map(|entry| entry.path())
-        .collect::<Vec<_>>();
-    files.sort();
-    files.reverse();
-    files.truncate(3);
-    Ok(files)
-}
-
-fn newest_log_entries_first(content: &str) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    let starts_entry = |line: &str| {
-        let bytes = line.as_bytes();
-        bytes.len() >= 19
-            && [4, 7].iter().all(|&i| bytes[i] == b'-')
-            && bytes[10] == b' '
-            && [13, 16].iter().all(|&i| bytes[i] == b':')
-            && [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18]
-                .iter()
-                .all(|&i| bytes[i].is_ascii_digit())
-    };
-    if !lines.iter().any(|line| starts_entry(line)) {
-        return lines.into_iter().rev().collect::<Vec<_>>().join("\n");
-    }
-    let mut entries: Vec<Vec<&str>> = Vec::new();
-    for line in lines {
-        if starts_entry(line) || entries.is_empty() {
-            entries.push(vec![line]);
-        } else {
-            entries.last_mut().unwrap().push(line);
-        }
-    }
-    entries
-        .into_iter()
-        .rev()
-        .map(|entry| entry.join("\n"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn read_log_tail(path: &Path) -> Result<String, String> {
-    if !path.is_file() {
-        return Ok(String::new());
-    }
-    let mut file = fs::File::open(path).map_err(|_| "无法打开日志文件".to_string())?;
-    let size = file
-        .metadata()
-        .map_err(|_| "无法读取日志大小".to_string())?
-        .len();
-    use std::io::{Seek, SeekFrom};
-    file.seek(SeekFrom::Start(size.saturating_sub(128 * 1024)))
-        .map_err(|_| "无法定位日志末尾".to_string())?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|_| "无法读取日志".to_string())?;
-    let content = String::from_utf8_lossy(&bytes);
-    let content = if size > 128 * 1024 {
-        content.lines().skip(1).collect::<Vec<_>>().join("\n")
-    } else {
-        content.into_owned()
-    };
-    Ok(newest_log_entries_first(&content))
-}
-
-fn log_section(path: &Path, name: &str) -> Result<Option<(SystemTime, String)>, String> {
-    let content = read_log_tail(path)?;
-    if content.is_empty() {
-        return Ok(None);
-    }
-    let modified = path
-        .metadata()
-        .and_then(|metadata| metadata.modified())
-        .map_err(|_| "无法读取日志修改时间".to_string())?;
-    Ok(Some((modified, format!("=== {name} ===\n{content}"))))
-}
-
-#[tauri::command]
-pub fn read_diagnostic_logs(storage_path: String, source: String) -> Result<String, String> {
-    let storage = product_storage(Path::new(&storage_path))?;
-    let (daily_prefix, legacy_files): (&str, &[(&str, &str)]) = match source.as_str() {
-        "hermes" => (
-            "hermes-backend-",
-            &[
-                ("gateway.log", "hermes-home/logs/gateway.log"),
-                ("agent.log", "hermes-home/logs/agent.log"),
-                ("errors.log", "hermes-home/logs/errors.log"),
-            ],
-        ),
-        "client" => ("client-", &[("desktop.log (旧版)", "control/desktop.log")]),
-        _ => return Err("未知日志来源".into()),
-    };
-    let mut sections = Vec::new();
-    for &(name, relative) in legacy_files {
-        if let Some(section) = log_section(&storage.join(relative), name)? {
-            sections.push(section);
-        }
-    }
-    if source == "hermes" {
-        let control = storage.join("control");
-        if control.is_dir() {
-            let latest = fs::read_dir(control)
-                .map_err(|_| "无法读取控制目录".to_string())?
-                .filter_map(Result::ok)
-                .filter_map(|entry| {
-                    let path = entry.path().join("backend.log");
-                    let modified = path.metadata().ok()?.modified().ok()?;
-                    Some((modified, path))
-                })
-                .max_by_key(|(modified, _)| *modified);
-            if let Some((_, path)) = latest {
-                if let Some(section) = log_section(&path, "backend.log (旧版)")? {
-                    sections.push(section);
-                }
-            }
-        }
-    }
-    for path in daily_log_files(&storage, daily_prefix)? {
-        if let Some(section) = log_section(
-            &path,
-            &path.file_name().unwrap_or_default().to_string_lossy(),
-        )? {
-            sections.push(section);
-        }
-    }
-    sections.sort_by(|a, b| b.0.cmp(&a.0));
-    Ok(sections
-        .into_iter()
-        .map(|(_, content)| content)
-        .collect::<Vec<_>>()
-        .join("\n\n"))
-}
-
-#[tauri::command]
-pub fn record_client_event(storage_path: String, event: String) -> Result<(), String> {
-    if !matches!(
-        event.as_str(),
-        "startup_failed" | "connection_failed" | "reconnect_failed" | "stop_failed"
-    ) {
-        return Err("未知诊断事件".into());
-    }
-    append_client_event(&product_storage(Path::new(&storage_path))?, &event)
 }
 
 #[derive(Serialize)]
@@ -1955,9 +1742,11 @@ pub async fn replay_chat_events(
 #[cfg(test)]
 mod tests {
     use super::{
-        acquire_storage_lock, append_client_event, daily_log_files, install_packed_payload,
-        load_model_lists, newest_log_entries_first, parse_saved_model_config, read_diagnostic_logs,
+        acquire_storage_lock, install_packed_payload, load_model_lists, parse_saved_model_config,
         read_storage_location, save_model_lists, validate_payload, write_storage_location,
+    };
+    use crate::diagnostics::{
+        append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
     };
     use std::collections::HashMap;
     use std::fs;

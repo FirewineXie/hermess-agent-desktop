@@ -4,7 +4,9 @@
 
 **[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前 `v0.5.0` 仍在开发，尚未发布 tag。
 
-**[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。该方案尚未实施，当前开发与构建命令仍以本 README 为准。
+**[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
+
+工作区项目：[前端](apps/frontend/README.md)、[桌面客户端](apps/desktop/README.md)、[接口契约](packages/contracts/README.md)。三个项目的当前实现状态以各自 README 为准。
 
 ## 当前能力
 

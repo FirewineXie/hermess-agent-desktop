@@ -1,6 +1,6 @@
 import React from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { useLanguage, translateAgentUi, agentFieldTranslation, agentOptionTranslation, agentCategoryTranslation, localizeAgentMessage } from './i18n'
+import { useLanguage, translateAgentUi, agentFieldTranslation, agentOptionTranslation, agentCategoryTranslation, localizeAgentMessage } from '../../i18n'
+import { useDesktop } from '../../app/DesktopContext'
 
 type Field = { type: string; description?: string; category?: string; options?: unknown[] }
 type Schema = { fields: Record<string, Field>; category_order: string[] }
@@ -54,7 +54,8 @@ function fieldText(value: unknown, type: string): string {
   return String(value)
 }
 
-export default function AgentSettings({ connected, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
+export default function AgentSettingsView({ connected, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
+  const { invoke } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language

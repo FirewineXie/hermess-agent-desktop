@@ -1,6 +1,6 @@
 # 前端与桌面客户端架构演进方案
 
-状态：目标方案，尚未实施。适用基线：`HermessAgentDesktop` 的 `feature/v0.5.0`。本文定义代码边界和迁移验收，不宣称目录结构或能力已经落地。产品当前能力与验证状态仍以 [路线图](../ROADMAP.md) 和 [能力矩阵](capability-matrix.md) 为准。
+状态：分阶段实施中。适用基线：`HermessAgentDesktop` 的 `feature/v0.5.0`。本文定义目标代码边界和迁移验收；目录树是完成形态，不能据此认定每个模块已落地。实际进度以 [路线图](../ROADMAP.md) 和 [能力矩阵](capability-matrix.md) 为准。
 
 ## 1. 目标与决策
 

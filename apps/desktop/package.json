@@ -9,6 +9,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@hermess/contracts": "workspace:*",
+    "@hermess/frontend": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "~2",
     "react": "^19.0.0",
