@@ -1,3 +1,4 @@
+use crate::errors::DesktopFailure;
 use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
@@ -352,7 +353,10 @@ fn log_section(path: &Path, name: &str) -> Result<Option<(SystemTime, String)>, 
 }
 
 #[tauri::command]
-pub fn read_diagnostic_logs(storage_path: String, source: String) -> Result<String, String> {
+pub fn read_diagnostic_logs(
+    storage_path: String,
+    source: String,
+) -> Result<String, DesktopFailure> {
     let storage = product_storage(Path::new(&storage_path))?;
     let (daily_prefix, legacy_files): (&str, &[(&str, &str)]) = match source.as_str() {
         "hermes" => (
@@ -364,7 +368,7 @@ pub fn read_diagnostic_logs(storage_path: String, source: String) -> Result<Stri
             ],
         ),
         "client" => ("client-", &[("desktop.log (旧版)", "control/desktop.log")]),
-        _ => return Err("未知日志来源".into()),
+        _ => return Err(DesktopFailure::invalid_input()),
     };
     let mut sections = Vec::new();
     for &(name, relative) in legacy_files {
@@ -408,14 +412,14 @@ pub fn read_diagnostic_logs(storage_path: String, source: String) -> Result<Stri
 }
 
 #[tauri::command]
-pub fn record_client_event(storage_path: String, event: String) -> Result<(), String> {
+pub fn record_client_event(storage_path: String, event: String) -> Result<(), DesktopFailure> {
     if !matches!(
         event.as_str(),
         "startup_failed" | "connection_failed" | "reconnect_failed" | "stop_failed"
     ) {
-        return Err("未知诊断事件".into());
+        return Err(DesktopFailure::invalid_input());
     }
-    append_client_event(&product_storage(Path::new(&storage_path))?, &event)
+    append_client_event(&product_storage(Path::new(&storage_path))?, &event).map_err(Into::into)
 }
 
 #[cfg(test)]

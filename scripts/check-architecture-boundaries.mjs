@@ -45,6 +45,33 @@ if (!registered.size || !invoked.size) failures.push('desktop command inventory 
 for (const name of invoked) if (!registered.has(name)) failures.push(`adapter invokes unregistered command: ${name}`)
 for (const name of registered) if (!invoked.has(name)) failures.push(`registered command has no adapter capability: ${name}`)
 
+const nativeCommandFiles = [
+  'apps/desktop/src-tauri/src/runtime/mod.rs',
+  'apps/desktop/src-tauri/src/runtime/chat.rs',
+  'apps/desktop/src-tauri/src/runtime/config.rs',
+  'apps/desktop/src-tauri/src/runtime/models.rs',
+  'apps/desktop/src-tauri/src/runtime/tools.rs',
+  'apps/desktop/src-tauri/src/diagnostics.rs',
+]
+const definedCommands = new Set()
+for (const file of nativeCommandFiles) {
+  const source = readFileSync(resolve(root, file), 'utf8')
+  for (const marker of source.matchAll(/#\[tauri::command\]/g)) {
+    const header = source.slice(marker.index, source.indexOf('{', marker.index))
+    const name = header.match(/\bpub\s+(?:async\s+)?fn\s+(\w+)/)?.[1]
+    if (!name) {
+      failures.push(`${file}: command declaration could not be parsed`)
+      continue
+    }
+    definedCommands.add(name)
+    const returnType = header.split('->')[1]?.trim()
+    if (returnType?.startsWith('Result<') && !returnType.endsWith('DesktopFailure>')) {
+      failures.push(`${file}: ${name} must return DesktopFailure`)
+    }
+  }
+}
+for (const name of registered) if (!definedCommands.has(name)) failures.push(`registered command definition not found: ${name}`)
+
 const emitted = new Set([...gateway.matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
 const listened = new Set([...adapter.matchAll(/listenPayload(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
 if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')

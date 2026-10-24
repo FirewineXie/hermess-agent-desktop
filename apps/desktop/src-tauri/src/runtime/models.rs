@@ -1,5 +1,6 @@
 use super::config::config_request;
 use super::BackendState;
+use crate::errors::DesktopFailure;
 use crate::storage::product_storage;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -10,25 +11,25 @@ use uuid::Uuid;
 #[tauri::command]
 pub fn load_model_lists(
     storage_path: String,
-) -> Result<Option<HashMap<String, Vec<String>>>, String> {
+) -> Result<Option<HashMap<String, Vec<String>>>, DesktopFailure> {
     let file = product_storage(Path::new(&storage_path))?.join("model-candidates.json");
     if !file.exists() {
         return Ok(None);
     }
     let bytes = fs::read(file).map_err(|_| "无法读取本机模型候选".to_string())?;
     if bytes.len() > 1024 * 1024 {
-        return Err("本机模型候选文件过大".into());
+        return Err(DesktopFailure::operation_failed());
     }
     serde_json::from_slice(&bytes)
         .map(Some)
-        .map_err(|_| "本机模型候选文件格式无效".to_string())
+        .map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[tauri::command]
 pub fn save_model_lists(
     storage_path: String,
     lists: HashMap<String, Vec<String>>,
-) -> Result<(), String> {
+) -> Result<(), DesktopFailure> {
     if lists.len() > 256
         || lists.iter().any(|(provider, models)| {
             provider.is_empty()
@@ -41,14 +42,14 @@ pub fn save_model_lists(
                 })
         })
     {
-        return Err("本机模型候选无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let bytes = serde_json::to_vec(&lists).map_err(|_| "无法编码本机模型候选".to_string())?;
     if bytes.len() > 1024 * 1024 {
-        return Err("本机模型候选文件过大".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let file = product_storage(Path::new(&storage_path))?.join("model-candidates.json");
-    fs::write(file, bytes).map_err(|_| "无法保存本机模型候选".to_string())
+    fs::write(file, bytes).map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[tauri::command]
@@ -57,21 +58,27 @@ pub async fn list_model_options(
     refresh: bool,
     include_unconfigured: Option<bool>,
     session_id: Option<String>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id
         .as_ref()
         .is_some_and(|id| id.is_empty() || id.len() > 256)
     {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let mut params = json!({"include_unconfigured": include_unconfigured.unwrap_or(true),
                             "refresh": refresh});
     if let Some(id) = session_id {
         params["session_id"] = json!(id);
     }
-    backend.gateway.request("model.options", params).await
+    backend
+        .gateway
+        .request("model.options", params)
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -81,7 +88,7 @@ pub async fn select_chat_model(
     provider: String,
     model: String,
     confirm: Option<String>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let provider = provider.trim();
     let model = model.trim();
     if session_id.is_empty()
@@ -93,10 +100,12 @@ pub async fn select_chat_model(
         || model.len() > 256
         || model.chars().any(char::is_whitespace)
     {
-        return Err("会话模型选择无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let snapshot = backend
         .gateway
         .request("session.resume", json!({"session_id": session_id}))
@@ -127,6 +136,7 @@ pub async fn select_chat_model(
             }),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -168,9 +178,11 @@ pub(super) fn parse_saved_model_config(yaml: &str) -> Result<SavedModelConfig, S
 #[tauri::command]
 pub async fn get_saved_model_config(
     state: State<'_, BackendState>,
-) -> Result<SavedModelConfig, String> {
+) -> Result<SavedModelConfig, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -210,11 +222,13 @@ pub async fn get_saved_model_config(
         .get("yaml")
         .and_then(Value::as_str)
         .ok_or("模型配置响应缺少内容")?;
-    parse_saved_model_config(yaml)
+    parse_saved_model_config(yaml).map_err(Into::into)
 }
 
 #[tauri::command]
-pub async fn list_custom_endpoints(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn list_custom_endpoints(
+    state: State<'_, BackendState>,
+) -> Result<Value, DesktopFailure> {
     config_request(
         &state,
         reqwest::Method::GET,
@@ -231,7 +245,7 @@ pub async fn add_custom_endpoint(
     base_url: String,
     model: String,
     api_key: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let name = name.trim();
     let base_url = base_url.trim();
     let model = model.trim();
@@ -242,16 +256,16 @@ pub async fn add_custom_endpoint(
         || model.chars().any(char::is_whitespace)
         || api_key.len() > 4096
     {
-        return Err("提供商名称、模型 ID 或密钥无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
-    let parsed = reqwest::Url::parse(base_url).map_err(|_| "模型接口地址无效".to_string())?;
+    let parsed = reqwest::Url::parse(base_url).map_err(|_| DesktopFailure::invalid_input())?;
     if !matches!(parsed.scheme(), "http" | "https")
         || parsed.host_str().is_none()
         || !parsed.username().is_empty()
         || parsed.password().is_some()
         || parsed.fragment().is_some()
     {
-        return Err("模型接口必须是无内嵌凭据的 HTTP 或 HTTPS 地址".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let mut body = json!({"id": format!("desktop-{}", Uuid::new_v4().simple()),
         "name": name, "base_url": base_url, "model": model, "make_default": false});
@@ -271,12 +285,12 @@ pub async fn add_custom_endpoint(
 pub async fn delete_custom_endpoint(
     state: State<'_, BackendState>,
     endpoint_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if endpoint_id.is_empty()
         || endpoint_id.len() > 128
         || endpoint_id.chars().any(char::is_control)
     {
-        return Err("提供商标识无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let listed = config_request(
         &state,
@@ -295,7 +309,7 @@ pub async fn delete_custom_endpoint(
             })
         });
     if !removable {
-        return Err("只能删除已保存的自定义提供商".into());
+        return Err(DesktopFailure::conflict());
     }
     let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
         .map_err(|_| "无法构建提供商地址".to_string())?;
@@ -306,13 +320,16 @@ pub async fn delete_custom_endpoint(
 }
 
 #[tauri::command]
-pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("setup.runtime_check", json!({}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -323,7 +340,7 @@ pub async fn set_default_model(
     base_url: String,
     api_key: String,
     confirm_expensive_model: bool,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let provider = provider.trim();
     let model = model.trim();
     let base_url = base_url.trim();
@@ -334,21 +351,23 @@ pub async fn set_default_model(
         || base_url.len() > 2048
         || api_key.len() > 4096
     {
-        return Err("模型配置字段为空或过长".into());
+        return Err(DesktopFailure::invalid_input());
     }
     if !base_url.is_empty() {
-        let parsed = reqwest::Url::parse(base_url).map_err(|_| "模型接口地址无效".to_string())?;
+        let parsed = reqwest::Url::parse(base_url).map_err(|_| DesktopFailure::invalid_input())?;
         if !matches!(parsed.scheme(), "http" | "https")
             || parsed.host_str().is_none()
             || !parsed.username().is_empty()
             || parsed.password().is_some()
             || parsed.fragment().is_some()
         {
-            return Err("模型接口必须是无内嵌凭据的 HTTP 或 HTTPS 地址".into());
+            return Err(DesktopFailure::invalid_input());
         }
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -387,19 +406,7 @@ pub async fn set_default_model(
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| format!("模型配置返回无效 JSON（HTTP {status}）"))?;
     if !status.is_success() {
-        let detail = value
-            .get("detail")
-            .and_then(Value::as_str)
-            .unwrap_or("模型配置失败");
-        let safe = if api_key.is_empty() {
-            detail.to_owned()
-        } else {
-            detail.replace(&api_key, "[已隐藏]")
-        };
-        return Err(format!(
-            "模型配置失败（HTTP {status}）：{}",
-            safe.chars().take(400).collect::<String>()
-        ));
+        return Err(DesktopFailure::operation_failed());
     }
     Ok(value)
 }

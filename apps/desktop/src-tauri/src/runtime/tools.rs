@@ -1,4 +1,5 @@
 use super::{BackendState, BundledTool, BundledToolsInventory};
+use crate::errors::DesktopFailure;
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -9,9 +10,11 @@ use tauri::State;
 #[tauri::command]
 pub async fn list_bundled_tools(
     state: State<'_, BackendState>,
-) -> Result<BundledToolsInventory, String> {
+) -> Result<BundledToolsInventory, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let Some(root) = &backend.bundled_tools_root else {
         return Ok(BundledToolsInventory {
             has_manifest: false,
@@ -62,24 +65,30 @@ pub async fn list_bundled_tools(
 pub async fn list_agent_toolsets(
     state: State<'_, BackendState>,
     session_id: Option<String>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("tools.list", json!({"session_id": session_id}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn list_active_agent_tools(
     state: State<'_, BackendState>,
     session_id: Option<String>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("tools.show", json!({"session_id": session_id}))
         .await
+        .map_err(Into::into)
 }

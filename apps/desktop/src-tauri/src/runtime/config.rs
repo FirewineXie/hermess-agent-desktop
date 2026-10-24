@@ -1,4 +1,5 @@
 use super::BackendState;
+use crate::errors::DesktopFailure;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
@@ -8,9 +9,11 @@ pub(super) async fn config_request(
     method: reqwest::Method,
     path: &str,
     body: Option<Value>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -32,7 +35,7 @@ pub(super) async fn config_request(
         .content_length()
         .is_some_and(|size| size > LIMIT as u64)
     {
-        return Err("配置响应过大".into());
+        return Err(DesktopFailure::operation_failed());
     }
     let status = response.status();
     let mut bytes = Vec::new();
@@ -42,7 +45,7 @@ pub(super) async fn config_request(
         .map_err(|_| "读取配置响应失败".to_string())?
     {
         if bytes.len() + chunk.len() > LIMIT {
-            return Err("配置响应过大".into());
+            return Err(DesktopFailure::operation_failed());
         }
         bytes.extend_from_slice(&chunk);
     }
@@ -50,23 +53,25 @@ pub(super) async fn config_request(
         serde_json::from_slice(&bytes).map_err(|_| "配置响应不是有效 JSON".to_string())?;
     if !status.is_success() {
         // 上游错误可能包含用户配置或凭据，不向界面透传正文。
-        return Err(format!("后端配置请求失败（HTTP {status}）"));
+        return Err(DesktopFailure::operation_failed());
     }
     Ok(value)
 }
 
 #[tauri::command]
-pub async fn get_agent_config(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn get_agent_config(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     config_request(&state, reqwest::Method::GET, "/api/config", None).await
 }
 
 #[tauri::command]
-pub async fn get_agent_config_schema(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn get_agent_config_schema(
+    state: State<'_, BackendState>,
+) -> Result<Value, DesktopFailure> {
     config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await
 }
 
 #[tauri::command]
-pub async fn get_agent_config_raw(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn get_agent_config_raw(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     config_request(&state, reqwest::Method::GET, "/api/config/raw", None).await
 }
 
@@ -78,7 +83,7 @@ pub async fn save_auxiliary_route(
     model: String,
     effort: String,
     timeout: Option<f64>,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if task.is_empty()
         || task.len() > 80
         || !task.bytes().all(|c| c.is_ascii_lowercase() || c == b'_')
@@ -90,19 +95,19 @@ pub async fn save_auxiliary_route(
         .contains(&effort.as_str())
         || timeout.is_some_and(|value| !value.is_finite() || value <= 0.0)
     {
-        return Err("辅助模型配置无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let schema = config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
     if schema
         .pointer(&format!("/fields/auxiliary.{task}.provider"))
         .is_none()
     {
-        return Err("辅助模型任务不在当前运行时配置中".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let provider = provider.trim();
     let model = model.trim();
     if provider.is_empty() || (provider != "auto" && model.is_empty()) {
-        return Err("请选择提供商和模型".into());
+        return Err(DesktopFailure::invalid_input());
     }
     // A single config PUT prevents an old per-task endpoint or credential from
     // silently overriding the selected named provider.
@@ -141,7 +146,7 @@ pub async fn save_agent_config_field(
     state: State<'_, BackendState>,
     key: String,
     value: Value,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if key.is_empty()
         || key.len() > 256
         || !key.split('.').all(|part| {
@@ -151,7 +156,7 @@ pub async fn save_agent_config_field(
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
         })
     {
-        return Err("配置字段无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let schema = config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
     if schema
@@ -161,7 +166,7 @@ pub async fn save_agent_config_field(
         ))
         .is_none()
     {
-        return Err("配置字段不在当前上游 schema 中".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let mut patch = value;
     for part in key.split('.').rev() {
@@ -183,13 +188,13 @@ pub async fn save_agent_config_raw(
     state: State<'_, BackendState>,
     yaml_text: String,
     expected_yaml: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if yaml_text.len() > 256 * 1024 || expected_yaml.len() > 256 * 1024 {
-        return Err("配置内容过大".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let current = config_request(&state, reqwest::Method::GET, "/api/config/raw", None).await?;
     if current.get("yaml").and_then(Value::as_str) != Some(expected_yaml.as_str()) {
-        return Err("配置文件已被其他操作修改，请重新读取后再保存".into());
+        return Err(DesktopFailure::conflict());
     }
     config_request(
         &state,
