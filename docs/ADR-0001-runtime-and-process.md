@@ -8,7 +8,7 @@
 - Windows 样机使用 `hermes serve --host 127.0.0.1 --port 0 --isolated`。Rust 进程创建子进程，提供每次启动的随机 WS 凭据、独立 `HERMES_HOME`、私有锁目录与就绪文件；只持有并停止自己创建的子进程。
 - 开发态可在产品 `.build` 内用已有 CPython 3.14 构建隔离 venv。上游 `pm.operations.build_environment` 负责依赖同步，`uv.lock` 固定应用依赖；该路径已在 Windows 实测。
 - 上游 `pm bundle` 已在 Windows 生成包含仓库快照、固定工具、PM runtime、venv、离线 uv 缓存和启动器的完整 payload。`scripts/verify-payload.py` 用固定提交的 Git archive 对比 payload 的发行源码。
-- Windows 核心候选通过产品脚本打成单个 tar 资源，另附字节数、SHA-256 和固定上游提交的收据。直接把 55,760 余个文件交给 NSIS 在深路径下失败；单归档避免安装器逐文件读取深路径。首次启动在主要存储位置持锁、校验归档、解到暂存目录、校验 payload 后同卷重命名启用。该路径已在 Windows 实测解包及解包后假模型网关冒烟；NSIS 候选包已构建，实际安装、签名和窗口操作另行验收。
+- Windows 核心候选通过产品脚本打成单个 tar 资源，另附字节数、SHA-256 和固定上游提交的收据。直接把 55,760 余个文件交给 NSIS 在深路径下失败；单归档避免安装器逐文件读取深路径。首次启动在主要存储位置持锁、校验归档、解到暂存目录、校验 payload 后同卷重命名启用。该路径已在 Windows 实测解包及解包后假模型网关冒烟；NSIS 候选包在当前机器的中文空格路径静默安装、归档校验与卸载通过。干净机器、安装向导、签名和窗口操作另行验收。
 
 ## 已核实的边界
 
