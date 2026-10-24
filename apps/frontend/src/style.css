@@ -174,7 +174,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .tool-step > summary:hover { color: #263448; background: #f7f8fa; border-radius: 6px; }
 .tool-step-icon { width: 16px; text-align: center; flex: none; }
 .tool-step-name { flex: none; }
-.tool-step-context { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #89919b; }
 .tool-step summary small { margin-left: auto; flex: none; color: #89919b; font-size: 11px; }
 .tool-step-chevron { flex: none; color: #89919b; transition: transform .15s; }
 .tool-step[open] .tool-step-chevron { transform: rotate(180deg); }

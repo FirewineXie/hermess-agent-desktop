@@ -50,7 +50,6 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
   const heading = <>
           <span className="tool-step-icon" aria-hidden="true">{step.name === 'terminal' || step.name === 'execute_code' ? '›' : step.name === 'read_file' || step.name === 'search_files' ? '▤' : '◇'}</span>
           <span className="tool-step-name">{toolName(step.name, language)}</span>
-          {step.context && <span className="tool-step-context">{step.context}</span>}
           <small>{toolState(step, language)}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small>
           {hasDetail && <span className="tool-step-chevron" aria-hidden="true">⌄</span>}
   </>
@@ -73,7 +72,7 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
 export default function MessageList({ messages, assistant, language, t }: { messages: TimelineItem[]; assistant: string; language: Language; t: (key: string) => string }) {
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
   return <div className="messages">{messages.map((message, index) => message.kind === 'tools'
-    ? <ToolActivity key={index} steps={message.steps} language={language} />
+    ? <ToolActivity key={`${index}-${message.steps[0]?.id || ''}`} steps={message.steps} language={language} />
     : message.text.trim() && <p key={index}><strong>{message.role === 'user' ? t('ui.you') : 'Hermes'}：</strong>{message.text}</p>
   )}{assistant.trim() && <p><strong>Hermes：</strong>{assistant}</p>}</div>
 }
