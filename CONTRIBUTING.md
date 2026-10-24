@@ -15,7 +15,7 @@
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过且审查完成后合并 PR，再删除任务分支。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-仓库管理员应在 GitHub 的 `main` 分支保护规则中启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`，避免仅靠手册约束。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 
 ## 项目边界
 
