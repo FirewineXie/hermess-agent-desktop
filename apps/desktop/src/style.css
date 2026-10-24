@@ -16,3 +16,6 @@ li { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; padding: 12p
 li small, li code { grid-column: 2; overflow-wrap: anywhere; }
 li code { color: #456; }
 .note { color: #566575; }
+label { display: block; margin: 16px 0; font-weight: 600; }
+input { display: block; width: 100%; margin-top: 6px; padding: 10px; border: 1px solid #c8d1da; border-radius: 7px; font: inherit; }
+.actions { display: flex; gap: 10px; margin-top: 20px; }

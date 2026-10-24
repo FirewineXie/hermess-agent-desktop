@@ -4,6 +4,8 @@ use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
 
+mod backend;
+
 #[derive(Serialize)]
 struct RuntimeProbe {
     tool: &'static str,
@@ -128,7 +130,14 @@ async fn probe_local_tools() -> Vec<RuntimeProbe> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![probe_local_tools])
+        .manage(backend::BackendState::default())
+        .invoke_handler(tauri::generate_handler![
+            probe_local_tools,
+            backend::dev_backend_defaults,
+            backend::start_dev_backend,
+            backend::ping_backend,
+            backend::stop_backend
+        ])
         .run(tauri::generate_context!())
         .expect("无法启动桌面程序");
 }

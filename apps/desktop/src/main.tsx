@@ -10,11 +10,18 @@ type RuntimeProbe = {
   usable: boolean
   reason: string
 }
+type BackendInfo = { port: number; pid: number }
+type DevDefaults = { python_path: string; storage_path: string }
 
 function App() {
   const [probes, setProbes] = React.useState<RuntimeProbe[]>([])
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [pythonPath, setPythonPath] = React.useState('')
+  const [storagePath, setStoragePath] = React.useState('')
+  const [backend, setBackend] = React.useState<BackendInfo | null>(null)
+  const [backendStatus, setBackendStatus] = React.useState('未启动')
+  const [busy, setBusy] = React.useState(false)
 
   async function inspect() {
     setLoading(true)
@@ -28,7 +35,47 @@ function App() {
     }
   }
 
-  React.useEffect(() => { void inspect() }, [])
+  React.useEffect(() => {
+    void inspect()
+    if (import.meta.env.DEV) {
+      void invoke<DevDefaults>('dev_backend_defaults').then(defaults => {
+        setPythonPath(defaults.python_path)
+        setStoragePath(defaults.storage_path)
+      }).catch(cause => setBackendStatus(String(cause)))
+    }
+  }, [])
+
+  async function startBackend() {
+    setBusy(true)
+    setBackendStatus('启动并鉴权中…')
+    try {
+      const info = await invoke<BackendInfo>('start_dev_backend', { pythonPath, storagePath })
+      setBackend(info)
+      setBackendStatus('已就绪：WebSocket ping 通过')
+    } catch (cause) {
+      setBackend(null)
+      setBackendStatus(`启动失败：${String(cause)}`)
+    } finally { setBusy(false) }
+  }
+
+  async function pingBackend() {
+    setBusy(true)
+    try {
+      await invoke('ping_backend')
+      setBackendStatus('连接正常：WebSocket ping 通过')
+    } catch (cause) { setBackendStatus(`连接失败：${String(cause)}`) }
+    finally { setBusy(false) }
+  }
+
+  async function stopBackend() {
+    setBusy(true)
+    try {
+      await invoke('stop_backend')
+      setBackend(null)
+      setBackendStatus('已停止')
+    } catch (cause) { setBackendStatus(`停止失败：${String(cause)}`) }
+    finally { setBusy(false) }
+  }
 
   return <main>
     <header><span className="eyebrow">I0 技术样机</span><h1>Hermess Agent Desktop</h1></header>
@@ -42,6 +89,18 @@ function App() {
         {probe.path && <code>{probe.path}</code>}
       </li>)}</ul>
     </section>
+    {import.meta.env.DEV && <section>
+      <h2>开发态后端连接</h2>
+      <p>只使用本产品 .build 中已准备的隔离环境。存储目录会创建产品专用子目录。</p>
+      <label>Python 绝对路径<input value={pythonPath} onChange={event => setPythonPath(event.target.value)} /></label>
+      <label>主要存储位置<input value={storagePath} onChange={event => setStoragePath(event.target.value)} /></label>
+      <div className="actions">
+        <button disabled={busy || !pythonPath || !storagePath} onClick={() => void startBackend()}>启动</button>
+        <button disabled={busy || !backend} onClick={() => void pingBackend()}>检查连接</button>
+        <button disabled={busy || !backend} onClick={() => void stopBackend()}>停止</button>
+      </div>
+      <p role="status">{backendStatus}{backend && `（PID ${backend.pid}，端口 ${backend.port}）`}</p>
+    </section>}
     <p className="note">检测结果仅是候选；Hermes 固定版本的依赖环境与真实启动仍需单独验收。</p>
   </main>
 }

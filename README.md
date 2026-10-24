@@ -10,9 +10,11 @@
 
 ## 本地运行
 
-需要 Node、pnpm、完整的 Rust Windows MSVC 工具链及 WebView2。执行 `pnpm install --frozen-lockfile` 后用 `pnpm tauri:dev` 启动。`pnpm build` 只验证前端。开发依赖只用于构建；正式发行仍需实现运行时封装和离线资源。
+需要 Node、pnpm、Rust 1.94.0 Windows MSVC 工具链及 WebView2。执行 `pnpm install --frozen-lockfile` 后用 `pnpm tauri:dev` 启动。`pnpm build` 只验证前端；`pnpm --dir apps/desktop tauri build --no-bundle` 已在 Windows 上验证原生编译。开发依赖只用于构建；正式发行仍需实现运行时封装和离线资源。
 
 首次克隆后执行 `git submodule update --init`。用 `pnpm verify:upstream` 检查上游提交及源码完整性。I0 的隔离依赖准备命令为 `python scripts/prepare-python.py --python <CPython 3.14 的绝对路径> --out <新环境的绝对路径>`；脚本调用上游 PM，不会向系统 Python 安装包。正式产品的自动检测、下载及激活流程尚未实现。
+
+准备好 `.build/hermes-venv-i0` 后，可用该环境的 Python 执行 `scripts/smoke-gateway.py --python <隔离环境 Python 绝对路径>`，验证隔离启动和本机 WebSocket `ping`。调试构建中还提供相同边界的启动、检查和停止入口；正式构建不开放该开发入口。
 
 目前 Python 检测只覆盖 PATH 和 Windows 的 uv 已安装解释器目录。检测通过仅表示可复用候选，不代表 Hermes 依赖已经准备好。Node 是可选工具，前端运行不会触发它的安装。
 
