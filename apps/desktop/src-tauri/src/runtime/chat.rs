@@ -1,8 +1,31 @@
 use super::BackendState;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
 use tauri::State;
 use uuid::Uuid;
+
+#[derive(Deserialize, Serialize)]
+pub struct ReplayResult {
+    events: Vec<ReplayEvent>,
+    latest_seq: u64,
+    count: u64,
+    epoch: String,
+    truncated: bool,
+    open_requests: Vec<Value>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ReplayEvent {
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seq: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    payload: Option<serde_json::Map<String, Value>>,
+}
 
 #[tauri::command]
 pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, String> {
@@ -352,17 +375,39 @@ pub async fn replay_chat_events(
     session_id: String,
     last_seen: u64,
     replay_epoch: String,
-) -> Result<Value, String> {
+) -> Result<ReplayResult, String> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err("会话 ID 无效".into());
     }
     let owned = state.0.lock().await;
     let backend = owned.as_ref().ok_or("后端尚未启动")?;
-    backend
+    let result = backend
         .gateway
         .request(
             "session.events.since",
             json!({"session_id":session_id,"last_seen":last_seen,"replay_epoch":replay_epoch}),
         )
-        .await
+        .await?;
+    serde_json::from_value(result).map_err(|_| "网关补发结果格式无效".to_string())
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::ReplayResult;
+
+    #[test]
+    fn replay_result_matches_shared_fixture_and_rejects_missing_watermark() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../packages/contracts/fixtures/replay-result.json"
+        ))
+        .unwrap();
+        let result: ReplayResult = serde_json::from_value(fixture.clone()).unwrap();
+        assert_eq!(serde_json::to_value(result).unwrap(), fixture);
+        let mut missing_watermark = fixture;
+        missing_watermark
+            .as_object_mut()
+            .unwrap()
+            .remove("latest_seq");
+        assert!(serde_json::from_value::<ReplayResult>(missing_watermark).is_err());
+    }
 }
