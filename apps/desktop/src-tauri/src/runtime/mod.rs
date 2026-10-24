@@ -423,18 +423,28 @@ pub async fn reconnect_backend(
 
 #[tauri::command]
 pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
-    if let Some(mut backend) = state.0.lock().await.take() {
+    let mut owned = state.0.lock().await;
+    if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
-        backend.gateway.close();
-        backend
+        if backend
             .child
-            .start_kill()
-            .map_err(|_| "停止本产品后端失败".to_string())?;
+            .try_wait()
+            .map_err(|_| "后端进程状态读取失败".to_string())?
+            .is_none()
+        {
+            backend
+                .child
+                .start_kill()
+                .map_err(|_| "停止本产品后端失败".to_string())?;
+        }
         timeout(Duration::from_secs(8), backend.child.wait())
             .await
             .map_err(|_| DesktopFailure::timeout())?
             .map_err(|_| "后端退出状态读取失败".to_string())?;
         let _ = append_client_event(&backend.storage, "backend_stopped");
+    }
+    if let Some(backend) = owned.take() {
+        backend.gateway.close();
     }
     Ok(())
 }
