@@ -12,8 +12,8 @@
 | 流式回复 | `message.delta`、`message.complete` | Rust 筛选事件送前端，最简文本视图 | 脚本收到 7 个 delta 与最终内容；UI 未验收 |
 | 基础工具 | `tool.start`、`tool.complete` | Rust 转发工具事件，UI 仅显示状态 | 原版 `read_file` 实际执行，收到 1 个完成事件；工具卡片未完成 |
 | 审批与澄清 | `gateway.ready` 后发送 `client.capabilities`；处理 `approval`、`clarify`、`request.cancel` | Rust 限额转发服务端请求并校验审批选项；开发态 UI 展示卡片并回传决定 | 脚本级澄清往返通过；危险命令审批拒绝后目标目录保留。UI 未操作验收；其他服务端请求尚未接入 |
-| 中断与恢复 | `session.interrupt`、`session.resume`、事件重放 | 尚未实现 | 未验收 |
-| 历史 | `session.list` 与存储会话接口 | 尚未实现 | 未验收 |
+| 中断与恢复 | `session.interrupt`、`session.resume` | Rust RPC + 开发态 UI 停止按钮、恢复入口；尚无断线重连与事件重放 | 脚本验证恢复消息及中断 RPC；运行中断、窗口恢复未验收 |
+| 历史 | `session.list` 返回持久化 ID，`session.resume` 返回运行时 ID | 开发态 UI 列表和消息渲染 | 脚本读取列表并用存储 ID 恢复消息；窗口未验收 |
 | 模型配置 | `config.get`、`config.set`、管理接口 | 尚未实现；脚本使用临时假模型配置 | 真实模型未验收 |
 
 专用 `serve` 不发布 canonical gateway 的私有控制端点；因此此路线验证的是每次启动会话凭据，并未验证原生票据。正式产品需完成进程创建身份、端点身份、鉴权、并行官方 Hermes 共存与退出证明。若改用 `gateway ensure`，必须重新验收私有发现范围和生命周期，不能直接沿用本矩阵结论。

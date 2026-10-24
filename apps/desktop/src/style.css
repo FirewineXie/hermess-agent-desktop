@@ -24,3 +24,7 @@ textarea { width: 100%; margin-top: 16px; padding: 10px; border: 1px solid #c8d1
 .request-card { margin: 16px 0; padding: 16px; border: 2px solid #b16b27; border-radius: 8px; background: #fff9ef; }
 .request-card pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
 .request-card select { display: block; width: 100%; margin-top: 6px; padding: 10px; }
+.session-list { max-height: 180px; overflow: auto; }
+.session-list li { grid-template-columns: 1fr auto; align-items: center; }
+.session-list button { text-align: left; overflow-wrap: anywhere; }
+.session-list small { grid-column: 2; }

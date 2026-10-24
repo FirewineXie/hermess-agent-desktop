@@ -27,6 +27,13 @@ type GatewayRequest = {
     questions?: Array<{ qid: string; question: string; choices?: string[] }>
   }
 }
+type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
+type ResumeResult = {
+  session_id: string
+  messages: Array<{ role: string; text?: string | null }>
+  running?: boolean
+  inflight?: { assistant?: string; user?: string }
+}
 
 function App() {
   const [probes, setProbes] = React.useState<RuntimeProbe[]>([])
@@ -48,6 +55,7 @@ function App() {
   const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
   const [clarifyAnswers, setClarifyAnswers] = React.useState<Record<string, string>>({})
+  const [sessions, setSessions] = React.useState<SessionRow[]>([])
 
   async function inspect() {
     setLoading(true)
@@ -149,6 +157,40 @@ function App() {
     }
   }
 
+  async function loadSessions() {
+    try {
+      const result = await invoke<{ sessions: SessionRow[] }>('list_chat_sessions')
+      setSessions(result.sessions)
+      setChatStatus(`找到 ${result.sessions.length} 个历史会话`)
+    } catch (cause) { setChatStatus(`读取历史失败：${String(cause)}`) }
+  }
+
+  async function resumeSession(id: string) {
+    if (turnBusy) return
+    setChatStatus('恢复会话中…')
+    try {
+      const result = await invoke<ResumeResult>('resume_chat_session', { sessionId: id })
+      sessionRef.current = result.session_id
+      setServerRequests([])
+      setClarifyAnswers({})
+      setSessionId(result.session_id)
+      setConversation(result.messages.filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, text: message.text || '' })))
+      assistantRef.current = result.inflight?.assistant || ''
+      setAssistant(assistantRef.current)
+      setTurnBusy(Boolean(result.running))
+      setChatStatus(result.running ? '已恢复，任务仍在运行' : '会话已恢复')
+    } catch (cause) { setChatStatus(`恢复失败：${String(cause)}`) }
+  }
+
+  async function interruptSession() {
+    if (!sessionRef.current) return
+    try {
+      const result = await invoke<{ status: string }>('interrupt_chat_session', { sessionId: sessionRef.current })
+      setChatStatus(result.status === 'interrupted' ? '已请求停止当前任务' : '当前没有运行中的任务')
+      setTurnBusy(false)
+    } catch (cause) { setChatStatus(`停止任务失败：${String(cause)}`) }
+  }
+
   async function startBackend() {
     setBusy(true)
     setBackendStatus('启动并鉴权中…')
@@ -164,6 +206,7 @@ function App() {
       assistantRef.current = ''
       setAssistant('')
       setServerRequests([])
+      setSessions([])
       setBackendStatus(`启动失败：${String(cause)}`)
     } finally { setBusy(false) }
   }
@@ -188,6 +231,7 @@ function App() {
       assistantRef.current = ''
       setAssistant('')
       setServerRequests([])
+      setSessions([])
       setBackendStatus('已停止')
     } catch (cause) { setBackendStatus(`停止失败：${String(cause)}`) }
     finally { setBusy(false) }
@@ -221,6 +265,11 @@ function App() {
       <h2>最小聊天链路</h2>
       <p>使用固定提交的会话和消息 RPC。模型需先在该独立 Hermes 数据根配置；历史恢复和附件尚未接入。</p>
       {sessionId && <small>会话：{sessionId}</small>}
+      <div className="actions"><button onClick={() => void loadSessions()}>读取历史会话</button><button disabled={!turnBusy || !sessionId} onClick={() => void interruptSession()}>停止当前任务</button></div>
+      {sessions.length > 0 && <ul className="session-list">{sessions.map(session => <li key={session.id}>
+        <button disabled={turnBusy} onClick={() => void resumeSession(session.id)}>{session.title || session.preview || session.id}</button>
+        <small>{session.message_count ?? 0} 条消息</small>
+      </li>)}</ul>}
       <div className="messages">{conversation.map((message, index) =>
         <p key={index}><strong>{message.role === 'user' ? '你' : 'Hermes'}：</strong>{message.text}</p>
       )}{assistant && <p><strong>Hermes：</strong>{assistant}</p>}</div>

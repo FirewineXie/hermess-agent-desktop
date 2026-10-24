@@ -161,6 +161,28 @@ def main() -> None:
                     session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply"))
                     if deltas < 1 or not model.main_requests():
                         raise RuntimeError("chat did not stream through the local fake model")
+                    async def verify_history() -> None:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
+                            async def rpc(number: int, method: str, params: dict) -> dict:
+                                await ws.send(json.dumps({"jsonrpc":"2.0","id":number,"method":method,"params":params}))
+                                while True:
+                                    frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                                    if frame.get("id") == number:
+                                        if frame.get("error"):
+                                            raise RuntimeError(f"{method} failed: {frame['error']}")
+                                        return frame["result"]
+                            listed = await rpc(10, "session.list", {"limit":50})
+                            stored = next((row["id"] for row in listed.get("sessions", []) if row.get("preview") == "Say hello"), None)
+                            if not stored:
+                                raise RuntimeError(f"completed session was absent from session.list: rows={listed.get('sessions', [])!r}")
+                            resumed = await rpc(11, "session.resume", {"session_id":stored,"source":"desktop"})
+                            if not resumed.get("session_id") or not any(message.get("text") == "Hermess I0 local model reply" for message in resumed.get("messages", [])):
+                                raise RuntimeError("session.resume did not restore transcript")
+                            interrupted = await rpc(12, "session.interrupt", {"session_id":resumed["session_id"]})
+                            if interrupted.get("status") not in {"interrupted", "not_interrupted"}:
+                                raise RuntimeError(f"session.interrupt returned unexpected status: {interrupted}")
+                    asyncio.run(verify_history())
                     model.push(ToolCall("read_file", {"path": str(fixture)}), Text("Tool read complete"))
                     tool_session, _, tools, _ = asyncio.run(chat("Read notes.txt", "Tool read complete"))
                     if tools < 1 or len(model.main_requests()) < 3:
@@ -177,7 +199,7 @@ def main() -> None:
                         raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, auth rejection, streamed chat, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
+                    print(f"owned serve, auth rejection, streamed chat, history resume, interrupt RPC, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()

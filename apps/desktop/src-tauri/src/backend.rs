@@ -331,3 +331,48 @@ pub async fn answer_gateway_request(
     let backend = owned.as_ref().ok_or("后端尚未启动")?;
     backend.gateway.answer(request_id, result).await
 }
+
+#[tauri::command]
+pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, String> {
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request("session.list", json!({"limit":50}))
+        .await
+}
+
+#[tauri::command]
+pub async fn resume_chat_session(
+    state: State<'_, BackendState>,
+    session_id: String,
+) -> Result<Value, String> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err("会话 ID 无效".into());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request(
+            "session.resume",
+            json!({"session_id":session_id,"source":"desktop"}),
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn interrupt_chat_session(
+    state: State<'_, BackendState>,
+    session_id: String,
+) -> Result<Value, String> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err("会话 ID 无效".into());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request("session.interrupt", json!({"session_id":session_id}))
+        .await
+}

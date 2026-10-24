@@ -140,7 +140,10 @@ fn main() {
             backend::stop_backend,
             backend::create_chat_session,
             backend::submit_chat_prompt,
-            backend::answer_gateway_request
+            backend::answer_gateway_request,
+            backend::list_chat_sessions,
+            backend::resume_chat_session,
+            backend::interrupt_chat_session
         ])
         .run(tauri::generate_context!())
         .expect("无法启动桌面程序");
