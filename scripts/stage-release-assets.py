@@ -28,7 +28,7 @@ def main() -> None:
         source = matches[0]
         if not source.is_file() or source.stat().st_size < 1024 * 1024:
             parser.error(f"invalid installer: {source}")
-        target = destination / f"{args.target}-{source.name}"
+        target = destination / f"{args.target}-{source.name.replace(' ', '.')}"
         shutil.copy2(source, target)
         print(f"staged {target.name}: {target.stat().st_size} bytes")
 

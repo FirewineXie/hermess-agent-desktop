@@ -14,6 +14,8 @@ def main() -> None:
     installers = sorted(path for path in directory.iterdir() if path.is_file() and path.name != "SHA256SUMS.txt")
     if len(installers) != 5:
         raise SystemExit(f"expected five platform installers, found {len(installers)}")
+    if any(" " in path.name for path in installers):
+        raise SystemExit("release installer names must not contain spaces")
     lines = []
     for path in installers:
         with path.open("rb") as source:
