@@ -23,11 +23,21 @@ const toolSubjects: Record<string, [string, string]> = {
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
 function activityTitle(steps: ToolStep[], language: Language) {
-  const names = [...new Set(steps.map(step => toolSubjects[step.name]?.[language === 'zh-CN' ? 0 : 1] || step.name))]
-  const examples = names.slice(0, 2).join(language === 'zh-CN' ? '、' : ' and ')
-  return language === 'zh-CN'
-    ? `调用了${examples}${names.length > 2 ? '等工具' : ''} · ${steps.length} 项操作`
-    : `Used ${examples}${names.length > 2 ? ' and more' : ''} · ${steps.length} actions`
+  const failures = steps.filter(step => step.state === 'failed').length
+  const running = steps.some(step => step.state === 'running')
+  const only = steps.length === 1 ? steps[0] : undefined
+  const duration = only?.duration != null && Number.isFinite(only.duration) && only.duration >= 0
+    ? `${Number(only.duration.toFixed(1))}` : undefined
+  const parts = language === 'zh-CN'
+    ? ['执行过程', `${steps.length} 项操作`]
+    : ['Activity', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
+  if (running) parts.push(label(language, '正在执行', 'Running'))
+  if (failures) parts.push(language === 'zh-CN' ? `${failures} 项失败` : `${failures} failed`)
+  if (duration && only) {
+    const subject = toolSubjects[only.name]?.[language === 'zh-CN' ? 0 : 1]
+    parts.push(language === 'zh-CN' ? `${subject || '工具'}用时 ${duration} 秒` : `${subject || 'Tool'} took ${duration}s`)
+  }
+  return parts.join(' · ')
 }
 function toolState(step: ToolStep, language: Language) {
   if (step.state === 'running') return label(language, '执行中', 'Running')
@@ -63,7 +73,7 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
 }
 
 function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
-  return <details className="tool-activity">
+  return <details className={`tool-activity${steps.some(step => step.state === 'failed') ? ' has-failure' : ''}`}>
     <summary><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
     <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
@@ -73,6 +83,6 @@ export default function MessageList({ messages, assistant, language, t }: { mess
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
   return <div className="messages">{messages.map((message, index) => message.kind === 'tools'
     ? <ToolActivity key={`${index}-${message.steps[0]?.id || ''}`} steps={message.steps} language={language} />
-    : message.text.trim() && <p key={index}><strong>{message.role === 'user' ? t('ui.you') : 'Hermes'}：</strong>{message.text}</p>
-  )}{assistant.trim() && <p><strong>Hermes：</strong>{assistant}</p>}</div>
+    : message.text.trim() && <p className={`message message-${message.role}`} key={index}>{message.role === 'assistant' && <strong>Hermes：</strong>}{message.text}</p>
+  )}{assistant.trim() && <p className="message message-assistant"><strong>Hermes：</strong>{assistant}</p>}</div>
 }
