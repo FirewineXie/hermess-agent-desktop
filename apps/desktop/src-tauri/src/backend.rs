@@ -321,7 +321,7 @@ fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, S
                     for part in path
                         .parent()
                         .unwrap_or(Path::new(""))
-                        .join(target)
+                        .join(&target)
                         .components()
                     {
                         match part {
