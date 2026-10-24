@@ -17,15 +17,19 @@ import time
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python", type=Path, required=True, help="prepared Hermes venv Python")
+    parser.add_argument("--hermes", type=Path, help="optional sealed payload launcher under the product .build")
     args = parser.parse_args()
     python = args.python.resolve(strict=True)
-    hermes = python.with_name("hermes.exe" if os.name == "nt" else "hermes")
+    hermes = args.hermes.resolve(strict=True) if args.hermes else python.with_name("hermes.exe" if os.name == "nt" else "hermes")
     if not hermes.is_file():
         parser.error(f"Hermes launcher is missing beside the selected Python: {hermes}")
     product = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
     if not python.is_relative_to(product / ".build"):
         parser.error("I0 smoke only accepts a prepared environment under the product .build directory")
+    if args.hermes:
+        if not hermes.is_relative_to(product / ".build") or not (hermes.parent.parent / "manifest.json").is_file():
+            parser.error("--hermes must name a sealed payload launcher under the product .build directory")
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
 
     from websockets.asyncio.client import connect
@@ -51,7 +55,14 @@ def main() -> None:
             "HERMES_DESKTOP": "1",
             "HERMES_DASHBOARD_SESSION_TOKEN": secrets.token_urlsafe(32),
             "HERMES_PARENT_PID": str(os.getpid()),
+            "HERMES_DISABLE_LAZY_INSTALLS": "1",
+            "HTTP_PROXY": "http://127.0.0.1:9",
+            "HTTPS_PROXY": "http://127.0.0.1:9",
+            "ALL_PROXY": "http://127.0.0.1:9",
+            "NO_PROXY": "127.0.0.1,localhost",
         })
+        for key in ("HERMES_RUNTIME_DIR", "HERMES_INSTALL_ROOT", "PYTHONPATH"):
+            env.pop(key, None)
         previous_home = os.environ.get("HERMES_HOME")
         os.environ["HERMES_HOME"] = str(home)
         try:

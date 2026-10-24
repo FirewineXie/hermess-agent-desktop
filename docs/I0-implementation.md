@@ -16,10 +16,13 @@
 10. 持续 WS 连接在 `gateway.ready` 后声明 `client.capabilities`，Rust 与开发态 UI 接入 `approval`、`clarify` 和 `request.cancel`。脚本用假模型完成澄清回答往返，并对 `rm -rf` 临时测试目录选择 `deny`；目录保持存在。`cargo check`、`pnpm build` 均通过。窗口交互仍未验收。
 11. 接入 `session.list`、`session.resume`、`session.interrupt`；脚本证实列表里的持久化 ID 与会话创建返回的运行时 ID不同，使用前者恢复了完整回复，并调用中断 RPC。开发态 UI 可列出和恢复会话、停止当前任务。
 12. `session.create` 结果改为保留运行时与持久化 ID；后端连接断开后可在开发态 UI 手动重连并用持久化 ID 恢复。脚本在假模型流式输出中断开首条 WS，第二条 WS 通过 `session.resume` 重附着同一运行时会话，并核对 `session.events.since` 水位。另用慢速流式假模型在中途调用 `session.interrupt`，收到 `interrupted` 与最终 `message.complete`。这些是协议级测试，窗口操作与重放渲染仍未验收。
+13. 上游 `pm bundle` 在 `.build/payload-win32-x64-i0` 生成 Windows x64 完整 payload，包含 manifest、自带 Python 3.14.9、PM runtime、工具仓库、venv、uv 缓存及三个启动器。总计 6,181,600,280 字节、117,396 个文件。`scripts/verify-payload.py` 校验发行仓库快照的 6,922 个条目与固定提交一致；上游工作树仍干净。
+14. 用 payload 的 `bin/hermes.exe` 在独立数据根、禁用按需安装和不可达公共代理下运行完整假模型冒烟，鉴权、聊天、工具、审批、澄清、中断和重附着均通过。此测试不能替代物理断网；默认 bundle 过大，不是首版核心包。封装决策与构建入口限制见 `docs/ADR-0001-runtime-and-process.md`。
+15. 为避免后续 bundle 构建入口借用机器现有 Hermes PM 状态，增加产品级 `scripts/build-payload.py`；在产品 `.build/pm-bootstrap` 私有目录执行 `pm status`，该目录实际生成工具与 PM 状态。尚未通过此新入口重复全量 bundle。
 
 ## 尚未完成
 
-- 上游组装器生成 payload、来源摘要及脱网启动；PM 隔离依赖构建已验证一次。
+- 上游全量 payload 已组装和校验；仍需核心/可选依赖拆分、独立构建入口全量验证、来源摘要记录以及物理断网验收。
 - 正式产品的数据根选择、私有发现、完整身份鉴权、跨重启进程归属与退出验收。当前仅有 I0 进程内开发态实现。
 - 断线自动重连、事件重放渲染；运行中断、历史恢复、审批、澄清已有脚本级闭环，但桌面窗口交互尚未验收。
 - 本机解释器复用后的隔离依赖环境、托管兜底下载、离线导入。
@@ -32,7 +35,7 @@
 
 ## 上游接口事实
 
-- `hermes serve --host 127.0.0.1 --port 0 --isolated` 是待验证的首选独立后端路线。
+- `hermes serve --host 127.0.0.1 --port 0 --isolated` 已在 Windows 的隔离 venv 与上游完整 payload 中验证；其他平台和正式生命周期仍待验收。
 - `HERMES_DESKTOP_READY_FILE` 当前只发布端口，不能单凭端口证明身份。
 - 该固定提交的专用 `serve` 没有 canonical gateway 的私有控制端点；其 loopback WebSocket 接受每次启动的 `HERMES_DASHBOARD_SESSION_TOKEN`。I0 已验证该路径的 `ping`，没有声称原生票据已通过。正式连接仍需进程身份、端点与鉴权的完整共存测试。
 - `HERMES_DESKTOP=1` 单独不构成归属证明；固定提交还检查每次启动的 `HERMES_DASHBOARD_SESSION_TOKEN` 或 SSH 启动身份。
