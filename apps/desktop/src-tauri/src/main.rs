@@ -137,6 +137,7 @@ fn main() {
             backend::dev_backend_defaults,
             backend::start_dev_backend,
             backend::ping_backend,
+            backend::reconnect_backend,
             backend::stop_backend,
             backend::create_chat_session,
             backend::submit_chat_prompt,

@@ -7,12 +7,12 @@
 | 本地独立启动 | `hermes serve --host 127.0.0.1 --port 0 --isolated`、`HERMES_DESKTOP_READY_FILE` | 开发态 Rust 命令管理一个子进程，私有数据根与锁目录 | Windows 脚本启动与就绪通过；窗口按钮未操作验收 |
 | 本地鉴权 | loopback `/api/ws` 使用每次启动的 `HERMES_DASHBOARD_SESSION_TOKEN` | 凭据仅在 Rust 层；前端收不到 token | 正确凭据 ping 成功、错误凭据拒绝；进程身份与共存仍待验收 |
 | 网关连通 | `ping` | Rust 持续连接 + RPC 请求匹配；另有独立 ping | 原版后端脚本通过；Rust 长连接未完成窗口验收 |
-| 新建会话 | `session.create`，`source: desktop`、`idempotency_key` | Rust RPC 命令 + 开发态 UI | 脚本从真实后端取得会话 ID；UI 未验收 |
+| 新建会话 | `session.create`，`source: desktop`、`idempotency_key` | Rust RPC 保留运行时 ID 与持久化 ID，开发态 UI 分别记录 | 脚本从真实后端取得两个 ID；UI 未验收 |
 | 提交消息 | `prompt.submit` | Rust RPC 命令，无盲目重试 | 脚本取得 admission；UI 未验收 |
 | 流式回复 | `message.delta`、`message.complete` | Rust 筛选事件送前端，最简文本视图 | 脚本收到 7 个 delta 与最终内容；UI 未验收 |
 | 基础工具 | `tool.start`、`tool.complete` | Rust 转发工具事件，UI 仅显示状态 | 原版 `read_file` 实际执行，收到 1 个完成事件；工具卡片未完成 |
 | 审批与澄清 | `gateway.ready` 后发送 `client.capabilities`；处理 `approval`、`clarify`、`request.cancel` | Rust 限额转发服务端请求并校验审批选项；开发态 UI 展示卡片并回传决定 | 脚本级澄清往返通过；危险命令审批拒绝后目标目录保留。UI 未操作验收；其他服务端请求尚未接入 |
-| 中断与恢复 | `session.interrupt`、`session.resume` | Rust RPC + 开发态 UI 停止按钮、恢复入口；尚无断线重连与事件重放 | 脚本验证恢复消息及中断 RPC；运行中断、窗口恢复未验收 |
+| 中断与恢复 | `session.interrupt`、`session.resume`、`session.events.since` | Rust 重建断开的 WS，开发态 UI 用持久化 ID 手动重连并恢复；未接入事件重放渲染 | 脚本验证流式任务中途停止、断线重附着同一运行时会话及重放水位；窗口恢复和自动重连未验收 |
 | 历史 | `session.list` 返回持久化 ID，`session.resume` 返回运行时 ID | 开发态 UI 列表和消息渲染 | 脚本读取列表并用存储 ID 恢复消息；窗口未验收 |
 | 模型配置 | `config.get`、`config.set`、管理接口 | 尚未实现；脚本使用临时假模型配置 | 真实模型未验收 |
 

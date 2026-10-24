@@ -56,7 +56,8 @@ impl GatewayClient {
         let (ready_sender, ready_receiver) = oneshot::channel();
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
-            let mut pending = HashMap::<u64, oneshot::Sender<Result<Value, String>>>::new();
+            let mut pending =
+                HashMap::<u64, (&'static str, oneshot::Sender<Result<Value, String>>)>::new();
             let mut server_requests = HashMap::<String, (String, Value)>::new();
             let mut ready_sender = Some(ready_sender);
             loop {
@@ -76,7 +77,7 @@ impl GatewayClient {
                                     let _ = request.reply.send(Err("网关连接已断开".into()));
                                     break;
                                 }
-                                pending.insert(id, request.reply);
+                                pending.insert(id, (request.method, request.reply));
                             }
                             GatewayCommand::Answer { id, result, reply } => {
                                 let Some((method, params)) = server_requests.get(&id) else {
@@ -108,13 +109,29 @@ impl GatewayClient {
                         let Message::Text(text) = frame else { continue };
                         let Ok(value) = serde_json::from_str::<Value>(&text) else { continue };
                         if let Some(id) = value.get("id").and_then(Value::as_u64) {
-                            if let Some(reply) = pending.remove(&id) {
+                            if let Some((method, reply)) = pending.remove(&id) {
                                 let outcome = if let Some(error) = value.get("error") {
                                     let code = error.get("code").and_then(Value::as_i64).unwrap_or(0);
                                     let message = error.get("message").and_then(Value::as_str).unwrap_or("未知 RPC 错误");
                                     Err(format!("{message} ({code})"))
                                 } else {
-                                    Ok(value.get("result").cloned().unwrap_or(Value::Null))
+                                    let result = value.get("result").cloned().unwrap_or(Value::Null);
+                                    if method == "session.resume" {
+                                        if let Some(requests) = result.get("open_requests").and_then(Value::as_array) {
+                                            for request in requests.iter().take(64) {
+                                                if let (Some(id), Some(kind), Some(params)) = (
+                                                    request.get("id").and_then(Value::as_str),
+                                                    request.get("method").and_then(Value::as_str),
+                                                    request.get("params"),
+                                                ) {
+                                                    if matches!(kind, "approval" | "clarify") && id.starts_with("srq-") && params.to_string().len() <= 32 * 1024 {
+                                                        server_requests.insert(id.to_owned(), (kind.to_owned(), params.clone()));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Ok(result)
                                 };
                                 let _ = reply.send(outcome);
                             } else if value.get("method").is_some() {
@@ -158,7 +175,7 @@ impl GatewayClient {
                     }
                 }
             }
-            for (_, reply) in pending {
+            for (_, (_, reply)) in pending {
                 let _ = reply.send(Err("网关连接已断开".into()));
             }
             let _ = app.emit("hermes-disconnected", ());
@@ -204,5 +221,9 @@ impl GatewayClient {
 
     pub fn close(self) {
         self.task.abort();
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.task.is_finished()
     }
 }

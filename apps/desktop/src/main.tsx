@@ -30,9 +30,12 @@ type GatewayRequest = {
 type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
 type ResumeResult = {
   session_id: string
+  stored_session_id?: string
+  session_key?: string
   messages: Array<{ role: string; text?: string | null }>
   running?: boolean
   inflight?: { assistant?: string; user?: string }
+  open_requests?: GatewayRequest[]
 }
 
 function App() {
@@ -46,6 +49,7 @@ function App() {
   const [busy, setBusy] = React.useState(false)
   const [sessionId, setSessionId] = React.useState('')
   const sessionRef = React.useRef('')
+  const storedSessionRef = React.useRef('')
   const [draft, setDraft] = React.useState('')
   const [conversation, setConversation] = React.useState<Array<{ role: string; text: string }>>([])
   const [assistant, setAssistant] = React.useState('')
@@ -143,8 +147,10 @@ function App() {
     try {
       let id = sessionRef.current
       if (!id) {
-        id = await invoke<string>('create_chat_session')
+        const created = await invoke<{ session_id: string; stored_session_id: string }>('create_chat_session')
+        id = created.session_id
         sessionRef.current = id
+        storedSessionRef.current = created.stored_session_id
         setSessionId(id)
       }
       setConversation(rows => [...rows, { role: 'user', text }])
@@ -171,7 +177,8 @@ function App() {
     try {
       const result = await invoke<ResumeResult>('resume_chat_session', { sessionId: id })
       sessionRef.current = result.session_id
-      setServerRequests([])
+      storedSessionRef.current = result.stored_session_id || result.session_key || id
+      setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
       setClarifyAnswers({})
       setSessionId(result.session_id)
       setConversation(result.messages.filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, text: message.text || '' })))
@@ -191,6 +198,18 @@ function App() {
     } catch (cause) { setChatStatus(`停止任务失败：${String(cause)}`) }
   }
 
+  async function reconnectBackend() {
+    setBusy(true)
+    setBackendStatus('重新连接中…')
+    try {
+      const info = await invoke<BackendInfo>('reconnect_backend')
+      setBackend(info)
+      setBackendStatus('已重新连接')
+      if (storedSessionRef.current) await resumeSession(storedSessionRef.current)
+    } catch (cause) { setBackendStatus(`重连失败：${String(cause)}`) }
+    finally { setBusy(false) }
+  }
+
   async function startBackend() {
     setBusy(true)
     setBackendStatus('启动并鉴权中…')
@@ -201,6 +220,7 @@ function App() {
     } catch (cause) {
       setBackend(null)
       sessionRef.current = ''
+      storedSessionRef.current = ''
       setSessionId('')
       setConversation([])
       assistantRef.current = ''
@@ -226,6 +246,7 @@ function App() {
       await invoke('stop_backend')
       setBackend(null)
       sessionRef.current = ''
+      storedSessionRef.current = ''
       setSessionId('')
       setConversation([])
       assistantRef.current = ''
@@ -239,7 +260,7 @@ function App() {
 
   return <main>
     <header><span className="eyebrow">I0 技术样机</span><h1>Hermess Agent Desktop</h1></header>
-    <p>正在建立独立运行时。当前页面只显示本机工具检测结果；后端尚未准备时不提供虚假的聊天入口。</p>
+    <p>正在建立独立运行时。开发态可连接隔离的 Hermes 后端并验证聊天链路；正式封装和安装尚未完成。</p>
     <section>
       <div className="row"><h2>本机工具</h2><button onClick={() => void inspect()} disabled={loading}>{loading ? '检测中…' : '重新检测'}</button></div>
       {error && <p role="alert">检测失败：{error}</p>}
@@ -257,6 +278,7 @@ function App() {
       <div className="actions">
         <button disabled={busy || !pythonPath || !storagePath} onClick={() => void startBackend()}>启动</button>
         <button disabled={busy || !backend} onClick={() => void pingBackend()}>检查连接</button>
+        <button disabled={busy || !backend} onClick={() => void reconnectBackend()}>重连并恢复</button>
         <button disabled={busy || !backend} onClick={() => void stopBackend()}>停止</button>
       </div>
       <p role="status">{backendStatus}{backend && `（PID ${backend.pid}，端口 ${backend.port}）`}</p>

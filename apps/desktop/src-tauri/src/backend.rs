@@ -112,6 +112,10 @@ pub async fn start_dev_backend(
             .map_err(|_| "进程状态读取失败".to_string())?
             .is_none()
         {
+            if existing.gateway.is_closed() {
+                existing.gateway =
+                    GatewayClient::connect(existing.port, &existing.token, app).await?;
+            }
             return Ok(BackendInfo {
                 port: existing.port,
                 pid: existing.child.id().unwrap_or(0),
@@ -236,6 +240,30 @@ pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub async fn reconnect_backend(
+    app: AppHandle,
+    state: State<'_, BackendState>,
+) -> Result<BackendInfo, String> {
+    let mut owned = state.0.lock().await;
+    let backend = owned.as_mut().ok_or("后端尚未启动")?;
+    if backend
+        .child
+        .try_wait()
+        .map_err(|_| "后端进程状态读取失败".to_string())?
+        .is_some()
+    {
+        *owned = None;
+        return Err("后端已退出，无法重连".into());
+    }
+    let replacement = GatewayClient::connect(backend.port, &backend.token, app).await?;
+    std::mem::replace(&mut backend.gateway, replacement).close();
+    Ok(BackendInfo {
+        port: backend.port,
+        pid: backend.child.id().unwrap_or(0),
+    })
+}
+
+#[tauri::command]
 pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
     if let Some(mut backend) = state.0.lock().await.take() {
         backend.gateway.close();
@@ -252,7 +280,7 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<String, String> {
+pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, String> {
     let owned = state.0.lock().await;
     let backend = owned.as_ref().ok_or("后端尚未启动")?;
     let result = backend
@@ -264,11 +292,15 @@ pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Strin
             }),
         )
         .await?;
-    result
-        .get("session_id")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| "网关未返回会话 ID".to_string())
+    if result.get("session_id").and_then(Value::as_str).is_none()
+        || result
+            .get("stored_session_id")
+            .and_then(Value::as_str)
+            .is_none()
+    {
+        return Err("网关未返回完整会话标识".into());
+    }
+    Ok(result)
 }
 
 #[tauri::command]

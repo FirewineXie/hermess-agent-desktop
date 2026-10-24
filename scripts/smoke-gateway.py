@@ -183,6 +183,89 @@ def main() -> None:
                             if interrupted.get("status") not in {"interrupted", "not_interrupted"}:
                                 raise RuntimeError(f"session.interrupt returned unexpected status: {interrupted}")
                     asyncio.run(verify_history())
+                    async def reconnect_live_turn() -> None:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        model.push(Text("Reconnect stream canary reached completion", chunk_chars=2, delay_per_chunk=0.12))
+                        async with connect(url, open_timeout=5, proxy=None) as first:
+                            await first.send(json.dumps({"jsonrpc":"2.0","id":20,"method":"session.create","params":{
+                                "source":"desktop","cwd":str(root),"cwd_explicit":True,"idempotency_key":secrets.token_hex(16)}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(first.recv(), timeout=20))
+                                if frame.get("id") == 20:
+                                    created = frame["result"]
+                                    break
+                            await first.send(json.dumps({"jsonrpc":"2.0","id":21,"method":"prompt.submit","params":{
+                                "session_id":created["session_id"],"text":"Stream across reconnect"}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(first.recv(), timeout=20))
+                                params = frame.get("params", {})
+                                if params.get("type") == "message.delta" and params.get("session_id") == created["session_id"]:
+                                    first_seq = params["seq"]
+                                    break
+                        async with connect(url, open_timeout=5, proxy=None) as second:
+                            await second.send(json.dumps({"jsonrpc":"2.0","id":22,"method":"client.capabilities","params":{
+                                "server_requests":True,"desktop_local":True}}))
+                            await second.send(json.dumps({"jsonrpc":"2.0","id":23,"method":"session.resume","params":{
+                                "session_id":created["stored_session_id"],"source":"desktop"}}))
+                            result = {}
+                            saw_complete = False
+                            while 23 not in result:
+                                frame = json.loads(await asyncio.wait_for(second.recv(), timeout=20))
+                                saw_complete |= frame.get("params", {}).get("type") == "message.complete"
+                                if frame.get("id") in {22, 23}:
+                                    result[frame["id"]] = frame.get("result")
+                            resumed = result[23]
+                            if resumed.get("session_id") != created["session_id"]:
+                                raise RuntimeError("live reconnect minted another runtime session")
+                            await second.send(json.dumps({"jsonrpc":"2.0","id":24,"method":"session.events.since","params":{
+                                "session_id":created["session_id"],"last_seen":first_seq}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(second.recv(), timeout=20))
+                                saw_complete |= frame.get("params", {}).get("type") == "message.complete"
+                                if frame.get("id") == 24:
+                                    replay = frame["result"]
+                                    break
+                            if replay.get("truncated") or replay.get("latest_seq", 0) < first_seq:
+                                raise RuntimeError("reconnect replay has a gap")
+                            saw_complete |= any(event.get("type") == "message.complete" for event in replay.get("events", []))
+                            if not saw_complete:
+                                while True:
+                                    frame = json.loads(await asyncio.wait_for(second.recv(), timeout=20))
+                                    if frame.get("params", {}).get("type") == "message.complete":
+                                        break
+                    asyncio.run(reconnect_live_turn())
+                    async def interrupt_live_turn() -> None:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        model.push(Text("A deliberately long stream that must be interrupted before it finishes", chunk_chars=1, delay_per_chunk=0.15))
+                        async with connect(url, open_timeout=5, proxy=None) as ws:
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":30,"method":"session.create","params":{
+                                "source":"desktop","cwd":str(root),"cwd_explicit":True,"idempotency_key":secrets.token_hex(16)}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                                if frame.get("id") == 30:
+                                    created = frame["result"]
+                                    break
+                            sid = created["session_id"]
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":31,"method":"prompt.submit","params":{
+                                "session_id":sid,"text":"Interrupt this stream"}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                                if frame.get("params", {}).get("type") == "message.delta":
+                                    break
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":32,"method":"session.interrupt","params":{
+                                "session_id":sid}}))
+                            interrupted = None
+                            completed = None
+                            deadline = time.monotonic() + 20
+                            while (interrupted is None or completed is None) and time.monotonic() < deadline:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                                if frame.get("id") == 32:
+                                    interrupted = frame.get("result")
+                                if frame.get("params", {}).get("type") == "message.complete":
+                                    completed = frame["params"].get("payload", {})
+                            if interrupted is None or interrupted.get("status") != "interrupted" or completed is None:
+                                raise RuntimeError(f"running turn failed to interrupt: rpc={interrupted}, complete={completed}")
+                    asyncio.run(interrupt_live_turn())
                     model.push(ToolCall("read_file", {"path": str(fixture)}), Text("Tool read complete"))
                     tool_session, _, tools, _ = asyncio.run(chat("Read notes.txt", "Tool read complete"))
                     if tools < 1 or len(model.main_requests()) < 3:
@@ -199,7 +282,7 @@ def main() -> None:
                         raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, auth rejection, streamed chat, history resume, interrupt RPC, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
+                    print(f"owned serve, auth rejection, streamed chat, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()
