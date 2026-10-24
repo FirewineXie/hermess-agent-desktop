@@ -536,6 +536,12 @@ mod tests {
             config.base_url,
             "https://ark.cn-beijing.volces.com/api/coding/v3"
         );
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../packages/contracts/fixtures/saved-model-config.json"
+        )))
+        .unwrap();
+        assert_eq!(serde_json::to_value(&config).unwrap(), fixture);
         assert!(!serde_json::to_string(&config)
             .unwrap()
             .contains("secret-example"));

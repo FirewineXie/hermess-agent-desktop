@@ -14,14 +14,8 @@ export type { ReplayResult } from './generated/replay-result'
 import type { ReplayResult } from './generated/replay-result'
 export type { PackedDefaults } from './generated/packed-defaults'
 import type { PackedDefaults } from './generated/packed-defaults'
-export type RuntimeProbe = {
-  tool: string
-  kind: 'runtime' | 'command'
-  path: string | null
-  version: string | null
-  usable: boolean
-  reason: string
-}
+export type { RuntimeProbe } from './generated/runtime-probe'
+import type { RuntimeProbe } from './generated/runtime-probe'
 export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
 export type AgentToolCatalog = { toolsets: AgentToolset[] }
 export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
@@ -34,7 +28,8 @@ export type ModelOptions = { providers: ModelProvider[]; model?: string; provide
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
-export type SavedModelConfig = { provider: string; model: string; base_url: string }
+export type { SavedModelConfig } from './generated/saved-model-config'
+import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 export type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }

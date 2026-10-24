@@ -1,0 +1,5 @@
+{
+  "provider": "custom",
+  "model": "ark-code-latest",
+  "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3"
+}

@@ -40,6 +40,8 @@ for (const [name, fixtures] of Object.entries({
   'gateway-request': ['gateway-request-approval', 'gateway-request-clarify'],
   'packed-defaults': ['packed-defaults'],
   'replay-result': ['replay-result'],
+  'runtime-probe': ['runtime-probe-found', 'runtime-probe-missing'],
+  'saved-model-config': ['saved-model-config'],
 })) {
   for (const fixture of fixtures) check(read(`packages/contracts/fixtures/${fixture}.json`), schema(name), fixture)
 }

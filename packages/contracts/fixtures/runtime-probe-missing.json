@@ -1,0 +1,8 @@
+{
+  "tool": "Git",
+  "kind": "command",
+  "path": null,
+  "version": null,
+  "usable": false,
+  "reason": "没有找到可执行文件"
+}
