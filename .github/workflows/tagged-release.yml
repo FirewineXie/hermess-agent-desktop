@@ -110,6 +110,6 @@ jobs:
             gh release upload "$TAG" release-assets/* --clobber
             gh release edit "$TAG" --notes-file "releases/$TAG.md"
           else
-            gh release create "$TAG" release-assets/* --verify-tag --draft --prerelease \
+            gh release create "$TAG" release-assets/* --verify-tag --prerelease \
               --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md"
           fi

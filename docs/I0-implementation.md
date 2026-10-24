@@ -32,7 +32,7 @@
 26. 模型配置代理的响应读取增加流式 64 KiB 上限，避免超限响应先全部进入内存。含上述改动和目录选择器的 Windows 离线 NSIS 候选包重新构建成功：352,896,690 字节，SHA-256 `3F3FF198F5C6A25600AF16A1EDBE51EC7C118975AAC90890B415621443EC79EE`。在当前机器静默安装到 `.build/安装 测试`，程序、归档及收据落盘；安装后归档 SHA-256 与收据 `478C40FE4DDB53906D33967C77075A90A1CB964B5EF36674817767DDD2344FB6` 一致，HKCU 卸载登记指向测试目录。静默卸载退出码 0，目录和登记均清除。此轮仍未完成安装向导或原生窗口操作验收。
 27. 固定核心包的 `file.attach`、`image.attach`、`image.detach` 协议冒烟通过：文本文件复制内容与来源一致并返回 `@file:` 引用，带引用的消息取得假模型回复；2×2 PNG 可暂存并移除。产品 Rust 接入普通文件/图片附件，校验绝对路径与 20 MiB 上限；UI 接入原生文件选择、拖入、移除、路径确认与短文本预览，文件引用在发送时追加到消息。`pnpm build` 与 `cargo test` 通过；原生窗口、图片实际模型输入、PDF 渲染与二进制预览未验收。
 28. 含附件功能的 Windows 离线 NSIS 候选包重新构建成功：352,912,896 字节，SHA-256 `07E3798693F863D5DCE254282480DB6910F324B3879602F17D2FF1F5A327DD9F`。同机静默安装到 `.build/安装 测试` 退出码 0，程序与 1,590,661,120 字节运行时归档落盘、归档哈希匹配收据、HKCU 卸载登记指向测试目录；静默卸载退出码 0，目录和登记清除。安装器内附件 UI 未完成原生窗口操作验收。
-29. 产品代码已推送到私有 GitHub 仓库 `FirewineXie/hermess-agent-desktop`。`.github/workflows/tagged-release.yml` 仅由 `vX.Y.Z` 标签推送触发，先核对四处版本、版本说明、上游固定提交，再在 Windows x64、macOS Intel/Apple Silicon 和 Linux x64 原生 runner 打包。`v0.1.4` 的四个平台和 Release 作业均成功；草稿 Release 含 NSIS、两个 DMG、AppImage、deb 与 SHA256SUMS，五条校验记录的文件名与实际附件逐一一致。`v0.1.3` 的构建也全部成功，但其草稿校验文件需手动修正文件名；`v0.1.4` 已让流水线自动处理。该证据只说明云端构建通过，不代表 macOS/Linux 实机安装或桌面窗口功能通过。
+29. 产品代码已推送到私有 GitHub 仓库 `FirewineXie/hermess-agent-desktop`。`.github/workflows/tagged-release.yml` 仅由 `vX.Y.Z` 标签推送触发，先核对四处版本、版本说明、上游固定提交，再在 Windows x64、macOS Intel/Apple Silicon 和 Linux x64 原生 runner 打包。`v0.1.4` 的四个平台和 Release 作业均成功；预发布 Release 含 NSIS、两个 DMG、AppImage、deb 与 SHA256SUMS，五条校验记录的文件名与实际附件逐一一致。`v0.1.3` 的构建也全部成功，但其草稿校验文件需手动修正文件名；`v0.1.4` 已让流水线自动处理。该证据只说明云端构建通过，不代表 macOS/Linux 实机安装或桌面窗口功能通过。
 
 ## 尚未完成
 
