@@ -2,10 +2,22 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
-import type { DesktopApi, GatewayEvent, GatewayRequest, NativeDropEvent, Unsubscribe } from '@hermess/contracts'
+import type { DesktopApi, GatewayEvent, GatewayRequest, NativeDropEvent, ReplayResult, ResumeResult, Unsubscribe } from '@hermess/contracts'
 
 function listenPayload<T>(event: string, handler: (payload: T) => void): Promise<Unsubscribe> {
   return listen<T>(event, message => handler(message.payload))
+}
+
+function isSupportedRequest(value: unknown): value is GatewayRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return typeof request.id === 'string'
+    && (request.method === 'approval' || request.method === 'clarify')
+    && !!request.params && typeof request.params === 'object'
+}
+
+function supportedRequests(value: unknown): GatewayRequest[] {
+  return Array.isArray(value) ? value.filter(isSupportedRequest) : []
 }
 
 export const tauriDesktopApi: DesktopApi = {
@@ -50,11 +62,17 @@ export const tauriDesktopApi: DesktopApi = {
   },
   chat: {
     createSession: () => invoke('create_chat_session'),
-    resumeSession: sessionId => invoke('resume_chat_session', { sessionId }),
+    resumeSession: async sessionId => {
+      const result = await invoke<ResumeResult>('resume_chat_session', { sessionId })
+      return { ...result, open_requests: supportedRequests(result.open_requests) }
+    },
     listSessions: () => invoke('list_chat_sessions'),
     submitPrompt: (sessionId, text) => invoke('submit_chat_prompt', { sessionId, text }),
     interruptSession: sessionId => invoke('interrupt_chat_session', { sessionId }),
-    replayEvents: (sessionId, lastSeen, replayEpoch) => invoke('replay_chat_events', { sessionId, lastSeen, replayEpoch }),
+    replayEvents: async (sessionId, lastSeen, replayEpoch) => {
+      const result = await invoke<ReplayResult>('replay_chat_events', { sessionId, lastSeen, replayEpoch })
+      return { ...result, open_requests: supportedRequests(result.open_requests) }
+    },
     usage: sessionId => invoke('get_chat_usage', { sessionId }),
     reasoning: sessionId => invoke('get_chat_reasoning', { sessionId }),
     commands: sessionId => invoke('list_composer_commands', { sessionId }),
@@ -66,7 +84,9 @@ export const tauriDesktopApi: DesktopApi = {
   },
   events: {
     onGatewayEvent: handler => listenPayload<GatewayEvent>('hermes-event', handler),
-    onGatewayRequest: handler => listenPayload<GatewayRequest>('hermes-request', handler),
+    onGatewayRequest: handler => listenPayload<unknown>('hermes-request', request => {
+      if (isSupportedRequest(request)) handler(request)
+    }),
     onDisconnect: handler => listenPayload('hermes-disconnected', handler),
   },
   nativeFiles: {
