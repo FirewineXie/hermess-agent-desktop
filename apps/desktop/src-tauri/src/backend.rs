@@ -27,6 +27,7 @@ struct OwnedBackend {
 pub struct BackendInfo {
     port: u16,
     pid: u32,
+    replay_epoch: String,
 }
 
 #[derive(Serialize)]
@@ -132,6 +133,7 @@ pub async fn start_dev_backend(
             return Ok(BackendInfo {
                 port: existing.port,
                 pid: existing.child.id().unwrap_or(0),
+                replay_epoch: existing.gateway.replay_epoch.clone(),
             });
         }
         *owned = None;
@@ -232,6 +234,7 @@ pub async fn start_dev_backend(
         return Err("后端在鉴权后退出".into());
     }
     let gateway = GatewayClient::connect(port, &token, app).await?;
+    let replay_epoch = gateway.replay_epoch.clone();
     *owned = Some(OwnedBackend {
         _storage_lock: storage_lock,
         child,
@@ -239,7 +242,11 @@ pub async fn start_dev_backend(
         token,
         gateway,
     });
-    Ok(BackendInfo { port, pid })
+    Ok(BackendInfo {
+        port,
+        pid,
+        replay_epoch,
+    })
 }
 
 #[tauri::command]
@@ -279,6 +286,7 @@ pub async fn reconnect_backend(
     Ok(BackendInfo {
         port: backend.port,
         pid: backend.child.id().unwrap_or(0),
+        replay_epoch: backend.gateway.replay_epoch.clone(),
     })
 }
 
@@ -425,6 +433,27 @@ pub async fn interrupt_chat_session(
     backend
         .gateway
         .request("session.interrupt", json!({"session_id":session_id}))
+        .await
+}
+
+#[tauri::command]
+pub async fn replay_chat_events(
+    state: State<'_, BackendState>,
+    session_id: String,
+    last_seen: u64,
+    replay_epoch: String,
+) -> Result<Value, String> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err("会话 ID 无效".into());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request(
+            "session.events.since",
+            json!({"session_id":session_id,"last_seen":last_seen,"replay_epoch":replay_epoch}),
+        )
         .await
 }
 

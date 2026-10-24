@@ -11,9 +11,10 @@ type RuntimeProbe = {
   usable: boolean
   reason: string
 }
-type BackendInfo = { port: number; pid: number }
+type BackendInfo = { port: number; pid: number; replay_epoch: string }
 type DevDefaults = { python_path: string; storage_path: string }
-type GatewayEvent = { kind: string; session_id?: string; payload: Record<string, unknown> }
+type GatewayEvent = { kind: string; session_id?: string; seq?: number; payload: Record<string, unknown> }
+type ReplayResult = { events: Array<{ type: string; session_id?: string; seq?: number; payload?: Record<string, unknown> }>; latest_seq: number; epoch: string; truncated: boolean; open_requests?: GatewayRequest[] }
 type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 type GatewayRequest = {
   id: string
@@ -34,6 +35,8 @@ type ResumeResult = {
   session_key?: string
   messages: Array<{ role: string; text?: string | null }>
   running?: boolean
+  replay_epoch?: string
+  last_sequence?: number
   inflight?: { assistant?: string; user?: string }
   open_requests?: GatewayRequest[]
 }
@@ -60,6 +63,39 @@ function App() {
   const serverRequest = serverRequests[0] || null
   const [clarifyAnswers, setClarifyAnswers] = React.useState<Record<string, string>>({})
   const [sessions, setSessions] = React.useState<SessionRow[]>([])
+  const lastSeqRef = React.useRef<Record<string, number>>({})
+  const epochRef = React.useRef<Record<string, string>>({})
+  const recoveringRef = React.useRef(false)
+  const bufferedEventsRef = React.useRef<GatewayEvent[]>([])
+  const bufferedRequestsRef = React.useRef<GatewayRequest[]>([])
+  const eventProcessorRef = React.useRef<(data: GatewayEvent) => void>(() => {})
+
+  eventProcessorRef.current = data => {
+    const id = data.session_id
+    if (!id || id !== sessionRef.current) return
+    if (typeof data.seq === 'number') {
+      if (data.seq <= (lastSeqRef.current[id] || 0)) return
+      lastSeqRef.current[id] = data.seq
+    }
+    if (data.kind === 'message.delta' && typeof data.payload?.text === 'string') {
+      assistantRef.current += data.payload.text
+      setAssistant(assistantRef.current)
+    } else if (data.kind === 'message.complete') {
+      const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
+      setConversation(rows => [...rows, { role: 'assistant', text: text || assistantRef.current }])
+      assistantRef.current = ''
+      setAssistant('')
+      setTurnBusy(false)
+      setChatStatus(data.payload?.status === 'error' ? String(data.payload?.error || '回复失败') : '回复完成')
+    } else if (data.kind === 'error') {
+      setChatStatus(String(data.payload?.message || '后端错误'))
+      setTurnBusy(false)
+    } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
+      setChatStatus(`${data.kind === 'tool.start' ? '正在调用' : '已完成工具'}：${String(data.payload?.name || '工具')}`)
+    } else if (data.kind === 'request.cancel') {
+      setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
+    }
+  }
 
   async function inspect() {
     setLoading(true)
@@ -90,28 +126,13 @@ function App() {
     let unlistenRequest: (() => void) | undefined
     void listen<GatewayEvent>('hermes-event', event => {
       const data = event.payload
-      if (!active || data.session_id !== sessionRef.current) return
-      if (data.kind === 'message.delta' && typeof data.payload?.text === 'string') {
-        assistantRef.current += data.payload.text
-        setAssistant(assistantRef.current)
-      } else if (data.kind === 'message.complete') {
-        const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
-        setConversation(rows => [...rows, { role: 'assistant', text: text || assistantRef.current }])
-        assistantRef.current = ''
-        setAssistant('')
-        setTurnBusy(false)
-        setChatStatus(data.payload?.status === 'error' ? String(data.payload?.error || '回复失败') : '回复完成')
-      } else if (data.kind === 'error') {
-        setChatStatus(String(data.payload?.message || '后端错误'))
-        setTurnBusy(false)
-      } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
-        setChatStatus(`${data.kind === 'tool.start' ? '正在调用' : '已完成工具'}：${String(data.payload?.name || '工具')}`)
-      } else if (data.kind === 'request.cancel') {
-        setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
-      }
+      if (!active) return
+      if (recoveringRef.current) bufferedEventsRef.current.push(data)
+      else eventProcessorRef.current(data)
     }).then(fn => { if (active) unlistenEvent = fn; else fn() })
     void listen<GatewayRequest>('hermes-request', event => {
-      if (active && event.payload.params.session_id === sessionRef.current) {
+      if (active && recoveringRef.current) bufferedRequestsRef.current.push(event.payload)
+      else if (active && event.payload.params.session_id === sessionRef.current) {
         setServerRequests(current => current.some(request => request.id === event.payload.id) ? current : [...current, event.payload])
       }
     }).then(fn => { if (active) unlistenRequest = fn; else fn() })
@@ -150,6 +171,8 @@ function App() {
         const created = await invoke<{ session_id: string; stored_session_id: string }>('create_chat_session')
         id = created.session_id
         sessionRef.current = id
+        epochRef.current[id] = backend?.replay_epoch || ''
+        lastSeqRef.current[id] = 0
         storedSessionRef.current = created.stored_session_id
         setSessionId(id)
       }
@@ -178,6 +201,8 @@ function App() {
       const result = await invoke<ResumeResult>('resume_chat_session', { sessionId: id })
       sessionRef.current = result.session_id
       storedSessionRef.current = result.stored_session_id || result.session_key || id
+      epochRef.current[result.session_id] = backend?.replay_epoch || ''
+      lastSeqRef.current[result.session_id] = result.last_sequence || 0
       setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
       setClarifyAnswers({})
       setSessionId(result.session_id)
@@ -199,15 +224,67 @@ function App() {
   }
 
   async function reconnectBackend() {
+    if (recoveringRef.current) return
+    recoveringRef.current = true
+    bufferedEventsRef.current = []
+    bufferedRequestsRef.current = []
+    const previousId = sessionRef.current
+    const previousEpoch = epochRef.current[previousId]
+    const previousSeq = lastSeqRef.current[previousId] || 0
     setBusy(true)
     setBackendStatus('重新连接中…')
     try {
       const info = await invoke<BackendInfo>('reconnect_backend')
       setBackend(info)
       setBackendStatus('已重新连接')
-      if (storedSessionRef.current) await resumeSession(storedSessionRef.current)
+      if (storedSessionRef.current) {
+        const snapshot = await invoke<ResumeResult>('resume_chat_session', { sessionId: storedSessionRef.current })
+        const id = snapshot.session_id
+        const sameStream = id === previousId && Boolean(previousEpoch) && info.replay_epoch === previousEpoch
+        let replay: ReplayResult | undefined
+        if (sameStream) {
+          replay = await invoke<ReplayResult>('replay_chat_events', {
+            sessionId: id, lastSeen: previousSeq, replayEpoch: previousEpoch,
+          })
+        }
+        const useSnapshot = !sameStream || !replay || replay.truncated || replay.epoch !== previousEpoch
+        sessionRef.current = id
+        storedSessionRef.current = snapshot.stored_session_id || snapshot.session_key || storedSessionRef.current
+        setSessionId(id)
+        setClarifyAnswers({})
+        setServerRequests((replay?.open_requests || snapshot.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
+        setTurnBusy(Boolean(snapshot.running))
+        if (useSnapshot) {
+          setConversation(snapshot.messages.filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, text: message.text || '' })))
+          assistantRef.current = snapshot.inflight?.assistant || ''
+          setAssistant(assistantRef.current)
+          epochRef.current[id] = info.replay_epoch
+          lastSeqRef.current[id] = snapshot.last_sequence || 0
+        } else if (replay) {
+          const ordered = replay.events.map(event => ({
+            kind: event.type, session_id: event.session_id, seq: event.seq,
+            payload: event.payload || {},
+          })).sort((a, b) => (a.seq || 0) - (b.seq || 0))
+          for (const event of ordered) eventProcessorRef.current(event)
+        }
+        const buffered = bufferedEventsRef.current.splice(0)
+          .sort((a, b) => (a.seq || 0) - (b.seq || 0))
+        for (const event of buffered) eventProcessorRef.current(event)
+        for (const request of bufferedRequestsRef.current.splice(0)) {
+          if (request.params.session_id === id) {
+            setServerRequests(current => current.some(item => item.id === request.id) ? current : [...current, request])
+          }
+        }
+        if (useSnapshot) setChatStatus(replay?.truncated ? '事件窗口已截断，已从会话快照恢复' : '已从会话快照恢复')
+        else if (replay?.events.length === 0) setChatStatus(snapshot.running ? '已恢复，任务仍在运行' : '会话已恢复')
+      }
     } catch (cause) { setBackendStatus(`重连失败：${String(cause)}`) }
-    finally { setBusy(false) }
+    finally {
+      recoveringRef.current = false
+      for (const event of bufferedEventsRef.current.splice(0)) eventProcessorRef.current(event)
+      bufferedRequestsRef.current = []
+      setBusy(false)
+    }
   }
 
   async function startBackend() {

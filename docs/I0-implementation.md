@@ -15,7 +15,7 @@
 9. 扩展 `scripts/smoke-gateway.py` 使用上游假模型：`session.create`、`prompt.submit`、7 个 `message.delta` 与 `message.complete` 实测通过；随后真实执行 `read_file` 并收到 `tool.complete`。测试没有真实模型费用或外部模型请求。对应产品代码已加入持续 WS 代理和最小聊天界面，产品 UI 仍待操作验收。能力边界见 `docs/capability-matrix.md`。
 10. 持续 WS 连接在 `gateway.ready` 后声明 `client.capabilities`，Rust 与开发态 UI 接入 `approval`、`clarify` 和 `request.cancel`。脚本用假模型完成澄清回答往返，并对 `rm -rf` 临时测试目录选择 `deny`；目录保持存在。`cargo check`、`pnpm build` 均通过。窗口交互仍未验收。
 11. 接入 `session.list`、`session.resume`、`session.interrupt`；脚本证实列表里的持久化 ID 与会话创建返回的运行时 ID不同，使用前者恢复了完整回复，并调用中断 RPC。开发态 UI 可列出和恢复会话、停止当前任务。
-12. `session.create` 结果改为保留运行时与持久化 ID；后端连接断开后可在开发态 UI 手动重连并用持久化 ID 恢复。脚本在假模型流式输出中断开首条 WS，第二条 WS 通过 `session.resume` 重附着同一运行时会话，并核对 `session.events.since` 水位。另用慢速流式假模型在中途调用 `session.interrupt`，收到 `interrupted` 与最终 `message.complete`。这些是协议级测试，窗口操作与重放渲染仍未验收。
+12. `session.create` 结果改为保留运行时与持久化 ID；后端连接断开后可在开发态 UI 手动重连并用持久化 ID 恢复。脚本在假模型流式输出中断开首条 WS，第二条 WS 通过 `session.resume` 重附着同一运行时会话，并核对 `session.events.since` 水位与 `gateway.ready` 进程纪元。另用慢速流式假模型在中途调用 `session.interrupt`，收到 `interrupted` 与最终 `message.complete`。这些是协议级测试，窗口操作与重放渲染仍未验收。
 13. 上游 `pm bundle` 在 `.build/payload-win32-x64-i0` 生成 Windows x64 完整 payload，包含 manifest、自带 Python 3.14.9、PM runtime、工具仓库、venv、uv 缓存及三个启动器。总计 6,181,600,280 字节、117,396 个文件。`scripts/verify-payload.py` 校验发行仓库快照的 6,922 个条目与固定提交一致；上游工作树仍干净。
 14. 用 payload 的 `bin/hermes.exe` 在独立数据根、禁用按需安装和不可达公共代理下运行完整假模型冒烟，鉴权、聊天、工具、审批、澄清、中断和重附着均通过。此测试不能替代物理断网；默认 bundle 过大，不是首版核心包。封装决策与构建入口限制见 `docs/ADR-0001-runtime-and-process.md`。
 15. 为避免后续 bundle 构建入口借用机器现有 Hermes PM 状态，增加产品级 `scripts/build-payload.py`；在产品 `.build/pm-bootstrap` 私有目录执行 `pm status`，该目录实际生成工具与 PM 状态。尚未通过此新入口重复全量 bundle。
@@ -24,12 +24,13 @@
 18. `scripts/verify-offline-rebuild.py` 从核心候选包内的 uv 缓存、Python 与固定源码，离线重建独立 PM runtime 和基础应用 venv；按上游 assembler 的 `.pth` 规则绑定源码后，`hermes_cli` 与 `tui_gateway` 导入成功。该证据覆盖依赖重建，不覆盖正式产品的原子修复与失败回滚。
 19. 将 1.54 GB 核心候选包复制到产品 `.build/中文 空格 安装/payload`，从新路径执行源码校验及完整假模型冒烟；发行源码、鉴权、聊天、工具、审批、澄清、中断和重附着均通过。该实验验证了 Windows 核心包复制后的中文空格安装路径，不代表 NSIS 安装和升级已验收。
 20. Rust 在产品数据根持有 OS 文件锁，第二个进程对同一根的获取失败，释放后可重新获取；`cargo test storage_lock_` 使用独立测试进程验证该边界。`scripts/verify-coexistence.py` 并行运行固定上游源码 CLI 与产品核心包：两套数据根、凭据和会话列表隔离，停止产品后来源 CLI 仍可 ping。来源 CLI 是隔离测试实例，未直接操作用户现有官方安装。
+21. 开发态 UI 的手动重连现在记录每个会话收到的 `seq` 与 `gateway.ready` 进程纪元；重附着后调用 `session.events.since`，按序补回遗漏事件，并去重重连期间缓冲的实时事件。纪元变化或事件窗口截断时回退到 `session.resume` 快照；续传响应里的待处理审批与澄清请求也重新注册到 Rust 代理。固定核心包的假模型冒烟、`pnpm build` 与 `cargo check` 通过。该机制仍未在原生窗口中操作验收，截断回退时并发快照与事件的展示一致性还需专项验证。
 
 ## 尚未完成
 
 - 上游全量与产品核心候选 payload 已组装和校验，核心依赖离线重建通过；仍需可选工具按需分层、产品原子修复、独立构建入口全量验证、来源摘要记录及物理断网验收。
 - 正式产品的数据根选择、私有发现、完整身份鉴权、跨重启进程归属与退出验收。开发态已加入跨进程存储锁，仍需实际多窗口与用户现有官方安装共存验收。
-- 断线自动重连、事件重放渲染；运行中断、历史恢复、审批、澄清已有脚本级闭环，但桌面窗口交互尚未验收。
+- 断线自动重连；事件重放已经接入开发态 UI 并通过协议冒烟与编译，原生窗口渲染和截断并发场景尚未验收。运行中断、历史恢复、审批、澄清已有脚本级闭环。
 - 本机解释器复用后的隔离依赖环境、托管兜底下载、离线导入。
 - 正式的自选安装/存储位置 UI 与升级事务；中文空格安装和数据路径已在脚本级验证。
 - macOS/Linux 的构建、签名、安装与实机验收。

@@ -29,6 +29,7 @@ enum GatewayCommand {
 struct GatewayEvent {
     kind: String,
     session_id: Option<String>,
+    seq: Option<u64>,
     payload: Value,
 }
 
@@ -42,6 +43,7 @@ struct GatewayServerRequest {
 pub struct GatewayClient {
     sender: mpsc::Sender<GatewayCommand>,
     task: JoinHandle<()>,
+    pub replay_epoch: String,
 }
 
 impl GatewayClient {
@@ -116,7 +118,7 @@ impl GatewayClient {
                                     Err(format!("{message} ({code})"))
                                 } else {
                                     let result = value.get("result").cloned().unwrap_or(Value::Null);
-                                    if method == "session.resume" {
+                                    if matches!(method, "session.resume" | "session.events.since") {
                                         if let Some(requests) = result.get("open_requests").and_then(Value::as_array) {
                                             for request in requests.iter().take(64) {
                                                 if let (Some(id), Some(kind), Some(params)) = (
@@ -157,7 +159,10 @@ impl GatewayClient {
                         let Some(params) = value.get("params") else { continue };
                         let Some(kind) = params.get("type").and_then(Value::as_str) else { continue };
                         if kind == "gateway.ready" {
-                            if let Some(sender) = ready_sender.take() { let _ = sender.send(()); }
+                            if let Some(sender) = ready_sender.take() {
+                                let epoch = params.pointer("/payload/replay_epoch").and_then(Value::as_str).unwrap_or("").to_owned();
+                                let _ = sender.send(epoch);
+                            }
                             continue;
                         }
                         if kind == "request.cancel" {
@@ -169,6 +174,7 @@ impl GatewayClient {
                         let event = GatewayEvent {
                             kind: kind.into(),
                             session_id: params.get("session_id").and_then(Value::as_str).map(str::to_owned),
+                            seq: params.get("seq").and_then(Value::as_u64),
                             payload,
                         };
                         let _ = app.emit("hermes-event", event);
@@ -180,11 +186,15 @@ impl GatewayClient {
             }
             let _ = app.emit("hermes-disconnected", ());
         });
-        timeout(Duration::from_secs(5), ready_receiver)
+        let replay_epoch = timeout(Duration::from_secs(5), ready_receiver)
             .await
             .map_err(|_| "等待网关就绪事件超时".to_string())?
             .map_err(|_| "网关在就绪前断开".to_string())?;
-        let client = Self { sender, task };
+        let client = Self {
+            sender,
+            task,
+            replay_epoch,
+        };
         client
             .request(
                 "client.capabilities",

@@ -198,6 +198,11 @@ def main() -> None:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         model.push(Text("Reconnect stream canary reached completion", chunk_chars=2, delay_per_chunk=0.12))
                         async with connect(url, open_timeout=5, proxy=None) as first:
+                            while True:
+                                ready = json.loads(await asyncio.wait_for(first.recv(), timeout=5))
+                                if ready.get("params", {}).get("type") == "gateway.ready":
+                                    first_epoch = ready["params"]["payload"]["replay_epoch"]
+                                    break
                             await first.send(json.dumps({"jsonrpc":"2.0","id":20,"method":"session.create","params":{
                                 "source":"desktop","cwd":str(root),"cwd_explicit":True,"idempotency_key":secrets.token_hex(16)}}))
                             while True:
@@ -229,14 +234,15 @@ def main() -> None:
                             if resumed.get("session_id") != created["session_id"]:
                                 raise RuntimeError("live reconnect minted another runtime session")
                             await second.send(json.dumps({"jsonrpc":"2.0","id":24,"method":"session.events.since","params":{
-                                "session_id":created["session_id"],"last_seen":first_seq}}))
+                                "session_id":created["session_id"],"last_seen":first_seq,
+                                "replay_epoch":first_epoch}}))
                             while True:
                                 frame = json.loads(await asyncio.wait_for(second.recv(), timeout=20))
                                 saw_complete |= frame.get("params", {}).get("type") == "message.complete"
                                 if frame.get("id") == 24:
                                     replay = frame["result"]
                                     break
-                            if replay.get("truncated") or replay.get("latest_seq", 0) < first_seq:
+                            if replay.get("truncated") or replay.get("epoch") != first_epoch or replay.get("latest_seq", 0) < first_seq:
                                 raise RuntimeError("reconnect replay has a gap")
                             saw_complete |= any(event.get("type") == "message.complete" for event in replay.get("events", []))
                             if not saw_complete:
