@@ -131,6 +131,7 @@ async fn probe_local_tools() -> Vec<RuntimeProbe> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(backend::BackendState::default())
         .invoke_handler(tauri::generate_handler![
             probe_local_tools,
@@ -145,6 +146,9 @@ fn main() {
             backend::submit_chat_prompt,
             backend::answer_gateway_request,
             backend::list_chat_sessions,
+            backend::list_model_options,
+            backend::check_model_runtime,
+            backend::set_default_model,
             backend::resume_chat_session,
             backend::interrupt_chat_session,
             backend::replay_chat_events

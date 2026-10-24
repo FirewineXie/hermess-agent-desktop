@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "仅允许主窗口调用运行时检测命令",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "允许主窗口调用桌面后端命令和选择存储目录",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open"
+  ]
 }

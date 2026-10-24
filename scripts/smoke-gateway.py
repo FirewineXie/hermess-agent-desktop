@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.error import HTTPError
+from urllib.request import ProxyHandler, Request, build_opener
 
 
 def main() -> None:
@@ -34,7 +36,7 @@ def main() -> None:
 
     from websockets.asyncio.client import connect
     from websockets.exceptions import ConnectionClosed, InvalidStatus
-    from tests.fakes.fake_llm_provider import FakeLLMServer, Text, ToolCall, write_hermes_home
+    from tests.fakes.fake_llm_provider import FakeLLMServer, MODEL_ID, Text, ToolCall, write_hermes_home
 
     scratch = product / ".build"
     scratch.mkdir(exist_ok=True)
@@ -46,6 +48,9 @@ def main() -> None:
         model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4)])
         model.start()
         write_hermes_home(home, model.base_url)
+        config_file = home / "config.yaml"
+        config_file.write_text(config_file.read_text(encoding="utf-8").replace(
+            f"  default: {MODEL_ID}\n", "  default: before-config-canary\n"), encoding="utf-8")
         ready = root / "ready.json"
         env = os.environ.copy()
         env.update({
@@ -102,6 +107,27 @@ def main() -> None:
                         raise RuntimeError("backend accepted a wrong WebSocket credential")
 
                     asyncio.run(reject_wrong_token())
+
+                    opener = build_opener(ProxyHandler({}))
+                    assignment = json.dumps({"scope": "main", "provider": "custom", "model": MODEL_ID,
+                                             "base_url": model.base_url, "api_key": "sk-fake-e2e"}).encode()
+                    endpoint = f"http://127.0.0.1:{port}/api/model/set"
+                    try:
+                        opener.open(Request(endpoint, data=assignment, headers={"Content-Type": "application/json",
+                                                                                  "X-Hermes-Session-Token": "wrong-token"}), timeout=10)
+                    except HTTPError as error:
+                        if error.code != 401:
+                            raise RuntimeError(f"wrong model-config token returned HTTP {error.code}") from error
+                    else:
+                        raise RuntimeError("model configuration accepted a wrong credential")
+                    with opener.open(Request(endpoint, data=assignment, headers={"Content-Type": "application/json",
+                                                                                   "X-Hermes-Session-Token": env["HERMES_DASHBOARD_SESSION_TOKEN"]}),
+                                     timeout=30) as response:
+                        configured = json.load(response)
+                    if configured.get("ok") is not True or configured.get("model") != MODEL_ID:
+                        raise RuntimeError(f"model assignment failed: {configured}")
+                    if f"default: {MODEL_ID}" not in config_file.read_text(encoding="utf-8"):
+                        raise RuntimeError("model assignment did not persist the selected model")
 
                     async def chat(prompt: str, expected: str, request_method: str = "") -> tuple[str, int, int, int]:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"

@@ -43,6 +43,12 @@ pub struct DevDefaults {
     storage_path: String,
 }
 
+#[derive(Serialize)]
+pub struct PackedDefaults {
+    storage_path: String,
+    initialized: bool,
+}
+
 fn acquire_storage_lock(storage: &std::path::Path) -> Result<fs::File, String> {
     let lock = fs::OpenOptions::new()
         .read(true)
@@ -146,7 +152,7 @@ pub async fn start_dev_backend(
     if !hermes.is_file() {
         return Err("隔离环境缺少 Hermes 启动器".into());
     }
-    launch_backend(app, state, hermes, PathBuf::from(storage_path)).await
+    launch_backend(app, state, hermes, PathBuf::from(storage_path), false).await
 }
 
 fn validate_payload(payload: &std::path::Path) -> Result<PathBuf, String> {
@@ -301,15 +307,80 @@ fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, S
     installed
 }
 
+fn location_file(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| dir.join("storage-location.json"))
+        .map_err(|_| "无法定位产品配置目录".to_string())
+}
+
+fn saved_storage_path(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    let file = location_file(app)?;
+    read_storage_location(&file)
+}
+
+fn read_storage_location(file: &Path) -> Result<Option<PathBuf>, String> {
+    if !file.exists() {
+        return Ok(None);
+    }
+    let value: Value =
+        serde_json::from_slice(&fs::read(file).map_err(|_| "读取存储定位文件失败".to_string())?)
+            .map_err(|_| "存储定位文件损坏".to_string())?;
+    if value.get("schema").and_then(Value::as_u64) != Some(1) {
+        return Err("存储定位文件版本不兼容".into());
+    }
+    let path = value
+        .get("storage_path")
+        .and_then(Value::as_str)
+        .ok_or("存储定位文件缺少路径")?;
+    let selected = PathBuf::from(path);
+    if !selected.is_absolute() {
+        return Err("存储定位文件中的路径不是绝对路径".into());
+    }
+    Ok(Some(selected))
+}
+
+fn save_storage_path(app: &AppHandle, selected: &Path) -> Result<(), String> {
+    let file = location_file(app)?;
+    write_storage_location(&file, selected)
+}
+
+fn write_storage_location(file: &Path, selected: &Path) -> Result<(), String> {
+    if !selected.is_absolute() {
+        return Err("存储位置必须是绝对路径".into());
+    }
+    let parent = file.parent().ok_or("存储定位文件路径无效")?;
+    fs::create_dir_all(parent).map_err(|_| "无法创建产品配置目录".to_string())?;
+    let temporary = parent.join(format!("storage-location-{}.tmp", Uuid::new_v4()));
+    let bytes =
+        serde_json::to_vec(&json!({"schema": 1, "storage_path": selected.to_string_lossy()}))
+            .map_err(|_| "无法编码存储定位文件".to_string())?;
+    fs::write(&temporary, bytes).map_err(|_| "无法写入存储定位文件".to_string())?;
+    if let Err(error) = fs::rename(&temporary, &file) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("无法启用存储定位文件：{error}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
-pub fn packed_backend_defaults(app: AppHandle) -> Result<String, String> {
+pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, String> {
     if cfg!(debug_assertions) {
         return Err("打包配置仅在发行构建可用".into());
     }
-    app.path()
-        .app_local_data_dir()
-        .map(|path| path.to_string_lossy().into_owned())
-        .map_err(|_| "无法定位默认数据目录".to_string())
+    let saved = saved_storage_path(&app)?;
+    let initialized = saved.is_some();
+    let selected = match saved {
+        Some(path) => path,
+        None => app
+            .path()
+            .app_local_data_dir()
+            .map_err(|_| "无法定位默认数据目录".to_string())?,
+    };
+    Ok(PackedDefaults {
+        storage_path: selected.to_string_lossy().into_owned(),
+        initialized,
+    })
 }
 
 #[tauri::command]
@@ -326,6 +397,20 @@ pub async fn start_packed_backend(
         .resource_dir()
         .map_err(|_| "无法定位应用资源目录".to_string())?;
     let selected = PathBuf::from(storage_path);
+    if let Some(saved) = saved_storage_path(&app)? {
+        if !saved.exists() {
+            return Err("已选择的主要存储位置不可用；请恢复该位置".into());
+        }
+        if saved
+            .canonicalize()
+            .map_err(|_| "无法解析已选存储位置".to_string())?
+            != selected
+                .canonicalize()
+                .map_err(|_| "主要存储位置与已保存位置不一致".to_string())?
+        {
+            return Err("初始化后不能直接切换主要存储位置".into());
+        }
+    }
     let resource_for_install = resource.clone();
     let selected_for_install = selected.clone();
     let hermes = tokio::task::spawn_blocking(move || {
@@ -333,7 +418,13 @@ pub async fn start_packed_backend(
     })
     .await
     .map_err(|_| "运行时准备任务失败".to_string())??;
-    launch_backend(app, state, hermes, selected).await
+    if saved_storage_path(&app)?.is_none() {
+        let resolved = selected
+            .canonicalize()
+            .map_err(|_| "无法解析主要存储位置".to_string())?;
+        save_storage_path(&app, &resolved)?;
+    }
+    launch_backend(app, state, hermes, selected, true).await
 }
 
 async fn launch_backend(
@@ -341,6 +432,7 @@ async fn launch_backend(
     state: State<'_, BackendState>,
     hermes: PathBuf,
     selected: PathBuf,
+    disable_lazy_installs: bool,
 ) -> Result<BackendInfo, String> {
     let mut owned = state.0.lock().await;
     if let Some(existing) = owned.as_mut() {
@@ -384,7 +476,8 @@ async fn launch_backend(
     let error = output
         .try_clone()
         .map_err(|_| "无法打开后端日志".to_string())?;
-    let mut child = tokio::process::Command::new(hermes)
+    let mut command = tokio::process::Command::new(hermes);
+    command
         .args(["serve", "--host", "127.0.0.1", "--port", "0", "--isolated"])
         .env("HERMES_HOME", storage.join("hermes-home"))
         .env(
@@ -398,9 +491,11 @@ async fn launch_backend(
         .stdin(Stdio::null())
         .stdout(Stdio::from(output))
         .stderr(Stdio::from(error))
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|_| "后端启动失败".to_string())?;
+        .kill_on_drop(true);
+    if disable_lazy_installs {
+        command.env("HERMES_DISABLE_LAZY_INSTALLS", "1");
+    }
+    let mut child = command.spawn().map_err(|_| "后端启动失败".to_string())?;
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let deadline = Instant::now() + Duration::from_secs(60);
     let port = loop {
@@ -604,6 +699,112 @@ pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value,
 }
 
 #[tauri::command]
+pub async fn list_model_options(state: State<'_, BackendState>) -> Result<Value, String> {
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request("model.options", json!({"include_unconfigured": true}))
+        .await
+}
+
+#[tauri::command]
+pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value, String> {
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request("setup.runtime_check", json!({}))
+        .await
+}
+
+#[tauri::command]
+pub async fn set_default_model(
+    state: State<'_, BackendState>,
+    provider: String,
+    model: String,
+    base_url: String,
+    api_key: String,
+    confirm_expensive_model: bool,
+) -> Result<Value, String> {
+    let provider = provider.trim();
+    let model = model.trim();
+    let base_url = base_url.trim();
+    if provider.is_empty()
+        || provider.len() > 128
+        || model.is_empty()
+        || model.len() > 256
+        || base_url.len() > 2048
+        || api_key.len() > 4096
+    {
+        return Err("模型配置字段为空或过长".into());
+    }
+    if !base_url.is_empty() {
+        let parsed = reqwest::Url::parse(base_url).map_err(|_| "模型接口地址无效".to_string())?;
+        if !matches!(parsed.scheme(), "http" | "https")
+            || parsed.host_str().is_none()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.fragment().is_some()
+        {
+            return Err("模型接口必须是无内嵌凭据的 HTTP 或 HTTPS 地址".into());
+        }
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(45))
+        .build()
+        .map_err(|_| "无法建立本地配置连接".to_string())?;
+    let mut response = client
+        .post(format!("http://127.0.0.1:{}/api/model/set", backend.port))
+        .header("X-Hermes-Session-Token", &backend.token)
+        .json(&json!({
+            "scope": "main", "provider": provider, "model": model,
+            "base_url": base_url, "api_key": api_key,
+            "confirm_expensive_model": confirm_expensive_model,
+        }))
+        .send()
+        .await
+        .map_err(|_| "本地模型配置请求失败".to_string())?;
+    let status = response.status();
+    if response.content_length().is_some_and(|size| size > 64 * 1024) {
+        return Err("模型配置响应过大".into());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "读取模型配置响应失败".to_string())?
+    {
+        if bytes.len() + chunk.len() > 64 * 1024 {
+            return Err("模型配置响应过大".into());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let value: Value = serde_json::from_slice(&bytes)
+        .map_err(|_| format!("模型配置返回无效 JSON（HTTP {status}）"))?;
+    if !status.is_success() {
+        let detail = value
+            .get("detail")
+            .and_then(Value::as_str)
+            .unwrap_or("模型配置失败");
+        let safe = if api_key.is_empty() {
+            detail.to_owned()
+        } else {
+            detail.replace(&api_key, "[已隐藏]")
+        };
+        return Err(format!(
+            "模型配置失败（HTTP {status}）：{}",
+            safe.chars().take(400).collect::<String>()
+        ));
+    }
+    Ok(value)
+}
+
+#[tauri::command]
 pub async fn resume_chat_session(
     state: State<'_, BackendState>,
     session_id: String,
@@ -661,7 +862,10 @@ pub async fn replay_chat_events(
 
 #[cfg(test)]
 mod tests {
-    use super::{acquire_storage_lock, install_packed_payload, validate_payload};
+    use super::{
+        acquire_storage_lock, install_packed_payload, read_storage_location, validate_payload,
+        write_storage_location,
+    };
     use std::fs;
     use std::process::Command;
     use uuid::Uuid;
@@ -743,5 +947,20 @@ mod tests {
         let launcher = install_packed_payload(&build, &selected).unwrap();
         assert!(launcher.is_file());
         assert_eq!(install_packed_payload(&build, &selected).unwrap(), launcher);
+    }
+
+    #[test]
+    fn storage_location_survives_restart_and_refuses_corruption() {
+        let root = std::env::temp_dir().join(format!("hermess-location-{}", Uuid::new_v4()));
+        let file = root.join("config/location.json");
+        assert!(read_storage_location(&file).unwrap().is_none());
+        let selected = root.join("中文 空格 存储");
+        write_storage_location(&file, &selected).unwrap();
+        assert_eq!(read_storage_location(&file).unwrap(), Some(selected));
+        fs::write(&file, b"{broken").unwrap();
+        assert!(read_storage_location(&file).is_err());
+        fs::remove_file(file).unwrap();
+        fs::remove_dir(root.join("config")).unwrap();
+        fs::remove_dir(root).unwrap();
     }
 }

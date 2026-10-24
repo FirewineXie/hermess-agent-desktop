@@ -16,3 +16,5 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 tar = "0.4"
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+tauri-plugin-dialog = "2"

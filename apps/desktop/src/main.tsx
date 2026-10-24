@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { open } from '@tauri-apps/plugin-dialog'
 import './style.css'
 
 type RuntimeProbe = {
@@ -13,6 +14,7 @@ type RuntimeProbe = {
 }
 type BackendInfo = { port: number; pid: number; replay_epoch: string }
 type DevDefaults = { python_path: string; storage_path: string }
+type PackedDefaults = { storage_path: string; initialized: boolean }
 type GatewayEvent = { kind: string; session_id?: string; seq?: number; payload: Record<string, unknown> }
 type ReplayResult = { events: Array<{ type: string; session_id?: string; seq?: number; payload?: Record<string, unknown> }>; latest_seq: number; epoch: string; truncated: boolean; open_requests?: GatewayRequest[] }
 type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
@@ -29,6 +31,9 @@ type GatewayRequest = {
   }
 }
 type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
+type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string }
+type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
+type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
 type ResumeResult = {
   session_id: string
   stored_session_id?: string
@@ -47,6 +52,7 @@ function App() {
   const [loading, setLoading] = React.useState(false)
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
+  const [storageLocked, setStorageLocked] = React.useState(false)
   const [backend, setBackend] = React.useState<BackendInfo | null>(null)
   const [backendStatus, setBackendStatus] = React.useState('未启动')
   const [busy, setBusy] = React.useState(false)
@@ -63,6 +69,14 @@ function App() {
   const serverRequest = serverRequests[0] || null
   const [clarifyAnswers, setClarifyAnswers] = React.useState<Record<string, string>>({})
   const [sessions, setSessions] = React.useState<SessionRow[]>([])
+  const [modelProviders, setModelProviders] = React.useState<ModelProvider[]>([])
+  const [modelProvider, setModelProvider] = React.useState('')
+  const [modelName, setModelName] = React.useState('')
+  const [modelBaseUrl, setModelBaseUrl] = React.useState('')
+  const [modelKey, setModelKey] = React.useState('')
+  const [modelBusy, setModelBusy] = React.useState(false)
+  const [modelStatus, setModelStatus] = React.useState('')
+  const [modelConfirmation, setModelConfirmation] = React.useState('')
   const lastSeqRef = React.useRef<Record<string, number>>({})
   const epochRef = React.useRef<Record<string, string>>({})
   const recoveringRef = React.useRef(false)
@@ -117,7 +131,10 @@ function App() {
         setStoragePath(defaults.storage_path)
       }).catch(cause => setBackendStatus(String(cause)))
     } else {
-      void invoke<string>('packed_backend_defaults').then(setStoragePath)
+      void invoke<PackedDefaults>('packed_backend_defaults').then(defaults => {
+        setStoragePath(defaults.storage_path)
+        setStorageLocked(defaults.initialized)
+      })
         .catch(cause => setBackendStatus(String(cause)))
     }
   }, [])
@@ -195,6 +212,64 @@ function App() {
       setSessions(result.sessions)
       setChatStatus(`找到 ${result.sessions.length} 个历史会话`)
     } catch (cause) { setChatStatus(`读取历史失败：${String(cause)}`) }
+  }
+
+  async function loadModelOptions() {
+    setModelBusy(true)
+    try {
+      const result = await invoke<ModelOptions>('list_model_options')
+      setModelProviders(result.providers || [])
+      setModelProvider(result.provider || result.providers?.[0]?.slug || 'custom')
+      setModelName(result.model || '')
+      setModelStatus(`找到 ${result.providers?.length || 0} 个提供方；请选择模型后保存`)
+    } catch (cause) { setModelStatus(`读取模型候选失败：${String(cause)}`) }
+    finally { setModelBusy(false) }
+  }
+
+  async function saveModel(confirm = false) {
+    if (!modelProvider.trim() || !modelName.trim()) return
+    setModelBusy(true)
+    setModelStatus('正在保存模型配置…')
+    try {
+      const result = await invoke<ModelAssignment>('set_default_model', {
+        provider: modelProvider.trim(), model: modelName.trim(),
+        baseUrl: modelBaseUrl.trim(), apiKey: modelKey,
+        confirmExpensiveModel: confirm,
+      })
+      if (result.confirm_required) {
+        setModelConfirmation(result.confirm_message || '该模型需要再次确认')
+        setModelStatus('请确认模型选择')
+      } else if (result.ok) {
+        setModelConfirmation('')
+        setModelKey('')
+        setModelStatus(`已保存 ${result.provider || modelProvider} / ${result.model || modelName}；新会话生效`)
+      } else {
+        setModelStatus('模型配置未被后端接受')
+      }
+    } catch (cause) { setModelStatus(`保存模型失败：${String(cause)}`) }
+    finally { setModelBusy(false) }
+  }
+
+  async function checkModel() {
+    setModelBusy(true)
+    try {
+      const result = await invoke<{ ok?: boolean; provider?: string; model?: string; error?: string }>('check_model_runtime')
+      setModelStatus(result.ok ? `运行时已识别：${result.provider || ''} / ${result.model || ''}`
+        : `运行时未就绪：${result.error || '请检查密钥与模型配置'}`)
+    } catch (cause) { setModelStatus(`检查模型失败：${String(cause)}`) }
+    finally { setModelBusy(false) }
+  }
+
+  function newChat() {
+    if (turnBusy) return
+    sessionRef.current = ''
+    storedSessionRef.current = ''
+    setSessionId('')
+    setConversation([])
+    assistantRef.current = ''
+    setAssistant('')
+    setServerRequests([])
+    setChatStatus('新会话已就绪')
   }
 
   async function resumeSession(id: string) {
@@ -299,6 +374,8 @@ function App() {
         : await invoke<BackendInfo>('start_packed_backend', { storagePath })
       setBackend(info)
       setBackendStatus('已就绪：WebSocket ping 通过')
+      if (!import.meta.env.DEV) setStorageLocked(true)
+      void loadModelOptions()
     } catch (cause) {
       setBackend(null)
       sessionRef.current = ''
@@ -311,6 +388,13 @@ function App() {
       setSessions([])
       setBackendStatus(`启动失败：${String(cause)}`)
     } finally { setBusy(false) }
+  }
+
+  async function chooseStoragePath() {
+    try {
+      const selected = await open({ directory: true, multiple: false, title: '选择主要存储位置' })
+      if (typeof selected === 'string') setStoragePath(selected)
+    } catch (cause) { setBackendStatus(`选择目录失败：${String(cause)}`) }
   }
 
   async function pingBackend() {
@@ -342,7 +426,7 @@ function App() {
 
   return <main>
     <header><span className="eyebrow">I0 技术样机</span><h1>Hermess Agent Desktop</h1></header>
-    <p>正在建立独立运行时。当前构建用于验证后端和聊天链路，正式安装与升级尚未验收。</p>
+    <p>当前为桌面候选版本；请先启动内置运行时，再配置模型。升级与跨平台安装仍在验收中。</p>
     <section>
       <div className="row"><h2>本机工具</h2><button onClick={() => void inspect()} disabled={loading}>{loading ? '检测中…' : '重新检测'}</button></div>
       {error && <p role="alert">检测失败：{error}</p>}
@@ -356,7 +440,9 @@ function App() {
       <h2>后端连接</h2>
       <p>{import.meta.env.DEV ? '只使用本产品 .build 中已准备的隔离环境。' : '使用应用内置的固定版本运行时。'}存储目录会创建产品专用子目录。</p>
       {import.meta.env.DEV && <label>Python 绝对路径<input value={pythonPath} onChange={event => setPythonPath(event.target.value)} /></label>}
-      <label>主要存储位置<input value={storagePath} onChange={event => setStoragePath(event.target.value)} /></label>
+      <label>主要存储位置<input value={storagePath} disabled={storageLocked} onChange={event => setStoragePath(event.target.value)} /></label>
+      {!storageLocked && <button disabled={busy} onClick={() => void chooseStoragePath()}>选择目录…</button>}
+      {storageLocked && <small>已保存存储位置；当前版本不提供自动搬迁。若该位置不可用，请先恢复磁盘或目录。</small>}
       <div className="actions">
         <button disabled={busy || !storagePath || (import.meta.env.DEV && !pythonPath)} onClick={() => void startBackend()}>启动</button>
         <button disabled={busy || !backend} onClick={() => void pingBackend()}>检查连接</button>
@@ -366,10 +452,25 @@ function App() {
       <p role="status">{backendStatus}{backend && `（PID ${backend.pid}，端口 ${backend.port}）`}</p>
     </section>
     {backend && <section>
+      <div className="row"><h2>模型配置</h2><button disabled={modelBusy} onClick={() => void loadModelOptions()}>刷新候选</button></div>
+      <label>提供方<select value={modelProvider} onChange={event => { setModelProvider(event.target.value); setModelName(''); setModelConfirmation('') }}>
+        {!modelProviders.some(provider => provider.slug === modelProvider) && modelProvider !== 'custom' && <option value={modelProvider}>{modelProvider || '请选择'}</option>}
+        {!modelProviders.some(provider => provider.slug === 'custom') && <option value="custom">自定义 OpenAI 兼容接口（custom）</option>}
+        {modelProviders.map(provider => <option key={provider.slug} value={provider.slug}>{provider.name}（{provider.slug}）</option>)}
+      </select></label>
+      <label>模型标识<input value={modelName} list="model-candidates" onChange={event => { setModelName(event.target.value); setModelConfirmation('') }} /></label>
+      <datalist id="model-candidates">{(modelProviders.find(provider => provider.slug === modelProvider)?.models || []).map(model => <option key={model} value={model} />)}</datalist>
+      <label>接口地址（自定义端点时填写）<input value={modelBaseUrl} onChange={event => { setModelBaseUrl(event.target.value); setModelConfirmation('') }} placeholder="https://example.com/v1" /></label>
+      <label>API Key（已有密钥可留空）<input type="password" autoComplete="off" value={modelKey} onChange={event => { setModelKey(event.target.value); setModelConfirmation('') }} /></label>
+      <div className="actions"><button disabled={modelBusy || !modelProvider.trim() || !modelName.trim()} onClick={() => void saveModel()}>保存默认模型</button><button disabled={modelBusy} onClick={() => void checkModel()}>检查运行时</button></div>
+      {modelConfirmation && <div role="alert"><p>{modelConfirmation}</p><button disabled={modelBusy} onClick={() => void saveModel(true)}>确认使用该模型</button></div>}
+      <p role="status">{modelStatus}</p>
+    </section>}
+    {backend && <section>
       <h2>最小聊天链路</h2>
-      <p>使用固定提交的会话和消息 RPC。模型需先在该独立 Hermes 数据根配置；历史恢复和附件尚未接入。</p>
+      <p>使用固定提交的会话和消息 RPC。修改默认模型后请新建会话；附件尚未接入。</p>
       {sessionId && <small>会话：{sessionId}</small>}
-      <div className="actions"><button onClick={() => void loadSessions()}>读取历史会话</button><button disabled={!turnBusy || !sessionId} onClick={() => void interruptSession()}>停止当前任务</button></div>
+      <div className="actions"><button disabled={turnBusy} onClick={() => newChat()}>新建会话</button><button onClick={() => void loadSessions()}>读取历史会话</button><button disabled={!turnBusy || !sessionId} onClick={() => void interruptSession()}>停止当前任务</button></div>
       {sessions.length > 0 && <ul className="session-list">{sessions.map(session => <li key={session.id}>
         <button disabled={turnBusy} onClick={() => void resumeSession(session.id)}>{session.title || session.preview || session.id}</button>
         <small>{session.message_count ?? 0} 条消息</small>
