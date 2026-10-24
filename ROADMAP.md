@@ -24,6 +24,8 @@
 
 2026-10-25 补充发布流程：正式 tag `vX.Y.Z` 对应正式 Release，SemVer 预发布 tag（如 `vX.Y.Z-rc.1`）对应预发布 Release；版本校验接受两类 tag，重跑会按 tag 类型更新已有 Release。此项仅验证配置、文档和本地版本校验，尚未运行 GitHub Actions 的四平台构建或实际创建 Release。
 
+2026-10-25 核心交互修复：Agent 设置存在未保存修改时，新建会话与恢复历史会话现在先完成离开确认；取消后不触发会话操作。已通过 `pnpm check:architecture` 和 `pnpm --filter @hermess/frontend build`，尚未进行原生窗口操作复验。本轮按要求停止安装包构建和 CI 检查。
+
 ## 后续方向
 
 - 完成 `v0.5.0` 的原生窗口、真实模型和跨平台安装验收，并记录失败项与修复结果。

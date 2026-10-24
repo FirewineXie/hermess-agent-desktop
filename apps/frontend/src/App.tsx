@@ -50,15 +50,16 @@ function App() {
     setPickerModelInput, pickerBusy, pickerError, pickerConfirmation, pickerModels,
     loadModelOptions, openModelPicker, pickModel, resetModel,
   } = modelController
-  const openView = (next: View) => {
-    if (view === 'agent' && next !== 'agent' && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return
+  const openView = (next: View): boolean => {
+    if (view === 'agent' && next !== 'agent' && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return false
     if (next !== 'agent') setAgentConfigDirty(false)
     setView(next)
     setSidebarOpen(false)
+    return true
   }
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
   return <div className="app-shell">
-    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={turnBusy || attachmentBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { void newChat(); openView('chat') }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { openView('chat'); void resumeSession(id) }} />
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={turnBusy || attachmentBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
     <main className="workspace">
       <WorkspaceHeader view={view} sessionTitle={activeSession?.title} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
