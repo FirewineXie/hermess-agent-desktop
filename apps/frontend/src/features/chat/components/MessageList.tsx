@@ -1,3 +1,4 @@
+import React from 'react'
 import type { TimelineItem, ToolStep } from '../timeline'
 
 type Language = 'zh-CN' | 'en-US'
@@ -11,33 +12,31 @@ const toolNames: Record<string, [string, string]> = {
   skill_view: ['查看了 Skill', 'Viewed Skill'],
 }
 
-const toolSubjects: Record<string, [string, string]> = {
-  terminal: ['终端', 'terminal'],
-  execute_code: ['代码执行', 'code execution'],
-  read_file: ['文件读取', 'file reading'],
-  search_files: ['文件搜索', 'file search'],
-  memory: ['记忆工具', 'memory'],
-  skill_view: ['Skill', 'Skills'],
-}
-
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
 function activityTitle(steps: ToolStep[], language: Language) {
   const failures = steps.filter(step => step.state === 'failed').length
   const running = steps.some(step => step.state === 'running')
-  const only = steps.length === 1 ? steps[0] : undefined
-  const duration = only?.duration != null && Number.isFinite(only.duration) && only.duration >= 0
-    ? `${Number(only.duration.toFixed(1))}` : undefined
   const parts = language === 'zh-CN'
     ? ['执行过程', `${steps.length} 项操作`]
     : ['Activity', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
   if (running) parts.push(label(language, '正在执行', 'Running'))
   if (failures) parts.push(language === 'zh-CN' ? `${failures} 项失败` : `${failures} failed`)
-  if (duration && only) {
-    const subject = toolSubjects[only.name]?.[language === 'zh-CN' ? 0 : 1]
-    parts.push(language === 'zh-CN' ? `${subject || '工具'}用时 ${duration} 秒` : `${subject || 'Tool'} took ${duration}s`)
-  }
   return parts.join(' · ')
+}
+function formatDuration(value: number, language: Language) {
+  const seconds = Math.max(0, Math.round(value))
+  if (seconds < 60) return language === 'zh-CN' ? `${seconds} 秒` : `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return language === 'zh-CN' ? `${minutes} 分 ${remainder} 秒` : `${minutes}m ${remainder}s`
+}
+function turnTimeText(message: Extract<TimelineItem, { kind: 'message' }>, now: number, language: Language) {
+  const elapsed = formatDuration(message.duration ?? Math.max(0, (now - (message.startedAt || now)) / 1000), language)
+  if (message.turnState === 'failed') return language === 'zh-CN' ? `执行失败 · 用时 ${elapsed}` : `Failed · ${elapsed}`
+  if (message.turnState === 'interrupted') return language === 'zh-CN' ? `已停止 · 用时 ${elapsed}` : `Stopped · ${elapsed}`
+  if (message.turnState == null) return language === 'zh-CN' ? `正在执行 · 已用时 ${elapsed}` : `Running · ${elapsed}`
+  return language === 'zh-CN' ? `${message.estimated ? '约' : ''}用时 ${elapsed}` : `${message.estimated ? 'About ' : ''}${elapsed}`
 }
 function toolState(step: ToolStep, language: Language) {
   if (step.state === 'running') return label(language, '执行中', 'Running')
@@ -79,10 +78,30 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
   </details>
 }
 
-export default function MessageList({ messages, assistant, language, t }: { messages: TimelineItem[]; assistant: string; language: Language; t: (key: string) => string }) {
+export default function MessageList({ messages, assistant, turnBusy, language, t }: { messages: TimelineItem[]; assistant: string; turnBusy: boolean; language: Language; t: (key: string) => string }) {
+  const [now, setNow] = React.useState(Date.now)
+  React.useEffect(() => {
+    if (!turnBusy) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [turnBusy])
+  let activeUserIndex = -1
+  if (turnBusy) {
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const item = messages[index]
+      if (item.kind === 'message' && item.role === 'user' && item.startedAt != null && item.turnState == null) {
+        activeUserIndex = index
+        break
+      }
+    }
+  }
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
   return <div className="messages">{messages.map((message, index) => message.kind === 'tools'
     ? <ToolActivity key={`${index}-${message.steps[0]?.id || ''}`} steps={message.steps} language={language} />
-    : message.text.trim() && <p className={`message message-${message.role}`} key={index}>{message.role === 'assistant' && <strong>Hermes：</strong>}{message.text}</p>
+    : message.text.trim() && <React.Fragment key={index}>
+      <p className={`message message-${message.role}`}>{message.role === 'assistant' && <strong>Hermes：</strong>}{message.text}</p>
+      {message.role === 'user' && (message.duration != null || index === activeUserIndex) && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
+    </React.Fragment>
   )}{assistant.trim() && <p className="message message-assistant"><strong>Hermes：</strong>{assistant}</p>}</div>
 }

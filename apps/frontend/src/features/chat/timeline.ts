@@ -12,7 +12,7 @@ export type ToolStep = {
 }
 
 export type TimelineItem =
-  | { kind: 'message'; role: 'user' | 'assistant'; text: string }
+  | { kind: 'message'; role: 'user' | 'assistant'; text: string; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
 
 type HistoryRow = ResumeResult['messages'][number]
@@ -25,6 +25,8 @@ function appendTool(items: TimelineItem[], step: ToolStep): TimelineItem[] {
 
 export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
   let items: TimelineItem[] = []
+  let pendingUserIndex = -1
+  let pendingUserTimestamp: number | undefined
   for (const row of rows) {
     if (row.role === 'tool') {
       items = appendTool(items, {
@@ -33,14 +35,38 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
         args: row.args, state: 'recorded',
       })
     } else if ((row.role === 'user' || row.role === 'assistant') && row.text?.trim()) {
-      items = [...items, { kind: 'message', role: row.role, text: row.text }]
+      const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
+        ? row.timestamp : undefined
+      if (row.role === 'user') {
+        pendingUserIndex = items.length
+        pendingUserTimestamp = timestamp
+        items = [...items, { kind: 'message', role: 'user', text: row.text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
+      } else {
+        if (pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
+          const user = items[pendingUserIndex]
+          if (user.kind === 'message' && user.role === 'user') {
+            items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }
+          }
+        }
+        items = [...items, { kind: 'message', role: 'assistant', text: row.text }]
+      }
     }
   }
   return items
 }
 
-export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant', text: string): TimelineItem[] {
-  return text.trim() ? [...items, { kind: 'message', role, text }] : items
+export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant', text: string, startedAt?: number): TimelineItem[] {
+  return text.trim() ? [...items, { kind: 'message', role, text, ...(startedAt == null ? {} : { startedAt }) }] : items
+}
+
+export function finishTurn(items: TimelineItem[], duration: number, turnState: 'completed' | 'failed' | 'interrupted'): TimelineItem[] {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.kind === 'message' && item.role === 'user' && item.startedAt != null && item.turnState == null) {
+      return items.map((current, position) => position === index ? { ...item, duration, turnState } : current)
+    }
+  }
+  return items
 }
 
 function toolError(result: unknown, summary: unknown): string | undefined {

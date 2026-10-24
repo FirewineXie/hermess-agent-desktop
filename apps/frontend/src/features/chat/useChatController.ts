@@ -3,7 +3,7 @@ import type { BackendInfo, GatewayEvent, ReplayResult, GatewayRequest, ApprovalC
 import { useDesktop } from '../../app/DesktopContext'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import type { ModelPick } from '../models/model'
-import { appendMessage, historyTimeline, updateTool, type TimelineItem } from './timeline'
+import { appendMessage, finishTurn, historyTimeline, updateTool, type TimelineItem } from './timeline'
 
 type Options = {
   backend: BackendInfo | null
@@ -40,6 +40,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
   const assistantRef = React.useRef('')
   const [chatStatus, setChatStatus] = React.useState('')
   const [turnBusy, setTurnBusy] = React.useState(false)
+  const turnStartedAtRef = React.useRef<number | null>(null)
   const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
   const [clarifyAnswers, setClarifyAnswers] = React.useState<Record<string, string>>({})
@@ -74,7 +75,10 @@ export function useChatController({ backend, activeModel, language, storagePath,
         }).catch(() => {})
       }
       const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
-      setConversation(rows => appendMessage(rows, 'assistant', text || assistantRef.current))
+      const startedAt = turnStartedAtRef.current
+      const endedAt = Date.now()
+      turnStartedAtRef.current = null
+      setConversation(rows => appendMessage(startedAt == null ? rows : finishTurn(rows, Math.max(0, (endedAt - startedAt) / 1000), 'completed'), 'assistant', text || assistantRef.current))
       assistantRef.current = ''
       setAssistant('')
       setTurnBusy(false)
@@ -82,6 +86,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       void loadSessions(true)
     } else if (data.kind === 'error') {
       setChatStatus(String(data.payload?.message || t("ui.backend.error")))
+      finishCurrentTurn('failed')
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
       setConversation(rows => updateTool(rows, data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
@@ -89,6 +94,14 @@ export function useChatController({ backend, activeModel, language, storagePath,
     } else if (data.kind === 'request.cancel') {
       setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
     }
+  }
+
+  function finishCurrentTurn(state: 'failed' | 'interrupted') {
+    const startedAt = turnStartedAtRef.current
+    if (startedAt == null) return
+    turnStartedAtRef.current = null
+    const elapsed = Math.max(0, (Date.now() - startedAt) / 1000)
+    setConversation(rows => finishTurn(rows, elapsed, state))
   }
 
   React.useEffect(() => {
@@ -363,13 +376,16 @@ export function useChatController({ backend, activeModel, language, storagePath,
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
       }
-      setConversation(rows => appendMessage(rows, 'user', typed || text))
+      const startedAt = Date.now()
+      turnStartedAtRef.current = startedAt
+      setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
       setDraft('')
       const result = await chat.submitPrompt(id, text)
       setAttachments([])
       setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
     } catch (cause) {
       setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", String(cause)))
+      finishCurrentTurn('failed')
       setTurnBusy(false)
     }
   }
@@ -387,6 +403,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     try { await clearPendingImages() }
     catch (cause) { setChatStatus(t("ui.failed.to.remove.image.before.creating.new.session.arg", String(cause))); return }
     sessionRef.current = ''
+    turnStartedAtRef.current = null
     storedSessionRef.current = ''
     setSessionId('')
     setActiveModel(null)
@@ -407,6 +424,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     try {
       await clearPendingImages()
       const result = await chat.resumeSession(id)
+      turnStartedAtRef.current = null
       sessionRef.current = result.session_id
       storedSessionRef.current = result.stored_session_id || result.session_key || id
       epochRef.current[result.session_id] = backend?.replay_epoch || ''
@@ -432,6 +450,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     try {
       const result = await chat.interruptSession(sessionRef.current)
       setChatStatus(result.status === 'interrupted' ? t("ui.requested.to.stop.current.task") : t("ui.there.are.currently.no.tasks.running"))
+      if (result.status === 'interrupted') finishCurrentTurn('interrupted')
       setTurnBusy(false)
     } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", String(cause))) }
   }
@@ -471,6 +490,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         setServerRequests((replay?.open_requests || snapshot.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
         setTurnBusy(Boolean(snapshot.running))
         if (useSnapshot) {
+          turnStartedAtRef.current = null
           setConversation(historyTimeline(snapshot.messages))
           assistantRef.current = snapshot.inflight?.assistant || ''
           setAssistant(assistantRef.current)
@@ -509,6 +529,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
 
   function resetChat() {
     sessionRef.current = ''
+    turnStartedAtRef.current = null
     storedSessionRef.current = ''
     setSessionId('')
     setConversation([])
