@@ -1,4 +1,5 @@
 use super::BackendState;
+use crate::errors::DesktopFailure;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
@@ -28,9 +29,11 @@ struct ReplayEvent {
 }
 
 #[tauri::command]
-pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let result = backend
         .gateway
         .request(
@@ -56,15 +59,17 @@ pub async fn submit_chat_prompt(
     state: State<'_, BackendState>,
     session_id: String,
     text: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     if text.trim().is_empty() || text.len() > 64 * 1024 {
-        return Err("消息为空或过长".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request(
@@ -72,22 +77,26 @@ pub async fn submit_chat_prompt(
             json!({"session_id":session_id,"text":text}),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn list_composer_commands(
     state: State<'_, BackendState>,
     session_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("commands.catalog", json!({"session_id": session_id}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -95,15 +104,17 @@ pub async fn execute_composer_command(
     state: State<'_, BackendState>,
     session_id: String,
     command: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     if !command.starts_with('/') || command.len() > 64 * 1024 {
-        return Err("命令无效或过长".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request(
@@ -111,6 +122,7 @@ pub async fn execute_composer_command(
             json!({"session_id": session_id, "command": command}),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -119,19 +131,21 @@ pub async fn dispatch_composer_skill(
     session_id: String,
     name: String,
     arg: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     if name.is_empty()
         || name.len() > 256
         || name.contains(char::is_whitespace)
         || arg.len() > 64 * 1024
     {
-        return Err("Skill 命令无效或过长".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request(
@@ -141,6 +155,7 @@ pub async fn dispatch_composer_skill(
             }),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -148,23 +163,23 @@ pub async fn attach_chat_file(
     state: State<'_, BackendState>,
     session_id: String,
     path: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     if path.len() > 4096 {
-        return Err("附件路径过长".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let source = PathBuf::from(path);
     if !source.is_absolute() {
-        return Err("附件必须使用绝对路径".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let source = source
         .canonicalize()
         .map_err(|_| "无法读取附件路径".to_string())?;
     let metadata = fs::metadata(&source).map_err(|_| "无法读取附件信息".to_string())?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 20 * 1024 * 1024 {
-        return Err("附件必须是非空文件且不超过 20 MiB".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let name = source
         .file_name()
@@ -199,7 +214,9 @@ pub async fn attach_chat_file(
         "file.attach"
     };
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let result = backend
         .gateway
         .request(
@@ -230,12 +247,14 @@ pub async fn detach_chat_image(
     state: State<'_, BackendState>,
     session_id: String,
     path: String,
-) -> Result<(), String> {
+) -> Result<(), DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 || path.len() > 4096 {
-        return Err("附件标识无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let result = backend
         .gateway
         .request(
@@ -246,7 +265,7 @@ pub async fn detach_chat_image(
         )
         .await?;
     if result.get("detached").and_then(Value::as_bool) != Some(true) {
-        return Err("未找到待移除的图片".into());
+        return Err(DesktopFailure::conflict());
     }
     Ok(())
 }
@@ -258,57 +277,68 @@ pub async fn answer_gateway_request(
     method: String,
     choice: Option<String>,
     answers: Option<serde_json::Map<String, Value>>,
-) -> Result<(), String> {
+) -> Result<(), DesktopFailure> {
     if !request_id.starts_with("srq-") || request_id.len() > 128 {
-        return Err("请求 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let result = match method.as_str() {
         "approval" => {
-            let selected = choice.ok_or("缺少审批选择")?;
+            let selected = choice.ok_or_else(DesktopFailure::invalid_input)?;
             if !matches!(selected.as_str(), "once" | "session" | "always" | "deny") {
-                return Err("审批选择无效".into());
+                return Err(DesktopFailure::invalid_input());
             }
             json!({"choice":selected})
         }
         "clarify" => {
-            let answers = answers.ok_or("缺少澄清回答")?;
+            let answers = answers.ok_or_else(DesktopFailure::invalid_input)?;
             if answers.len() > 5
                 || answers.iter().any(|(key, value)| {
                     key.len() > 128
                         || !value.is_null() && value.as_str().is_none_or(|text| text.len() > 4096)
                 })
             {
-                return Err("澄清回答无效".into());
+                return Err(DesktopFailure::invalid_input());
             }
             json!({"answers":answers,"outcome":"submitted"})
         }
-        _ => return Err("不支持的请求类型".into()),
+        _ => return Err(DesktopFailure::invalid_input()),
     };
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
-    backend.gateway.answer(request_id, result).await
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    backend
+        .gateway
+        .answer(request_id, result)
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
-pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, String> {
+pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("session.list", json!({"limit":50}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn get_chat_reasoning(
     state: State<'_, BackendState>,
     session_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request(
@@ -316,34 +346,40 @@ pub async fn get_chat_reasoning(
             json!({"session_id": session_id, "key": "reasoning"}),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn get_chat_usage(
     state: State<'_, BackendState>,
     session_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("session.stats", json!({"session_id": session_id}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn resume_chat_session(
     state: State<'_, BackendState>,
     session_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request(
@@ -351,22 +387,26 @@ pub async fn resume_chat_session(
             json!({"session_id":session_id,"source":"desktop"}),
         )
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
 pub async fn interrupt_chat_session(
     state: State<'_, BackendState>,
     session_id: String,
-) -> Result<Value, String> {
+) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
         .request("session.interrupt", json!({"session_id":session_id}))
         .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -375,12 +415,14 @@ pub async fn replay_chat_events(
     session_id: String,
     last_seen: u64,
     replay_epoch: String,
-) -> Result<ReplayResult, String> {
+) -> Result<ReplayResult, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
-        return Err("会话 ID 无效".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let owned = state.0.lock().await;
-    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     let result = backend
         .gateway
         .request(
@@ -388,7 +430,7 @@ pub async fn replay_chat_events(
             json!({"session_id":session_id,"last_seen":last_seen,"replay_epoch":replay_epoch}),
         )
         .await?;
-    serde_json::from_value(result).map_err(|_| "网关补发结果格式无效".to_string())
+    serde_json::from_value(result).map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[cfg(test)]
