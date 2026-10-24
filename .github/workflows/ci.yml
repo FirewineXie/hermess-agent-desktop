@@ -1,0 +1,39 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Build and test (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+          run_install: false
+      - name: Verify locked upstream source
+        run: node scripts/fetch-upstream.mjs
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build frontend
+        run: pnpm build
+      - name: Install Rust formatter
+        run: rustup component add rustfmt
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --all -- --check
+      - name: Check Rust compilation
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      - name: Run Rust tests
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked

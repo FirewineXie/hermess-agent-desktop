@@ -4,7 +4,9 @@
 
 ## 触发和准入
 
-工作流仅监听 `v*.*.*` tag 的 `push`，不监听普通分支推送，也没有手动触发入口。`scripts/check-release.py` 在构建前要求 tag、四处产品版本和 `releases/<tag>.md` 一致；上游子模块必须等于 `runtime/upstream.lock.json` 的提交，且源码工作区干净。
+所有代码先在任务分支提交 PR，通过 [PR checks](../.github/workflows/ci.yml) 的 `Build and test (Windows)` 检查及代码审查后合入 `main`。仅从已合入且 CI 通过的 `main` 提交创建产品版本 tag；不得用 tag 绕过 PR 门禁。
+
+工作流仅监听 `v*.*.*` tag 的 `push`，不监听普通分支推送，也没有手动触发入口。`scripts/check-release.py` 在构建前要求 tag、四处产品版本和 `releases/<tag>.md` 一致；`pnpm fetch:upstream` 单独克隆锁定的上游正式 Release，`pnpm verify:upstream` 校验 tag、提交 SHA、来源与干净工作区。构建期间不动态查询最新 Release。
 
 发布新版本时，先修改 `package.json`、`apps/desktop/package.json`、`apps/desktop/src-tauri/Cargo.toml`、`apps/desktop/src-tauri/tauri.conf.json` 的版本，更新锁文件，新增 `releases/vX.Y.Z.md`。提交后再创建并推送同名 tag：
 

@@ -21,7 +21,7 @@ def main() -> None:
     if not args.python.is_absolute() or not args.out.is_absolute():
         parser.error("--python and --out must be absolute paths")
     if out.is_relative_to(vendor) or out == vendor:
-        parser.error("output must stay outside the upstream submodule")
+        parser.error("output must stay outside the upstream source checkout")
     if out.exists():
         parser.error("output already exists; choose a new generation")
 

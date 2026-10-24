@@ -1,7 +1,8 @@
 {
   "repository": "https://github.com/NousResearch/hermes-agent.git",
-  "commit": "5894e750c3dba980d43b25aa29e3958149ba2c61",
+  "tag": "v0.22.5",
+  "commit": "bf0203a794a07aac3ff764972ab9087baa4e4f4e",
   "python": "CPython 3.14",
   "nodeCandidateMajor": 22,
-  "status": "I0 candidate; full dependency and platform acceptance pending"
+  "status": "v0.22.5 release source; product compatibility acceptance pending"
 }
