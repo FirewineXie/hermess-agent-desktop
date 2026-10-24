@@ -223,6 +223,15 @@ pub async fn start_packed_backend(
             return Err(DesktopFailure::conflict());
         }
     }
+    if !selected.is_absolute() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    {
+        let mut owned = state.0.lock().await;
+        if let Some(info) = reuse_owned_backend(&mut owned, app.clone(), &selected).await? {
+            return Ok(info);
+        }
+    }
     let resource_for_install = resource.clone();
     let selected_for_install = selected.clone();
     let hermes = tokio::task::spawn_blocking(move || {
@@ -252,27 +261,8 @@ async fn launch_backend(
         return Err(DesktopFailure::invalid_input());
     }
     let mut owned = state.0.lock().await;
-    if let Some(existing) = owned.as_mut() {
-        if existing
-            .child
-            .try_wait()
-            .map_err(|_| "进程状态读取失败".to_string())?
-            .is_none()
-        {
-            if !running_storage_matches(&existing.storage, &selected) {
-                return Err(DesktopFailure::conflict());
-            }
-            if existing.gateway.is_closed() {
-                existing.gateway =
-                    GatewayClient::connect(existing.port, &existing.token, app).await?;
-            }
-            return Ok(BackendInfo {
-                port: existing.port,
-                pid: existing.child.id().unwrap_or(0),
-                replay_epoch: existing.gateway.replay_epoch.clone(),
-            });
-        }
-        *owned = None;
+    if let Some(info) = reuse_owned_backend(&mut owned, app.clone(), &selected).await? {
+        return Ok(info);
     }
     fs::create_dir_all(&selected).map_err(|_| "无法创建存储位置".to_string())?;
     let storage = selected
@@ -373,6 +363,36 @@ async fn launch_backend(
         pid,
         replay_epoch,
     })
+}
+
+async fn reuse_owned_backend(
+    owned: &mut Option<OwnedBackend>,
+    app: AppHandle,
+    selected: &Path,
+) -> Result<Option<BackendInfo>, DesktopFailure> {
+    if let Some(existing) = owned.as_mut() {
+        if existing
+            .child
+            .try_wait()
+            .map_err(|_| "进程状态读取失败".to_string())?
+            .is_none()
+        {
+            if !running_storage_matches(&existing.storage, selected) {
+                return Err(DesktopFailure::conflict());
+            }
+            if existing.gateway.is_closed() {
+                existing.gateway =
+                    GatewayClient::connect(existing.port, &existing.token, app).await?;
+            }
+            return Ok(Some(BackendInfo {
+                port: existing.port,
+                pid: existing.child.id().unwrap_or(0),
+                replay_epoch: existing.gateway.replay_epoch.clone(),
+            }));
+        }
+        *owned = None;
+    }
+    Ok(None)
 }
 
 fn running_storage_matches(storage: &Path, selected: &Path) -> bool {
