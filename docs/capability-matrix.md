@@ -22,6 +22,6 @@
 | 完整 payload | 上游 `pm bundle`、manifest、内置工具/PM runtime/venv | `.build` 下暂存，源码校验脚本逐项对比锁定提交 | Windows x64 6,922 个发行源码条目匹配；禁用按需安装与不可达公共代理下通过假模型冒烟。包过大，物理断网和正式安装未验收 |
 | 核心候选 payload | 上游 PM 工具校验、基础 venv、PM runtime 与 assembler | 产品外置组装脚本只选 Python/uv 和基础依赖；1.54 GB | 与固定源码匹配；中文空格数据根、禁用按需安装及不可达公共代理下通过聊天、文件工具、审批、停止和重连；PM/runtime 依赖离线重建通过。原子修复与正式安装迁移未验收 |
 | 路径与并行实例 | 封装启动器可移动；后端支持独立 `HERMES_HOME` 和 WS 凭据 | 中文空格安装目录复制运行；Rust 持有产品存储 OS 锁，release 路径保存首次选择的存储位置 | 复制后完整冒烟通过；独立进程锁测试通过；来源 CLI 与产品并行的凭据、会话和退出隔离通过。NSIS 候选包在当前机器中文空格路径静默安装与卸载通过；用户现有官方数据及窗口操作未验收 |
-| 跨平台安装包 | 固定上游 PM 构建原生运行时，Tauri 封装离线归档 | 标签流水线分别生成 Windows NSIS、macOS Intel/Apple Silicon DMG、Linux AppImage 和 deb，并汇总预发布 Release | `v0.1.4` 的四个原生 runner 与 Release 汇总均成功，附件名与 SHA256SUMS 一致；Windows 同机静默安装另有证据。macOS/Linux 安装、原生窗口、真实模型和工具仍未实机验收 |
+| 跨平台安装包 | 固定上游 PM 构建原生运行时，Tauri 封装离线归档 | 标签流水线分别生成 Windows NSIS、macOS Intel/Apple Silicon DMG、Linux AppImage 和 deb，并汇总预发布 Release | `v0.1.4` 的四个原生 runner 与 Release 汇总均成功，附件名与 SHA256SUMS 一致；Windows 同机静默安装另有证据。2026-10-25 当前 `0.1.5` 分支在 Windows x64 本地通过锁定资源归档、离线安装单测、NSIS 构建及发行资源暂存哈希比对；该安装包尚未实际安装。macOS/Linux 安装、原生窗口、真实模型和工具仍未实机验收 |
 
 专用 `serve` 不发布 canonical gateway 的私有控制端点；因此此路线验证的是每次启动会话凭据，并未验证原生票据。正式产品需完成进程创建身份、端点身份、鉴权、并行官方 Hermes 共存与退出证明。若改用 `gateway ensure`，必须重新验收私有发现范围和生命周期，不能直接沿用本矩阵结论。
