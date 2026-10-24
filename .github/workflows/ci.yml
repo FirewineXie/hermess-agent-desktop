@@ -31,6 +31,8 @@ jobs:
         run: pnpm check:architecture
       - name: Check shared contract fixtures
         run: pnpm check:contracts
+      - name: Check generated contract types
+        run: pnpm check:generated-contracts
       - name: Build frontend preview
         run: pnpm --dir apps/frontend build
       - name: Build frontend

@@ -1,6 +1,7 @@
 export type Unsubscribe = () => void
 
-export type BackendInfo = { port: number; pid: number; replay_epoch: string }
+export type { BackendInfo } from './generated/backend-info'
+import type { BackendInfo } from './generated/backend-info'
 export type DevDefaults = { python_path: string; storage_path: string }
 export type PackedDefaults = { storage_path: string; initialized: boolean }
 export type RuntimeProbe = {
