@@ -1,5 +1,6 @@
 import React from 'react'
 import type { TimelineItem, ToolStep } from '../timeline'
+import MarkdownMessage from './MarkdownMessage'
 
 type Language = 'zh-CN' | 'en-US'
 
@@ -78,6 +79,28 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
   </details>
 }
 
+function AssistantMessage({ text, language }: { text: string; language: Language }) {
+  return <div className="message message-assistant"><strong>Hermes：</strong><MarkdownMessage text={text} language={language} /></div>
+}
+
+function TurnActivity({ user, items, now, showTime, language }: { user: Extract<TimelineItem, { kind: 'message' }>; items: TimelineItem[]; now: number; showTime: boolean; language: Language }) {
+  const steps = items.flatMap(item => item.kind === 'tools' ? item.steps : [])
+  const failed = steps.filter(step => step.state === 'failed').length
+  const time = showTime ? turnTimeText(user, now, language) : ''
+  const count = language === 'zh-CN' ? `${steps.length} 项操作` : `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`
+  const title = time ? `${time} · ${count}` : activityTitle(steps, language)
+  return <details className={`turn-activity${failed ? ' has-failure' : ''}`}>
+    <summary className="turn-duration" title={user.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>
+      <span>{title}{time && failed ? (language === 'zh-CN' ? ` · ${failed} 项失败` : ` · ${failed} failed`) : ''}</span>
+      <span className="tool-activity-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div className="turn-process">{items.map((item, index) => item.kind === 'tools'
+      ? item.steps.map((step, stepIndex) => <ToolRow key={`${index}-${step.id}-${stepIndex}`} step={step} language={language} />)
+      : item.role === 'assistant' ? <AssistantMessage key={index} text={item.text} language={language} /> : null
+    )}</div>
+  </details>
+}
+
 export default function MessageList({ messages, assistant, turnBusy, language, t }: { messages: TimelineItem[]; assistant: string; turnBusy: boolean; language: Language; t: (key: string) => string }) {
   const [now, setNow] = React.useState(Date.now)
   React.useEffect(() => {
@@ -97,11 +120,42 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
     }
   }
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
-  return <div className="messages">{messages.map((message, index) => message.kind === 'tools'
-    ? <ToolActivity key={`${index}-${message.steps[0]?.id || ''}`} steps={message.steps} language={language} />
-    : message.text.trim() && <React.Fragment key={index}>
-      <p className={`message message-${message.role}`}>{message.role === 'assistant' && <strong>Hermes：</strong>}{message.text}</p>
-      {message.role === 'user' && (message.duration != null || index === activeUserIndex) && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
-    </React.Fragment>
-  )}{assistant.trim() && <p className="message message-assistant"><strong>Hermes：</strong>{assistant}</p>}</div>
+  const blocks: React.ReactNode[] = []
+  for (let index = 0; index < messages.length;) {
+    const message = messages[index]
+    if (message.kind === 'message' && message.role === 'user') {
+      let end = index + 1
+      while (end < messages.length) {
+        const next = messages[end]
+        if (next.kind === 'message' && next.role === 'user') break
+        end++
+      }
+      const following = messages.slice(index + 1, end)
+      let finalIndex = -1
+      if (end < messages.length || !turnBusy || message.turnState != null) {
+        for (let position = following.length - 1; position >= 0; position--) {
+          const item = following[position]
+          if (item.kind === 'message' && item.role === 'assistant') { finalIndex = position; break }
+        }
+      }
+      const process = following.filter((item, position) => item.kind === 'tools' || position !== finalIndex)
+      const steps = process.flatMap(item => item.kind === 'tools' ? item.steps : [])
+      const hasTime = message.duration != null || index === activeUserIndex
+      const finalMessage = finalIndex >= 0 ? following[finalIndex] : undefined
+      blocks.push(<React.Fragment key={`turn-${index}`}>
+        <p className="message message-user">{message.text}</p>
+        {steps.length ? <TurnActivity user={message} items={process} now={now} showTime={hasTime} language={language} />
+          : hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
+        {!steps.length && process.map((item, position) => item.kind === 'message' && item.role === 'assistant' ? <AssistantMessage key={position} text={item.text} language={language} /> : null)}
+        {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} language={language} />}
+      </React.Fragment>)
+      index = end
+    } else {
+      blocks.push(message.kind === 'tools'
+        ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
+        : <AssistantMessage key={`orphan-${index}`} text={message.text} language={language} />)
+      index++
+    }
+  }
+  return <div className="messages">{blocks}{assistant.trim() && <AssistantMessage text={assistant} language={language} />}</div>
 }
