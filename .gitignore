@@ -1,0 +1,7 @@
+node_modules/
+target/
+dist/
+.build/
+.cache/
+*.log
+apps/desktop/src-tauri/gen/schemas/
