@@ -6,6 +6,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 
 - `src/adapter/`：Tauri 命令、事件、文件选择与拖放的能力实现。
 - `src-tauri/src/main.rs`：Tauri 初始化与命令注册。
+- `src-tauri/src/errors.rs`：原生命令的稳定错误封套；运行时生命周期命令已返回错误码，其他命令仍在迁移。
 - `src-tauri/src/diagnostics.rs`：本机工具探测与诊断日志。
 - `src-tauri/src/storage.rs`：产品存储位置校验。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。

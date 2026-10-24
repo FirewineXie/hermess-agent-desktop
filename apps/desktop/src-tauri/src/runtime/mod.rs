@@ -8,6 +8,7 @@ mod powershell_tool;
 pub mod tools;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
+use crate::errors::DesktopFailure;
 use crate::gateway::GatewayClient;
 use futures_util::{SinkExt, StreamExt};
 use location::{acquire_storage_lock, save_storage_path, saved_storage_path};
@@ -79,7 +80,7 @@ pub struct BundledToolsInventory {
 }
 
 #[tauri::command]
-pub fn dev_backend_defaults() -> Result<DevDefaults, String> {
+pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
     if !cfg!(debug_assertions) {
         return Err("仅调试构建可用".into());
     }
@@ -147,19 +148,19 @@ pub async fn start_dev_backend(
     state: State<'_, BackendState>,
     python_path: String,
     storage_path: String,
-) -> Result<BackendInfo, String> {
+) -> Result<BackendInfo, DesktopFailure> {
     if !cfg!(debug_assertions) {
         return Err("开发态后端启动仅在调试构建可用".into());
     }
     let python = PathBuf::from(python_path)
         .canonicalize()
-        .map_err(|_| "找不到已准备的 Python 环境".to_string())?;
+        .map_err(|_| DesktopFailure::invalid_input())?;
     let product = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
         .canonicalize()
         .map_err(|_| "无法定位产品目录".to_string())?;
     if !python.starts_with(product.join(".build")) {
-        return Err("I0 仅接受产品 .build 下的隔离 Python 环境".into());
+        return Err(DesktopFailure::invalid_input());
     }
     let hermes = python.with_file_name(if cfg!(windows) {
         "hermes.exe"
@@ -167,13 +168,15 @@ pub async fn start_dev_backend(
         "hermes"
     });
     if !hermes.is_file() {
-        return Err("隔离环境缺少 Hermes 启动器".into());
+        return Err(DesktopFailure::runtime_unavailable());
     }
-    launch_backend(app, state, hermes, PathBuf::from(storage_path), false).await
+    launch_backend(app, state, hermes, PathBuf::from(storage_path), false)
+        .await
+        .map_err(Into::into)
 }
 
 #[tauri::command]
-pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, String> {
+pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, DesktopFailure> {
     if cfg!(debug_assertions) {
         return Err("打包配置仅在发行构建可用".into());
     }
@@ -197,7 +200,7 @@ pub async fn start_packed_backend(
     app: AppHandle,
     state: State<'_, BackendState>,
     storage_path: String,
-) -> Result<BackendInfo, String> {
+) -> Result<BackendInfo, DesktopFailure> {
     if cfg!(debug_assertions) {
         return Err("内置运行时入口仅供打包构建使用".into());
     }
@@ -208,7 +211,7 @@ pub async fn start_packed_backend(
     let selected = PathBuf::from(storage_path);
     if let Some(saved) = saved_storage_path(&app)? {
         if !saved.exists() {
-            return Err("已选择的主要存储位置不可用；请恢复该位置".into());
+            return Err(DesktopFailure::runtime_unavailable());
         }
         if saved
             .canonicalize()
@@ -217,7 +220,7 @@ pub async fn start_packed_backend(
                 .canonicalize()
                 .map_err(|_| "主要存储位置与已保存位置不一致".to_string())?
         {
-            return Err("初始化后不能直接切换主要存储位置".into());
+            return Err(DesktopFailure::conflict());
         }
     }
     let resource_for_install = resource.clone();
@@ -233,7 +236,9 @@ pub async fn start_packed_backend(
             .map_err(|_| "无法解析主要存储位置".to_string())?;
         save_storage_path(&app, &resolved)?;
     }
-    launch_backend(app, state, hermes, selected, true).await
+    launch_backend(app, state, hermes, selected, true)
+        .await
+        .map_err(Into::into)
 }
 
 async fn launch_backend(
@@ -368,9 +373,11 @@ async fn launch_backend(
 }
 
 #[tauri::command]
-pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), String> {
+pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
     let mut owned = state.0.lock().await;
-    let backend = owned.as_mut().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_mut()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     if backend
         .child
         .try_wait()
@@ -378,18 +385,22 @@ pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), String> 
         .is_some()
     {
         *owned = None;
-        return Err("后端已退出".into());
+        return Err(DesktopFailure::runtime_unavailable());
     }
-    ping(backend.port, &backend.token).await
+    ping(backend.port, &backend.token)
+        .await
+        .map_err(|_| DesktopFailure::connection_lost())
 }
 
 #[tauri::command]
 pub async fn reconnect_backend(
     app: AppHandle,
     state: State<'_, BackendState>,
-) -> Result<BackendInfo, String> {
+) -> Result<BackendInfo, DesktopFailure> {
     let mut owned = state.0.lock().await;
-    let backend = owned.as_mut().ok_or("后端尚未启动")?;
+    let backend = owned
+        .as_mut()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
     if backend
         .child
         .try_wait()
@@ -397,9 +408,11 @@ pub async fn reconnect_backend(
         .is_some()
     {
         *owned = None;
-        return Err("后端已退出，无法重连".into());
+        return Err(DesktopFailure::runtime_unavailable());
     }
-    let replacement = GatewayClient::connect(backend.port, &backend.token, app).await?;
+    let replacement = GatewayClient::connect(backend.port, &backend.token, app)
+        .await
+        .map_err(|_| DesktopFailure::connection_lost())?;
     std::mem::replace(&mut backend.gateway, replacement).close();
     Ok(BackendInfo {
         port: backend.port,
@@ -409,7 +422,7 @@ pub async fn reconnect_backend(
 }
 
 #[tauri::command]
-pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
+pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
     if let Some(mut backend) = state.0.lock().await.take() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
         backend.gateway.close();
@@ -419,7 +432,7 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> 
             .map_err(|_| "停止本产品后端失败".to_string())?;
         timeout(Duration::from_secs(8), backend.child.wait())
             .await
-            .map_err(|_| "等待后端退出超时".to_string())?
+            .map_err(|_| DesktopFailure::timeout())?
             .map_err(|_| "后端退出状态读取失败".to_string())?;
         let _ = append_client_event(&backend.storage, "backend_stopped");
     }
