@@ -6,6 +6,11 @@ import { useLanguage, translateApp, localizeAppMessage } from './i18n'
 import { useDesktop } from './app/DesktopContext'
 import ToolsView from './features/tools/ToolsView'
 import GatewayRequestCard from './features/chat/components/GatewayRequestCard'
+import MessageList from './features/chat/components/MessageList'
+import AttachmentQueue from './features/chat/components/AttachmentQueue'
+import CommandSuggestions from './features/chat/components/CommandSuggestions'
+import ContextUsageIndicator from './features/chat/components/ContextUsageIndicator'
+import ModelPicker from './features/chat/components/ModelPicker'
 import ProviderCard from './features/models/components/ProviderCard'
 import RuntimeView from './features/runtime/RuntimeView'
 import Sidebar from './app/Sidebar'
@@ -17,7 +22,7 @@ import {
   type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel,
 } from './features/models/model'
 import {
-  commandSupported, commandAvailability, commandChoices, composerTrigger, contextPercent, contextLabel,
+  commandSupported, commandAvailability, commandChoices, composerTrigger,
   type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage,
 } from './features/chat/model'
 
@@ -1075,10 +1080,7 @@ function App() {
     {view === 'chat' && <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${conversation.length === 0 && !assistant ? 'chat-empty' : ''}`}>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={() => openView('runtime')}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       <div className="chat-content">
-      {conversation.length === 0 && !assistant && <div className="welcome"><span className="hero-mark">H</span><h2>{t("ui.hello.what.do.you.want.to.do.today")}</h2><p>{t("ui.describe.a.task.to.hermess.or.add.files.to.work.on.together")}</p></div>}
-      {(conversation.length > 0 || assistant) && <div className="messages">{conversation.map((message, index) =>
-        <p key={index}><strong>{message.role === 'user' ? t("ui.you") : 'Hermes'}：</strong>{message.text}</p>
-      )}{assistant && <p><strong>Hermes：</strong>{assistant}</p>}</div>}
+      <MessageList messages={conversation} assistant={assistant} t={t} />
       {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={(qid, value) => setClarifyAnswers(previous => ({ ...previous, [qid]: value }))}
         onSubmit={choice => void answerRequest(choice)} />}
@@ -1098,30 +1100,12 @@ function App() {
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
-      {trigger && <div className="composer-choices" role="listbox" aria-label={t("ui.commands.and.skills")}>
-        {choices.map((choice, index) => <button key={choice.name} type="button" role="option" aria-selected={index === activeChoice}
-          aria-disabled={!choice.available} className={`${index === activeChoice ? 'active' : ''} ${choice.available ? '' : 'unavailable'}`}
-          onMouseDown={event => event.preventDefault()} onClick={() => chooseCommand(choice)}>
-          <strong>{choice.name}</strong><span>{choice.description}</span><small>{choice.skill ? 'Skill · ' : ''}{choice.availability}</small>
-        </button>)}
-        {!choices.length && <p>{commandCatalogError || (commandCatalog ? t("ui.no.matching.commands.or.skills") : t("ui.loading.commands.and.skills"))}</p>}
-      </div>}
-      {attachments.length > 0 && <ul>{attachments.map((attachment, index) => <li key={`${attachment.path || attachment.ref_text}-${index}`}>
-        <span>{attachment.kind === 'image' ? t("ui.image") : t("ui.file")}：{attachment.name}（{attachment.bytes} {t("ui.bytes")}</span>
-        <button disabled={attachmentBusy || turnBusy} onClick={() => void removeAttachment(index)}>{t("ui.remove")}</button>
-        <code title={t("ui.source.path")}>{attachment.source_path}</code>
-        {attachment.preview && <details><summary>{t("ui.text.preview")}</summary><pre>{attachment.preview}</pre></details>}
-      </li>)}</ul>}
+      <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
+      <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy} t={t} onRemove={index => void removeAttachment(index)} />
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
         <span className="composer-spacer" />
-        <span className="context-indicator" title={chatUsage?.context_source || ''} aria-label={contextLabel(chatUsage, language)}>
-          <svg className="context-ring" viewBox="0 0 36 36" aria-hidden="true">
-            <circle className="context-ring-track" cx="18" cy="18" r="15" />
-            {contextPercent(chatUsage) !== null && <circle className="context-ring-fill" cx="18" cy="18" r="15" pathLength="100" strokeDasharray={`${contextPercent(chatUsage)} 100`} />}
-          </svg>
-          <span>{contextLabel(chatUsage, language)}</span>
-        </span>
+        <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
             <option value="">{language === 'zh-CN' ? '思考 · 默认' : 'Reasoning · Default'}</option>
@@ -1131,21 +1115,11 @@ function App() {
         <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
         {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={attachmentBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
-      {modelPickerOpen && <div ref={modelPickerRef} className="model-picker" role="dialog" aria-label={t('ui.select.model')} style={pickerPosition}>
-        <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.refresh.models')} disabled={pickerBusy} onClick={() => void openModelPicker(true)}>↻</button><button type="button" title={t('ui.close')} onClick={() => setModelPickerOpen(false)}>×</button></span></div>
-        {pickerError && <p className="model-picker-message" role="alert">{pickerError}</p>}
-        {pickerConfirmation && <div className="model-picker-confirm" role="alert"><p>{pickerConfirmation.message}</p><button disabled={pickerBusy} onClick={() => void pickModel(pickerConfirmation.provider, pickerConfirmation.model, pickerConfirmation.remember, pickerConfirmation.token)}>{t('ui.confirm.this.model')}</button></div>}
-        {pickerBusy && <p className="model-picker-message" role="status">{t('ui.loading.model.options')}</p>}
-        {pickerProviders.length > 0 && <><label className="model-picker-provider">{t('ui.provider')}<select value={pickerProvider} onChange={event => setPickerProvider(event.target.value)}>
-          {pickerProviders.map(provider => <option key={provider.slug} value={provider.slug}>{provider.name}</option>)}
-        </select></label>
-        <div className="model-picker-list">{pickerModels.map(model => <button key={model} disabled={pickerBusy || turnBusy} onClick={() => void pickModel(pickerProvider, model)}>
-          <span>{model}</span>{activeModel?.provider === pickerProvider && activeModel.model === model && <small>✓</small>}
-        </button>)}{pickerModels.length === 0 && <p className="model-picker-message">{t('ui.this.provider.currently.has.no.model.candidates.please.fill.in.the.model.id')}</p>}</div>
-        <div className="model-picker-add"><input aria-label={t('ui.add.model.id')} value={pickerModelInput} onChange={event => setPickerModelInput(event.target.value)} maxLength={256} placeholder={t('ui.add.model.id.short')} /><button disabled={pickerBusy || turnBusy || !pickerModelInput.trim()} onClick={() => void pickModel(pickerProvider, pickerModelInput, true)}>{t('ui.add.model.short')}</button></div></>}
-        {!pickerBusy && pickerProviders.length === 0 && <p className="model-picker-message">{t('ui.no.available.models')}</p>}
-        <button className="model-picker-settings" onClick={() => { setModelPickerOpen(false); openView('model') }}>{t('ui.add.provider.or.configure.model')} →</button>
-      </div>}
+      {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
+        confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
+        activeModel={activeModel} turnBusy={turnBusy} t={t} onRefresh={() => void openModelPicker(true)} onClose={() => setModelPickerOpen(false)}
+        onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
+        onOpenSettings={() => { setModelPickerOpen(false); openView('model') }} />}
       </div><small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}
     </section>}

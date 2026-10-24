@@ -6,7 +6,7 @@ React 界面代码位于 `src/`。桌面客户端通过 `mountApp(root, api)` �
 
 - `src/public.tsx`：公开装配入口。
 - `src/App.tsx`：迁移中的共享页面状态；将继续按功能收敛。
-- `src/features/`：Agent 设置、工具和运行时页面已各自落位，聊天与模型的纯逻辑和部分组件已拆出，View 与状态仍待继续收敛。
+- `src/features/`：Agent 设置、工具和运行时页面已各自落位；聊天的消息、附件、请求、命令候选、用量和模型选择组件以及模型提供方卡片已拆出。聊天与模型 View 及其状态仍待继续收敛。
 - `src/app/DesktopContext.tsx`：宿主能力注入。
 - `src/features/models/components/ProviderCard.tsx`：提供方模型清单和本地编辑状态。
 - `src/preview/`：浏览器预览的模拟宿主。
