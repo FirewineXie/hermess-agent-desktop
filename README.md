@@ -13,15 +13,20 @@
 
 ## 本地开发
 
+参与开发的分支、提交、验证和 PR 约束见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ```sh
-git clone --recurse-submodules https://github.com/FirewineXie/hermess-agent-desktop.git
+git clone https://github.com/FirewineXie/hermess-agent-desktop.git
 cd hermess-agent-desktop
+pnpm fetch:upstream
 pnpm install --frozen-lockfile
 pnpm verify:upstream
 pnpm build
 ```
 
-原生构建需 Node 22、pnpm 10.25、Rust 1.94、CPython 3.14 及对应系统的 Tauri 依赖。开发态启动可运行 `pnpm tauri:dev`；完整离线候选包需先按 [发行流程](docs/release-process.md) 准备固定上游运行时。
+原生构建需 Node 24、pnpm 10.25、Rust 1.94、CPython 3.14 及对应系统的 Tauri 依赖。开发态启动可运行 `pnpm tauri:dev`；完整离线候选包需先按 [发行流程](docs/release-process.md) 准备固定上游运行时。
+
+上游 Release 的选择、锁定和升级步骤见 [上游源码流程](docs/upstream-source.md)。
 
 ## 版本构建
 
@@ -29,6 +34,6 @@ pnpm build
 
 ## 许可
 
-本项目自行编写的代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。商业使用需要版权所有人另行授权；版权所有人保留自行商用的权利。`vendor/hermes-agent` 是独立子模块，仍遵循其自己的 [MIT 许可证](vendor/hermes-agent/LICENSE)。其他第三方组件和资源也遵循各自许可证。本仓库的非商业许可不限制他人按 MIT 条款使用上游 Hermes Agent。
+本项目自行编写的代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。商业使用需要版权所有人另行授权；版权所有人保留自行商用的权利。`vendor/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源也遵循各自许可证。本仓库的非商业许可不限制他人按 MIT 条款使用上游 Hermes Agent。
 
 GitHub 仓库的初始提交曾包含 MIT 许可和一行 README；后续更改许可不会撤销此前已经授出的权利。产品代码首次上传时使用上述非商业许可。

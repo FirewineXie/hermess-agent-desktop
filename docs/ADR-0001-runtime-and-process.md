@@ -4,7 +4,7 @@
 
 ## 当前选择
 
-- 产品仓库以 Git submodule 固定上游，不在其工作树修改源码。`pnpm verify:upstream` 校验锁文件、submodule 指针、HEAD 与工作树。
+- 产品仓库不再使用 Git submodule。`pnpm fetch:upstream` 将锁定的正式 Release tag 克隆到忽略目录 `vendor/hermes-agent`，不在其工作树修改源码；`pnpm verify:upstream` 校验锁文件中的 tag、完整提交 SHA、来源与干净工作树。此项为后续来源管理变更，下面的 I0 测试数据仍基于原锁定提交，不能直接归于新 Release。
 - Windows 样机使用 `hermes serve --host 127.0.0.1 --port 0 --isolated`。Rust 进程创建子进程，提供每次启动的随机 WS 凭据、独立 `HERMES_HOME`、私有锁目录与就绪文件；只持有并停止自己创建的子进程。
 - 开发态可在产品 `.build` 内用已有 CPython 3.14 构建隔离 venv。上游 `pm.operations.build_environment` 负责依赖同步，`uv.lock` 固定应用依赖；该路径已在 Windows 实测。
 - 上游 `pm bundle` 已在 Windows 生成包含仓库快照、固定工具、PM runtime、venv、离线 uv 缓存和启动器的完整 payload。`scripts/verify-payload.py` 用固定提交的 Git archive 对比 payload 的发行源码。
