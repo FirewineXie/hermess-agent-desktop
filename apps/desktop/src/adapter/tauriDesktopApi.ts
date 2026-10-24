@@ -89,6 +89,7 @@ export const tauriDesktopApi: DesktopApi = {
     },
     usage: sessionId => invoke('get_chat_usage', { sessionId }),
     reasoning: sessionId => invoke('get_chat_reasoning', { sessionId }),
+    setReasoning: (sessionId, value) => invoke('set_chat_reasoning', { sessionId, value }),
     commands: sessionId => invoke('list_composer_commands', { sessionId }),
     executeCommand: (sessionId, command) => invoke('execute_composer_command', { sessionId, command }),
     dispatchSkill: (sessionId, name, arg) => invoke('dispatch_composer_skill', { sessionId, name, arg }),

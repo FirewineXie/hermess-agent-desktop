@@ -26,6 +26,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
   const [sessionId, setSessionId] = React.useState('')
   const [reasoningEffort, setReasoningEffort] = React.useState('')
   const [reasoningBusy, setReasoningBusy] = React.useState(false)
+  const reasoningChangeInFlightRef = React.useRef(false)
   const [chatUsage, setChatUsage] = React.useState<ChatUsage | null>(null)
   const sessionRef = React.useRef('')
   const storedSessionRef = React.useRef('')
@@ -168,23 +169,28 @@ export function useChatController({ backend, activeModel, language, storagePath,
       chat.usage(sessionId),
     ]).then(([reasoning, usage]) => {
       if (!active || sessionRef.current !== sessionId) return
-      if (reasoning.status === 'fulfilled') setReasoningEffort(reasoning.value.value || '')
+      if (reasoning.status === 'fulfilled' && !reasoningChangeInFlightRef.current) setReasoningEffort(reasoning.value.value || '')
       if (usage.status === 'fulfilled') setChatUsage(usage.value)
     })
     return () => { active = false }
   }, [backend, sessionId, activeModel?.provider, activeModel?.model])
 
   async function changeReasoning(value: string) {
-    if (reasoningBusy || !backend) return
+    if (reasoningChangeInFlightRef.current || !backend || !value) return
+    reasoningChangeInFlightRef.current = true
     setReasoningBusy(true)
     try {
       const id = await ensureChatSession()
-      await chat.executeCommand(id, `/reasoning ${value || 'reset'}`)
+      const saved = await chat.setReasoning(id, value)
+      if (saved.value !== value) throw new Error(language === 'zh-CN' ? '后端未确认思考强度修改' : 'The backend did not confirm the reasoning change')
       const current = await chat.reasoning(id)
-      if (sessionRef.current === id) setReasoningEffort(current.value || '')
-      setChatStatus(language === 'zh-CN' ? '思考强度已更新，下轮回答生效' : 'Reasoning effort updated for the next turn')
+      if (current.value !== value) throw new Error(language === 'zh-CN' ? '思考强度回读与所选档位不一致' : 'The reasoning value did not match after reading it back')
+      if (sessionRef.current === id) {
+        setReasoningEffort(value)
+        setChatStatus(language === 'zh-CN' ? '当前会话思考强度已更新' : 'Reasoning effort updated for this session')
+      }
     } catch (cause) { setChatStatus(describeError(cause, language)) }
-    finally { setReasoningBusy(false) }
+    finally { reasoningChangeInFlightRef.current = false; setReasoningBusy(false) }
   }
 
   function loadCommandCatalog(): Promise<CommandCatalog> {
@@ -296,7 +302,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = draft.trim()
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
-    if (!text || turnBusy || attachmentBusy) return
+    if (!text || turnBusy || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
     let catalog: CommandCatalog | null = null

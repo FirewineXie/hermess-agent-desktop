@@ -101,12 +101,12 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
-            <option value="">{language === 'zh-CN' ? '思考 · 默认' : 'Reasoning · Default'}</option>
+            <option value="" disabled>{language === 'zh-CN' ? '思考 · 选择档位' : 'Reasoning · Choose level'}</option>
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
         </label>
         <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
-        {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={attachmentBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+        {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={attachmentBusy || reasoningBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}

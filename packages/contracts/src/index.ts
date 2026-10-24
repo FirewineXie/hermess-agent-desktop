@@ -139,6 +139,7 @@ export interface DesktopApi {
     replayEvents(sessionId: string, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
     usage(sessionId: string): Promise<ChatUsage>
     reasoning(sessionId: string): Promise<{ value?: string }>
+    setReasoning(sessionId: string, value: string): Promise<{ value?: string }>
     commands(sessionId: string): Promise<CommandCatalog>
     executeCommand(sessionId: string, command: string): Promise<CommandResult>
     dispatchSkill(sessionId: string, name: string, arg: string): Promise<CommandResult>

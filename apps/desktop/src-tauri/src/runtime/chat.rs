@@ -350,6 +350,35 @@ pub async fn get_chat_reasoning(
 }
 
 #[tauri::command]
+pub async fn set_chat_reasoning(
+    state: State<'_, BackendState>,
+    session_id: String,
+    value: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    if !matches!(
+        value.as_str(),
+        "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+    ) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned
+        .as_ref()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    backend
+        .gateway
+        .request(
+            "config.set",
+            json!({"session_id": session_id, "key": "reasoning", "value": value}),
+        )
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
 pub async fn get_chat_usage(
     state: State<'_, BackendState>,
     session_id: String,

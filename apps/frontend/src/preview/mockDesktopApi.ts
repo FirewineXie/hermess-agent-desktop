@@ -51,6 +51,7 @@ export const previewDesktopApi: DesktopApi = {
     async replayEvents() { throw previewOnly() },
     async usage() { throw previewOnly() },
     async reasoning() { throw previewOnly() },
+    async setReasoning() { throw previewOnly() },
     async commands() { throw previewOnly() },
     async executeCommand() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },

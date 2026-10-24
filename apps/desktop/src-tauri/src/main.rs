@@ -41,6 +41,7 @@ fn main() {
             runtime::config::get_agent_config_raw,
             runtime::config::save_auxiliary_route,
             runtime::chat::get_chat_reasoning,
+            runtime::chat::set_chat_reasoning,
             runtime::chat::get_chat_usage,
             runtime::models::list_custom_endpoints,
             runtime::models::load_model_lists,
