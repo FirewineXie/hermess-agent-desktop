@@ -6,6 +6,7 @@ import { useLanguage, translateApp, localizeAppMessage } from './i18n'
 import { useDesktop } from './app/DesktopContext'
 import ToolsView from './features/tools/ToolsView'
 import GatewayRequestCard from './features/chat/components/GatewayRequestCard'
+import ProviderCard from './features/models/components/ProviderCard'
 import RuntimeView from './features/runtime/RuntimeView'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
@@ -13,17 +14,15 @@ import type { View, SessionRow } from './app/types'
 import {
   desktopModelProviderSupported, normalizedEndpoint, readAddedModels, readModelLists,
   VOLCENGINE_PRESETS, savedModelFromOptions, MODEL_FALLBACKS, ADDED_MODELS_KEY, MODEL_LISTS_KEY,
-  type ModelProvider, type ModelOptions, type CustomEndpoint, type CustomEndpoints,
-  type ModelPick, type ModelPickResult, type ModelAssignment, type SavedModelConfig, type SavedModel,
+  type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel,
 } from './features/models/model'
 import {
   commandSupported, commandAvailability, commandChoices, composerTrigger, contextPercent, contextLabel,
-  type PendingAttachment, type CommandCatalog, type CommandResult, type ComposerChoice,
-  type ResumeResult, type ChatUsage,
+  type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage,
 } from './features/chat/model'
 
 function App() {
-  const { invoke, listen, open, onDragDropEvent, runtime, diagnostics } = useDesktop()
+  const { listen, open, onDragDropEvent, runtime, diagnostics, models, chat } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -97,22 +96,17 @@ function App() {
   const [modelLists, setModelLists] = React.useState<Record<string, string[]>>({})
   const [modelListBusy, setModelListBusy] = React.useState(false)
   const [modelListLoading, setModelListLoading] = React.useState(true)
-  const [editingModel, setEditingModel] = React.useState<{ provider: string; original: string; value: string } | null>(null)
-  const [addingModelProvider, setAddingModelProvider] = React.useState('')
-  const [newModelId, setNewModelId] = React.useState('')
   React.useEffect(() => {
     setAddedModels(readAddedModels(storagePath))
     const legacyLists = readModelLists(storagePath)
     setModelLists(legacyLists)
-    setEditingModel(null)
-    setAddingModelProvider('')
     if (!storagePath) return
     let active = true
     setModelListLoading(true)
-    void invoke<Record<string, string[]> | null>('load_model_lists', { storagePath }).then(saved => {
+    void models.loadLists(storagePath).then(saved => {
       if (!active) return
       if (saved !== null) setModelLists(saved)
-      else if (Object.keys(legacyLists).length) return invoke('save_model_lists', { storagePath, lists: legacyLists })
+      else if (Object.keys(legacyLists).length) return models.saveLists(storagePath, legacyLists)
     }).catch(cause => { if (active) setModelStatus(t('ui.failed.to.save.provider.models.arg', String(cause))) })
       .finally(() => { if (active) setModelListLoading(false) })
     return () => { active = false }
@@ -215,7 +209,7 @@ function App() {
       if (usage && typeof usage === 'object' && ('context_used' in usage || 'context_max' in usage)) {
         setChatUsage(usage as ChatUsage)
       } else {
-        void invoke<ChatUsage>('get_chat_usage', { sessionId: id }).then(result => {
+        void chat.usage(id).then(result => {
           if (sessionRef.current === id) setChatUsage(result)
         }).catch(() => {})
       }
@@ -292,7 +286,7 @@ function App() {
     if (!serverRequest) return
     const request = serverRequest
     try {
-      await invoke('answer_gateway_request', {
+      await chat.answerRequest({
         requestId: request.id,
         method: request.method,
         choice,
@@ -306,7 +300,7 @@ function App() {
 
   async function ensureChatSession() {
     if (sessionRef.current) return sessionRef.current
-    const created = await invoke<{ session_id: string; stored_session_id: string; info?: { provider?: string; model?: string } }>('create_chat_session')
+    const created = await chat.createSession()
     const id = created.session_id
     sessionRef.current = id
     epochRef.current[id] = backend?.replay_epoch || ''
@@ -325,8 +319,8 @@ function App() {
     }
     let active = true
     void Promise.allSettled([
-      invoke<{ value?: string }>('get_chat_reasoning', { sessionId }),
-      invoke<ChatUsage>('get_chat_usage', { sessionId }),
+      chat.reasoning(sessionId),
+      chat.usage(sessionId),
     ]).then(([reasoning, usage]) => {
       if (!active || sessionRef.current !== sessionId) return
       if (reasoning.status === 'fulfilled') setReasoningEffort(reasoning.value.value || '')
@@ -340,8 +334,8 @@ function App() {
     setReasoningBusy(true)
     try {
       const id = await ensureChatSession()
-      await invoke('execute_composer_command', { sessionId: id, command: `/reasoning ${value || 'reset'}` })
-      const current = await invoke<{ value?: string }>('get_chat_reasoning', { sessionId: id })
+      await chat.executeCommand(id, `/reasoning ${value || 'reset'}`)
+      const current = await chat.reasoning(id)
       if (sessionRef.current === id) setReasoningEffort(current.value || '')
       setChatStatus(language === 'zh-CN' ? '思考强度已更新，下轮回答生效' : 'Reasoning effort updated for the next turn')
     } catch (cause) { setChatStatus(String(cause)) }
@@ -352,7 +346,7 @@ function App() {
     if (commandCatalog) return Promise.resolve(commandCatalog)
     if (!commandCatalogPromiseRef.current) {
       commandCatalogPromiseRef.current = ensureChatSession()
-        .then(id => invoke<CommandCatalog>('list_composer_commands', { sessionId: id }))
+        .then(id => chat.commands(id))
         .then(catalog => {
           setCommandCatalog(catalog)
           setCommandCatalogError(catalog.warning || '')
@@ -398,7 +392,7 @@ function App() {
       const existing = new Set(attachments.map(item => item.source_path))
       for (const path of paths) {
         if (existing.has(path)) continue
-        const attached = await invoke<PendingAttachment>('attach_chat_file', { sessionId: id, path })
+        const attached = await chat.attachFile(id, path)
         setAttachments(current => [...current, attached])
         existing.add(attached.source_path)
       }
@@ -437,7 +431,7 @@ function App() {
     setAttachmentBusy(true)
     try {
       if (attachment.kind === 'image' && attachment.path) {
-        await invoke('detach_chat_image', { sessionId: sessionRef.current, path: attachment.path })
+        await chat.detachImage(sessionRef.current, attachment.path)
       }
       setAttachments(current => current.filter((_, position) => position !== index))
     } catch (cause) { setChatStatus(t("ui.failed.to.remove.attachment.arg", String(cause))) }
@@ -447,7 +441,7 @@ function App() {
   async function clearPendingImages() {
     for (const attachment of attachments) {
       if (attachment.kind === 'image' && attachment.path) {
-        await invoke('detach_chat_image', { sessionId: sessionRef.current, path: attachment.path })
+        await chat.detachImage(sessionRef.current, attachment.path)
       }
     }
     setAttachments([])
@@ -518,13 +512,8 @@ function App() {
       const id = await ensureChatSession()
       if (isCommand) {
         const result = isSkill
-          ? await invoke<CommandResult>('dispatch_composer_skill', {
-            sessionId: id, name: commandName.slice(1), arg: commandArg,
-          })
-          : await invoke<CommandResult>('execute_composer_command', {
-            sessionId: id,
-            command: `${commandName}${commandArg ? ` ${commandArg}` : ''}`,
-          })
+          ? await chat.dispatchSkill(id, commandName.slice(1), commandArg)
+          : await chat.executeCommand(id, `${commandName}${commandArg ? ` ${commandArg}` : ''}`)
         if (result.type === 'skill' || result.type === 'send') {
           if (!result.message) throw new Error(t("ui.the.command.did.not.return.a.message.to.send"))
           text = [result.message, ...refs].filter(Boolean).join('\n')
@@ -545,7 +534,7 @@ function App() {
       }
       setConversation(rows => [...rows, { role: 'user', text: typed || text }])
       setDraft('')
-      const result = await invoke<{ status?: string }>('submit_chat_prompt', { sessionId: id, text })
+      const result = await chat.submitPrompt(id, text)
       setAttachments([])
       setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
     } catch (cause) {
@@ -556,7 +545,7 @@ function App() {
 
   async function loadSessions(quiet = false) {
     try {
-      const result = await invoke<{ sessions: SessionRow[] }>('list_chat_sessions')
+      const result = await chat.listSessions()
       setSessions(result.sessions)
       if (!quiet) setChatStatus(t("ui.arg.historical.conversations.found", result.sessions.length))
     } catch (cause) { setChatStatus(t("ui.failed.to.read.history.arg", String(cause))) }
@@ -568,10 +557,10 @@ function App() {
     setModelStatus(preserveSelection ? t("ui.refreshing.backend.model.directory") : t("ui.loading.model.options"))
     try {
       const [result, configured, config, endpoints] = await Promise.all([
-        invoke<ModelOptions>('list_model_options', { refresh: preserveSelection }),
-        invoke<ModelOptions>('list_model_options', { refresh: false, includeUnconfigured: false }),
-        invoke<SavedModelConfig>('get_saved_model_config'),
-        invoke<CustomEndpoints>('list_custom_endpoints'),
+        models.options({ refresh: preserveSelection }),
+        models.options({ refresh: false, includeUnconfigured: false }),
+        models.savedConfig(),
+        models.endpoints(),
       ])
       setCustomEndpoints(endpoints.endpoints || [])
       const availableProviders = (result.providers || []).filter(provider => desktopModelProviderSupported(provider.slug))
@@ -614,7 +603,7 @@ function App() {
   }
 
   async function persistModelLists(next: Record<string, string[]>) {
-    await invoke('save_model_lists', { storagePath, lists: next })
+    await models.saveLists(storagePath, next)
     setModelLists(next)
     try { localStorage.setItem(`${MODEL_LISTS_KEY}:${storagePath}`, JSON.stringify(next)) } catch { /* Native storage is authoritative. */ }
   }
@@ -641,19 +630,6 @@ function App() {
     } finally { setModelListBusy(false) }
   }
 
-  async function renameProviderModel(provider: string, models: string[], original: string) {
-    const replacement = editingModel?.value.trim() || ''
-    if (await saveProviderModels(provider, models.map(model => model === original ? replacement : model))) setEditingModel(null)
-  }
-
-  async function addProviderModel(provider: string, models: string[]) {
-    const nextModel = newModelId.trim()
-    if (await saveProviderModels(provider, [...models, nextModel])) {
-      setAddingModelProvider('')
-      setNewModelId('')
-    }
-  }
-
   async function addProvider() {
     if (!newProviderName.trim() || !newProviderUrl.trim() || !newProviderModel.trim()) return
     if (customEndpoints.some(endpoint => normalizedEndpoint(endpoint.base_url) === normalizedEndpoint(newProviderUrl))) {
@@ -662,7 +638,7 @@ function App() {
     }
     setModelBusy(true)
     try {
-      await invoke('add_custom_endpoint', { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey })
+      await models.addEndpoint({ name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey })
       setAddingProvider(false)
       setNewProviderPreset('')
       setProviderFormError('')
@@ -704,7 +680,7 @@ function App() {
     if (!window.confirm(t('ui.delete.provider.confirm.arg', endpoint.name))) return
     setModelBusy(true)
     try {
-      await invoke('delete_custom_endpoint', { endpointId: endpoint.id })
+      await models.deleteEndpoint(endpoint.id)
       if (modelProvider === endpoint.id) setModelFormOpen(false)
       await loadModelOptions(false)
       setModelStatus(t('ui.provider.deleted'))
@@ -717,7 +693,7 @@ function App() {
     setModelBusy(true)
     setModelStatus(t("ui.saving.model.configuration"))
     try {
-      const result = await invoke<ModelAssignment>('set_default_model', {
+      const result = await models.setDefault({
         provider: selectedPreset ? 'custom' : modelProvider.trim(), model: modelName.trim(),
         baseUrl: modelBaseUrl.trim(), apiKey: modelKey,
         confirmExpensiveModel: confirm,
@@ -746,7 +722,7 @@ function App() {
   async function checkModel() {
     setModelBusy(true)
     try {
-      const result = await invoke<{ ok?: boolean; provider?: string; model?: string; error?: string }>('check_model_runtime')
+      const result = await models.checkRuntime()
       setModelStatus(result.ok ? t("ui.runtime.recognized.arg.arg", result.provider || '', result.model || '')
         : t("ui.runtime.not.ready.arg", result.error || t("ui.check.the.key.and.model.settings")))
     } catch (cause) { setModelStatus(t("ui.check.model.failed.arg", String(cause))) }
@@ -759,7 +735,7 @@ function App() {
     setPickerBusy(true)
     setPickerError('')
     try {
-      const result = await invoke<ModelOptions>('list_model_options', {
+      const result = await models.options({
         refresh, includeUnconfigured: false, sessionId: sessionRef.current || undefined,
       })
       const providers = (result.providers || []).filter(row => desktopModelProviderSupported(row.slug) && row.authenticated !== false)
@@ -777,7 +753,7 @@ function App() {
     setPickerError('')
     try {
       const id = await ensureChatSession()
-      const result = await invoke<ModelPickResult>('select_chat_model', { sessionId: id, provider, model: model.trim(), confirm })
+      const result = await models.selectChat({ sessionId: id, provider, model: model.trim(), confirm })
       if (result.confirm_required && result.confirm) {
         setPickerConfirmation({ provider, model: model.trim(), remember, token: result.confirm, message: result.confirm_message || t('ui.please.confirm.model.selection') })
         return
@@ -832,7 +808,7 @@ function App() {
     setChatStatus(t("ui.resuming.session"))
     try {
       await clearPendingImages()
-      const result = await invoke<ResumeResult>('resume_chat_session', { sessionId: id })
+      const result = await chat.resumeSession(id)
       sessionRef.current = result.session_id
       storedSessionRef.current = result.stored_session_id || result.session_key || id
       epochRef.current[result.session_id] = backend?.replay_epoch || ''
@@ -856,7 +832,7 @@ function App() {
   async function interruptSession() {
     if (!sessionRef.current) return
     try {
-      const result = await invoke<{ status: string }>('interrupt_chat_session', { sessionId: sessionRef.current })
+      const result = await chat.interruptSession(sessionRef.current)
       setChatStatus(result.status === 'interrupted' ? t("ui.requested.to.stop.current.task") : t("ui.there.are.currently.no.tasks.running"))
       setTurnBusy(false)
     } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", String(cause))) }
@@ -881,14 +857,12 @@ function App() {
         setAttachments(current => current.filter(item => item.kind === 'file'))
       }
       if (storedSessionRef.current) {
-        const snapshot = await invoke<ResumeResult>('resume_chat_session', { sessionId: storedSessionRef.current })
+        const snapshot = await chat.resumeSession(storedSessionRef.current)
         const id = snapshot.session_id
         const sameStream = id === previousId && Boolean(previousEpoch) && info.replay_epoch === previousEpoch
         let replay: ReplayResult | undefined
         if (sameStream) {
-          replay = await invoke<ReplayResult>('replay_chat_events', {
-            sessionId: id, lastSeen: previousSeq, replayEpoch: previousEpoch,
-          })
+          replay = await chat.replayEvents(id, previousSeq, previousEpoch)
         }
         const useSnapshot = !sameStream || !replay || replay.truncated || replay.epoch !== previousEpoch
         sessionRef.current = id
@@ -1069,28 +1043,9 @@ function App() {
           const legacyModelListKey = endpoint ? `custom:${endpoint.name.toLowerCase().replace(/\s+/g, '-')}` : provider.slug
           const models = modelLists[modelListKey] ?? modelLists[provider.slug] ?? modelLists[legacyModelListKey]
             ?? [...new Set([...provider.models, ...(addedModels[provider.slug] || [])])]
-          const isDefault = Boolean(savedModel && (savedModel.provider === provider.slug || (savedModel.baseUrl && provider.api_url && normalizedEndpoint(savedModel.baseUrl) === normalizedEndpoint(provider.api_url))))
-          const providerPreset = VOLCENGINE_PRESETS.find(preset => normalizedEndpoint(preset.baseUrl) === normalizedEndpoint(endpoint?.base_url || provider.api_url))
-          return <div className={`provider-card ${isDefault ? 'selected' : ''}`} key={provider.slug}>
-            {isDefault && <span className="saved-badge">{t('ui.current.default')}</span>}
-            <div className="provider-card-heading"><strong>{providerPreset ? t(providerPreset.name) : endpoint?.name || provider.name}</strong><small>{models.length} {t('ui.models.count.unit')}</small></div>
-            {endpoint && <div className="provider-card-meta"><small>{providerPreset ? t('ui.preset.endpoint.via.custom') : t('ui.custom.endpoint')}：{endpoint.base_url}</small><button type="button" disabled={modelBusy} onClick={() => void deleteProvider(endpoint)}>{t('ui.delete.provider')}</button></div>}
-            {isDefault && savedModel?.baseUrl && <small className="provider-card-endpoint">{savedModel.baseUrl}</small>}
-            <div className="provider-model-list"><div className="provider-model-items" role="region" aria-label={`${provider.name} ${t('ui.model.options')}`} tabIndex={0}>{models.map(model => {
-              const editing = editingModel?.provider === provider.slug && editingModel.original === model
-              return <div className="provider-model-row" key={model}>
-                {editing ? <><input aria-label={t('ui.model.id')} value={editingModel.value} onChange={event => setEditingModel({ provider: provider.slug, original: model, value: event.target.value })} onKeyDown={event => { if (event.key === 'Enter' && !modelListBusy && !modelListLoading) void renameProviderModel(modelListKey, models, model); if (event.key === 'Escape') setEditingModel(null) }} />
-                  <button type="button" disabled={modelListBusy || modelListLoading} onClick={() => void renameProviderModel(modelListKey, models, model)}>{t('ui.save')}</button><button type="button" onClick={() => setEditingModel(null)}>{t('ui.cancel')}</button></>
-                  : <><button type="button" className={`provider-model-id ${isDefault && savedModel?.model === model ? 'current' : ''}`} title={t('ui.select.as.default.model')} onClick={() => selectModelProvider(provider.slug, model)}>{model}</button>
-                    <button type="button" onClick={() => setEditingModel({ provider: provider.slug, original: model, value: model })}>{t('ui.edit')}</button></>}
-                <button type="button" disabled={modelListBusy || modelListLoading} className="provider-model-delete" aria-label={t('ui.delete.model.arg', model)} onClick={() => { void saveProviderModels(modelListKey, models.filter(item => item !== model)).then(saved => { if (saved && editing) setEditingModel(null) }) }}>{t('ui.remove')}</button>
-              </div>
-            })}</div>
-              {addingModelProvider === provider.slug ? <div className="provider-model-row provider-model-add-row"><input autoFocus aria-label={t('ui.new.model.id')} value={newModelId} onChange={event => { setNewModelId(event.target.value) }} onKeyDown={event => { if (event.key === 'Enter' && !modelListBusy && !modelListLoading) void addProviderModel(modelListKey, models); if (event.key === 'Escape') { setAddingModelProvider(''); setNewModelId('') } }} placeholder={t('ui.model.id')} />
-                <button type="button" disabled={modelListBusy || modelListLoading} onClick={() => void addProviderModel(modelListKey, models)}>{t('ui.save')}</button><button type="button" onClick={() => { setAddingModelProvider(''); setNewModelId('') }}>{t('ui.cancel')}</button></div>
-                : <button type="button" className="provider-add-model" onClick={() => { setAddingModelProvider(provider.slug); setNewModelId('') }}>{t('ui.add.model')}</button>}
-            </div>
-          </div>
+          return <ProviderCard key={provider.slug} provider={provider} endpoint={endpoint} models={models} modelListKey={modelListKey}
+            savedModel={savedModel} modelBusy={modelBusy} modelListBusy={modelListBusy} modelListLoading={modelListLoading} t={t}
+            onDeleteProvider={endpoint => void deleteProvider(endpoint)} onSelectModel={selectModelProvider} onSaveModels={saveProviderModels} />
         })}</div>
       </div>}
       {modelFormOpen && <><div className="row model-editor-heading"><h2>{t("ui.select.or.modify.a.model")}</h2><button type="button" onClick={() => { setModelFormOpen(false); setModelConfirmation('') }}>{t('ui.cancel')}</button></div>

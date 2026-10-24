@@ -1,8 +1,9 @@
 import { agentFieldTranslation, agentCategoryTranslation, type Language } from '../../i18n'
+import type { AgentConfigField, AgentConfigSchema, AgentRawConfig } from '@hermess/contracts'
 
-export type Field = { type: string; description?: string; category?: string; options?: unknown[] }
-export type Schema = { fields: Record<string, Field>; category_order: string[] }
-export type RawConfig = { yaml: string; path: string }
+export type Field = AgentConfigField
+export type Schema = AgentConfigSchema
+export type RawConfig = AgentRawConfig
 export type Provider = { slug: string; name: string; models: string[]; authenticated?: boolean; api_url?: string }
 export type Endpoint = { id: string; name: string; base_url: string; models: string[]; model: string; source: string }
 export type FieldEntry = [string, Field]

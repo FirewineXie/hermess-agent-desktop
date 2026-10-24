@@ -5,7 +5,7 @@ const root = resolve(import.meta.dirname, '..')
 const rules = [
   {
     directory: 'apps/frontend/src',
-    forbidden: [/@tauri-apps\//, /@hermess\/desktop(?:\/|['"])/, /apps\/desktop\//],
+    forbidden: [/@tauri-apps\//, /@hermess\/desktop(?:\/|['"])/, /apps\/desktop\//, /\binvoke\s*[<(]/],
   },
   {
     directory: 'packages/contracts/src',

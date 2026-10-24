@@ -1,17 +1,8 @@
-import type { GatewayRequest } from '@hermess/contracts'
+import type { CommandCatalog, ChatUsage } from '@hermess/contracts'
+export type { PendingAttachment, CommandCatalog, CommandResult, ResumeResult, ChatUsage } from '@hermess/contracts'
 import commandDescriptionsZh from '../../locales/app/command-descriptions.zh-CN.json'
 import { translateApp } from '../../i18n'
 
-export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
-export type CommandCatalog = {
-  pairs: Array<[string, string]>
-  skills: Record<string, { usage: number; origin: string }>
-  commands: Record<string, { desktop?: string | null }>
-  categories?: Array<{ name: string; pairs: Array<[string, string]> }>
-  plugin_commands?: Record<string, string>
-  warning?: string
-}
-export type CommandResult = { type?: string; output?: string; message?: string; display?: string; notice?: string }
 export type ComposerChoice = { name: string; description: string; skill: boolean; available: boolean; availability: string }
 export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'help', 'status', 'context', 'version', 'whoami', 'usage', 'insights', 'profile', 'diff',
@@ -65,21 +56,6 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
     }]
   })
 }
-export type ResumeResult = {
-  session_id: string
-  info?: { provider?: string; model?: string }
-  stored_session_id?: string
-  session_key?: string
-  messages: Array<{ role: string; text?: string | null }>
-  running?: boolean
-  replay_epoch?: string
-  last_sequence?: number
-  inflight?: { assistant?: string; user?: string }
-  open_requests?: GatewayRequest[]
-}
-
-export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
-
 export function contextPercent(usage: ChatUsage | null): number | null {
   if (!usage) return null
   const used = usage.context_used ?? usage.context_tokens ?? usage.last_prompt_tokens

@@ -5,7 +5,7 @@ import ConfigFieldEditor from './components/ConfigFieldEditor'
 import { fieldTree, nodeLabel, getField, fieldText, type Field, type Schema, type RawConfig, type Provider, type Endpoint, type FieldEntry, type FieldNode } from './model'
 
 export default function AgentSettingsView({ connected, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
-  const { invoke } = useDesktop()
+  const { agentSettings, models } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -35,14 +35,14 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     setStatus(t("ui.loading.agent.settings"))
     try {
       const [nextSchema, nextConfig, nextRaw] = await Promise.all([
-        invoke<Schema>('get_agent_config_schema'),
-        invoke<Record<string, unknown>>('get_agent_config'),
-        invoke<RawConfig>('get_agent_config_raw'),
+        agentSettings.schema(),
+        agentSettings.config(),
+        agentSettings.raw(),
       ])
       const [options, endpoints, savedLists] = await Promise.allSettled([
-        invoke<{ providers: Provider[] }>('list_model_options', { refresh: false, includeUnconfigured: false }),
-        invoke<{ endpoints: Endpoint[] }>('list_custom_endpoints'),
-        invoke<Record<string, string[]> | null>('load_model_lists', { storagePath }),
+        models.options({ refresh: false, includeUnconfigured: false }),
+        models.endpoints(),
+        models.loadLists(storagePath),
       ])
       const choices = options.status === 'fulfilled'
         ? (options.value.providers || []).filter(item => item.authenticated !== false && !['copilot-acp', 'custom'].includes(item.slug)) : []
@@ -126,7 +126,7 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     } catch (error) { setStatus(`${key}：${String(error)}`); return }
     setBusy(true)
     try {
-      await invoke('save_agent_config_field', { key, value })
+      await agentSettings.saveField(key, value)
       if (await load(key)) {
         setEditingKey(null)
         setStatus(t("ui.arg.saved.some.settings.take.effect.in.a.new.session.or.after.restarting.th", key))
@@ -140,7 +140,7 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     if (!window.confirm(t("ui.the.raw.yaml.will.replace.all.of.config.yaml.save.the.complete.content"))) return
     setBusy(true)
     try {
-      await invoke('save_agent_config_raw', { yamlText: yamlDraft, expectedYaml: raw?.yaml || '' })
+      await agentSettings.saveRaw(yamlDraft, raw?.yaml || '')
       if (await load()) setStatus(t("ui.full.configuration.saved.some.settings.take.effect.in.a.new.session.or.afte"))
     } catch (error) { setStatus(t("ui.save.failed.arg", String(error))) }
     finally { setBusy(false) }
@@ -164,7 +164,7 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     }
     setBusy(true)
     try {
-      await invoke('save_auxiliary_route', {
+      await agentSettings.saveAuxiliary({
         task, provider: auxProvider, model: auxProvider === 'auto' ? '' : auxModel,
         effort: auxEffort, timeout: auxTimeout ? Number(auxTimeout) : null,
       })

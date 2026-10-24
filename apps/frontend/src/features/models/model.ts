@@ -1,14 +1,10 @@
-export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
-export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
-export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean }
+import type { ModelOptions, CustomEndpoint, SavedModelConfig } from '@hermess/contracts'
+export type { ModelProvider, ModelOptions, CustomEndpoint, ModelPickResult, ModelAssignment, SavedModelConfig } from '@hermess/contracts'
 export type CustomEndpoints = { endpoints: CustomEndpoint[] }
 // Desktop has no login or runtime validation flow for this external ACP process.
 export const desktopModelProviderSupported = (slug: string) => slug !== 'copilot-acp'
 export const normalizedEndpoint = (url: string) => url.trim().replace(/\/+$/, '').toLowerCase()
 export type ModelPick = { provider: string; model: string }
-export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
-export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
-export type SavedModelConfig = { provider: string; model: string; base_url: string }
 export type SavedModel = { provider: string; model: string; name: string; baseUrl: string }
 export const ADDED_MODELS_KEY = 'hermess.desktop.added-models.v1'
 export const MODEL_LISTS_KEY = 'hermess.desktop.model-lists.v1'
