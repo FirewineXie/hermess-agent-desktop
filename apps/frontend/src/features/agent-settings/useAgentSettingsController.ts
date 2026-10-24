@@ -1,6 +1,7 @@
 import React from 'react'
 import { useLanguage, translateAgentUi, agentFieldTranslation } from '../../i18n'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
 import { getField, fieldText, type Field, type Schema, type RawConfig, type Provider } from './model'
 
 type Options = {
@@ -83,7 +84,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
       setStatus(t("ui.current.runtime.configuration.loaded"))
       return true
     } catch (error) {
-      if (request === loadRequestRef.current) setStatus(t("ui.load.failed.arg", String(error)))
+      if (request === loadRequestRef.current) setStatus(t("ui.load.failed.arg", describeError(error, language)))
       return false
     }
     finally { if (request === loadRequestRef.current) setBusy(false) }
@@ -137,7 +138,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
           throw new Error(t("ui.enter.a.valid.json.arg", t(field.type === 'list' ? 'ui.array' : 'ui.object')))
         }
       }
-    } catch (error) { setStatus(`${key}：${String(error)}`); return }
+    } catch (error) { setStatus(`${key}：${describeError(error, language)}`); return }
     setBusy(true)
     try {
       await agentSettings.saveField(key, value)
@@ -145,7 +146,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
         setEditingKey(null)
         setStatus(t("ui.arg.saved.some.settings.take.effect.in.a.new.session.or.after.restarting.th", key))
       }
-    } catch (error) { setStatus(t("ui.failed.to.save.arg.arg", key, String(error))) }
+    } catch (error) { setStatus(t("ui.failed.to.save.arg.arg", key, describeError(error, language))) }
     finally { setBusy(false) }
   }
 
@@ -156,7 +157,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
     try {
       await agentSettings.saveRaw(yamlDraft, raw?.yaml || '')
       if (await load()) setStatus(t("ui.full.configuration.saved.some.settings.take.effect.in.a.new.session.or.afte"))
-    } catch (error) { setStatus(t("ui.save.failed.arg", String(error))) }
+    } catch (error) { setStatus(t("ui.save.failed.arg", describeError(error, language))) }
     finally { setBusy(false) }
   }
 
@@ -186,7 +187,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
         setEditingTask(null)
         setStatus(language === 'zh-CN' ? '辅助模型配置已保存；新会话或下次调用时生效' : 'Auxiliary model saved; applies to a new session or the next call')
       }
-    } catch (error) { setStatus(String(error)) }
+    } catch (error) { setStatus(describeError(error, language)) }
     finally { setBusy(false) }
   }
 

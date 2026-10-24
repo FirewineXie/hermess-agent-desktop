@@ -36,6 +36,7 @@ for (const [name, fixtures] of Object.entries({
   'backend-info': ['backend-info'],
   'bundled-tools-inventory': ['bundled-tools-inventory'],
   'dev-defaults': ['dev-defaults'],
+  'desktop-failure': ['desktop-failure'],
   'gateway-event': ['gateway-event', 'gateway-event-no-session'],
   'gateway-request': ['gateway-request-approval', 'gateway-request-clarify'],
   'packed-defaults': ['packed-defaults'],

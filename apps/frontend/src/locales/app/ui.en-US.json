@@ -272,5 +272,11 @@
   "ui.refresh.logs": "Refresh logs",
   "ui.loading.logs": "Loading logs…",
   "ui.no.logs.yet": "No logs yet",
-  "ui.logs.read.failed.arg": "Failed to read logs: {0}"
+  "ui.logs.read.failed.arg": "Failed to read logs: {0}",
+  "ui.desktop.error.operation_failed": "The operation could not be completed. Check the current state before trying again.",
+  "ui.desktop.error.runtime_unavailable": "The runtime is unavailable. Start it again.",
+  "ui.desktop.error.connection_lost": "The connection was lost. Reconnect and try again.",
+  "ui.desktop.error.timeout": "The operation timed out. A write may have succeeded; check the current state first.",
+  "ui.desktop.error.conflict": "The state changed. Refresh and try again.",
+  "ui.desktop.error.invalid_input": "The input is invalid. Check it and try again."
 }

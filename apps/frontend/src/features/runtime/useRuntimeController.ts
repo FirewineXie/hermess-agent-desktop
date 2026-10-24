@@ -1,6 +1,8 @@
 import React from 'react'
 import type { BackendInfo } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
+import { useLanguage } from '../../i18n'
 
 type Options = {
   t: (key: string, ...values: unknown[]) => string
@@ -10,6 +12,7 @@ type Options = {
 
 export function useRuntimeController({ t, onStarted, onReset }: Options) {
   const { nativeFiles, runtime, diagnostics } = useDesktop()
+  const language = useLanguage()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
@@ -37,7 +40,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
         }
       } catch (cause) {
         if (active) {
-          setBackendStatus(t("ui.failed.to.read.startup.configuration.arg", String(cause)))
+          setBackendStatus(t("ui.failed.to.read.startup.configuration.arg", describeError(cause, language)))
           setBusy(false)
         }
       }
@@ -60,7 +63,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
       setBackend(null)
       onReset()
-      setBackendStatus(t("ui.startup.failed.arg", String(cause)))
+      setBackendStatus(t("ui.startup.failed.arg", describeError(cause, language)))
     } finally { setBusy(false) }
   }
 
@@ -68,7 +71,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
     try {
       const selected = await nativeFiles.choose({ directory: true, multiple: false, title: t("ui.choose.primary.storage.location") })
       if (typeof selected === 'string') setStoragePath(selected)
-    } catch (cause) { setBackendStatus(t("ui.failed.to.select.directory.arg", String(cause))) }
+    } catch (cause) { setBackendStatus(t("ui.failed.to.select.directory.arg", describeError(cause, language))) }
   }
 
   async function pingBackend() {
@@ -78,7 +81,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       setBackendStatus(t("ui.connection.healthy.websocket.ping.succeeded"))
     } catch (cause) {
       void diagnostics.recordEvent(storagePath, 'connection_failed').catch(() => {})
-      setBackendStatus(t("ui.connection.failed.arg", String(cause)))
+      setBackendStatus(t("ui.connection.failed.arg", describeError(cause, language)))
     }
     finally { setBusy(false) }
   }
@@ -92,7 +95,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       setBackendStatus(t("ui.stopped"))
     } catch (cause) {
       void diagnostics.recordEvent(storagePath, 'stop_failed').catch(() => {})
-      setBackendStatus(t("ui.stop.failed.arg", String(cause)))
+      setBackendStatus(t("ui.stop.failed.arg", describeError(cause, language)))
     }
     finally { setBusy(false) }
   }

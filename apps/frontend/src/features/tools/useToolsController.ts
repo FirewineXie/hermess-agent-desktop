@@ -1,9 +1,12 @@
 import React from 'react'
 import type { RuntimeProbe, BundledToolsInventory, AgentToolCatalog, ActiveAgentTools } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
+import { useLanguage } from '../../i18n'
 
 export function useToolsController(connected: boolean, sessionId: string) {
   const { runtime, tools } = useDesktop()
+  const language = useLanguage()
   const [probes, setProbes] = React.useState<RuntimeProbe[]>([])
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
@@ -26,7 +29,7 @@ export function useToolsController(connected: boolean, sessionId: string) {
       const result = await runtime.probeLocalTools()
       if (request === probeRequestRef.current) setProbes(result)
     } catch (cause) {
-      if (request === probeRequestRef.current) setError(String(cause))
+      if (request === probeRequestRef.current) setError(describeError(cause, language))
     } finally {
       if (request === probeRequestRef.current) setLoading(false)
     }
@@ -48,11 +51,11 @@ export function useToolsController(connected: boolean, sessionId: string) {
     ])
     if (request !== toolRequestRef.current) return
     if (catalog.status === 'fulfilled') setToolCatalog(catalog.value)
-    else { setToolCatalog(null); setToolCatalogError(String(catalog.reason)) }
+    else { setToolCatalog(null); setToolCatalogError(describeError(catalog.reason, language)) }
     if (active.status === 'fulfilled') setActiveTools(active.value)
-    else { setActiveTools(null); setActiveToolsError(String(active.reason)) }
+    else { setActiveTools(null); setActiveToolsError(describeError(active.reason, language)) }
     if (bundled.status === 'fulfilled') setBundledTools(bundled.value)
-    else { setBundledTools(null); setBundledToolsError(String(bundled.reason)) }
+    else { setBundledTools(null); setBundledToolsError(describeError(bundled.reason, language)) }
     setToolLoading(false)
   }
 

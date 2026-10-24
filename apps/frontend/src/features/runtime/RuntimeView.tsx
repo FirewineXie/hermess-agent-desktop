@@ -1,5 +1,6 @@
 import React from 'react'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp, localizeAppMessage } from '../../i18n'
 
 function displayPath(path: string): string {
@@ -41,7 +42,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
     setLogError('')
     void diagnostics.readLogs(storagePath, logSource)
       .then(result => { if (active) setLogText(result) })
-      .catch(cause => { if (active) { setLogText(''); setLogError(String(cause)) } })
+      .catch(cause => { if (active) { setLogText(''); setLogError(describeError(cause, language)) } })
       .finally(() => { if (active) setLogLoading(false) })
     return () => { active = false }
   }, [storagePath, logSource, logRefresh, backend])

@@ -1,5 +1,28 @@
 export type Unsubscribe = () => void
 
+export type { DesktopFailure } from './generated/desktop-failure'
+import type { DesktopFailure } from './generated/desktop-failure'
+export type DesktopFailureCode = DesktopFailure['code']
+export type DesktopFailureCategory = DesktopFailure['category']
+
+const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
+  operation_failed: 'operation',
+  runtime_unavailable: 'runtime',
+  connection_lost: 'connection',
+  timeout: 'connection',
+  conflict: 'validation',
+  invalid_input: 'validation',
+}
+
+export function isDesktopFailure(value: unknown): value is DesktopFailure {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return candidate.kind === 'desktop_failure'
+    && typeof candidate.code === 'string'
+    && Object.hasOwn(failureCategories, candidate.code)
+    && candidate.category === failureCategories[candidate.code as DesktopFailureCode]
+}
+
 export type { BackendInfo } from './generated/backend-info'
 import type { BackendInfo } from './generated/backend-info'
 export type { BundledToolsInventory } from './generated/bundled-tools-inventory'

@@ -1,11 +1,25 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
-import type { DesktopApi, GatewayEvent, GatewayRequest, NativeDropEvent, ReplayResult, ResumeResult, Unsubscribe } from '@hermess/contracts'
+import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
+
+function desktopFailure(cause: unknown): DesktopFailure {
+  if (isDesktopFailure(cause)) return cause
+  return { kind: 'desktop_failure', code: 'operation_failed', category: 'operation' }
+}
+
+async function nativeCall<T>(action: () => Promise<T>): Promise<T> {
+  try { return await action() }
+  catch (cause) { throw desktopFailure(cause) }
+}
+
+function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  return nativeCall(() => nativeInvoke<T>(command, args))
+}
 
 function listenPayload<T>(event: string, handler: (payload: T) => void): Promise<Unsubscribe> {
-  return listen<T>(event, message => handler(message.payload))
+  return nativeCall(() => listen<T>(event, message => handler(message.payload)))
 }
 
 function isSupportedRequest(value: unknown): value is GatewayRequest {
@@ -90,13 +104,13 @@ export const tauriDesktopApi: DesktopApi = {
     onDisconnect: handler => listenPayload('hermes-disconnected', handler),
   },
   nativeFiles: {
-    choose: options => open(options),
-    onDrop: handler => getCurrentWebview().onDragDropEvent(event => {
+    choose: options => nativeCall(() => open(options)),
+    onDrop: handler => nativeCall(() => getCurrentWebview().onDragDropEvent(event => {
       const payload = event.payload
       const mapped: NativeDropEvent = payload.type === 'drop'
         ? { type: 'drop', paths: payload.paths }
         : { type: payload.type }
       handler(mapped)
-    }),
+    })),
   },
 }

@@ -1,6 +1,7 @@
 import React from 'react'
 import type { BackendInfo, GatewayEvent, ReplayResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import type { ModelPick } from '../models/model'
 import { appendMessage, finishTurn, historyTimeline, updateTool, type TimelineItem } from './timeline'
@@ -82,10 +83,10 @@ export function useChatController({ backend, activeModel, language, storagePath,
       assistantRef.current = ''
       setAssistant('')
       setTurnBusy(false)
-      setChatStatus(data.payload?.status === 'error' ? String(data.payload?.error || t("ui.response.failed")) : t("ui.response.complete"))
+      setChatStatus(data.payload?.status === 'error' ? t("ui.response.failed") : t("ui.response.complete"))
       void loadSessions(true)
     } else if (data.kind === 'error') {
-      setChatStatus(String(data.payload?.message || t("ui.backend.error")))
+      setChatStatus(t("ui.backend.error"))
       finishCurrentTurn('failed')
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
@@ -139,7 +140,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setServerRequests(current => current.filter(item => item.id !== request.id))
       setClarifyAnswers({})
       setChatStatus(request.method === 'approval' ? t("ui.approval.decision.submitted") : t("ui.clarification.answer.submitted"))
-    } catch (cause) { setChatStatus(t("ui.failed.to.process.request.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.process.request.arg", describeError(cause, language))) }
   }
 
   async function ensureChatSession() {
@@ -182,7 +183,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       const current = await chat.reasoning(id)
       if (sessionRef.current === id) setReasoningEffort(current.value || '')
       setChatStatus(language === 'zh-CN' ? '思考强度已更新，下轮回答生效' : 'Reasoning effort updated for the next turn')
-    } catch (cause) { setChatStatus(String(cause)) }
+    } catch (cause) { setChatStatus(describeError(cause, language)) }
     finally { setReasoningBusy(false) }
   }
 
@@ -198,7 +199,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         })
         .catch(cause => {
           commandCatalogPromiseRef.current = null
-          setCommandCatalogError(t("ui.command.directory.read.failed.arg", String(cause)))
+          setCommandCatalogError(t("ui.command.directory.read.failed.arg", describeError(cause, language)))
           throw cause
         })
     }
@@ -241,7 +242,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         existing.add(attached.source_path)
       }
       setChatStatus(t("ui.arg.attachments.staged.they.will.be.included.with.the.next.message", paths.length))
-    } catch (cause) { setChatStatus(t("ui.failed.to.temporarily.save.attachment.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.temporarily.save.attachment.arg", describeError(cause, language))) }
     finally { setAttachmentBusy(false) }
   }
 
@@ -249,7 +250,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     try {
       const selected = await nativeFiles.choose({ directory: false, multiple: true, title: t("ui.select.attachments.no.more.than.20.mib.each") })
       if (selected) await addAttachments(Array.isArray(selected) ? selected : [selected])
-    } catch (cause) { setChatStatus(t("ui.failed.to.select.attachment.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.select.attachment.arg", describeError(cause, language))) }
   }
 
   React.useEffect(() => {
@@ -265,7 +266,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         void addAttachments(event.paths)
       }
     }).then(fn => { if (active) unlisten = fn; else fn() })
-      .catch(cause => setChatStatus(t("ui.file.drag.in.monitoring.failed.arg", String(cause))))
+      .catch(cause => setChatStatus(t("ui.file.drag.in.monitoring.failed.arg", describeError(cause, language))))
     return () => { active = false; unlisten?.() }
   }, [backend, turnBusy, attachmentBusy])
 
@@ -278,7 +279,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         await chat.detachImage(sessionRef.current, attachment.path)
       }
       setAttachments(current => current.filter((_, position) => position !== index))
-    } catch (cause) { setChatStatus(t("ui.failed.to.remove.attachment.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.remove.attachment.arg", describeError(cause, language))) }
     finally { setAttachmentBusy(false) }
   }
 
@@ -384,7 +385,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setAttachments([])
       setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
     } catch (cause) {
-      setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", String(cause)))
+      setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
       finishCurrentTurn('failed')
       setTurnBusy(false)
     }
@@ -395,13 +396,13 @@ export function useChatController({ backend, activeModel, language, storagePath,
       const result = await chat.listSessions()
       setSessions(result.sessions)
       if (!quiet) setChatStatus(t("ui.arg.historical.conversations.found", result.sessions.length))
-    } catch (cause) { setChatStatus(t("ui.failed.to.read.history.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.read.history.arg", describeError(cause, language))) }
   }
 
   async function newChat() {
     if (turnBusy || attachmentBusy) return
     try { await clearPendingImages() }
-    catch (cause) { setChatStatus(t("ui.failed.to.remove.image.before.creating.new.session.arg", String(cause))); return }
+    catch (cause) { setChatStatus(t("ui.failed.to.remove.image.before.creating.new.session.arg", describeError(cause, language))); return }
     sessionRef.current = ''
     turnStartedAtRef.current = null
     storedSessionRef.current = ''
@@ -442,7 +443,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setAssistant(assistantRef.current)
       setTurnBusy(Boolean(result.running))
       setChatStatus(result.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
-    } catch (cause) { setChatStatus(t("ui.restore.failed.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.restore.failed.arg", describeError(cause, language))) }
   }
 
   async function interruptSession() {
@@ -452,7 +453,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setChatStatus(result.status === 'interrupted' ? t("ui.requested.to.stop.current.task") : t("ui.there.are.currently.no.tasks.running"))
       if (result.status === 'interrupted') finishCurrentTurn('interrupted')
       setTurnBusy(false)
-    } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", String(cause))) }
+    } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", describeError(cause, language))) }
   }
 
   async function reconnectBackend() {
@@ -516,7 +517,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       }
     } catch (cause) {
       void diagnostics.recordEvent(storagePath, 'reconnect_failed').catch(() => {})
-      setBackendStatus(t("ui.reconnection.failed.arg", String(cause)))
+      setBackendStatus(t("ui.reconnection.failed.arg", describeError(cause, language)))
     }
     finally {
       recoveringRef.current = false

@@ -272,5 +272,11 @@
   "ui.refresh.logs": "刷新日志",
   "ui.loading.logs": "正在读取日志…",
   "ui.no.logs.yet": "暂无日志",
-  "ui.logs.read.failed.arg": "读取日志失败：{0}"
+  "ui.logs.read.failed.arg": "读取日志失败：{0}",
+  "ui.desktop.error.operation_failed": "操作未完成，请检查当前状态后重试。",
+  "ui.desktop.error.runtime_unavailable": "运行时不可用，请重新启动运行时。",
+  "ui.desktop.error.connection_lost": "连接已断开，请重新连接后重试。",
+  "ui.desktop.error.timeout": "操作超时；写入结果可能已生效，请先检查当前状态。",
+  "ui.desktop.error.conflict": "当前状态已变化，请刷新后重试。",
+  "ui.desktop.error.invalid_input": "输入无效，请检查后重试。"
 }

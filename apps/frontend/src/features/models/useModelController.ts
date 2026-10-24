@@ -1,6 +1,8 @@
 import React from 'react'
 import type { BackendInfo } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
+import { useLanguage } from '../../i18n'
 import { desktopModelProviderSupported, normalizedEndpoint, readAddedModels, readModelLists, VOLCENGINE_PRESETS, savedModelFromOptions, MODEL_FALLBACKS, ADDED_MODELS_KEY, MODEL_LISTS_KEY, type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel } from './model'
 
 type Options = {
@@ -16,6 +18,7 @@ type Options = {
 
 export function useModelController({ backend, storagePath, t, sessionRef, turnBusy, ensureChatSession, setChatStatus, setActiveModel }: Options) {
   const { models } = useDesktop()
+  const language = useLanguage()
   const [modelProviders, setModelProviders] = React.useState<ModelProvider[]>([])
   const [configuredProviders, setConfiguredProviders] = React.useState<ModelProvider[]>([])
   const [customEndpoints, setCustomEndpoints] = React.useState<CustomEndpoint[]>([])
@@ -64,7 +67,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       if (!active) return
       if (saved !== null) setModelLists(saved)
       else if (Object.keys(legacyLists).length) return models.saveLists(storagePath, legacyLists)
-    }).catch(cause => { if (active) setModelStatus(t('ui.failed.to.save.provider.models.arg', String(cause))) })
+    }).catch(cause => { if (active) setModelStatus(t('ui.failed.to.save.provider.models.arg', describeError(cause, language))) })
       .finally(() => { if (active) setModelListLoading(false) })
     return () => { active = false }
   }, [storagePath])
@@ -177,8 +180,8 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
         setModelStatus('')
       }
     } catch (cause) {
-      setModelOptionsError(String(cause))
-      setModelStatus(t("ui.failed.to.load.model.options.arg", String(cause)))
+      setModelOptionsError(describeError(cause, language))
+      setModelStatus(t("ui.failed.to.load.model.options.arg", describeError(cause, language)))
     }
     finally { setModelBusy(false) }
   }
@@ -215,7 +218,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       setModelStatus(t('ui.provider.models.saved.locally'))
       return true
     } catch (cause) {
-      setModelStatus(t('ui.failed.to.save.provider.models.arg', String(cause)))
+      setModelStatus(t('ui.failed.to.save.provider.models.arg', describeError(cause, language)))
       return false
     } finally { setModelListBusy(false) }
   }
@@ -240,7 +243,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       setNewProviderKey('')
       await loadModelOptions(true)
       setModelStatus(t('ui.provider.added'))
-    } catch (cause) { setProviderFormError(t('ui.provider.add.failed.arg', String(cause))) }
+    } catch (cause) { setProviderFormError(t('ui.provider.add.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
   }
 
@@ -274,7 +277,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       if (modelProvider === endpoint.id) setModelFormOpen(false)
       await loadModelOptions(false)
       setModelStatus(t('ui.provider.deleted'))
-    } catch (cause) { setModelStatus(t('ui.provider.delete.failed.arg', String(cause))) }
+    } catch (cause) { setModelStatus(t('ui.provider.delete.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
   }
 
@@ -305,7 +308,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       } else {
         setModelStatus(t("ui.model.configuration.not.accepted.by.backend"))
       }
-    } catch (cause) { setModelStatus(t("ui.failed.to.save.model.arg", String(cause))) }
+    } catch (cause) { setModelStatus(t("ui.failed.to.save.model.arg", describeError(cause, language))) }
     finally { setModelBusy(false) }
   }
 
@@ -314,8 +317,8 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     try {
       const result = await models.checkRuntime()
       setModelStatus(result.ok ? t("ui.runtime.recognized.arg.arg", result.provider || '', result.model || '')
-        : t("ui.runtime.not.ready.arg", result.error || t("ui.check.the.key.and.model.settings")))
-    } catch (cause) { setModelStatus(t("ui.check.model.failed.arg", String(cause))) }
+        : t("ui.runtime.not.ready.arg", t("ui.check.the.key.and.model.settings")))
+    } catch (cause) { setModelStatus(t("ui.check.model.failed.arg", describeError(cause, language))) }
     finally { setModelBusy(false) }
   }
 
@@ -333,7 +336,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       setActiveModel(result.model && result.provider ? { provider: result.provider, model: result.model } : null)
       setPickerProvider(current => providers.some(row => row.slug === current) ? current
         : providers.find(row => row.slug === result.provider)?.slug || providers[0]?.slug || '')
-    } catch (cause) { setPickerError(String(cause)) }
+    } catch (cause) { setPickerError(describeError(cause, language)) }
     finally { setPickerBusy(false) }
   }
 
@@ -370,7 +373,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       }
       setChatStatus(remembered ? t('ui.model.switched.for.session.arg', result.model) : t('ui.failed.to.save.model.id'))
       setModelPickerOpen(false)
-    } catch (cause) { setPickerError(String(cause)) }
+    } catch (cause) { setPickerError(describeError(cause, language)) }
     finally { setPickerBusy(false) }
   }
 
