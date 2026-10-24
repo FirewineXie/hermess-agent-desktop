@@ -1,22 +1,10 @@
 import React from 'react'
+import type { RuntimeProbe, BundledToolsInventory, AgentToolset, AgentToolCatalog, ActiveAgentTools } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useLanguage, translateApp } from '../../i18n'
 
-type RuntimeProbe = {
-  tool: string
-  kind: 'runtime' | 'command'
-  path: string | null
-  version: string | null
-  usable: boolean
-  reason: string
-}
-type BundledToolsInventory = { has_manifest: boolean; tools: Array<{ name: string; version: string; path: string; present: boolean }> }
-type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
-type AgentToolCatalog = { toolsets: AgentToolset[] }
-type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
-
 export default function ToolsView({ connected, sessionId }: { connected: boolean; sessionId: string }) {
-  const { invoke } = useDesktop()
+  const { runtime, tools } = useDesktop()
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
   const [probes, setProbes] = React.useState<RuntimeProbe[]>([])
@@ -36,7 +24,7 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
     setLoading(true)
     setError('')
     try {
-      setProbes(await invoke<RuntimeProbe[]>('probe_local_tools'))
+      setProbes(await runtime.probeLocalTools())
     } catch (cause) {
       setError(String(cause))
     } finally {
@@ -53,11 +41,10 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
     setToolCatalogError('')
     setActiveToolsError('')
     setBundledToolsError('')
-    const params = { sessionId: id || null }
     const [catalog, active, bundled] = await Promise.allSettled([
-      invoke<AgentToolCatalog>('list_agent_toolsets', params),
-      invoke<ActiveAgentTools>('list_active_agent_tools', params),
-      invoke<BundledToolsInventory>('list_bundled_tools'),
+      tools.listAgentToolsets(id || null),
+      tools.listActiveAgentTools(id || null),
+      tools.listBundledTools(),
     ])
     if (request !== toolRequestRef.current) return
     if (catalog.status === 'fulfilled') setToolCatalog(catalog.value)

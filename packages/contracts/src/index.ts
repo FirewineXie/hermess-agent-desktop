@@ -1,5 +1,21 @@
 export type Unsubscribe = () => void
 
+export type BackendInfo = { port: number; pid: number; replay_epoch: string }
+export type DevDefaults = { python_path: string; storage_path: string }
+export type PackedDefaults = { storage_path: string; initialized: boolean }
+export type RuntimeProbe = {
+  tool: string
+  kind: 'runtime' | 'command'
+  path: string | null
+  version: string | null
+  usable: boolean
+  reason: string
+}
+export type BundledToolsInventory = { has_manifest: boolean; tools: Array<{ name: string; version: string; path: string; present: boolean }> }
+export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
+export type AgentToolCatalog = { toolsets: AgentToolset[] }
+export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
+
 export type DesktopEvent<T> = { payload: T }
 
 export type NativeDropEvent =
@@ -14,6 +30,25 @@ export type NativeOpenOptions = {
 
 /** The host capability boundary. Domain methods replace the transitional invoke API as modules migrate. */
 export interface DesktopApi {
+  runtime: {
+    devDefaults(): Promise<DevDefaults>
+    packedDefaults(): Promise<PackedDefaults>
+    startDev(storagePath: string, pythonPath: string): Promise<BackendInfo>
+    startPacked(storagePath: string): Promise<BackendInfo>
+    ping(): Promise<void>
+    reconnect(): Promise<BackendInfo>
+    stop(): Promise<void>
+    probeLocalTools(): Promise<RuntimeProbe[]>
+  }
+  tools: {
+    listAgentToolsets(sessionId: string | null): Promise<AgentToolCatalog>
+    listActiveAgentTools(sessionId: string | null): Promise<ActiveAgentTools>
+    listBundledTools(): Promise<BundledToolsInventory>
+  }
+  diagnostics: {
+    readLogs(storagePath: string, source: 'hermes' | 'client'): Promise<string>
+    recordEvent(storagePath: string, event: string): Promise<void>
+  }
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>
   listen<T>(event: string, handler: (event: DesktopEvent<T>) => void): Promise<Unsubscribe>
   open(options: NativeOpenOptions): Promise<string | string[] | null>

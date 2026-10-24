@@ -1,15 +1,16 @@
 import React from 'react'
+import type { BackendInfo } from '@hermess/contracts'
 import commandDescriptionsZh from './locales/app/command-descriptions.zh-CN.json'
 import './style.css'
 import AgentSettingsView from './features/agent-settings/AgentSettingsView'
-import { useLanguage, changeLanguage, translateApp, localizeAppMessage } from './i18n'
+import { useLanguage, translateApp, localizeAppMessage } from './i18n'
 import { useDesktop } from './app/DesktopContext'
 import ToolsView from './features/tools/ToolsView'
 import RuntimeView from './features/runtime/RuntimeView'
+import Sidebar from './app/Sidebar'
+import WorkspaceHeader from './app/WorkspaceHeader'
+import type { View, SessionRow } from './app/types'
 
-type BackendInfo = { port: number; pid: number; replay_epoch: string }
-type DevDefaults = { python_path: string; storage_path: string }
-type PackedDefaults = { storage_path: string; initialized: boolean }
 type GatewayEvent = { kind: string; session_id?: string; seq?: number; payload: Record<string, unknown> }
 type ReplayResult = { events: Array<{ type: string; session_id?: string; seq?: number; payload?: Record<string, unknown> }>; latest_seq: number; epoch: string; truncated: boolean; open_requests?: GatewayRequest[] }
 type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
@@ -25,7 +26,6 @@ type GatewayRequest = {
     questions?: Array<{ qid: string; question: string; choices?: string[] }>
   }
 }
-type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
 type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean }
@@ -58,7 +58,6 @@ function readModelLists(storagePath: string): Record<string, string[]> {
         .map(model => model.trim()))]]))
   } catch { return {} }
 }
-type View = 'chat' | 'model' | 'agent' | 'runtime' | 'tools'
 const VOLCENGINE_PRESETS = [
   {
     id: 'volcengine-ark', name: 'ui.volcengine.ark.pay.as.you.go.api',
@@ -218,7 +217,7 @@ function contextLabel(usage: ChatUsage | null, language: 'zh-CN' | 'en-US'): str
 }
 
 function App() {
-  const { invoke, listen, open, onDragDropEvent } = useDesktop()
+  const { invoke, listen, open, onDragDropEvent, runtime, diagnostics } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -438,13 +437,13 @@ function App() {
     void (async () => {
       try {
         if (import.meta.env.DEV) {
-          const defaults = await invoke<DevDefaults>('dev_backend_defaults')
+          const defaults = await runtime.devDefaults()
           if (!active) return
           setPythonPath(defaults.python_path)
           setStoragePath(defaults.storage_path)
           await startBackend(defaults.storage_path, defaults.python_path)
         } else {
-          const defaults = await invoke<PackedDefaults>('packed_backend_defaults')
+          const defaults = await runtime.packedDefaults()
           if (!active) return
           setStoragePath(defaults.storage_path)
           setStorageLocked(defaults.initialized)
@@ -1068,7 +1067,7 @@ function App() {
     setBusy(true)
     setBackendStatus(t("ui.reconnecting"))
     try {
-      const info = await invoke<BackendInfo>('reconnect_backend')
+      const info = await runtime.reconnect()
       setBackend(info)
       setBackendStatus(previousEpoch && info.replay_epoch !== previousEpoch
         ? t("ui.reconnected.pictures.to.be.sent.need.to.be.added.again") : t("ui.reconnected"))
@@ -1118,7 +1117,7 @@ function App() {
         else if (replay?.events.length === 0) setChatStatus(snapshot.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
       }
     } catch (cause) {
-      void invoke('record_client_event', { storagePath, event: 'reconnect_failed' }).catch(() => {})
+      void diagnostics.recordEvent(storagePath, 'reconnect_failed').catch(() => {})
       setBackendStatus(t("ui.reconnection.failed.arg", String(cause)))
     }
     finally {
@@ -1134,8 +1133,8 @@ function App() {
     setBackendStatus(t("ui.starting.and.authenticating"))
     try {
       const info = import.meta.env.DEV
-        ? await invoke<BackendInfo>('start_dev_backend', { pythonPath: selectedPythonPath, storagePath: selectedStoragePath })
-        : await invoke<BackendInfo>('start_packed_backend', { storagePath: selectedStoragePath })
+        ? await runtime.startDev(selectedStoragePath, selectedPythonPath)
+        : await runtime.startPacked(selectedStoragePath)
       setBackend(info)
       setBackendStatus(t("ui.ready.websocket.ping.succeeded"))
       if (!import.meta.env.DEV) setStorageLocked(true)
@@ -1145,7 +1144,7 @@ function App() {
       void loadModelOptions()
       void loadSessions(true)
     } catch (cause) {
-      void invoke('record_client_event', { storagePath: selectedStoragePath, event: 'startup_failed' }).catch(() => {})
+      void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
       setBackend(null)
       setActiveModel(null)
       setModelPickerOpen(false)
@@ -1175,10 +1174,10 @@ function App() {
   async function pingBackend() {
     setBusy(true)
     try {
-      await invoke('ping_backend')
+      await runtime.ping()
       setBackendStatus(t("ui.connection.healthy.websocket.ping.succeeded"))
     } catch (cause) {
-      void invoke('record_client_event', { storagePath, event: 'connection_failed' }).catch(() => {})
+      void diagnostics.recordEvent(storagePath, 'connection_failed').catch(() => {})
       setBackendStatus(t("ui.connection.failed.arg", String(cause)))
     }
     finally { setBusy(false) }
@@ -1187,7 +1186,7 @@ function App() {
   async function stopBackend() {
     setBusy(true)
     try {
-      await invoke('stop_backend')
+      await runtime.stop()
       setBackend(null)
       setActiveModel(null)
       setModelPickerOpen(false)
@@ -1205,7 +1204,7 @@ function App() {
       setAttachments([])
       setBackendStatus(t("ui.stopped"))
     } catch (cause) {
-      void invoke('record_client_event', { storagePath, event: 'stop_failed' }).catch(() => {})
+      void diagnostics.recordEvent(storagePath, 'stop_failed').catch(() => {})
       setBackendStatus(t("ui.stop.failed.arg", String(cause)))
     }
     finally { setBusy(false) }
@@ -1219,46 +1218,9 @@ function App() {
   }
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
   return <div className="app-shell">
-    {sidebarOpen && <button className="sidebar-scrim" aria-label={t("ui.close.navigation")} onClick={() => setSidebarOpen(false)} />}
-    <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`} aria-label={t("ui.main.navigation")}>
-      <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
-      <button className="new-chat" disabled={!backend || turnBusy || attachmentBusy} onClick={() => { void newChat(); openView('chat') }}>{t("ui.new.session")}</button>
-      <nav className="primary-nav" aria-label={t("ui.features")}>
-        <button className={view === 'chat' ? 'active' : ''} onClick={() => openView('chat')}>◫ <span>{t("ui.chat")}</span></button>
-        <button className={view === 'model' ? 'active' : ''} onClick={() => openView('model')}>◇ <span>{t("ui.model.settings")}</span></button>
-        <button className={view === 'agent' ? 'active' : ''} onClick={() => openView('agent')}>⚙ <span>{t("ui.agent.settings")}</span></button>
-        <button className={view === 'runtime' ? 'active' : ''} onClick={() => openView('runtime')}>◉ <span>{t("ui.runtime.and.storage")}</span></button>
-        <button className={view === 'tools' ? 'active' : ''} onClick={() => openView('tools')}>▦ <span>{t("ui.tools.and.capabilities")}</span></button>
-      </nav>
-      <div className="sidebar-section-heading"><strong>{t("ui.recent.sessions")}</strong><button disabled={!backend} onClick={() => void loadSessions(true)} aria-label={t("ui.refresh.recent.conversations")}>↻</button></div>
-      <div className="sidebar-sessions">
-        {!backend && <p>{t("ui.show.history.sessions.after.starting.runtime")}</p>}
-        {backend && sessions.length === 0 && <p>{t("ui.no.previous.sessions")}</p>}
-        {backend && sessions.map(session => <button key={session.id}
-          className={view === 'chat' && session.id === storedSessionRef.current ? 'active' : ''}
-          disabled={turnBusy || attachmentBusy}
-          title={session.title || session.preview || session.id}
-          onClick={() => { openView('chat'); void resumeSession(session.id) }}>
-          <span>▤</span><span className="session-title">{session.title || session.preview || session.id}</span>
-        </button>)}
-      </div>
-      <div className="sidebar-footer"><span className={`status-dot ${backend ? 'ready' : ''}`} />
-        <span>{backend ? t("ui.runtime.connected") : t("ui.runtime.not.started")}</span>
-        <button onClick={() => openView('runtime')}>{t("ui.manage")}</button>
-      </div>
-    </aside>
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={turnBusy || attachmentBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { void newChat(); openView('chat') }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { openView('chat'); void resumeSession(id) }} />
     <main className="workspace">
-      <header className="workspace-header">
-        <button className="menu-toggle" aria-label={t("ui.open.navigation")} onClick={() => setSidebarOpen(true)}>☰</button>
-        <div><span className="workspace-kicker">Hermess Agent Desktop</span><h1>{view === 'chat' ? (activeSession?.title || t("ui.chat")) : ({ model: t("ui.model.settings"), agent: t("ui.agent.settings"), runtime: t("ui.runtime.and.storage"), tools: t("ui.tools.and.capabilities") })[view]}</h1></div>
-        <label className="language-switch">
-          <span>{t("ui.language")}</span>
-          <select aria-label={t("ui.language")} value={language} onChange={event => changeLanguage(event.target.value as 'zh-CN' | 'en-US')}>
-            <option value="zh-CN">{t('ui.simplified.chinese')}</option><option value="en-US">{t('ui.english')}</option>
-          </select>
-        </label>
-        <span className={`connection-badge ${backend ? 'connected' : ''}`}>{backend ? t("ui.connected") : t("ui.not.started")}</span>
-      </header>
+      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}

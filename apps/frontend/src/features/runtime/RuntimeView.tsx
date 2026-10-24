@@ -25,7 +25,7 @@ type Props = {
 }
 
 export default function RuntimeView({ storagePath, onStoragePathChange: setStoragePath, storageLocked, pythonPath, onPythonPathChange: setPythonPath, backend, backendStatus, busy, onChooseStoragePath: chooseStoragePath, onStart: startBackend, onPing: pingBackend, onReconnect: reconnectBackend, onStop: stopBackend }: Props) {
-  const { invoke } = useDesktop()
+  const { diagnostics } = useDesktop()
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
   const [logSource, setLogSource] = React.useState<'hermes' | 'client'>('hermes')
@@ -39,7 +39,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
     let active = true
     setLogLoading(true)
     setLogError('')
-    void invoke<string>('read_diagnostic_logs', { storagePath, source: logSource })
+    void diagnostics.readLogs(storagePath, logSource)
       .then(result => { if (active) setLogText(result) })
       .catch(cause => { if (active) { setLogText(''); setLogError(String(cause)) } })
       .finally(() => { if (active) setLogLoading(false) })
