@@ -72,6 +72,39 @@ mod state_tests {
         )
         .is_err());
     }
+
+    #[test]
+    fn clarify_answer_must_use_questions_from_the_open_request() {
+        let requests = HashMap::from([(
+            "srq-2".to_string(),
+            (
+                "clarify".to_string(),
+                json!({"questions":[{"qid":"q1"},{"qid":"q2"}]}),
+            ),
+        )]);
+        assert!(validate_server_answer(
+            &requests,
+            "srq-2",
+            "clarify",
+            &json!({"answers":{"q1":"yes","q2":null},"outcome":"submitted"})
+        )
+        .is_ok());
+        assert!(validate_server_answer(
+            &requests,
+            "srq-2",
+            "clarify",
+            &json!({"answers":{"other":"yes"},"outcome":"submitted"})
+        )
+        .is_err());
+        assert!(validate_server_answer(
+            &requests,
+            "srq-2",
+            "clarify",
+            &json!({"answers":{"q1":42},"outcome":"submitted"})
+        )
+        .is_err());
+        assert!(validate_server_answer(&requests, "srq-2", "clarify", &json!({})).is_err());
+    }
 }
 
 enum GatewayCommand {
@@ -106,6 +139,23 @@ fn validate_server_answer(
             });
         if !allowed {
             return Err("此审批选项未被后端提供".into());
+        }
+    } else if method == "clarify" {
+        let questions = params
+            .get("questions")
+            .and_then(Value::as_array)
+            .ok_or("澄清请求缺少问题")?;
+        let answers = result
+            .get("answers")
+            .and_then(Value::as_object)
+            .ok_or("澄清回应缺少答案")?;
+        if answers.iter().any(|(qid, answer)| {
+            !questions
+                .iter()
+                .any(|question| question.get("qid").and_then(Value::as_str) == Some(qid.as_str()))
+                || !answer.is_null() && !answer.is_string()
+        }) {
+            return Err("澄清答案与当前问题不一致".into());
         }
     }
     Ok(())
