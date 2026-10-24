@@ -425,11 +425,11 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::models::{load_model_lists, parse_saved_model_config, save_model_lists};
-    use super::BackendInfo;
     use super::{
         acquire_storage_lock, install_packed_payload, read_storage_location, validate_payload,
         write_storage_location,
     };
+    use super::{BackendInfo, BundledTool, BundledToolsInventory, DevDefaults, PackedDefaults};
     use crate::diagnostics::{
         append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
     };
@@ -452,6 +452,54 @@ mod tests {
         })
         .unwrap();
         assert_eq!(actual, fixture);
+    }
+
+    #[test]
+    fn runtime_defaults_and_tool_inventory_match_shared_contract_fixtures() {
+        let dev: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../packages/contracts/fixtures/dev-defaults.json"
+        )))
+        .unwrap();
+        let packed: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../packages/contracts/fixtures/packed-defaults.json"
+        )))
+        .unwrap();
+        let tools: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../packages/contracts/fixtures/bundled-tools-inventory.json"
+        )))
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(DevDefaults {
+                python_path: "E:/product/.build/hermes-venv-i0/Scripts/python.exe".into(),
+                storage_path: "E:/product/.build/desktop-dev-data".into(),
+            })
+            .unwrap(),
+            dev
+        );
+        assert_eq!(
+            serde_json::to_value(PackedDefaults {
+                storage_path: "E:/product-data".into(),
+                initialized: true,
+            })
+            .unwrap(),
+            packed
+        );
+        assert_eq!(
+            serde_json::to_value(BundledToolsInventory {
+                has_manifest: true,
+                tools: vec![BundledTool {
+                    name: "python".into(),
+                    version: "3.14".into(),
+                    path: "E:/product-data/runtime/tools/python".into(),
+                    present: true,
+                }],
+            })
+            .unwrap(),
+            tools
+        );
     }
 
     #[test]

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/packed-defaults.schema.json",
+  "title": "PackedDefaults",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["storage_path", "initialized"],
+  "properties": {
+    "storage_path": { "type": "string", "minLength": 1 },
+    "initialized": { "type": "boolean" }
+  }
+}

@@ -2,14 +2,18 @@ export type Unsubscribe = () => void
 
 export type { BackendInfo } from './generated/backend-info'
 import type { BackendInfo } from './generated/backend-info'
+export type { BundledToolsInventory } from './generated/bundled-tools-inventory'
+import type { BundledToolsInventory } from './generated/bundled-tools-inventory'
+export type { DevDefaults } from './generated/dev-defaults'
+import type { DevDefaults } from './generated/dev-defaults'
 export type { GatewayEvent } from './generated/gateway-event'
 import type { GatewayEvent } from './generated/gateway-event'
 export type { GatewayRequest } from './generated/gateway-request'
 import type { GatewayRequest } from './generated/gateway-request'
 export type { ReplayResult } from './generated/replay-result'
 import type { ReplayResult } from './generated/replay-result'
-export type DevDefaults = { python_path: string; storage_path: string }
-export type PackedDefaults = { storage_path: string; initialized: boolean }
+export type { PackedDefaults } from './generated/packed-defaults'
+import type { PackedDefaults } from './generated/packed-defaults'
 export type RuntimeProbe = {
   tool: string
   kind: 'runtime' | 'command'
@@ -18,7 +22,6 @@ export type RuntimeProbe = {
   usable: boolean
   reason: string
 }
-export type BundledToolsInventory = { has_manifest: boolean; tools: Array<{ name: string; version: string; path: string; present: boolean }> }
 export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
 export type AgentToolCatalog = { toolsets: AgentToolset[] }
 export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }

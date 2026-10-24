@@ -1,0 +1,9 @@
+{
+  "has_manifest": true,
+  "tools": [{
+    "name": "python",
+    "version": "3.14",
+    "path": "E:/product-data/runtime/tools/python",
+    "present": true
+  }]
+}
