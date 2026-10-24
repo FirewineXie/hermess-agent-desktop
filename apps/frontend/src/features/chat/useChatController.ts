@@ -4,7 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import type { ModelPick } from '../models/model'
-import { appendMessage, finishTurn, historyTimeline, updateTool, type TimelineItem } from './timeline'
+import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, updateTool, type TimelineItem } from './timeline'
 
 type Options = {
   backend: BackendInfo | null
@@ -64,7 +64,10 @@ export function useChatController({ backend, activeModel, language, storagePath,
       if (data.seq <= (lastSeqRef.current[id] || 0)) return
       lastSeqRef.current[id] = data.seq
     }
-    if (data.kind === 'message.delta' && typeof data.payload?.text === 'string') {
+    if ((data.kind === 'reasoning.delta' || data.kind === 'reasoning.available') && typeof data.payload?.text === 'string') {
+      setConversation(rows => appendReasoning(rows, data.payload.text as string, data.kind === 'reasoning.available'))
+    } else if (data.kind === 'message.delta' && typeof data.payload?.text === 'string') {
+      setConversation(finishReasoning)
       assistantRef.current += data.payload.text
       setAssistant(assistantRef.current)
     } else if (data.kind === 'message.complete') {
@@ -80,7 +83,11 @@ export function useChatController({ backend, activeModel, language, storagePath,
       const startedAt = turnStartedAtRef.current
       const endedAt = Date.now()
       turnStartedAtRef.current = null
-      setConversation(rows => appendMessage(startedAt == null ? rows : finishTurn(rows, Math.max(0, (endedAt - startedAt) / 1000), 'completed'), 'assistant', text || assistantRef.current))
+      setConversation(rows => {
+        const closed = finishReasoning(rows)
+        const finished = startedAt == null ? closed : finishTurn(closed, Math.max(0, (endedAt - startedAt) / 1000), 'completed')
+        return appendMessage(finished, 'assistant', text || assistantRef.current)
+      })
       assistantRef.current = ''
       setAssistant('')
       setTurnBusy(false)
@@ -91,7 +98,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       finishCurrentTurn('failed')
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
-      setConversation(rows => updateTool(rows, data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
+      setConversation(rows => updateTool(finishReasoning(rows), data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
       setChatStatus(t("ui.arg.arg", t(data.kind === 'tool.start' ? 'ui.calling' : 'ui.tool.finished'), String(data.payload?.name || t("ui.tool"))))
     } else if (data.kind === 'request.cancel') {
       setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
@@ -99,6 +106,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
   }
 
   function finishCurrentTurn(state: 'failed' | 'interrupted') {
+    setConversation(finishReasoning)
     const startedAt = turnStartedAtRef.current
     if (startedAt == null) return
     turnStartedAtRef.current = null
@@ -123,7 +131,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       }
     }).then(fn => { if (active) unlistenRequest = fn; else fn() })
     void events.onDisconnect(() => {
-      if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setTurnBusy(false); setServerRequests([]) }
+      if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setConversation(finishReasoning); setTurnBusy(false); setServerRequests([]) }
     }).then(fn => { if (active) unlistenDisconnect = fn; else fn() })
     return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
   }, [])
@@ -458,6 +466,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       const result = await chat.interruptSession(sessionRef.current)
       setChatStatus(result.status === 'interrupted' ? t("ui.requested.to.stop.current.task") : t("ui.there.are.currently.no.tasks.running"))
       if (result.status === 'interrupted') finishCurrentTurn('interrupted')
+      else setConversation(finishReasoning)
       setTurnBusy(false)
     } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", describeError(cause, language))) }
   }

@@ -45,7 +45,8 @@ def main() -> None:
         home = root / "hermes-home"
         fixture = root / "notes.txt"
         fixture.write_text("Hermess file tool canary\n", encoding="utf-8")
-        model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4)])
+        model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4,
+                                    reasoning="Hermess reasoning canary")])
         model.start()
         write_hermes_home(home, model.base_url)
         skill_dir = home / "skills" / "composer-canary"
@@ -158,7 +159,8 @@ def main() -> None:
                     if f"default: {MODEL_ID}" not in config_file.read_text(encoding="utf-8"):
                         raise RuntimeError("model assignment did not persist the selected model")
 
-                    async def chat(prompt: str, expected: str, request_method: str = "") -> tuple[str, int, int, int]:
+                    async def chat(prompt: str, expected: str, request_method: str = "",
+                                   expected_reasoning: str = "") -> tuple[str, int, int, int]:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
                             while True:
@@ -186,6 +188,7 @@ def main() -> None:
                             await ws.send(json.dumps({"jsonrpc":"2.0","id":3,"method":"prompt.submit",
                                                       "params":{"session_id":session_id,"text":prompt}}))
                             deltas = 0
+                            reasoning_parts = []
                             tool_completions = 0
                             requests = 0
                             admitted = False
@@ -215,16 +218,21 @@ def main() -> None:
                                     continue
                                 if params.get("type") == "message.delta" and isinstance(params.get("payload", {}).get("text"), str):
                                     deltas += 1
+                                if params.get("type") == "reasoning.delta" and isinstance(params.get("payload", {}).get("text"), str):
+                                    reasoning_parts.append(params["payload"]["text"])
                                 if params.get("type") == "tool.complete":
                                     tool_completions += 1
                                 if params.get("type") == "message.complete":
                                     result = params.get("payload", {})
                                     if not admitted or result.get("text") != expected:
                                         raise RuntimeError(f"unexpected completed turn: {result}")
+                                    if expected_reasoning and "".join(reasoning_parts) != expected_reasoning:
+                                        raise RuntimeError(f"reasoning stream mismatch: {reasoning_parts!r}")
                                     return session_id, deltas, tool_completions, requests
                             raise RuntimeError("message.complete was not received")
 
-                    session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply"))
+                    session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply",
+                                                             expected_reasoning="Hermess reasoning canary"))
                     if deltas < 1 or not model.main_requests():
                         raise RuntimeError("chat did not stream through the local fake model")
                     async def verify_history() -> None:
@@ -245,6 +253,9 @@ def main() -> None:
                             resumed = await rpc(11, "session.resume", {"session_id":stored,"source":"desktop"})
                             if not resumed.get("session_id") or not any(message.get("text") == "Hermess I0 local model reply" for message in resumed.get("messages", [])):
                                 raise RuntimeError("session.resume did not restore transcript")
+                            if not any(message.get("reasoning_content") == "Hermess reasoning canary"
+                                       for message in resumed.get("messages", [])):
+                                raise RuntimeError("session.resume did not restore reasoning content")
                             interrupted = await rpc(12, "session.interrupt", {"session_id":resumed["session_id"]})
                             if interrupted.get("status") not in {"interrupted", "not_interrupted"}:
                                 raise RuntimeError(f"session.interrupt returned unexpected status: {interrupted}")

@@ -70,7 +70,7 @@ export type ResumeResult = {
   info?: { provider?: string; model?: string }
   stored_session_id?: string
   session_key?: string
-  messages: Array<{ role: string; text?: string | null; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number }>
+  messages: Array<{ role: string; text?: string | null; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
   running?: boolean
   replay_epoch?: string
   last_sequence?: number

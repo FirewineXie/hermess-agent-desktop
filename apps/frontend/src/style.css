@@ -161,6 +161,13 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .messages .message { margin: 0 0 16px; line-height: 1.65; overflow-wrap: anywhere; }
 .messages .message-user { width: fit-content; max-width: 70%; margin-left: auto; padding: 11px 15px; border-radius: 14px; background: #f1f3f5; white-space: pre-wrap; }
 .messages .message-assistant { max-width: 800px; padding: 0 4px; }
+.reasoning-block { max-width: 800px; margin: 0 0 14px; border: 1px solid #e1e6ec; border-radius: 9px; color: #68717d; background: #f7f8fa; }
+.reasoning-block > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; font-size: 12px; }
+.reasoning-block > summary::-webkit-details-marker { display: none; }
+.reasoning-block > summary .tool-activity-chevron { margin-left: auto; }
+.reasoning-block[open] > summary .tool-activity-chevron { transform: rotate(180deg); }
+.reasoning-block > summary:focus-visible { outline: 2px solid #315c91; outline-offset: 2px; }
+.reasoning-content { max-height: 320px; padding: 0 12px 10px; overflow-y: auto; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body > :last-child { margin-bottom: 0; }
 .markdown-body p { margin: 0 0 10px; white-space: pre-wrap; }

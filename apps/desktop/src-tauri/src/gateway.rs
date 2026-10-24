@@ -121,6 +121,23 @@ struct GatewayEvent {
     payload: Value,
 }
 
+fn is_forwarded_event(kind: &str) -> bool {
+    matches!(
+        kind,
+        "message.start"
+            | "message.delta"
+            | "message.complete"
+            | "reasoning.delta"
+            | "reasoning.available"
+            | "error"
+            | "tool.start"
+            | "tool.progress"
+            | "tool.complete"
+            | "status.update"
+            | "request.cancel"
+    )
+}
+
 #[derive(Clone, Serialize)]
 struct GatewayServerRequest {
     id: String,
@@ -248,7 +265,7 @@ impl GatewayClient {
                         if kind == "request.cancel" {
                             if let Some(id) = params.pointer("/payload/id").and_then(Value::as_str) { server_requests.remove(id); }
                         }
-                        if !matches!(kind, "message.start" | "message.delta" | "message.complete" | "error" | "tool.start" | "tool.progress" | "tool.complete" | "status.update" | "request.cancel") { continue; }
+                        if !is_forwarded_event(kind) { continue; }
                         let payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
@@ -336,8 +353,15 @@ impl GatewayClient {
 
 #[cfg(test)]
 mod contract_tests {
-    use super::{GatewayEvent, GatewayServerRequest};
+    use super::{is_forwarded_event, GatewayEvent, GatewayServerRequest};
     use serde_json::{json, Value};
+
+    #[test]
+    fn forwards_reasoning_content_events() {
+        assert!(is_forwarded_event("reasoning.delta"));
+        assert!(is_forwarded_event("reasoning.available"));
+        assert!(!is_forwarded_event("unknown.event"));
+    }
 
     #[test]
     fn event_serialization_matches_shared_fixtures() {

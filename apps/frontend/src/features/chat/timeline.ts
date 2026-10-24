@@ -14,8 +14,22 @@ export type ToolStep = {
 export type TimelineItem =
   | { kind: 'message'; role: 'user' | 'assistant'; text: string; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
+  | { kind: 'reasoning'; text: string; streaming: boolean }
 
 type HistoryRow = ResumeResult['messages'][number]
+
+function reasoningText(row: HistoryRow): string {
+  for (const value of [row.reasoning, row.reasoning_content]) {
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  if (!Array.isArray(row.reasoning_details)) return ''
+  return row.reasoning_details.flatMap(detail => {
+    if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return []
+    const fields = detail as Record<string, unknown>
+    const value = fields.summary || fields.thinking || fields.content || fields.text
+    return typeof value === 'string' && value.trim() ? [value] : []
+  }).join('\n\n')
+}
 
 function appendTool(items: TimelineItem[], step: ToolStep): TimelineItem[] {
   const last = items.at(-1)
@@ -34,22 +48,25 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
         name: row.name || 'tool', context: row.context || undefined,
         args: row.args, state: 'recorded',
       })
-    } else if ((row.role === 'user' || row.role === 'assistant') && row.text?.trim()) {
+    } else if (row.role === 'user' && row.text?.trim()) {
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
-      if (row.role === 'user') {
-        pendingUserIndex = items.length
-        pendingUserTimestamp = timestamp
-        items = [...items, { kind: 'message', role: 'user', text: row.text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
-      } else {
-        if (pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
-          const user = items[pendingUserIndex]
-          if (user.kind === 'message' && user.role === 'user') {
-            items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }
-          }
+      pendingUserIndex = items.length
+      pendingUserTimestamp = timestamp
+      items = [...items, { kind: 'message', role: 'user', text: row.text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
+    } else if (row.role === 'assistant') {
+      const thinking = reasoningText(row)
+      if (!row.text?.trim() && !thinking) continue
+      const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
+        ? row.timestamp : undefined
+      if (pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
+        const user = items[pendingUserIndex]
+        if (user.kind === 'message' && user.role === 'user') {
+          items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }
         }
-        items = [...items, { kind: 'message', role: 'assistant', text: row.text }]
       }
+      if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false }]
+      if (row.text?.trim()) items = [...items, { kind: 'message', role: 'assistant', text: row.text }]
     }
   }
   return items
@@ -57,6 +74,27 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
 
 export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant', text: string, startedAt?: number): TimelineItem[] {
   return text.trim() ? [...items, { kind: 'message', role, text, ...(startedAt == null ? {} : { startedAt }) }] : items
+}
+
+export function appendReasoning(items: TimelineItem[], text: string, completed = false): TimelineItem[] {
+  const current = completed ? finishReasoning(items) : items
+  const last = current.at(-1)
+  if (!text.trim() && !(last?.kind === 'reasoning' && last.streaming)) return current
+  if (!completed && last?.kind === 'reasoning' && last.streaming) {
+    return [...current.slice(0, -1), { ...last, text: last.text + text }]
+  }
+  if (completed && last?.kind === 'reasoning' && last.text.trim() === text.trim()) return current
+  return [...current, { kind: 'reasoning', text, streaming: !completed }]
+}
+
+export function finishReasoning(items: TimelineItem[]): TimelineItem[] {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.kind === 'reasoning' && item.streaming) {
+      return items.map((current, position) => position === index ? { ...item, streaming: false } : current)
+    }
+  }
+  return items
 }
 
 export function finishTurn(items: TimelineItem[], duration: number, turnState: 'completed' | 'failed' | 'interrupted'): TimelineItem[] {
