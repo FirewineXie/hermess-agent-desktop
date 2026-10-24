@@ -18,6 +18,7 @@
 ```sh
 git clone https://github.com/FirewineXie/hermess-agent-desktop.git
 cd hermess-agent-desktop
+pnpm setup:hooks
 pnpm fetch:upstream
 pnpm install --frozen-lockfile
 pnpm verify:upstream

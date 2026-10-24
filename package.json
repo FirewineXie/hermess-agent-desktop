@@ -8,6 +8,7 @@
     "build": "pnpm --dir apps/desktop build",
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",
     "tauri:build": "pnpm --dir apps/desktop tauri build",
+    "setup:hooks": "git config --local core.hooksPath .githooks",
     "fetch:upstream": "node scripts/fetch-upstream.mjs",
     "verify:upstream": "node scripts/verify-upstream.mjs"
   }

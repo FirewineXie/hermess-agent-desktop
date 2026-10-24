@@ -8,6 +8,8 @@
 - 提交信息采用 Conventional Commits，例如 `feat: add attachment preview`、`fix: preserve runtime location`、`docs: update capability matrix`。标题使用简短英文祈使句；必要时在正文解释原因和兼容影响。
 - 保持改动聚焦。涉及架构、运行时契约、平台验收或发布状态时，同步更新对应文档与证据，避免只修改结论。
 
+克隆仓库后运行 `pnpm setup:hooks`，安装仓库提供的本地 Git hook：在 `main` 上直接提交或向远端 `main` 直接推送会被拒绝。hook 仅作用于启用它的本地检出，可以被跳过，不能替代远端分支保护。
+
 ## 合并流程
 
 1. 在任务分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
@@ -15,7 +17,7 @@
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过且审查完成后合并 PR，再删除任务分支。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 
 ## 项目边界
 
