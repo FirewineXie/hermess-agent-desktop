@@ -71,14 +71,25 @@ export default function ChatView({ connected, backendStatus, language, t, contro
        <textarea ref={draftInputRef} value={draft} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
         onKeyDown={event => {
-          if (!choices.length) return
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return
+          if (event.key === 'Enter' && event.ctrlKey && !event.altKey && !event.metaKey) {
+            event.preventDefault()
+            const input = event.currentTarget
+            const start = input.selectionStart
+            const end = input.selectionEnd
+            const caret = start + 1
+            setDraft(value => `${value.slice(0, start)}\n${value.slice(end)}`)
+            setDraftCaret(caret)
+            requestAnimationFrame(() => input.setSelectionRange(caret, caret))
+          } else if (choices.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
             event.preventDefault()
             setActiveChoice(index => (index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length)
-          } else if (event.key === 'Enter' && !event.shiftKey) {
+          } else if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
             event.preventDefault()
-            chooseCommand(choices[activeChoice] || choices[0])
-          } else if (event.key === 'Escape') {
+            if (event.repeat) return
+            if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
+            else if (!turnBusy && !attachmentBusy && (draft.trim() || attachments.length)) void sendMessage()
+          } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
@@ -102,7 +113,9 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         activeModel={activeModel} turnBusy={turnBusy} t={t} onRefresh={() => void openModelPicker(true)} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); openView('model') }} />}
-      </div><small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
+      </div><small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
+        ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
+        : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}
   </section>
 }
