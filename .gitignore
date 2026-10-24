@@ -4,6 +4,7 @@ dist/
 .build/
 .cache/
 *.log
+__pycache__/
 apps/desktop/src-tauri/gen/schemas/
 apps/desktop/src-tauri/icons/android/
 apps/desktop/src-tauri/icons/ios/
