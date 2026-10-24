@@ -14,21 +14,17 @@ import sys
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--source-payload", required=True, type=Path,
-                        help="verified full payload supplying pinned tools and offline wheels")
+    parser.add_argument("--source-payload", type=Path,
+                        help="optional verified full payload supplying pinned tools and offline wheels")
     args = parser.parse_args()
     product = Path(__file__).resolve().parents[1]
     build = product / ".build"
     out = args.out.resolve()
-    full = args.source_payload.resolve(strict=True)
-    if not out.is_relative_to(build) or not full.is_relative_to(build) or out.exists():
-        parser.error("output must be fresh and both paths must remain under the product .build directory")
-    manifest = json.loads((full / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("target") != "win32-x64" or manifest.get("repo") != "hermes-agent":
-        parser.error("source payload must be the verified Windows x64 upstream bundle")
+    full = args.source_payload.resolve(strict=True) if args.source_payload else None
+    if not out.is_relative_to(build) or (full and not full.is_relative_to(build)) or out.exists():
+        parser.error("output must be fresh and paths must remain under the product .build directory")
     vendor = product / "vendor" / "hermes-agent"
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
-    subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(full)], check=True)
     bootstrap = build / "pm-bootstrap"
     os.environ.update(HERMES_HOME=str(bootstrap / "hermes-home"),
                       HERMES_RUNTIME_DIR=str(bootstrap / "tools"))
@@ -49,8 +45,13 @@ def main() -> None:
     from scripts.bundles.native import finish_native
 
     target = pm.current_target()
-    if target != "win32-x64":
-        parser.error(f"I0 core payload has only been designed for win32-x64, got {target}")
+    if target not in {"win32-x64", "darwin-x64", "darwin-arm64", "linux-x64"}:
+        parser.error(f"core payload has not been designed for {target}")
+    if full:
+        manifest = json.loads((full / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("target") != target or manifest.get("repo") != "hermes-agent":
+            parser.error("source payload must match the current native target")
+        subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(full)], check=True)
     out.mkdir(parents=True)
     repo = out / "hermes-agent"
     commit = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))["commit"]
@@ -60,7 +61,10 @@ def main() -> None:
 
     store = out / "tools"
     names = ["python", "uv"]
-    pm.stage_tools(names, source_store=full / "tools", out=store, target=target)
+    if full:
+        pm.stage_tools(names, source_store=full / "tools", out=store, target=target)
+    else:
+        pm.prepare_tools(names, out=store, target=target)
     facts = Facts(store / "facts.json", strict=True)
     python_fact = facts.get("python")
     if not python_fact:
@@ -70,7 +74,10 @@ def main() -> None:
         raise RuntimeError("staged Python executable is missing")
 
     cache = out / "uv-cache"
-    shutil.copytree(full / "uv-cache", cache)
+    if full:
+        shutil.copytree(full / "uv-cache", cache)
+    else:
+        cache.mkdir()
     stage_pm_runtime(out, python_bin, repo, offline=False, cache=cache)
     venv = out / "venv"
     pm.build_environment(source=repo, out=venv, python=python_bin, cache=cache,

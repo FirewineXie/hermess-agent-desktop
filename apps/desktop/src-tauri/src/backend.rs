@@ -155,6 +155,20 @@ pub async fn start_dev_backend(
     launch_backend(app, state, hermes, PathBuf::from(storage_path), false).await
 }
 
+fn expected_runtime_target() -> Result<&'static str, String> {
+    if cfg!(all(windows, target_arch = "x86_64")) {
+        Ok("win32-x64")
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        Ok("darwin-x64")
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        Ok("darwin-arm64")
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        Ok("linux-x64")
+    } else {
+        Err("当前平台尚无经过验收的内置运行时".into())
+    }
+}
+
 fn validate_payload(payload: &std::path::Path) -> Result<PathBuf, String> {
     let manifest = fs::read(payload.join("manifest.json"))
         .map_err(|_| "发行资源缺少 Hermes 清单".to_string())?;
@@ -162,10 +176,11 @@ fn validate_payload(payload: &std::path::Path) -> Result<PathBuf, String> {
         serde_json::from_slice(&manifest).map_err(|_| "Hermes 清单格式无效".to_string())?;
     let lock: Value = serde_json::from_str(include_str!("../../../../runtime/upstream.lock.json"))
         .map_err(|_| "产品上游锁文件无效".to_string())?;
-    let target = if cfg!(all(windows, target_arch = "x86_64")) {
-        "win32-x64"
+    let target = expected_runtime_target()?;
+    let launcher = if cfg!(windows) {
+        "bin/hermes.exe"
     } else {
-        return Err("当前平台尚无经过验收的内置运行时".into());
+        "bin/hermes"
     };
     if value.get("schema").and_then(Value::as_u64) != Some(1)
         || value.get("target").and_then(Value::as_str) != Some(target)
@@ -174,11 +189,11 @@ fn validate_payload(payload: &std::path::Path) -> Result<PathBuf, String> {
         || value
             .pointer("/runtime/commands/hermes")
             .and_then(Value::as_str)
-            != Some("bin/hermes.exe")
+            != Some(launcher)
     {
         return Err("内置运行时与产品锁定版本不匹配".into());
     }
-    let launcher = payload.join("bin").join("hermes.exe");
+    let launcher = payload.join(launcher);
     let real = launcher
         .canonicalize()
         .map_err(|_| "内置 Hermes 启动器不存在".to_string())?;
@@ -227,7 +242,7 @@ fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, S
         .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
         .ok_or("离线资源摘要无效")?;
     if receipt.get("schema").and_then(Value::as_u64) != Some(1)
-        || receipt.get("target").and_then(Value::as_str) != Some("win32-x64")
+        || receipt.get("target").and_then(Value::as_str) != Some(expected_runtime_target()?)
         || receipt.get("upstream_commit") != lock.get("commit")
     {
         return Err("离线资源与产品锁定版本不匹配".into());
@@ -273,13 +288,15 @@ fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, S
             fs::File::open(&archive_path).map_err(|_| "无法重新打开运行时归档".to_string())?,
         );
         let mut count = 0usize;
+        #[cfg(unix)]
+        let mut links = Vec::<(PathBuf, PathBuf)>::new();
         for entry in archive
             .entries()
             .map_err(|_| "运行时归档目录损坏".to_string())?
         {
             let mut entry = entry.map_err(|_| "运行时归档条目损坏".to_string())?;
             count += 1;
-            if count > 100_000 {
+            if count > 200_000 {
                 return Err("运行时归档条目过多".into());
             }
             let path = entry.path().map_err(|_| "运行时归档路径无效".to_string())?;
@@ -290,12 +307,65 @@ fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, S
                 return Err("运行时归档包含非法路径".into());
             }
             let kind = entry.header().entry_type();
+            if kind.is_symlink() {
+                #[cfg(unix)]
+                {
+                    let target = entry
+                        .link_name()
+                        .map_err(|_| "运行时链接目标无效".to_string())?
+                        .ok_or("运行时链接缺少目标")?;
+                    if target.is_absolute() || target.to_string_lossy().len() > 4096 {
+                        return Err("运行时链接目标不安全".into());
+                    }
+                    let mut normalized = PathBuf::new();
+                    for part in path
+                        .parent()
+                        .unwrap_or(Path::new(""))
+                        .join(target)
+                        .components()
+                    {
+                        match part {
+                            Component::Normal(name) => normalized.push(name),
+                            Component::CurDir => {}
+                            Component::ParentDir if normalized.pop() => {}
+                            _ => return Err("运行时链接越过资源目录".into()),
+                        }
+                    }
+                    if normalized.as_os_str().is_empty() {
+                        return Err("运行时链接目标无效".into());
+                    }
+                    links.push((path.to_path_buf(), target.to_path_buf()));
+                    continue;
+                }
+                #[cfg(not(unix))]
+                return Err("当前平台不接受运行时链接".into());
+            }
             if !kind.is_file() && !kind.is_dir() {
                 return Err("运行时归档包含非普通文件".into());
             }
             entry
                 .unpack_in(&staging)
                 .map_err(|_| "解包运行时失败".to_string())?;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            for (link, target) in &links {
+                let destination = staging.join(&link);
+                if destination.exists() || destination.symlink_metadata().is_ok() {
+                    return Err("运行时归档包含重复链接路径".into());
+                }
+                symlink(target, &destination).map_err(|_| "创建运行时链接失败".to_string())?;
+            }
+            for (link, _) in links {
+                let destination = staging.join(&link);
+                let resolved = destination
+                    .canonicalize()
+                    .map_err(|_| "运行时链接悬空".to_string())?;
+                if !resolved.starts_with(&staging) {
+                    return Err("运行时链接越过资源目录".into());
+                }
+            }
         }
         validate_payload(&staging)?;
         fs::rename(&staging, &active).map_err(|_| "启用运行时失败".to_string())?;

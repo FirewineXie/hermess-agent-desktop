@@ -1,0 +1,112 @@
+name: Tagged desktop release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: python scripts/check-release.py --tag "${{ github.ref_name }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/verify-upstream.mjs
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32-x64
+            runner: windows-2025
+          - target: darwin-arm64
+            runner: macos-15
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: linux-x64
+            runner: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+          run_install: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Install Linux Tauri prerequisites
+        if: matrix.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Verify source and install frontend dependencies
+        run: |
+          node scripts/verify-upstream.mjs
+          pnpm install --frozen-lockfile
+          cargo --version
+      - name: Build sealed native Hermes runtime
+        run: python scripts/build-core-payload.py --out .build/payload
+      - name: Build native offline installer
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+        run: python scripts/build-offline-runtime.py --payload .build/payload --build
+      - name: Stage expected installers
+        run: python scripts/stage-release-assets.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: .build/release-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: release-assets
+          merge-multiple: true
+      - run: python scripts/write-release-checksums.py release-assets
+      - name: Create or update draft release with version notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+            gh release edit "$TAG" --notes-file "releases/$TAG.md"
+          else
+            gh release create "$TAG" release-assets/* --verify-tag --draft --prerelease \
+              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md"
+          fi
