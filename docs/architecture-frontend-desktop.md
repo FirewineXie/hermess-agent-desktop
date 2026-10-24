@@ -46,7 +46,7 @@ HermessAgentDesktop/
 │     ├─ src-tauri/
 │     │  ├─ src/
 │     │  │  ├─ main.rs                    # 初始化、状态注入、命令注册
-│     │  │  ├─ runtime/                   # 唯一所有者、生命周期及 chat/models/config/tools 命令
+│     │  │  ├─ runtime/                   # 唯一所有者、生命周期、资源安装、存储定位及各功能命令
 │     │  │  ├─ gateway.rs                 # WS/RPC、事件和上游请求协议
 │     │  │  ├─ diagnostics.rs             # 环境探测与日志
 │     │  │  └─ storage.rs                 # 产品存储位置
@@ -97,7 +97,7 @@ HermessAgentDesktop/
 
 ### Rust 模块的所有权
 
-`runtime` 是自有 Hermes 实例的唯一生命周期所有者。它持有存储锁、子进程、随机凭据、端口和 Gateway 连接，负责启动、探活、重连、停止及失败后的资源释放。路径定位、payload 校验、解包和子进程输出可以成为 `runtime` 的子模块，但不能各自持有一份可变运行时事实。
+`runtime` 是自有 Hermes 实例的唯一生命周期所有者。它持有存储锁、子进程、随机凭据、端口和 Gateway 连接，负责启动、探活、重连、停止及失败后的资源释放。当前 `runtime/location.rs` 负责存储定位与所有者锁，`runtime/payload.rs` 负责固定资源校验和解包；它们不各自持有一份可变运行时事实。功能子模块使用显式导入，避免依赖父模块的全部导入。
 
 `gateway` 封装当前固定上游的 WebSocket/RPC 协议：请求关联、超时、鉴权、事件转发、审批与澄清请求。上游协议变化在这里适配；聊天和模型模块调用有语义的方法，不重复拼接底层帧。事件序号与进程纪元仍按当前固定上游的实际协议处理。
 

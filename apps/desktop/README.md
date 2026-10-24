@@ -8,8 +8,10 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/main.rs`：Tauri 初始化与命令注册。
 - `src-tauri/src/diagnostics.rs`：本机工具探测与诊断日志。
 - `src-tauri/src/storage.rs`：产品存储位置校验。
-- `src-tauri/src/runtime/mod.rs`：自有后端实例、存储锁、进程、凭据、payload 与生命周期的统一所有者。
-- `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令；后续继续收敛跨模块依赖。
+- `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
+- `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
+- `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
+- `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
 
 ## 本地命令
