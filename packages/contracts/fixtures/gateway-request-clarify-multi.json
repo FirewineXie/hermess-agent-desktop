@@ -1,0 +1,9 @@
+{
+  "id": "srq-3",
+  "method": "clarify",
+  "params": {
+    "session_id": "session-fixture",
+    "questions": [{ "qid": "permissions", "question": "Which permissions?", "choices": ["read", "write"], "multi_select": true }],
+    "answers": { "permissions": "[\"read\"]" }
+  }
+}

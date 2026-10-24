@@ -8,6 +8,7 @@ const schemas = readdirSync(schemaDirectory).filter(name => name.endsWith('.sche
 const schemaByFile = new Map(schemas.map(name => [name, JSON.parse(readFileSync(resolve(schemaDirectory, name), 'utf8'))]))
 
 function renderType(rule, level, references) {
+  if (rule.oneOf) return rule.oneOf.map(option => renderType(option, level, references)).join(' | ')
   if (Array.isArray(rule.type)) {
     return rule.type.map(type => type === 'null' ? 'null' : renderType({ ...rule, type }, level, references)).join(' | ')
   }
@@ -22,14 +23,17 @@ function renderType(rule, level, references) {
   if (rule.type === 'object') {
     const fields = Object.entries(rule.properties || {})
     if (!fields.length && rule.additionalProperties === true) return 'Record<string, unknown>'
-    if (rule.additionalProperties !== false && rule.additionalProperties !== true) throw new Error('Object schema must define additionalProperties')
+    if (!fields.length && typeof rule.additionalProperties === 'object') return `Record<string, ${renderType(rule.additionalProperties, level, references)}>`
+    if (rule.additionalProperties !== false && rule.additionalProperties !== true && typeof rule.additionalProperties !== 'object') throw new Error('Object schema must define additionalProperties')
     const required = new Set(rule.required || [])
     const lines = fields.map(([name, child]) => {
       if (!/^[a-zA-Z_][a-zA-Z_0-9]*$/.test(name)) throw new Error(`Unsupported field name: ${name}`)
       return `${' '.repeat(level + 2)}${name}${required.has(name) ? '' : '?'}: ${renderType(child, level + 2, references)}`
     })
     const objectType = `{\n${lines.join('\n')}\n${' '.repeat(level)}}`
-    return rule.additionalProperties === true ? `${objectType} & Record<string, unknown>` : objectType
+    if (rule.additionalProperties === true) return `${objectType} & Record<string, unknown>`
+    if (typeof rule.additionalProperties === 'object') return `${objectType} & Record<string, ${renderType(rule.additionalProperties, level, references)}>`
+    return objectType
   }
   if (rule.type === 'integer' || rule.type === 'number') return 'number'
   if (rule.type === 'string' || rule.type === 'boolean') return rule.type
@@ -38,7 +42,7 @@ function renderType(rule, level, references) {
 
 for (const file of schemas) {
   const schema = schemaByFile.get(file)
-  if (!schema.title || schema.type !== 'object') throw new Error(`Invalid schema: ${file}`)
+  if (!schema.title || (schema.type !== 'object' && !schema.oneOf)) throw new Error(`Invalid schema: ${file}`)
   const references = new Map()
   const declaration = renderType(schema, 0, references)
   const imports = [...references].filter(([name]) => name !== schema.title)

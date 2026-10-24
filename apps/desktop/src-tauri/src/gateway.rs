@@ -387,5 +387,19 @@ mod contract_tests {
         ))
         .unwrap();
         assert_eq!(serde_json::to_value(request).unwrap(), expected);
+        let clarify = GatewayServerRequest {
+            id: "srq-2".into(),
+            method: "clarify".into(),
+            params: json!({
+                "session_id":"session-fixture",
+                "questions":[{"qid":"q1","question":"Which option?","choices":null}],
+                "answers":{"q1":null}
+            }),
+        };
+        let expected_clarify: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/gateway-request-clarify.json"
+        ))
+        .unwrap();
+        assert_eq!(serde_json::to_value(clarify).unwrap(), expected_clarify);
     }
 }

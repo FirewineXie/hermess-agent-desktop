@@ -272,6 +272,9 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .request-card .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .request-card label { display: block; margin: 12px 0; }
 .request-card select, .request-card input { display: block; width: 100%; margin-top: 7px; padding: 9px; }
+.request-card fieldset { margin: 12px 0; padding: 8px 12px; border: 1px solid #eac68e; border-radius: 8px; }
+.request-card fieldset label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.request-card input[type="checkbox"] { display: inline-block; width: auto; margin: 0; }
 .drop-active { outline: 2px dashed #4d8cf7; outline-offset: -8px; }
 @media (max-width: 760px) {
   .app-shell { display: block; }

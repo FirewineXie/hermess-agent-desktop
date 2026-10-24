@@ -8,6 +8,13 @@ type Props = {
   onSubmit: (choice?: ApprovalChoice) => void
 }
 
+function selectedChoices(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : []
+  } catch { return [] }
+}
+
 export default function GatewayRequestCard({ request, answers, t, onAnswerChange, onSubmit }: Props) {
   if (request.method === 'approval') return <div className="request-card" role="alertdialog" aria-label={t('ui.tool.execution.approval')}>
     <strong>{t('ui.tool.execution.approval')}</strong>
@@ -19,11 +26,23 @@ export default function GatewayRequestCard({ request, answers, t, onAnswerChange
   </div>
   return <div className="request-card" role="group" aria-label={t('ui.clarifying.questions')}>
     <strong>{t('ui.hermes.needs.additional.information')}</strong>
-    {(request.params.questions || []).map(question => <label key={question.qid}>{question.question}
-      {question.choices?.length ? <select value={answers[question.qid] || ''} onChange={event => onAnswerChange(question.qid, event.target.value)}>
-        <option value="">{t('ui.select')}</option>{question.choices.map(option => <option key={option} value={option}>{option}</option>)}
-      </select> : <input value={answers[question.qid] || ''} onChange={event => onAnswerChange(question.qid, event.target.value)} />}
-    </label>)}
+    {request.params.questions.map(question => {
+      const answer = answers[question.qid] ?? request.params.answers?.[question.qid] ?? ''
+      if (question.multi_select && question.choices?.length) {
+        const selected = selectedChoices(answer)
+        return <fieldset key={question.qid}><legend>{question.question}</legend>
+          {question.choices.map(option => <label key={option}>
+            <input type="checkbox" checked={selected.includes(option)} onChange={event => onAnswerChange(question.qid, JSON.stringify(event.target.checked ? [...selected, option] : selected.filter(item => item !== option)))} />
+            {option}
+          </label>)}
+        </fieldset>
+      }
+      return <label key={question.qid}>{question.question}
+        {question.choices?.length ? <select value={answer} onChange={event => onAnswerChange(question.qid, event.target.value)}>
+          <option value="">{t('ui.select')}</option>{question.choices.map(option => <option key={option} value={option}>{option}</option>)}
+        </select> : <input value={answer} onChange={event => onAnswerChange(question.qid, event.target.value)} />}
+      </label>
+    })}
     <button onClick={() => onSubmit()}>{t('ui.submit.answer')}</button>
   </div>
 }

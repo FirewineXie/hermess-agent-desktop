@@ -25,9 +25,35 @@ function listenPayload<T>(event: string, handler: (payload: T) => void): Promise
 function isSupportedRequest(value: unknown): value is GatewayRequest {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
-  return typeof request.id === 'string'
-    && (request.method === 'approval' || request.method === 'clarify')
-    && !!request.params && typeof request.params === 'object'
+  if (typeof request.id !== 'string' || !request.params || typeof request.params !== 'object' || Array.isArray(request.params)) return false
+  const params = request.params as Record<string, unknown>
+  if (typeof params.session_id !== 'string') return false
+  if (request.method === 'approval') {
+    return typeof params.request_id === 'string'
+      && (params.description === undefined || typeof params.description === 'string')
+      && (params.command === undefined || typeof params.command === 'string')
+      && (params.tool_name === undefined || params.tool_name === null || typeof params.tool_name === 'string')
+      && (params.choices === undefined || Array.isArray(params.choices)
+        && params.choices.every(choice => ['once', 'session', 'always', 'deny'].includes(choice)))
+      && (params.allow_permanent === undefined || params.allow_permanent === null || typeof params.allow_permanent === 'boolean')
+      && (params.allow_session === undefined || params.allow_session === null || typeof params.allow_session === 'boolean')
+      && (params.smart_denied === undefined || params.smart_denied === null || typeof params.smart_denied === 'boolean')
+      && (params.gateway_session_id === undefined || params.gateway_session_id === null || typeof params.gateway_session_id === 'string')
+  }
+  if (request.method === 'clarify') {
+    return Array.isArray(params.questions)
+      && params.questions.length > 0
+      && params.questions.length <= 5
+      && params.questions.every(question => question && typeof question === 'object'
+        && typeof question.qid === 'string' && typeof question.question === 'string'
+        && (question.choices === undefined || question.choices === null
+          || Array.isArray(question.choices) && question.choices.every((choice: unknown) => typeof choice === 'string'))
+        && (question.multi_select === undefined || typeof question.multi_select === 'boolean'))
+      && (params.answers === undefined || params.answers === null
+        || typeof params.answers === 'object' && !Array.isArray(params.answers)
+          && Object.values(params.answers).every(answer => answer === null || typeof answer === 'string'))
+  }
+  return false
 }
 
 function supportedRequests(value: unknown): GatewayRequest[] {

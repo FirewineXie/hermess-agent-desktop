@@ -2,35 +2,66 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hermess.local/contracts/gateway-request.schema.json",
   "title": "GatewayRequest",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["id", "method", "params"],
-  "properties": {
-    "id": { "type": "string" },
-    "method": { "enum": ["approval", "clarify"] },
-    "params": {
+  "oneOf": [
+    {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
+      "required": ["id", "method", "params"],
       "properties": {
-        "session_id": { "type": "string" },
-        "command": { "type": "string" },
-        "description": { "type": "string" },
-        "tool_name": { "type": ["string", "null"] },
-        "choices": { "type": "array", "items": { "enum": ["once", "session", "always", "deny"] } },
-        "questions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["qid", "question"],
-            "properties": {
-              "qid": { "type": "string" },
-              "question": { "type": "string" },
-          "choices": { "type": ["array", "null"], "items": { "type": "string" } }
-            }
+        "id": { "type": "string" },
+        "method": { "enum": ["approval"] },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["session_id", "request_id"],
+          "properties": {
+            "session_id": { "type": "string" },
+            "request_id": { "type": "string" },
+            "command": { "type": "string" },
+            "description": { "type": "string" },
+            "tool_name": { "type": ["string", "null"] },
+            "choices": { "type": "array", "items": { "enum": ["once", "session", "always", "deny"] } },
+            "allow_permanent": { "type": ["boolean", "null"] },
+            "allow_session": { "type": ["boolean", "null"] },
+            "smart_denied": { "type": ["boolean", "null"] },
+            "gateway_session_id": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "method", "params"],
+      "properties": {
+        "id": { "type": "string" },
+        "method": { "enum": ["clarify"] },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "questions"],
+          "properties": {
+            "session_id": { "type": "string" },
+            "questions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["qid", "question"],
+                "properties": {
+                  "qid": { "type": "string" },
+                  "question": { "type": "string" },
+                  "choices": { "type": ["array", "null"], "items": { "type": "string" } },
+                  "multi_select": { "type": "boolean" }
+                }
+              }
+            },
+            "answers": { "type": ["object", "null"], "additionalProperties": { "type": ["string", "null"] } }
           }
         }
       }
     }
-  }
+  ]
 }
