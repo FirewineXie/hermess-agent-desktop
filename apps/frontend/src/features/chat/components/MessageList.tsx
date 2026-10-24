@@ -3,16 +3,32 @@ import type { TimelineItem, ToolStep } from '../timeline'
 type Language = 'zh-CN' | 'en-US'
 
 const toolNames: Record<string, [string, string]> = {
-  terminal: ['运行终端命令', 'Run terminal command'],
-  execute_code: ['执行代码', 'Execute code'],
-  read_file: ['读取文件', 'Read file'],
-  search_files: ['搜索文件', 'Search files'],
-  memory: ['更新记忆', 'Update memory'],
-  skill_view: ['查看 Skill', 'View Skill'],
+  terminal: ['调用了终端', 'Called terminal'],
+  execute_code: ['调用了代码执行', 'Called code execution'],
+  read_file: ['调用了文件读取', 'Called file reader'],
+  search_files: ['调用了文件搜索', 'Called file search'],
+  memory: ['调用了记忆工具', 'Called memory tool'],
+  skill_view: ['查看了 Skill', 'Viewed Skill'],
+}
+
+const toolSubjects: Record<string, [string, string]> = {
+  terminal: ['终端', 'terminal'],
+  execute_code: ['代码执行', 'code execution'],
+  read_file: ['文件读取', 'file reading'],
+  search_files: ['文件搜索', 'file search'],
+  memory: ['记忆工具', 'memory'],
+  skill_view: ['Skill', 'Skills'],
 }
 
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
+function activityTitle(steps: ToolStep[], language: Language) {
+  const names = [...new Set(steps.map(step => toolSubjects[step.name]?.[language === 'zh-CN' ? 0 : 1] || step.name))]
+  const examples = names.slice(0, 2).join(language === 'zh-CN' ? '、' : ' and ')
+  return language === 'zh-CN'
+    ? `调用了${examples}${names.length > 2 ? '等工具' : ''} · ${steps.length} 项操作`
+    : `Used ${examples}${names.length > 2 ? ' and more' : ''} · ${steps.length} actions`
+}
 function toolState(step: ToolStep, language: Language) {
   if (step.state === 'running') return label(language, '执行中', 'Running')
   if (step.state === 'failed') return label(language, '失败', 'Failed')
@@ -20,36 +36,44 @@ function toolState(step: ToolStep, language: Language) {
   return label(language, '已结束', 'Finished')
 }
 
-function detailText(step: ToolStep) {
-  const args = step.args ? JSON.stringify(step.args, null, 2) : ''
-  return args || step.context || ''
+function toolDetail(step: ToolStep, language: Language): { title: string; text: string } | null {
+  const args = step.args || {}
+  if (step.name === 'terminal' && typeof args.command === 'string') return { title: 'Shell', text: `$ ${args.command}` }
+  if (step.name === 'execute_code' && typeof args.code === 'string') return { title: 'Code', text: args.code }
+  const raw = Object.keys(args).length ? JSON.stringify(args, null, 2) : step.context || ''
+  return raw ? { title: label(language, '参数', 'Parameters'), text: raw } : null
 }
 
-function ToolGroup({ steps, language }: { steps: ToolStep[]; language: Language }) {
-  const running = steps.some(step => step.state === 'running')
-  const failed = steps.some(step => step.state === 'failed')
-  return <details className="tool-group">
-    <summary>
-      <span>{label(language, '工作过程', 'Work process')} · {steps.length} {label(language, '次工具调用', 'tool calls')}</span>
-      <small>{running ? label(language, '进行中', 'Running') : failed ? label(language, '含失败项', 'Contains failures') : label(language, '有结果', 'Results recorded')}</small>
-    </summary>
-    <div className="tool-steps">{steps.map((step, index) => {
-      const details = detailText(step)
-      return <details className="tool-step" key={`${step.id}-${index}`}>
-        <summary><span>{toolName(step.name, language)}</span><small>{toolState(step, language)}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small></summary>
-        {step.context && <div className="tool-step-context">{step.context}</div>}
-        {step.summary && <div className="tool-step-summary">{step.summary}</div>}
-        {step.error && <div className="tool-step-error">{step.error}</div>}
-        {details && <pre>{details.length > 4000 ? `${details.slice(0, 4000)}…` : details}</pre>}
-      </details>
-    })}</div>
+function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
+  const detail = toolDetail(step, language)
+  const hasDetail = Boolean(detail || step.summary || step.error)
+  const heading = <>
+          <span className="tool-step-icon" aria-hidden="true">{step.name === 'terminal' || step.name === 'execute_code' ? '›' : step.name === 'read_file' || step.name === 'search_files' ? '▤' : '◇'}</span>
+          <span className="tool-step-name">{toolName(step.name, language)}</span>
+          {step.context && <span className="tool-step-context">{step.context}</span>}
+          <small>{toolState(step, language)}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small>
+          {hasDetail && <span className="tool-step-chevron" aria-hidden="true">⌄</span>}
+  </>
+  if (!hasDetail) return <div className="tool-step"><div className="tool-step-heading">{heading}</div></div>
+  return <details className="tool-step">
+    <summary>{heading}</summary>
+    {step.summary && <div className="tool-step-summary">{step.summary}</div>}
+    {step.error && <div className="tool-step-error">{step.error}</div>}
+    {detail && <div className="tool-step-detail"><div>{detail.title}</div><pre>{detail.text.length > 4000 ? `${detail.text.slice(0, 4000)}…` : detail.text}</pre></div>}
+  </details>
+}
+
+function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
+  return <details className="tool-activity">
+    <summary><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
 }
 
 export default function MessageList({ messages, assistant, language, t }: { messages: TimelineItem[]; assistant: string; language: Language; t: (key: string) => string }) {
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
   return <div className="messages">{messages.map((message, index) => message.kind === 'tools'
-    ? <ToolGroup key={index} steps={message.steps} language={language} />
+    ? <ToolActivity key={index} steps={message.steps} language={language} />
     : message.text.trim() && <p key={index}><strong>{message.role === 'user' ? t('ui.you') : 'Hermes'}：</strong>{message.text}</p>
   )}{assistant.trim() && <p><strong>Hermes：</strong>{assistant}</p>}</div>
 }
