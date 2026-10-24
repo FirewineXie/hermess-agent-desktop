@@ -1,6 +1,6 @@
 # Hermess Agent Desktop
 
-基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；macOS、Linux 仍需通过 GitHub Actions 构建及实机验证。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
+基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；Windows、macOS 和 Linux 的安装包已在 GitHub Actions 构建成功，macOS 与 Linux 仍需实机安装和运行验收。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
 
 ## 当前能力
 
