@@ -17,6 +17,7 @@
 | 工具与能力目录 | 已加入运行时工具清单、Agent 工具组、当前会话工具及本机程序探测展示 | 原生窗口展示及各工具真实调用验收；探测到程序不等于可供 Agent 使用 |
 | 开发者诊断日志 | 可切换查看 Hermes 与客户端日志；客户端事件、托管进程标准输出和错误输出写入产品存储的 `logs/`，文件名按本地日期分卷 | 原生窗口与跨天运行验收；上游 Hermes 自身的 `agent.log`、`gateway.log`、`errors.log` 仍由固定版本写入 `hermes-home/logs/` 并按大小轮转，尚未统一为按天日志 |
 | 上游固定版本适配 | 能力矩阵已记录 Hermes Agent `v0.22.5` 的接口与 Windows x64 脚本级结果 | 与本版本安装包、跨平台原生窗口及真实模型的组合验收 |
+| 前端与客户端架构方案 | 已形成[目标方案文档](docs/architecture-frontend-desktop.md)，明确项目边界、前端 View/组件、客户端模块与接口契约；仅有文档，尚未实施拆分 | 按方案分阶段迁移并逐项验证构建、关键交互与安装包 |
 
 本轮功能仍处于开发与验证阶段。2026-10-25 在 Windows x64 本地运行：`pnpm verify:upstream`、`pnpm build`、`cargo fmt --all -- --check`、`cargo check`、`cargo test` 均通过；Rust 单元测试 8 项通过，另 1 项因需要预备的离线归档按设计跳过。使用隔离 venv 和假模型执行 `scripts/smoke-gateway.py`，命令目录、`/help`、Skill 分发、聊天、附件、重连、中断、历史、文件工具、澄清与审批拒绝均通过；假模型服务在连接中断阶段输出过连接断开的异常信息，脚本最终成功退出。以上脚本测试、前端/Rust 构建结果不能替代 Windows、macOS、Linux 的原生窗口验收。发布说明和 tag 只在实际完成发布检查后填写。
 
