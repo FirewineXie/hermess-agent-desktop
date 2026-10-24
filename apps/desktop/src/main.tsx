@@ -116,6 +116,9 @@ function App() {
         setPythonPath(defaults.python_path)
         setStoragePath(defaults.storage_path)
       }).catch(cause => setBackendStatus(String(cause)))
+    } else {
+      void invoke<string>('packed_backend_defaults').then(setStoragePath)
+        .catch(cause => setBackendStatus(String(cause)))
     }
   }, [])
 
@@ -291,7 +294,9 @@ function App() {
     setBusy(true)
     setBackendStatus('启动并鉴权中…')
     try {
-      const info = await invoke<BackendInfo>('start_dev_backend', { pythonPath, storagePath })
+      const info = import.meta.env.DEV
+        ? await invoke<BackendInfo>('start_dev_backend', { pythonPath, storagePath })
+        : await invoke<BackendInfo>('start_packed_backend', { storagePath })
       setBackend(info)
       setBackendStatus('已就绪：WebSocket ping 通过')
     } catch (cause) {
@@ -337,7 +342,7 @@ function App() {
 
   return <main>
     <header><span className="eyebrow">I0 技术样机</span><h1>Hermess Agent Desktop</h1></header>
-    <p>正在建立独立运行时。开发态可连接隔离的 Hermes 后端并验证聊天链路；正式封装和安装尚未完成。</p>
+    <p>正在建立独立运行时。当前构建用于验证后端和聊天链路，正式安装与升级尚未验收。</p>
     <section>
       <div className="row"><h2>本机工具</h2><button onClick={() => void inspect()} disabled={loading}>{loading ? '检测中…' : '重新检测'}</button></div>
       {error && <p role="alert">检测失败：{error}</p>}
@@ -347,20 +352,20 @@ function App() {
         {probe.path && <code>{probe.path}</code>}
       </li>)}</ul>
     </section>
-    {import.meta.env.DEV && <section>
-      <h2>开发态后端连接</h2>
-      <p>只使用本产品 .build 中已准备的隔离环境。存储目录会创建产品专用子目录。</p>
-      <label>Python 绝对路径<input value={pythonPath} onChange={event => setPythonPath(event.target.value)} /></label>
+    <section>
+      <h2>后端连接</h2>
+      <p>{import.meta.env.DEV ? '只使用本产品 .build 中已准备的隔离环境。' : '使用应用内置的固定版本运行时。'}存储目录会创建产品专用子目录。</p>
+      {import.meta.env.DEV && <label>Python 绝对路径<input value={pythonPath} onChange={event => setPythonPath(event.target.value)} /></label>}
       <label>主要存储位置<input value={storagePath} onChange={event => setStoragePath(event.target.value)} /></label>
       <div className="actions">
-        <button disabled={busy || !pythonPath || !storagePath} onClick={() => void startBackend()}>启动</button>
+        <button disabled={busy || !storagePath || (import.meta.env.DEV && !pythonPath)} onClick={() => void startBackend()}>启动</button>
         <button disabled={busy || !backend} onClick={() => void pingBackend()}>检查连接</button>
         <button disabled={busy || !backend} onClick={() => void reconnectBackend()}>重连并恢复</button>
         <button disabled={busy || !backend} onClick={() => void stopBackend()}>停止</button>
       </div>
       <p role="status">{backendStatus}{backend && `（PID ${backend.pid}，端口 ${backend.port}）`}</p>
-    </section>}
-    {import.meta.env.DEV && backend && <section>
+    </section>
+    {backend && <section>
       <h2>最小聊天链路</h2>
       <p>使用固定提交的会话和消息 RPC。模型需先在该独立 Hermes 数据根配置；历史恢复和附件尚未接入。</p>
       {sessionId && <small>会话：{sessionId}</small>}

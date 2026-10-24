@@ -2,8 +2,15 @@ use crate::gateway::GatewayClient;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf, process::Stdio, time::Duration};
-use tauri::{AppHandle, State};
+use sha2::{Digest, Sha256};
+use std::{
+    fs,
+    io::Read,
+    path::{Component, Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
+use tauri::{AppHandle, Manager, State};
 use tokio::{
     process::Child,
     sync::Mutex,
@@ -118,26 +125,6 @@ pub async fn start_dev_backend(
     python_path: String,
     storage_path: String,
 ) -> Result<BackendInfo, String> {
-    let mut owned = state.0.lock().await;
-    if let Some(existing) = owned.as_mut() {
-        if existing
-            .child
-            .try_wait()
-            .map_err(|_| "进程状态读取失败".to_string())?
-            .is_none()
-        {
-            if existing.gateway.is_closed() {
-                existing.gateway =
-                    GatewayClient::connect(existing.port, &existing.token, app).await?;
-            }
-            return Ok(BackendInfo {
-                port: existing.port,
-                pid: existing.child.id().unwrap_or(0),
-                replay_epoch: existing.gateway.replay_epoch.clone(),
-            });
-        }
-        *owned = None;
-    }
     if !cfg!(debug_assertions) {
         return Err("开发态后端启动仅在调试构建可用".into());
     }
@@ -159,7 +146,222 @@ pub async fn start_dev_backend(
     if !hermes.is_file() {
         return Err("隔离环境缺少 Hermes 启动器".into());
     }
+    launch_backend(app, state, hermes, PathBuf::from(storage_path)).await
+}
+
+fn validate_payload(payload: &std::path::Path) -> Result<PathBuf, String> {
+    let manifest = fs::read(payload.join("manifest.json"))
+        .map_err(|_| "发行资源缺少 Hermes 清单".to_string())?;
+    let value: Value =
+        serde_json::from_slice(&manifest).map_err(|_| "Hermes 清单格式无效".to_string())?;
+    let lock: Value = serde_json::from_str(include_str!("../../../../runtime/upstream.lock.json"))
+        .map_err(|_| "产品上游锁文件无效".to_string())?;
+    let target = if cfg!(all(windows, target_arch = "x86_64")) {
+        "win32-x64"
+    } else {
+        return Err("当前平台尚无经过验收的内置运行时".into());
+    };
+    if value.get("schema").and_then(Value::as_u64) != Some(1)
+        || value.get("target").and_then(Value::as_str) != Some(target)
+        || value.get("repo").and_then(Value::as_str) != Some("hermes-agent")
+        || value.get("ref") != lock.get("commit")
+        || value
+            .pointer("/runtime/commands/hermes")
+            .and_then(Value::as_str)
+            != Some("bin/hermes.exe")
+    {
+        return Err("内置运行时与产品锁定版本不匹配".into());
+    }
+    let launcher = payload.join("bin").join("hermes.exe");
+    let real = launcher
+        .canonicalize()
+        .map_err(|_| "内置 Hermes 启动器不存在".to_string())?;
+    let root = payload
+        .canonicalize()
+        .map_err(|_| "内置运行时目录不存在".to_string())?;
+    if !real.starts_with(root) {
+        return Err("内置 Hermes 启动器越过资源目录".into());
+    }
+    Ok(real)
+}
+
+fn install_packed_payload(resource: &Path, selected: &Path) -> Result<PathBuf, String> {
+    if !selected.is_absolute() {
+        return Err("存储位置必须是绝对路径".into());
+    }
+    fs::create_dir_all(selected).map_err(|_| "无法创建存储位置".to_string())?;
+    let root = selected
+        .canonicalize()
+        .map_err(|_| "无法解析存储位置".to_string())?
+        .join("HermessAgentDesktop");
+    fs::create_dir_all(root.join("control")).map_err(|_| "无法创建产品控制目录".to_string())?;
+    let root = root
+        .canonicalize()
+        .map_err(|_| "无法解析产品存储目录".to_string())?;
+    let install_lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(root.join("control/runtime-install.lock"))
+        .map_err(|_| "无法打开运行时安装锁".to_string())?;
+    install_lock
+        .try_lock()
+        .map_err(|_| "运行时正在由另一个实例准备".to_string())?;
+
+    let receipt: Value = serde_json::from_slice(
+        &fs::read(resource.join("runtime/receipt.json"))
+            .map_err(|_| "离线资源缺少校验清单".to_string())?,
+    )
+    .map_err(|_| "离线资源校验清单无效".to_string())?;
+    let lock: Value = serde_json::from_str(include_str!("../../../../runtime/upstream.lock.json"))
+        .map_err(|_| "产品上游锁文件无效".to_string())?;
+    let digest = receipt
+        .get("archive_sha256")
+        .and_then(Value::as_str)
+        .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or("离线资源摘要无效")?;
+    if receipt.get("schema").and_then(Value::as_u64) != Some(1)
+        || receipt.get("target").and_then(Value::as_str) != Some("win32-x64")
+        || receipt.get("upstream_commit") != lock.get("commit")
+    {
+        return Err("离线资源与产品锁定版本不匹配".into());
+    }
+    let archive_path = resource.join("runtime/payload.tar");
+    let mut archive_file =
+        fs::File::open(&archive_path).map_err(|_| "离线运行时归档不存在".to_string())?;
+    if receipt.get("archive_bytes").and_then(Value::as_u64)
+        != Some(
+            archive_file
+                .metadata()
+                .map_err(|_| "无法读取运行时归档大小".to_string())?
+                .len(),
+        )
+    {
+        return Err("离线运行时归档大小不符".into());
+    }
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 1024 * 1024];
+    loop {
+        let count = archive_file
+            .read(&mut buffer)
+            .map_err(|_| "读取运行时归档失败".to_string())?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    if format!("{:x}", hasher.finalize()) != digest {
+        return Err("离线运行时归档摘要不符".into());
+    }
+
+    let runtimes = root.join("runtimes");
+    fs::create_dir_all(&runtimes).map_err(|_| "无法创建运行时目录".to_string())?;
+    let active = runtimes.join(digest);
+    if active.exists() {
+        return validate_payload(&active);
+    }
+    let staging = runtimes.join(format!("{digest}-staging-{}", Uuid::new_v4()));
+    fs::create_dir(&staging).map_err(|_| "无法创建运行时暂存目录".to_string())?;
+    let installed = (|| -> Result<PathBuf, String> {
+        let mut archive = tar::Archive::new(
+            fs::File::open(&archive_path).map_err(|_| "无法重新打开运行时归档".to_string())?,
+        );
+        let mut count = 0usize;
+        for entry in archive
+            .entries()
+            .map_err(|_| "运行时归档目录损坏".to_string())?
+        {
+            let mut entry = entry.map_err(|_| "运行时归档条目损坏".to_string())?;
+            count += 1;
+            if count > 100_000 {
+                return Err("运行时归档条目过多".into());
+            }
+            let path = entry.path().map_err(|_| "运行时归档路径无效".to_string())?;
+            if path
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+            {
+                return Err("运行时归档包含非法路径".into());
+            }
+            let kind = entry.header().entry_type();
+            if !kind.is_file() && !kind.is_dir() {
+                return Err("运行时归档包含非普通文件".into());
+            }
+            entry
+                .unpack_in(&staging)
+                .map_err(|_| "解包运行时失败".to_string())?;
+        }
+        validate_payload(&staging)?;
+        fs::rename(&staging, &active).map_err(|_| "启用运行时失败".to_string())?;
+        validate_payload(&active)
+    })();
+    if installed.is_err() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    installed
+}
+
+#[tauri::command]
+pub fn packed_backend_defaults(app: AppHandle) -> Result<String, String> {
+    if cfg!(debug_assertions) {
+        return Err("打包配置仅在发行构建可用".into());
+    }
+    app.path()
+        .app_local_data_dir()
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|_| "无法定位默认数据目录".to_string())
+}
+
+#[tauri::command]
+pub async fn start_packed_backend(
+    app: AppHandle,
+    state: State<'_, BackendState>,
+    storage_path: String,
+) -> Result<BackendInfo, String> {
+    if cfg!(debug_assertions) {
+        return Err("内置运行时入口仅供打包构建使用".into());
+    }
+    let resource = app
+        .path()
+        .resource_dir()
+        .map_err(|_| "无法定位应用资源目录".to_string())?;
     let selected = PathBuf::from(storage_path);
+    let resource_for_install = resource.clone();
+    let selected_for_install = selected.clone();
+    let hermes = tokio::task::spawn_blocking(move || {
+        install_packed_payload(&resource_for_install, &selected_for_install)
+    })
+    .await
+    .map_err(|_| "运行时准备任务失败".to_string())??;
+    launch_backend(app, state, hermes, selected).await
+}
+
+async fn launch_backend(
+    app: AppHandle,
+    state: State<'_, BackendState>,
+    hermes: PathBuf,
+    selected: PathBuf,
+) -> Result<BackendInfo, String> {
+    let mut owned = state.0.lock().await;
+    if let Some(existing) = owned.as_mut() {
+        if existing
+            .child
+            .try_wait()
+            .map_err(|_| "进程状态读取失败".to_string())?
+            .is_none()
+        {
+            if existing.gateway.is_closed() {
+                existing.gateway =
+                    GatewayClient::connect(existing.port, &existing.token, app).await?;
+            }
+            return Ok(BackendInfo {
+                port: existing.port,
+                pid: existing.child.id().unwrap_or(0),
+                replay_epoch: existing.gateway.replay_epoch.clone(),
+            });
+        }
+        *owned = None;
+    }
     if !selected.is_absolute() {
         return Err("存储位置必须是绝对路径".into());
     }
@@ -459,7 +661,7 @@ pub async fn replay_chat_events(
 
 #[cfg(test)]
 mod tests {
-    use super::acquire_storage_lock;
+    use super::{acquire_storage_lock, install_packed_payload, validate_payload};
     use std::fs;
     use std::process::Command;
     use uuid::Uuid;
@@ -506,5 +708,40 @@ mod tests {
         fs::remove_file(root.join("control").join("owner.lock")).unwrap();
         fs::remove_dir(root.join("control")).unwrap();
         fs::remove_dir(root).unwrap();
+    }
+
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    #[test]
+    fn packed_payload_rejects_a_different_upstream_commit() {
+        let root = std::env::temp_dir().join(format!("hermess-payload-check-{}", Uuid::new_v4()));
+        fs::create_dir_all(root.join("bin")).unwrap();
+        fs::write(root.join("bin/hermes.exe"), b"test launcher").unwrap();
+        let lock: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../runtime/upstream.lock.json")).unwrap();
+        let mut manifest = serde_json::json!({
+            "schema": 1, "target": "win32-x64", "repo": "hermes-agent",
+            "ref": lock["commit"], "runtime": {"commands": {"hermes": "bin/hermes.exe"}}
+        });
+        fs::write(root.join("manifest.json"), manifest.to_string()).unwrap();
+        assert!(validate_payload(&root).is_ok());
+        manifest["ref"] = serde_json::json!("different-upstream-commit");
+        fs::write(root.join("manifest.json"), manifest.to_string()).unwrap();
+        assert!(validate_payload(&root).is_err());
+        fs::remove_file(root.join("manifest.json")).unwrap();
+        fs::remove_file(root.join("bin/hermes.exe")).unwrap();
+        fs::remove_dir(root.join("bin")).unwrap();
+        fs::remove_dir(root).unwrap();
+    }
+
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    #[test]
+    #[ignore = "requires a prepared 1.6 GB offline runtime archive under .build/runtime"]
+    fn packed_payload_installs_from_real_archive() {
+        let product = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let build = product.join(".build");
+        let selected = build.join("installed-runtime-smoke");
+        let launcher = install_packed_payload(&build, &selected).unwrap();
+        assert!(launcher.is_file());
+        assert_eq!(install_packed_payload(&build, &selected).unwrap(), launcher);
     }
 }

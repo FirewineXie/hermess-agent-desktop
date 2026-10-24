@@ -136,6 +136,8 @@ fn main() {
             probe_local_tools,
             backend::dev_backend_defaults,
             backend::start_dev_backend,
+            backend::packed_backend_defaults,
+            backend::start_packed_backend,
             backend::ping_backend,
             backend::reconnect_backend,
             backend::stop_backend,

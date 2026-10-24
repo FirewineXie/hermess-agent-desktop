@@ -9,8 +9,10 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["process", "time", "macros", "sync"] }
+tokio = { version = "1", features = ["process", "time", "macros", "sync", "rt"] }
 tokio-tungstenite = "0.29"
 futures-util = "0.3"
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+tar = "0.4"
