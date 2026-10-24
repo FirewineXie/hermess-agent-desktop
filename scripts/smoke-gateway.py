@@ -23,18 +23,25 @@ def main() -> None:
     if not hermes.is_file():
         parser.error(f"Hermes launcher is missing beside the selected Python: {hermes}")
     product = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
     if not python.is_relative_to(product / ".build"):
         parser.error("I0 smoke only accepts a prepared environment under the product .build directory")
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
 
     from websockets.asyncio.client import connect
     from websockets.exceptions import ConnectionClosed, InvalidStatus
+    from tests.fakes.fake_llm_provider import FakeLLMServer, Text, ToolCall, write_hermes_home
 
     scratch = product / ".build"
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="gateway-smoke-", dir=scratch, ignore_cleanup_errors=True) as temp:
         root = Path(temp)
         home = root / "hermes-home"
+        fixture = root / "notes.txt"
+        fixture.write_text("Hermess file tool canary\n", encoding="utf-8")
+        model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4)])
+        model.start()
+        write_hermes_home(home, model.base_url)
         ready = root / "ready.json"
         env = os.environ.copy()
         env.update({
@@ -84,9 +91,93 @@ def main() -> None:
                         raise RuntimeError("backend accepted a wrong WebSocket credential")
 
                     asyncio.run(reject_wrong_token())
+
+                    async def chat(prompt: str, expected: str, request_method: str = "") -> tuple[str, int, int, int]:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                                if frame.get("params", {}).get("type") == "gateway.ready":
+                                    break
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":1,"method":"client.capabilities",
+                                                      "params":{"server_requests":True,"desktop_local":True}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                                if frame.get("id") == 1:
+                                    if frame.get("error") or "clarify" not in frame.get("result", {}).get("server_requests", []):
+                                        raise RuntimeError(f"server requests unavailable: {frame}")
+                                    break
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":2,"method":"session.create",
+                                                      "params":{"source":"desktop","cwd":str(root),"cwd_explicit":True,
+                                                                "idempotency_key":secrets.token_hex(16)}}))
+                            session_id = ""
+                            while not session_id:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                                if frame.get("id") == 2:
+                                    if frame.get("error"):
+                                        raise RuntimeError(f"session.create failed: {frame['error']}")
+                                    session_id = frame["result"]["session_id"]
+                            await ws.send(json.dumps({"jsonrpc":"2.0","id":3,"method":"prompt.submit",
+                                                      "params":{"session_id":session_id,"text":prompt}}))
+                            deltas = 0
+                            tool_completions = 0
+                            requests = 0
+                            admitted = False
+                            deadline = time.monotonic() + 60
+                            while time.monotonic() < deadline:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+                                if frame.get("method") == "clarify":
+                                    questions = frame.get("params", {}).get("questions", [])
+                                    if request_method != "clarify" or len(questions) != 1:
+                                        raise RuntimeError(f"unexpected clarify request: {frame}")
+                                    await ws.send(json.dumps({"jsonrpc":"2.0","id":frame["id"],
+                                                              "result":{"answers":{questions[0]["qid"]:"blue"},
+                                                                        "outcome":"submitted"}}))
+                                    requests += 1
+                                if frame.get("method") == "approval":
+                                    if request_method != "approval":
+                                        raise RuntimeError(f"unexpected approval request: {frame}")
+                                    await ws.send(json.dumps({"jsonrpc":"2.0","id":frame["id"],
+                                                              "result":{"choice":"deny"}}))
+                                    requests += 1
+                                if frame.get("id") == 3:
+                                    if frame.get("error"):
+                                        raise RuntimeError(f"prompt.submit failed: {frame['error']}")
+                                    admitted = frame.get("result", {}).get("status") in {"streaming", "queued"}
+                                params = frame.get("params", {})
+                                if params.get("session_id") != session_id:
+                                    continue
+                                if params.get("type") == "message.delta" and isinstance(params.get("payload", {}).get("text"), str):
+                                    deltas += 1
+                                if params.get("type") == "tool.complete":
+                                    tool_completions += 1
+                                if params.get("type") == "message.complete":
+                                    result = params.get("payload", {})
+                                    if not admitted or result.get("text") != expected:
+                                        raise RuntimeError(f"unexpected completed turn: {result}")
+                                    return session_id, deltas, tool_completions, requests
+                            raise RuntimeError("message.complete was not received")
+
+                    session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply"))
+                    if deltas < 1 or not model.main_requests():
+                        raise RuntimeError("chat did not stream through the local fake model")
+                    model.push(ToolCall("read_file", {"path": str(fixture)}), Text("Tool read complete"))
+                    tool_session, _, tools, _ = asyncio.run(chat("Read notes.txt", "Tool read complete"))
+                    if tools < 1 or len(model.main_requests()) < 3:
+                        raise RuntimeError("tool call did not execute through the original Hermes backend")
+                    model.push(ToolCall("clarify", {"questions":[{"question":"Which colour?", "choices":["red", "blue"]}]}), Text("Clarify complete"))
+                    clarify_session, _, _, requests = asyncio.run(chat("Choose a colour", "Clarify complete", request_method="clarify"))
+                    if requests != 1:
+                        raise RuntimeError("clarify server request did not round-trip")
+                    victim = root / "approval-deny-canary"
+                    victim.mkdir()
+                    model.push(ToolCall("terminal", {"command": f"rm -rf {victim}"}), Text("Approval denied"))
+                    approval_session, _, _, approval_requests = asyncio.run(chat("Ask to remove canary", "Approval denied", request_method="approval"))
+                    if approval_requests != 1 or not victim.is_dir():
+                        raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, authenticated ping and wrong-token rejection passed on port {port}")
+                    print(f"owned serve, auth rejection, streamed chat, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()
@@ -97,6 +188,7 @@ def main() -> None:
                         child.wait(timeout=8)
                     time.sleep(1)
         finally:
+            model.stop()
             if previous_home is None:
                 os.environ.pop("HERMES_HOME", None)
             else:

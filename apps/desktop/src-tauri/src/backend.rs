@@ -1,7 +1,9 @@
+use crate::gateway::GatewayClient;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
+use serde_json::{json, Value};
 use std::{fs, path::PathBuf, process::Stdio, time::Duration};
-use tauri::State;
+use tauri::{AppHandle, State};
 use tokio::{
     process::Child,
     sync::Mutex,
@@ -17,6 +19,7 @@ struct OwnedBackend {
     child: Child,
     port: u16,
     token: String,
+    gateway: GatewayClient,
 }
 
 #[derive(Serialize)]
@@ -96,6 +99,7 @@ async fn ping(port: u16, token: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn start_dev_backend(
+    app: AppHandle,
     state: State<'_, BackendState>,
     python_path: String,
     storage_path: String,
@@ -205,7 +209,13 @@ pub async fn start_dev_backend(
     {
         return Err("后端在鉴权后退出".into());
     }
-    *owned = Some(OwnedBackend { child, port, token });
+    let gateway = GatewayClient::connect(port, &token, app).await?;
+    *owned = Some(OwnedBackend {
+        child,
+        port,
+        token,
+        gateway,
+    });
     Ok(BackendInfo { port, pid })
 }
 
@@ -228,6 +238,7 @@ pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), String> 
 #[tauri::command]
 pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> {
     if let Some(mut backend) = state.0.lock().await.take() {
+        backend.gateway.close();
         backend
             .child
             .start_kill()
@@ -238,4 +249,85 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), String> 
             .map_err(|_| "后端退出状态读取失败".to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<String, String> {
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let result = backend
+        .gateway
+        .request(
+            "session.create",
+            json!({
+                "source": "desktop", "idempotency_key": Uuid::new_v4().to_string()
+            }),
+        )
+        .await?;
+    result
+        .get("session_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| "网关未返回会话 ID".to_string())
+}
+
+#[tauri::command]
+pub async fn submit_chat_prompt(
+    state: State<'_, BackendState>,
+    session_id: String,
+    text: String,
+) -> Result<Value, String> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err("会话 ID 无效".into());
+    }
+    if text.trim().is_empty() || text.len() > 64 * 1024 {
+        return Err("消息为空或过长".into());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend
+        .gateway
+        .request(
+            "prompt.submit",
+            json!({"session_id":session_id,"text":text}),
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn answer_gateway_request(
+    state: State<'_, BackendState>,
+    request_id: String,
+    method: String,
+    choice: Option<String>,
+    answers: Option<serde_json::Map<String, Value>>,
+) -> Result<(), String> {
+    if !request_id.starts_with("srq-") || request_id.len() > 128 {
+        return Err("请求 ID 无效".into());
+    }
+    let result = match method.as_str() {
+        "approval" => {
+            let selected = choice.ok_or("缺少审批选择")?;
+            if !matches!(selected.as_str(), "once" | "session" | "always" | "deny") {
+                return Err("审批选择无效".into());
+            }
+            json!({"choice":selected})
+        }
+        "clarify" => {
+            let answers = answers.ok_or("缺少澄清回答")?;
+            if answers.len() > 5
+                || answers.iter().any(|(key, value)| {
+                    key.len() > 128
+                        || !value.is_null() && value.as_str().is_none_or(|text| text.len() > 4096)
+                })
+            {
+                return Err("澄清回答无效".into());
+            }
+            json!({"answers":answers,"outcome":"submitted"})
+        }
+        _ => return Err("不支持的请求类型".into()),
+    };
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    backend.gateway.answer(request_id, result).await
 }

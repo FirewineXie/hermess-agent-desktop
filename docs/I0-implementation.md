@@ -12,12 +12,14 @@
 6. 从该环境启动 `hermes serve --host 127.0.0.1 --port 0 --isolated`，设置独立 `HERMES_HOME`、私有锁目录和每次启动凭据；约 14 秒取得就绪文件 `{"port":7416}`，随后仅停止本次启动的 PID。此测试证明当前 Windows 后端可以启动并报告端口，尚未证明 HTTP/WS 鉴权或真实任务。
 7. `scripts/smoke-gateway.py` 从产品 `.build` 下的隔离环境启动后端，使用原版接受的会话凭据完成 `/api/ws` 的 JSON-RPC `ping`；实际返回 `pong: true`，错误凭据被拒绝。进程由测试脚本持有并在退出时停止。
 8. 新装完整的 Rust 1.94.0 MSVC 工具链后，`cargo check` 和 `tauri build --no-bundle` 均通过，生成 Windows 原生可执行文件。`pnpm tauri:dev` 编译并启动调试进程；当前 Windows 会话处于锁屏，无法通过窗口操作验证按钮。开发态 Tauri 命令已实现启动、ping、停止，其端到端 UI 操作仍未验收。
+9. 扩展 `scripts/smoke-gateway.py` 使用上游假模型：`session.create`、`prompt.submit`、7 个 `message.delta` 与 `message.complete` 实测通过；随后真实执行 `read_file` 并收到 `tool.complete`。测试没有真实模型费用或外部模型请求。对应产品代码已加入持续 WS 代理和最小聊天界面，产品 UI 仍待操作验收。能力边界见 `docs/capability-matrix.md`。
+10. 持续 WS 连接在 `gateway.ready` 后声明 `client.capabilities`，Rust 与开发态 UI 接入 `approval`、`clarify` 和 `request.cancel`。脚本用假模型完成澄清回答往返，并对 `rm -rf` 临时测试目录选择 `deny`；目录保持存在。`cargo check`、`pnpm build` 均通过。窗口交互仍未验收。
 
 ## 尚未完成
 
 - 上游组装器生成 payload、来源摘要及脱网启动；PM 隔离依赖构建已验证一次。
 - 正式产品的数据根选择、私有发现、完整身份鉴权、跨重启进程归属与退出验收。当前仅有 I0 进程内开发态实现。
-- HTTP/JSON-RPC/WS 适配、消息与工具闭环、审批、停止、恢复。
+- 会话停止、断线恢复和历史；审批、澄清已有脚本级闭环，但桌面窗口交互尚未验收。
 - 本机解释器复用后的隔离依赖环境、托管兜底下载、离线导入。
 - 自选安装/存储位置及升级事务。
 - macOS/Linux 的构建、签名、安装与实机验收。

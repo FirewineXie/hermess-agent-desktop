@@ -5,6 +5,7 @@ use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
 
 mod backend;
+mod gateway;
 
 #[derive(Serialize)]
 struct RuntimeProbe {
@@ -136,7 +137,10 @@ fn main() {
             backend::dev_backend_defaults,
             backend::start_dev_backend,
             backend::ping_backend,
-            backend::stop_backend
+            backend::stop_backend,
+            backend::create_chat_session,
+            backend::submit_chat_prompt,
+            backend::answer_gateway_request
         ])
         .run(tauri::generate_context!())
         .expect("无法启动桌面程序");
