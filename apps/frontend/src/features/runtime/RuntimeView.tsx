@@ -50,14 +50,14 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
   return <section className="settings-panel flat-settings-panel">
       <h2>{t("ui.runtime.connection")}</h2>
       <p>{import.meta.env.DEV ? t("ui.only.use.the.isolation.environment.prepared.in.this.product.s.build") : t("ui.using.the.bundled.pinned.runtime")}{t("ui.the.storage.directory.creates.product.specific.subdirectories")}</p>
-      <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked} onChange={event => setStoragePath(event.target.value)} /></label>
-      {!storageLocked && <button disabled={busy} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
+      <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
+      {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
       {storageLocked && <small>{t("ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i")}</small>}
       <details className="runtime-dev-settings">
         <summary>{t("ui.developer.diagnostics")}</summary>
         {import.meta.env.DEV && <>
           <small>{t("ui.the.development.version.uses.the.isolation.environment.in.this.product.s.bu")}</small>
-          <label>{t("ui.python.absolute.path")}<input value={displayPath(pythonPath)} onChange={event => setPythonPath(event.target.value)} /></label>
+          <label>{t("ui.python.absolute.path")}<input value={displayPath(pythonPath)} disabled={!!backend} onChange={event => setPythonPath(event.target.value)} /></label>
         </>}
         <div className="diagnostic-log-toolbar">
           <label>{t('ui.log.source')}

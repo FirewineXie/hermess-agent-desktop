@@ -61,8 +61,10 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       onStarted()
     } catch (cause) {
       void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
-      setBackend(null)
-      onReset()
+      if (!backend) {
+        setBackend(null)
+        onReset()
+      }
       setBackendStatus(t("ui.startup.failed.arg", describeError(cause, language)))
     } finally { setBusy(false) }
   }

@@ -247,7 +247,10 @@ async fn launch_backend(
     hermes: PathBuf,
     selected: PathBuf,
     disable_lazy_installs: bool,
-) -> Result<BackendInfo, String> {
+) -> Result<BackendInfo, DesktopFailure> {
+    if !selected.is_absolute() {
+        return Err(DesktopFailure::invalid_input());
+    }
     let mut owned = state.0.lock().await;
     if let Some(existing) = owned.as_mut() {
         if existing
@@ -256,6 +259,9 @@ async fn launch_backend(
             .map_err(|_| "进程状态读取失败".to_string())?
             .is_none()
         {
+            if !running_storage_matches(&existing.storage, &selected) {
+                return Err(DesktopFailure::conflict());
+            }
             if existing.gateway.is_closed() {
                 existing.gateway =
                     GatewayClient::connect(existing.port, &existing.token, app).await?;
@@ -267,9 +273,6 @@ async fn launch_backend(
             });
         }
         *owned = None;
-    }
-    if !selected.is_absolute() {
-        return Err("存储位置必须是绝对路径".into());
     }
     fs::create_dir_all(&selected).map_err(|_| "无法创建存储位置".to_string())?;
     let storage = selected
@@ -372,6 +375,10 @@ async fn launch_backend(
     })
 }
 
+fn running_storage_matches(storage: &Path, selected: &Path) -> bool {
+    selected.canonicalize().ok().as_deref() == storage.parent()
+}
+
 #[tauri::command]
 pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
     let mut owned = state.0.lock().await;
@@ -453,8 +460,8 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
 mod tests {
     use super::models::{load_model_lists, parse_saved_model_config, save_model_lists};
     use super::{
-        acquire_storage_lock, install_packed_payload, read_storage_location, validate_payload,
-        write_storage_location,
+        acquire_storage_lock, install_packed_payload, read_storage_location,
+        running_storage_matches, validate_payload, write_storage_location,
     };
     use super::{BackendInfo, BundledTool, BundledToolsInventory, DevDefaults, PackedDefaults};
     use crate::diagnostics::{
@@ -541,6 +548,20 @@ mod tests {
         )]);
         save_model_lists(storage.clone(), lists.clone()).unwrap();
         assert_eq!(load_model_lists(storage).unwrap(), Some(lists));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn running_backend_rejects_a_different_storage_location() {
+        let root = std::env::temp_dir().join(format!("hermess-storage-match-{}", Uuid::new_v4()));
+        let first = root.join("first");
+        let second = root.join("second");
+        fs::create_dir_all(first.join("HermessAgentDesktop")).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        let running = first.join("HermessAgentDesktop").canonicalize().unwrap();
+        assert!(running_storage_matches(&running, &first));
+        assert!(!running_storage_matches(&running, &second));
+        assert!(!running_storage_matches(&running, &root.join("missing")));
         fs::remove_dir_all(root).unwrap();
     }
 
