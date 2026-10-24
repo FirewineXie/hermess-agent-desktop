@@ -2,6 +2,12 @@ export type Unsubscribe = () => void
 
 export type { BackendInfo } from './generated/backend-info'
 import type { BackendInfo } from './generated/backend-info'
+export type { GatewayEvent } from './generated/gateway-event'
+import type { GatewayEvent } from './generated/gateway-event'
+export type { GatewayRequest } from './generated/gateway-request'
+import type { GatewayRequest } from './generated/gateway-request'
+export type { ReplayResult } from './generated/replay-result'
+import type { ReplayResult } from './generated/replay-result'
 export type DevDefaults = { python_path: string; storage_path: string }
 export type PackedDefaults = { storage_path: string; initialized: boolean }
 export type RuntimeProbe = {
@@ -27,26 +33,6 @@ export type ModelPickResult = { model?: string; provider?: string; status?: stri
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
 export type SavedModelConfig = { provider: string; model: string; base_url: string }
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
-export type GatewayRequest = {
-  id: string
-  method: 'approval' | 'clarify'
-  params: {
-    session_id?: string
-    command?: string
-    description?: string
-    tool_name?: string
-    choices?: ApprovalChoice[]
-    questions?: Array<{ qid: string; question: string; choices?: string[] }>
-  }
-}
-export type GatewayEvent = { kind: string; session_id?: string; seq?: number; payload: Record<string, unknown> }
-export type ReplayResult = {
-  events: Array<{ type: string; session_id?: string; seq?: number; payload?: Record<string, unknown> }>
-  latest_seq: number
-  epoch: string
-  truncated: boolean
-  open_requests?: GatewayRequest[]
-}
 export type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 export type CommandCatalog = {
@@ -71,8 +57,6 @@ export type ResumeResult = {
   open_requests?: GatewayRequest[]
 }
 export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
-
-export type DesktopEvent<T> = { payload: T }
 
 export type NativeDropEvent =
   | { type: 'drop'; paths: string[] }
@@ -141,7 +125,13 @@ export interface DesktopApi {
     detachImage(sessionId: string, path: string): Promise<void>
     answerRequest(args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
   }
-  listen<T>(event: string, handler: (event: DesktopEvent<T>) => void): Promise<Unsubscribe>
-  open(options: NativeOpenOptions): Promise<string | string[] | null>
-  onDragDropEvent(handler: (event: DesktopEvent<NativeDropEvent>) => void): Promise<Unsubscribe>
+  events: {
+    onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>
+    onGatewayRequest(handler: (request: GatewayRequest) => void): Promise<Unsubscribe>
+    onDisconnect(handler: () => void): Promise<Unsubscribe>
+  }
+  nativeFiles: {
+    choose(options: NativeOpenOptions): Promise<string | string[] | null>
+    onDrop(handler: (event: NativeDropEvent) => void): Promise<Unsubscribe>
+  }
 }

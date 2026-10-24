@@ -22,4 +22,4 @@ pnpm --dir apps/frontend build
 pnpm --dir apps/frontend dev
 ```
 
-预览地址为 `http://127.0.0.1:1421`。生产桌面 UI 由 `apps/desktop` 装配和构建。前端源码不得直接导入 `@tauri-apps/*`，也不得使用原生命令字符串；通过 `DesktopApi` 的具名能力调用宿主。
+预览地址为 `http://127.0.0.1:1421`。生产桌面 UI 由 `apps/desktop` 装配和构建。前端源码不得直接导入 `@tauri-apps/*`，也不得使用原生命令或事件字符串；通过 `DesktopApi` 的具名能力调用宿主。

@@ -9,7 +9,7 @@ type Options = {
 }
 
 export function useRuntimeController({ t, onStarted, onReset }: Options) {
-  const { open, runtime, diagnostics } = useDesktop()
+  const { nativeFiles, runtime, diagnostics } = useDesktop()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
@@ -66,7 +66,7 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
 
   async function chooseStoragePath() {
     try {
-      const selected = await open({ directory: true, multiple: false, title: t("ui.choose.primary.storage.location") })
+      const selected = await nativeFiles.choose({ directory: true, multiple: false, title: t("ui.choose.primary.storage.location") })
       if (typeof selected === 'string') setStoragePath(selected)
     } catch (cause) { setBackendStatus(t("ui.failed.to.select.directory.arg", String(cause))) }
   }

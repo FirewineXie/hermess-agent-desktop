@@ -1,0 +1,15 @@
+{
+  "events": [{ "type": "message.delta", "session_id": "session-fixture", "seq": 2, "payload": { "text": "hello" } }],
+  "latest_seq": 2,
+  "count": 1,
+  "epoch": "fixture-epoch",
+  "truncated": false,
+  "open_requests": [{
+    "id": "srq-2",
+    "method": "clarify",
+    "params": {
+      "session_id": "session-fixture",
+      "questions": [{ "qid": "q1", "question": "Which option?", "choices": null }]
+    }
+  }]
+}

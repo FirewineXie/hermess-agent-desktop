@@ -58,7 +58,13 @@ export const previewDesktopApi: DesktopApi = {
     async detachImage() { throw previewOnly() },
     async answerRequest() { throw previewOnly() },
   },
-  async listen() { return () => {} },
-  async open() { return null },
-  async onDragDropEvent() { return () => {} },
+  events: {
+    async onGatewayEvent() { return () => {} },
+    async onGatewayRequest() { return () => {} },
+    async onDisconnect() { return () => {} },
+  },
+  nativeFiles: {
+    async choose() { return null },
+    async onDrop() { return () => {} },
+  },
 }

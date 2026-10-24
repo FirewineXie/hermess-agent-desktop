@@ -46,13 +46,10 @@ HermessAgentDesktop/
 │     ├─ src-tauri/
 │     │  ├─ src/
 │     │  │  ├─ main.rs                    # 初始化、状态注入、命令注册
-│     │  │  ├─ runtime/                   # 运行时唯一所有者与生命周期
-│     │  │  ├─ gateway/                   # WS/RPC、事件和上游请求协议
-│     │  │  ├─ chat/                      # 会话、消息、附件与恢复
-│     │  │  ├─ models/                    # 模型和端点
-│     │  │  ├─ config/                    # Agent 配置
-│     │  │  ├─ tools/                     # 工具目录与能力清单
-│     │  │  └─ diagnostics/               # 环境探测与日志
+│     │  │  ├─ runtime/                   # 唯一所有者、生命周期及 chat/models/config/tools 命令
+│     │  │  ├─ gateway.rs                 # WS/RPC、事件和上游请求协议
+│     │  │  ├─ diagnostics.rs             # 环境探测与日志
+│     │  │  └─ storage.rs                 # 产品存储位置
 │     │  ├─ capabilities/
 │     │  └─ tauri.conf.json
 │     ├─ package.json
@@ -104,7 +101,7 @@ HermessAgentDesktop/
 
 `gateway` 封装当前固定上游的 WebSocket/RPC 协议：请求关联、超时、鉴权、事件转发、审批与澄清请求。上游协议变化在这里适配；聊天和模型模块调用有语义的方法，不重复拼接底层帧。事件序号与进程纪元仍按当前固定上游的实际协议处理。
 
-`chat` 处理会话创建、消息、命令、附件和恢复；`models` 处理模型查询、切换、默认模型和自定义端点；`config` 处理配置读取、字段保存和完整 YAML；`tools` 处理 Agent 工具目录、随包工具清单和本机探测；`diagnostics` 处理产品日志与运行诊断。一个功能若只含简单 Gateway 转发，可以直接在所属模块提供 Tauri 命令，不强制经过额外的 `commands → services → adapters` 三层。
+`runtime/chat.rs` 处理会话创建、消息、命令、附件和恢复；`runtime/models.rs` 处理模型查询、切换、默认模型和自定义端点；`runtime/config.rs` 处理配置读取、字段保存和完整 YAML；`runtime/tools.rs` 处理 Agent 工具目录和随包工具清单；`diagnostics.rs` 处理本机探测与产品日志。它们使用同一个运行时所有者，不各自持有进程或凭据。一个功能若只含简单 Gateway 转发，可以直接在所属模块提供 Tauri 命令，不强制经过额外的 `commands → services → adapters` 三层。
 
 `main.rs` 只做 Tauri 初始化、插件、状态注入和命令注册。Rust 公共模块暴露最小接口；校验放在信任边界，跨模块用有意义的数据类型，避免大量 `serde_json::Value` 穿透全部层级。协议边缘仍可使用 JSON 值，以兼容当前上游动态响应。
 
@@ -114,9 +111,9 @@ HermessAgentDesktop/
 
 ## 5. 接口契约与扩展方式
 
-`packages/contracts` 按能力分组定义接口：`runtime`、`chat`、`models`、`agentConfig`、`tools`、`nativeFiles`、`diagnostics` 和 `events`。前端依赖这些接口；桌面适配层实现它们。接口只承诺产品需要的能力，不镜像全部 Tauri 命令或 Hermes RPC 方法。
+`packages/contracts` 按能力分组定义接口：`runtime`、`chat`、`models`、`agentSettings`、`tools`、`nativeFiles`、`diagnostics` 和 `events`。前端依赖这些接口；桌面适配层实现它们。接口只承诺产品需要的能力，不镜像全部 Tauri 命令或 Hermes RPC 方法。
 
-跨语言 DTO 与事件载荷在 `schema/` 中有唯一规范源，包含字段、可选性、版本和错误类别。TypeScript 类型由规范生成；Rust 使用 `serde` 类型，并用同一批契约样本验证序列化兼容。具体生成工具在实现阶段确定，前提是生成结果可复现且 CI 能检测漂移；不允许以两边各自手写一份类型作为长期方案。
+跨语言 DTO 与事件载荷逐步进入 `schema/`，由其定义字段、可选性、版本和错误类别。已迁入的启动结果、实时事件、审批/澄清请求及补发结果由 Schema 生成 TypeScript 类型；Rust 的启动结果、实时事件和请求用共用样本验证序列化，补发结果仍是 Gateway 原样透传。其余 DTO 和稳定错误类别尚未完成迁移。生成结果必须可复现且由 CI 检测漂移；不以两边各自手写一份类型作为长期方案。
 
 事件至少区分数据事件、需要回应的请求和连接状态；定义会话标识、序号、纪元、取消与去重语义。命令失败使用稳定的错误类别和可本地化的错误码；原始上游错误、令牌和配置正文不直接成为用户界面错误。现有命令名、事件名及 payload 在迁移期保持兼容，直到新契约及回归检查同时生效。
 

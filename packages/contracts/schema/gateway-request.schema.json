@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/gateway-request.schema.json",
+  "title": "GatewayRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "method", "params"],
+  "properties": {
+    "id": { "type": "string" },
+    "method": { "enum": ["approval", "clarify"] },
+    "params": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "session_id": { "type": "string" },
+        "command": { "type": "string" },
+        "description": { "type": "string" },
+        "tool_name": { "type": ["string", "null"] },
+        "choices": { "type": "array", "items": { "enum": ["once", "session", "always", "deny"] } },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["qid", "question"],
+            "properties": {
+              "qid": { "type": "string" },
+              "question": { "type": "string" },
+          "choices": { "type": ["array", "null"], "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

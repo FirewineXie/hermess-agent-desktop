@@ -1,0 +1,6 @@
+{
+  "kind": "message.delta",
+  "session_id": "session-fixture",
+  "seq": 2,
+  "payload": { "text": "hello" }
+}

@@ -2,10 +2,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
-import type { DesktopApi, DesktopEvent, NativeDropEvent, Unsubscribe } from '@hermess/contracts'
+import type { DesktopApi, GatewayEvent, GatewayRequest, NativeDropEvent, Unsubscribe } from '@hermess/contracts'
 
-function listenEvent<T>(event: string, handler: (event: DesktopEvent<T>) => void): Promise<Unsubscribe> {
-  return listen<T>(event, message => handler({ payload: message.payload }))
+function listenPayload<T>(event: string, handler: (payload: T) => void): Promise<Unsubscribe> {
+  return listen<T>(event, message => handler(message.payload))
 }
 
 export const tauriDesktopApi: DesktopApi = {
@@ -64,13 +64,19 @@ export const tauriDesktopApi: DesktopApi = {
     detachImage: (sessionId, path) => invoke('detach_chat_image', { sessionId, path }),
     answerRequest: args => invoke('answer_gateway_request', args),
   },
-  listen: listenEvent,
-  open: options => open(options),
-  onDragDropEvent: handler => getCurrentWebview().onDragDropEvent(event => {
-    const payload = event.payload
-    const mapped: NativeDropEvent = payload.type === 'drop'
-      ? { type: 'drop', paths: payload.paths }
-      : { type: payload.type }
-    handler({ payload: mapped })
-  }),
+  events: {
+    onGatewayEvent: handler => listenPayload<GatewayEvent>('hermes-event', handler),
+    onGatewayRequest: handler => listenPayload<GatewayRequest>('hermes-request', handler),
+    onDisconnect: handler => listenPayload('hermes-disconnected', handler),
+  },
+  nativeFiles: {
+    choose: options => open(options),
+    onDrop: handler => getCurrentWebview().onDragDropEvent(event => {
+      const payload = event.payload
+      const mapped: NativeDropEvent = payload.type === 'drop'
+        ? { type: 'drop', paths: payload.paths }
+        : { type: payload.type }
+      handler(mapped)
+    }),
+  },
 }

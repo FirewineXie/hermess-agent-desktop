@@ -20,7 +20,7 @@ type Options = {
 }
 
 export function useChatController({ backend, activeModel, language, storagePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
-  const { listen, open, onDragDropEvent, chat, runtime, diagnostics } = useDesktop()
+  const { events, nativeFiles, chat, runtime, diagnostics } = useDesktop()
   const [sessionId, setSessionId] = React.useState('')
   const [reasoningEffort, setReasoningEffort] = React.useState('')
   const [reasoningBusy, setReasoningBusy] = React.useState(false)
@@ -94,19 +94,18 @@ export function useChatController({ backend, activeModel, language, storagePath,
     let unlistenEvent: (() => void) | undefined
     let unlistenDisconnect: (() => void) | undefined
     let unlistenRequest: (() => void) | undefined
-    void listen<GatewayEvent>('hermes-event', event => {
-      const data = event.payload
+    void events.onGatewayEvent(data => {
       if (!active) return
       if (recoveringRef.current) bufferedEventsRef.current.push(data)
       else eventProcessorRef.current(data)
     }).then(fn => { if (active) unlistenEvent = fn; else fn() })
-    void listen<GatewayRequest>('hermes-request', event => {
-      if (active && recoveringRef.current) bufferedRequestsRef.current.push(event.payload)
-      else if (active && event.payload.params.session_id === sessionRef.current) {
-        setServerRequests(current => current.some(request => request.id === event.payload.id) ? current : [...current, event.payload])
+    void events.onGatewayRequest(request => {
+      if (active && recoveringRef.current) bufferedRequestsRef.current.push(request)
+      else if (active && request.params.session_id === sessionRef.current) {
+        setServerRequests(current => current.some(item => item.id === request.id) ? current : [...current, request])
       }
     }).then(fn => { if (active) unlistenRequest = fn; else fn() })
-    void listen('hermes-disconnected', () => {
+    void events.onDisconnect(() => {
       if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setTurnBusy(false); setServerRequests([]) }
     }).then(fn => { if (active) unlistenDisconnect = fn; else fn() })
     return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
@@ -233,7 +232,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
 
   async function chooseAttachments() {
     try {
-      const selected = await open({ directory: false, multiple: true, title: t("ui.select.attachments.no.more.than.20.mib.each") })
+      const selected = await nativeFiles.choose({ directory: false, multiple: true, title: t("ui.select.attachments.no.more.than.20.mib.each") })
       if (selected) await addAttachments(Array.isArray(selected) ? selected : [selected])
     } catch (cause) { setChatStatus(t("ui.failed.to.select.attachment.arg", String(cause))) }
   }
@@ -242,13 +241,13 @@ export function useChatController({ backend, activeModel, language, storagePath,
     if (!backend) return
     let active = true
     let unlisten: (() => void) | undefined
-    void onDragDropEvent(event => {
+    void nativeFiles.onDrop(event => {
       if (!active) return
-      if (event.payload.type === 'enter') setDraggingFiles(true)
-      if (event.payload.type === 'leave') setDraggingFiles(false)
-      if (event.payload.type === 'drop') {
+      if (event.type === 'enter') setDraggingFiles(true)
+      if (event.type === 'leave') setDraggingFiles(false)
+      if (event.type === 'drop') {
         setDraggingFiles(false)
-        void addAttachments(event.payload.paths)
+        void addAttachments(event.paths)
       }
     }).then(fn => { if (active) unlisten = fn; else fn() })
       .catch(cause => setChatStatus(t("ui.file.drag.in.monitoring.failed.arg", String(cause))))

@@ -28,7 +28,9 @@ enum GatewayCommand {
 #[derive(Clone, Serialize)]
 struct GatewayEvent {
     kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     seq: Option<u64>,
     payload: Value,
 }
@@ -169,7 +171,7 @@ impl GatewayClient {
                             if let Some(id) = params.pointer("/payload/id").and_then(Value::as_str) { server_requests.remove(id); }
                         }
                         if !matches!(kind, "message.start" | "message.delta" | "message.complete" | "error" | "tool.start" | "tool.progress" | "tool.complete" | "status.update" | "request.cancel") { continue; }
-                        let payload = params.get("payload").cloned().unwrap_or(Value::Null);
+                        let payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
                             kind: kind.into(),
@@ -235,5 +237,61 @@ impl GatewayClient {
 
     pub fn is_closed(&self) -> bool {
         self.task.is_finished()
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::{GatewayEvent, GatewayServerRequest};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn event_serialization_matches_shared_fixtures() {
+        let with_session = GatewayEvent {
+            kind: "message.delta".into(),
+            session_id: Some("session-fixture".into()),
+            seq: Some(2),
+            payload: json!({"text":"hello"}),
+        };
+        let without_session = GatewayEvent {
+            kind: "status.update".into(),
+            session_id: None,
+            seq: None,
+            payload: json!({}),
+        };
+        let expected: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/gateway-event.json"
+        ))
+        .unwrap();
+        let expected_no_session: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/gateway-event-no-session.json"
+        ))
+        .unwrap();
+        assert_eq!(serde_json::to_value(with_session).unwrap(), expected);
+        assert_eq!(
+            serde_json::to_value(without_session).unwrap(),
+            expected_no_session
+        );
+    }
+
+    #[test]
+    fn request_serialization_matches_shared_fixture() {
+        let request = GatewayServerRequest {
+            id: "srq-1".into(),
+            method: "approval".into(),
+            params: json!({
+                "session_id":"session-fixture",
+                "request_id":"request-fixture",
+                "description":"Run a tool",
+                "command":"tool command",
+                "choices":["once","deny"],
+                "tool_name":null
+            }),
+        };
+        let expected: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/gateway-request-approval.json"
+        ))
+        .unwrap();
+        assert_eq!(serde_json::to_value(request).unwrap(), expected);
     }
 }

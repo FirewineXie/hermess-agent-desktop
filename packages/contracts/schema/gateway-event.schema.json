@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/gateway-event.schema.json",
+  "title": "GatewayEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "type": "string" },
+    "session_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}
