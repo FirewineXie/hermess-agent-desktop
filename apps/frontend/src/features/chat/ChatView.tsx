@@ -48,7 +48,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const {
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy,
-    serverRequest, clarifyAnswers, setClarifyAnswers, attachments, attachmentBusy,
+    serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
     reasoningBusy, chatUsage,
@@ -64,7 +64,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
       <div className="chat-content">
       <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />
       {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
-        onAnswerChange={(qid, value) => setClarifyAnswers(previous => ({ ...previous, [qid]: value }))}
+        onAnswerChange={setClarifyAnswer}
         onSubmit={choice => void answerRequest(choice)} />}
       </div>
       <div className="composer-wrap"><div className="composer">

@@ -45,7 +45,15 @@ export function useChatController({ backend, activeModel, language, storagePath,
   const turnStartedAtRef = React.useRef<number | null>(null)
   const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
-  const [clarifyAnswers, setClarifyAnswers] = React.useState<Record<string, string>>({})
+  const [clarifyDraft, setClarifyDraft] = React.useState<{ requestId: string; answers: Record<string, string> }>({ requestId: '', answers: {} })
+  const clarifyAnswers = clarifyDraft.requestId === serverRequest?.id ? clarifyDraft.answers : {}
+  function setClarifyAnswer(qid: string, value: string) {
+    if (!serverRequest || serverRequest.method !== 'clarify') return
+    setClarifyDraft(current => ({
+      requestId: serverRequest.id,
+      answers: { ...(current.requestId === serverRequest.id ? current.answers : {}), [qid]: value },
+    }))
+  }
   const [sessions, setSessions] = React.useState<SessionRow[]>([])
   const [attachments, setAttachments] = React.useState<PendingAttachment[]>([])
   const [attachmentBusy, setAttachmentBusy] = React.useState(false)
@@ -102,6 +110,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setChatStatus(t("ui.arg.arg", t(data.kind === 'tool.start' ? 'ui.calling' : 'ui.tool.finished'), String(data.payload?.name || t("ui.tool"))))
     } else if (data.kind === 'request.cancel') {
       setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
+      setClarifyDraft(current => current.requestId === data.payload?.id ? { requestId: '', answers: {} } : current)
     }
   }
 
@@ -131,7 +140,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       }
     }).then(fn => { if (active) unlistenRequest = fn; else fn() })
     void events.onDisconnect(() => {
-      if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setConversation(finishReasoning); setTurnBusy(false); setServerRequests([]) }
+      if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setConversation(finishReasoning); setTurnBusy(false); setServerRequests([]); setClarifyDraft({ requestId: '', answers: {} }) }
     }).then(fn => { if (active) unlistenDisconnect = fn; else fn() })
     return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
   }, [])
@@ -147,7 +156,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         answers: request.method === 'clarify' ? clarifyAnswers : undefined,
       })
       setServerRequests(current => current.filter(item => item.id !== request.id))
-      setClarifyAnswers({})
+      setClarifyDraft(current => current.requestId === request.id ? { requestId: '', answers: {} } : current)
       setChatStatus(request.method === 'approval' ? t("ui.approval.decision.submitted") : t("ui.clarification.answer.submitted"))
     } catch (cause) { setChatStatus(t("ui.failed.to.process.request.arg", describeError(cause, language))) }
   }
@@ -427,6 +436,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     assistantRef.current = ''
     setAssistant('')
     setServerRequests([])
+    setClarifyDraft({ requestId: '', answers: {} })
     setDraft('')
     setCommandCatalog(null)
     commandCatalogPromiseRef.current = null
@@ -445,7 +455,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       epochRef.current[result.session_id] = backend?.replay_epoch || ''
       lastSeqRef.current[result.session_id] = result.last_sequence || 0
       setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
-      setClarifyAnswers({})
+      setClarifyDraft({ requestId: '', answers: {} })
       setSessionId(result.session_id)
       setActiveModel(result.info?.provider && result.info.model ? { provider: result.info.provider, model: result.info.model } : null)
       setModelPickerOpen(false)
@@ -502,7 +512,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         storedSessionRef.current = snapshot.stored_session_id || snapshot.session_key || storedSessionRef.current
         setSessionId(id)
         setActiveModel(snapshot.info?.provider && snapshot.info.model ? { provider: snapshot.info.provider, model: snapshot.info.model } : null)
-        setClarifyAnswers({})
+        setClarifyDraft({ requestId: '', answers: {} })
         setServerRequests((replay?.open_requests || snapshot.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
         setTurnBusy(Boolean(snapshot.running))
         if (useSnapshot) {
@@ -552,6 +562,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     assistantRef.current = ''
     setAssistant('')
     setServerRequests([])
+    setClarifyDraft({ requestId: '', answers: {} })
     setSessions([])
     setAttachments([])
     setCommandCatalog(null)
@@ -564,7 +575,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     sessionId, reasoningEffort, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
-    turnBusy, serverRequest, clarifyAnswers, setClarifyAnswers, sessions, attachments,
+    turnBusy, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, attachments,
     attachmentBusy, draggingFiles, trigger, choices, answerRequest, ensureChatSession,
     changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,

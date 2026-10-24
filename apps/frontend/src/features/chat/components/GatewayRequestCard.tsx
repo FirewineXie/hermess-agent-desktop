@@ -8,11 +8,12 @@ type Props = {
   onSubmit: (choice?: ApprovalChoice) => void
 }
 
-function selectedChoices(value: string): string[] {
+function selectedChoices(value: string, choices: string[]): string[] {
   try {
     const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : []
-  } catch { return [] }
+    if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) return parsed
+  } catch { /* Older answers may be plain strings. */ }
+  return choices.includes(value) ? [value] : []
 }
 
 export default function GatewayRequestCard({ request, answers, t, onAnswerChange, onSubmit }: Props) {
@@ -29,7 +30,7 @@ export default function GatewayRequestCard({ request, answers, t, onAnswerChange
     {request.params.questions.map(question => {
       const answer = answers[question.qid] ?? request.params.answers?.[question.qid] ?? ''
       if (question.multi_select && question.choices?.length) {
-        const selected = selectedChoices(answer)
+        const selected = selectedChoices(answer, question.choices)
         return <fieldset key={question.qid}><legend>{question.question}</legend>
           {question.choices.map(option => <label key={option}>
             <input type="checkbox" checked={selected.includes(option)} onChange={event => onAnswerChange(question.qid, JSON.stringify(event.target.checked ? [...selected, option] : selected.filter(item => item !== option)))} />
