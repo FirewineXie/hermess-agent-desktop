@@ -309,7 +309,7 @@ pub async fn answer_gateway_request(
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
     backend
         .gateway
-        .answer(request_id, result)
+        .answer(request_id, method, result)
         .await
         .map_err(Into::into)
 }

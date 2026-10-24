@@ -23,9 +23,10 @@ fn prune_abandoned_rpc(pending: &mut PendingRpc) {
 }
 
 #[cfg(test)]
-mod pending_tests {
-    use super::{prune_abandoned_rpc, PendingRpc};
-    use serde_json::Value;
+mod state_tests {
+    use super::{prune_abandoned_rpc, validate_server_answer, PendingRpc};
+    use serde_json::{json, Value};
+    use std::collections::HashMap;
     use tokio::sync::oneshot;
 
     #[test]
@@ -42,15 +43,72 @@ mod pending_tests {
         assert_eq!(pending.len(), 1);
         assert!(pending.contains_key(&64));
     }
+
+    #[test]
+    fn answer_must_match_the_open_request_method_and_choices() {
+        let requests = HashMap::from([(
+            "srq-1".to_string(),
+            ("approval".to_string(), json!({"choices":["once","deny"]})),
+        )]);
+        assert!(
+            validate_server_answer(&requests, "srq-1", "approval", &json!({"choice":"once"}))
+                .is_ok()
+        );
+        assert!(
+            validate_server_answer(&requests, "srq-1", "clarify", &json!({"answers":{}})).is_err()
+        );
+        assert!(validate_server_answer(
+            &requests,
+            "srq-1",
+            "approval",
+            &json!({"choice":"always"})
+        )
+        .is_err());
+        assert!(validate_server_answer(
+            &requests,
+            "srq-missing",
+            "approval",
+            &json!({"choice":"deny"})
+        )
+        .is_err());
+    }
 }
 
 enum GatewayCommand {
     Rpc(RpcRequest),
     Answer {
         id: String,
+        method: String,
         result: Value,
         reply: oneshot::Sender<Result<(), String>>,
     },
+}
+
+fn validate_server_answer(
+    requests: &HashMap<String, (String, Value)>,
+    id: &str,
+    method: &str,
+    result: &Value,
+) -> Result<(), String> {
+    let Some((expected_method, params)) = requests.get(id) else {
+        return Err("审批请求已失效".into());
+    };
+    if expected_method != method {
+        return Err("请求类型与原请求不一致".into());
+    }
+    if method == "approval" {
+        let selected = result.get("choice").and_then(Value::as_str);
+        let allowed = params
+            .get("choices")
+            .and_then(Value::as_array)
+            .map_or(selected == Some("deny"), |choices| {
+                choices.iter().any(|choice| choice.as_str() == selected)
+            });
+        if !allowed {
+            return Err("此审批选项未被后端提供".into());
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Serialize)]
@@ -112,19 +170,10 @@ impl GatewayClient {
                                 }
                                 pending.insert(id, (request.method, request.reply));
                             }
-                            GatewayCommand::Answer { id, result, reply } => {
-                                let Some((method, params)) = server_requests.get(&id) else {
-                                    let _ = reply.send(Err("审批请求已失效".into()));
+                            GatewayCommand::Answer { id, method, result, reply } => {
+                                if let Err(error) = validate_server_answer(&server_requests, &id, &method, &result) {
+                                    let _ = reply.send(Err(error));
                                     continue;
-                                };
-                                if method == "approval" {
-                                    let selected = result.get("choice").and_then(Value::as_str);
-                                    let allowed = params.get("choices").and_then(Value::as_array)
-                                        .map_or(selected == Some("deny"), |choices| choices.iter().any(|choice| choice.as_str() == selected));
-                                    if !allowed {
-                                        let _ = reply.send(Err("此审批选项未被后端提供".into()));
-                                        continue;
-                                    }
                                 }
                                 server_requests.remove(&id);
                                 let frame = json!({"jsonrpc":"2.0","id":id,"result":result});
@@ -262,10 +311,15 @@ impl GatewayClient {
             .map_err(|_| "网关连接已断开".to_string())?
     }
 
-    pub async fn answer(&self, id: String, result: Value) -> Result<(), String> {
+    pub async fn answer(&self, id: String, method: String, result: Value) -> Result<(), String> {
         let (reply, received) = oneshot::channel();
         self.sender
-            .send(GatewayCommand::Answer { id, result, reply })
+            .send(GatewayCommand::Answer {
+                id,
+                method,
+                result,
+                reply,
+            })
             .await
             .map_err(|_| "网关连接已断开".to_string())?;
         received.await.map_err(|_| "网关连接已断开".to_string())?
