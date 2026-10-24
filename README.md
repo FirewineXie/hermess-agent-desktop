@@ -13,7 +13,7 @@
 - 中文聊天界面、模型配置、流式回复、会话历史、停止、审批与澄清。
 - 本地文件和图片附件，含原生选择、拖入及短文本预览。
 - 独立数据根、固定上游提交、运行时归档校验与首次解包。
-- 按版本 tag 触发 GitHub Actions 构建 Windows x64、macOS Intel/Apple Silicon、Linux x64 安装包；全部成功后汇总到预发布 Release。
+- 按正式或预发布版本 tag 触发 GitHub Actions 构建 Windows x64、macOS Intel/Apple Silicon、Linux x64 安装包；全部成功后汇总到对应类型的 Release。
 
 这些能力在各平台的验证层次不同。当前的 Windows 假模型和静默安装结果不代表原生窗口或真实模型已通过验收，详见 [能力矩阵](docs/capability-matrix.md)。
 
@@ -49,7 +49,7 @@ pnpm build
 
 ## 版本构建
 
-仅推送 `v主版本.次版本.修订号` 形式的 tag 才触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。构建任务需要四个平台全部成功，才会建立带五个安装包和 SHA-256 文件的预发布 Release。具体步骤见 [发行流程](docs/release-process.md)。
+推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.5.0-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。四个平台全部构建成功后，才会建立带五个安装包和 SHA-256 文件的对应类型 Release。具体步骤见 [发行流程](docs/release-process.md)。
 
 ## 许可
 

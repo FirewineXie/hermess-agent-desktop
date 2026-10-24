@@ -9,12 +9,19 @@ import re
 import tomllib
 
 
+TAG_PATTERN = re.compile(
+    r"v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
     args = parser.parse_args()
-    if not re.fullmatch(r"v\d+\.\d+\.\d+", args.tag):
-        parser.error("release tag must be vMAJOR.MINOR.PATCH")
+    if not TAG_PATTERN.fullmatch(args.tag):
+        parser.error("release tag must be vMAJOR.MINOR.PATCH or a SemVer prerelease tag")
     root = Path(__file__).resolve().parents[1]
     version = args.tag[1:]
     values = {

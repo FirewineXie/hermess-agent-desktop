@@ -21,6 +21,8 @@
 
 本轮功能仍处于开发与验证阶段。2026-10-25 在 Windows x64 本地运行：`pnpm verify:upstream`、`pnpm build`、`pnpm check:architecture`、`pnpm check:contracts`、`pnpm check:generated-contracts`、`cargo fmt --all -- --check`、`cargo check`、`cargo test` 均通过；Rust 单元测试 11 项通过，另 1 项按设计跳过。手动运行该离线安装测试时，现有 `.build/runtime/receipt.json` 对应旧上游提交 `5894e750`，与当前锁定提交 `bf0203a7` 不一致，测试在校验阶段失败；需要重新生成与当前锁定版本一致的归档后才能验证安装。使用隔离 venv 和假模型执行 `scripts/smoke-gateway.py`，命令目录、`/help`、Skill 分发、聊天、附件、重连、中断、历史、文件工具、澄清与审批拒绝均通过；假模型服务在连接中断阶段输出过连接断开的异常信息，脚本最终成功退出。以上脚本测试、前端/Rust 构建结果不能替代 Windows、macOS、Linux 的原生窗口验收。本次还将正式 tag 的工作流调整为构建全部成功后创建正式 Release，并在重跑时清除已有 Release 的预发布状态；仅完成配置与文档核对，尚未推送 tag 或运行发布流水线。发布说明和 tag 只在实际完成发布检查后填写。
 
+2026-10-25 补充发布流程：正式 tag `vX.Y.Z` 对应正式 Release，SemVer 预发布 tag（如 `vX.Y.Z-rc.1`）对应预发布 Release；版本校验接受两类 tag，重跑会按 tag 类型更新已有 Release。此项仅验证配置、文档和本地版本校验，尚未运行 GitHub Actions 的四平台构建或实际创建 Release。
+
 ## 后续方向
 
 - 完成 `v0.5.0` 的原生窗口、真实模型和跨平台安装验收，并记录失败项与修复结果。

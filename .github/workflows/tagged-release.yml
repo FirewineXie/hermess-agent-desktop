@@ -99,16 +99,22 @@ jobs:
           path: release-assets
           merge-multiple: true
       - run: python scripts/write-release-checksums.py release-assets
-      - name: Create or update draft release with version notes
+      - name: Create or update release with version notes
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         shell: bash
         run: |
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --clobber
-            gh release edit "$TAG" --notes-file "releases/$TAG.md"
+            gh release edit "$TAG" --notes-file "releases/$TAG.md" --prerelease="$prerelease" --draft=false
           else
-            gh release create "$TAG" release-assets/* --verify-tag --prerelease \
-              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md"
+            gh release create "$TAG" release-assets/* --verify-tag \
+              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md" \
+              --prerelease="$prerelease"
           fi
