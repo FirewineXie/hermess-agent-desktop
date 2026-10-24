@@ -34,9 +34,31 @@ for (const rule of rules) {
   visit(resolve(root, rule.directory))
 }
 
+const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
+const adapter = readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8')
+const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')
+const registeredBlock = main.match(/generate_handler!\[([\s\S]*?)\]/)?.[1]
+if (!registeredBlock) failures.push('apps/desktop/src-tauri/src/main.rs: command registration not found')
+const registered = new Set([...((registeredBlock || '').matchAll(/[\w:]+::([a-z_]+)\s*,?/g))].map(match => match[1]))
+const invoked = new Set([...adapter.matchAll(/\binvoke(?:<[^>]+>)?\s*\(\s*['"]([^'"]+)/g)].map(match => match[1]))
+if (!registered.size || !invoked.size) failures.push('desktop command inventory is empty')
+for (const name of invoked) if (!registered.has(name)) failures.push(`adapter invokes unregistered command: ${name}`)
+for (const name of registered) if (!invoked.has(name)) failures.push(`registered command has no adapter capability: ${name}`)
+
+const emitted = new Set([...gateway.matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
+const listened = new Set([...adapter.matchAll(/listenPayload(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
+if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')
+for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)
+for (const name of emitted) if (!listened.has(name)) failures.push(`native event has no adapter listener: ${name}`)
+
+for (const feature of ['chat', 'config', 'models', 'tools']) {
+  const source = readFileSync(resolve(root, `apps/desktop/src-tauri/src/runtime/${feature}.rs`), 'utf8')
+  if (/\buse\s+super::\*\s*;/.test(source)) failures.push(`runtime/${feature}.rs: use explicit imports instead of super::*`)
+}
+
 if (failures.length) {
   console.error(`Architecture boundary violations:\n${failures.join('\n')}`)
   process.exitCode = 1
 } else {
-  console.log('Architecture dependency boundaries verified')
+  console.log(`Architecture boundaries verified: ${registered.size} native commands and ${emitted.size} native events match the desktop adapter`)
 }
