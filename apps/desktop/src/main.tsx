@@ -130,18 +130,32 @@ function App() {
 
   React.useEffect(() => {
     void inspect()
-    if (import.meta.env.DEV) {
-      void invoke<DevDefaults>('dev_backend_defaults').then(defaults => {
-        setPythonPath(defaults.python_path)
-        setStoragePath(defaults.storage_path)
-      }).catch(cause => setBackendStatus(String(cause)))
-    } else {
-      void invoke<PackedDefaults>('packed_backend_defaults').then(defaults => {
-        setStoragePath(defaults.storage_path)
-        setStorageLocked(defaults.initialized)
-      })
-        .catch(cause => setBackendStatus(String(cause)))
-    }
+    let active = true
+    setBusy(true)
+    setBackendStatus('读取启动配置中…')
+    void (async () => {
+      try {
+        if (import.meta.env.DEV) {
+          const defaults = await invoke<DevDefaults>('dev_backend_defaults')
+          if (!active) return
+          setPythonPath(defaults.python_path)
+          setStoragePath(defaults.storage_path)
+          await startBackend(defaults.storage_path, defaults.python_path)
+        } else {
+          const defaults = await invoke<PackedDefaults>('packed_backend_defaults')
+          if (!active) return
+          setStoragePath(defaults.storage_path)
+          setStorageLocked(defaults.initialized)
+          await startBackend(defaults.storage_path)
+        }
+      } catch (cause) {
+        if (active) {
+          setBackendStatus(`读取启动配置失败：${String(cause)}`)
+          setBusy(false)
+        }
+      }
+    })()
+    return () => { active = false }
   }, [])
 
   React.useEffect(() => {
@@ -446,13 +460,13 @@ function App() {
     }
   }
 
-  async function startBackend() {
+  async function startBackend(selectedStoragePath = storagePath, selectedPythonPath = pythonPath) {
     setBusy(true)
     setBackendStatus('启动并鉴权中…')
     try {
       const info = import.meta.env.DEV
-        ? await invoke<BackendInfo>('start_dev_backend', { pythonPath, storagePath })
-        : await invoke<BackendInfo>('start_packed_backend', { storagePath })
+        ? await invoke<BackendInfo>('start_dev_backend', { pythonPath: selectedPythonPath, storagePath: selectedStoragePath })
+        : await invoke<BackendInfo>('start_packed_backend', { storagePath: selectedStoragePath })
       setBackend(info)
       setBackendStatus('已就绪：WebSocket ping 通过')
       if (!import.meta.env.DEV) setStorageLocked(true)
@@ -509,7 +523,7 @@ function App() {
 
   return <main>
     <header><span className="eyebrow">I0 技术样机</span><h1>Hermess Agent Desktop</h1></header>
-    <p>当前为桌面候选版本；请先启动内置运行时，再配置模型。升级与跨平台安装仍在验收中。</p>
+    <p>当前为桌面候选版本；启动时会自动连接内置运行时，就绪后可配置模型。升级与跨平台安装仍在验收中。</p>
     <section>
       <div className="row"><h2>本机工具</h2><button onClick={() => void inspect()} disabled={loading}>{loading ? '检测中…' : '重新检测'}</button></div>
       {error && <p role="alert">检测失败：{error}</p>}
