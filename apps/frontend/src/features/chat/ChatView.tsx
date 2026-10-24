@@ -62,7 +62,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${conversation.length === 0 && !assistant ? 'chat-empty' : ''}`}>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={() => openView('runtime')}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       <div className="chat-content">
-      <MessageList messages={conversation} assistant={assistant} t={t} />
+      <MessageList messages={conversation} assistant={assistant} language={language} t={t} />
       {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={(qid, value) => setClarifyAnswers(previous => ({ ...previous, [qid]: value }))}
         onSubmit={choice => void answerRequest(choice)} />}

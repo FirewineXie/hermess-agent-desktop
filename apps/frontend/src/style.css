@@ -159,6 +159,16 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .chat-gate small { max-width: 70%; color: #87909b; line-height: 1.5; }
 .messages { padding: 22px 0; white-space: pre-wrap; }
 .messages p { margin: 0 0 12px; padding: 16px 18px; line-height: 1.65; border-radius: 14px; background: #f7f8fa; overflow-wrap: anywhere; }
+.tool-group { margin: 0 0 12px; border: 1px solid #e4e9ef; border-radius: 14px; background: #fafbfc; }
+.tool-group > summary, .tool-step > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+.tool-group > summary { padding: 12px 16px; font-weight: 600; }
+.tool-group summary small { color: #68717d; font-size: 12px; font-weight: 400; }
+.tool-steps { padding: 0 12px 12px; }
+.tool-step { margin-top: 6px; border: 1px solid #e8ebef; border-radius: 9px; background: #fff; }
+.tool-step > summary { padding: 9px 12px; }
+.tool-step-context, .tool-step-summary { padding: 0 12px 8px; color: #586474; font-size: 13px; overflow-wrap: anywhere; }
+.tool-step-error { padding: 0 12px 8px; color: #b42318; font-size: 13px; overflow-wrap: anywhere; }
+.tool-step pre { max-height: 280px; margin: 0 12px 12px; padding: 10px; overflow: auto; border-radius: 7px; background: #f4f6f8; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .composer-wrap { width: min(760px, 100%); flex: none; margin: 0 auto; padding: 12px 0 18px; }
 .composer { padding: 12px; border: 1px solid #e3e8ed; border-radius: 17px; background: #fff; box-shadow: 0 5px 25px rgba(29, 43, 60, .09); }
 .composer textarea { display: block; width: 100%; min-height: 84px; padding: 4px 5px; border: 0; outline: 0; resize: vertical; color: #20242d; background: transparent; }

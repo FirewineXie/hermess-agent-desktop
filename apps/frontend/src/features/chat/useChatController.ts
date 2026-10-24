@@ -3,6 +3,7 @@ import type { BackendInfo, GatewayEvent, ReplayResult, GatewayRequest, ApprovalC
 import { useDesktop } from '../../app/DesktopContext'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import type { ModelPick } from '../models/model'
+import { appendMessage, historyTimeline, updateTool, type TimelineItem } from './timeline'
 
 type Options = {
   backend: BackendInfo | null
@@ -34,7 +35,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
   const [draftCaret, setDraftCaret] = React.useState(0)
   const commandCatalogPromiseRef = React.useRef<Promise<CommandCatalog> | null>(null)
   const draftInputRef = React.useRef<HTMLTextAreaElement>(null)
-  const [conversation, setConversation] = React.useState<Array<{ role: string; text: string }>>([])
+  const [conversation, setConversation] = React.useState<TimelineItem[]>([])
   const [assistant, setAssistant] = React.useState('')
   const assistantRef = React.useRef('')
   const [chatStatus, setChatStatus] = React.useState('')
@@ -73,7 +74,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         }).catch(() => {})
       }
       const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
-      setConversation(rows => [...rows, { role: 'assistant', text: text || assistantRef.current }])
+      setConversation(rows => appendMessage(rows, 'assistant', text || assistantRef.current))
       assistantRef.current = ''
       setAssistant('')
       setTurnBusy(false)
@@ -83,6 +84,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setChatStatus(String(data.payload?.message || t("ui.backend.error")))
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
+      setConversation(rows => updateTool(rows, data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
       setChatStatus(t("ui.arg.arg", t(data.kind === 'tool.start' ? 'ui.calling' : 'ui.tool.finished'), String(data.payload?.name || t("ui.tool"))))
     } else if (data.kind === 'request.cancel') {
       setServerRequests(current => current.filter(request => request.id !== data.payload?.id))
@@ -352,7 +354,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
           setTurnBusy(false)
           return
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
-          setConversation(rows => [...rows, { role: 'user', text: typed }, { role: 'assistant', text: result.output || result.notice || t("ui.command.execution.completed") }])
+          setConversation(rows => appendMessage(appendMessage(rows, 'user', typed), 'assistant', result.output || result.notice || t("ui.command.execution.completed")))
           setDraft('')
           setChatStatus(t("ui.command.execution.completed"))
           setTurnBusy(false)
@@ -361,7 +363,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
       }
-      setConversation(rows => [...rows, { role: 'user', text: typed || text }])
+      setConversation(rows => appendMessage(rows, 'user', typed || text))
       setDraft('')
       const result = await chat.submitPrompt(id, text)
       setAttachments([])
@@ -417,7 +419,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setDraft('')
       setCommandCatalog(null)
       commandCatalogPromiseRef.current = null
-      setConversation(result.messages.filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, text: message.text || '' })))
+      setConversation(historyTimeline(result.messages))
       assistantRef.current = result.inflight?.assistant || ''
       setAssistant(assistantRef.current)
       setTurnBusy(Boolean(result.running))
@@ -469,7 +471,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         setServerRequests((replay?.open_requests || snapshot.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
         setTurnBusy(Boolean(snapshot.running))
         if (useSnapshot) {
-          setConversation(snapshot.messages.filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, text: message.text || '' })))
+          setConversation(historyTimeline(snapshot.messages))
           assistantRef.current = snapshot.inflight?.assistant || ''
           setAssistant(assistantRef.current)
           epochRef.current[id] = info.replay_epoch
