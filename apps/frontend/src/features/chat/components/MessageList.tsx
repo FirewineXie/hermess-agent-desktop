@@ -80,7 +80,7 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
 }
 
 function AssistantMessage({ text, language }: { text: string; language: Language }) {
-  return <div className="message message-assistant"><strong>Hermes：</strong><MarkdownMessage text={text} language={language} /></div>
+  return <div className="message message-assistant"><MarkdownMessage text={text} language={language} /></div>
 }
 
 function TurnActivity({ user, items, now, showTime, language }: { user: Extract<TimelineItem, { kind: 'message' }>; items: TimelineItem[]; now: number; showTime: boolean; language: Language }) {
