@@ -220,6 +220,52 @@ def main() -> None:
                             if interrupted.get("status") not in {"interrupted", "not_interrupted"}:
                                 raise RuntimeError(f"session.interrupt returned unexpected status: {interrupted}")
                     asyncio.run(verify_history())
+                    async def verify_attachments() -> None:
+                        from PIL import Image
+
+                        image = root / "pixel.png"
+                        Image.new("RGB", (2, 2), (20, 40, 60)).save(image)
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
+                            async def rpc(number: int, method: str, params: dict) -> dict:
+                                await ws.send(json.dumps({"jsonrpc": "2.0", "id": number, "method": method, "params": params}))
+                                while True:
+                                    frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
+                                    if frame.get("id") == number:
+                                        if frame.get("error"):
+                                            raise RuntimeError(f"{method} failed: {frame['error']}")
+                                        return frame["result"]
+
+                            created = await rpc(30, "session.create", {"source": "desktop", "cwd": str(root),
+                                                                         "cwd_explicit": True,
+                                                                         "idempotency_key": secrets.token_hex(16)})
+                            sid = created["session_id"]
+                            file_result = await rpc(31, "file.attach", {"session_id": sid, "path": str(fixture)})
+                            if not file_result.get("attached") or not file_result.get("ref_text", "").startswith("@file:"):
+                                raise RuntimeError(f"file attachment failed: {file_result}")
+                            staged = Path(file_result["path"])
+                            if staged.read_bytes() != fixture.read_bytes():
+                                raise RuntimeError("staged file differs from selected file")
+                            image_result = await rpc(32, "image.attach", {"session_id": sid, "path": str(image)})
+                            if not image_result.get("attached") or not image_result.get("path"):
+                                raise RuntimeError(f"image attachment failed: {image_result}")
+                            detached = await rpc(33, "image.detach", {"session_id": sid,
+                                                                       "path": image_result["path"]})
+                            if detached.get("detached") is not True:
+                                raise RuntimeError(f"image detach failed: {detached}")
+                            model.push(Text("Attachment canary reply"))
+                            submitted = await rpc(34, "prompt.submit", {"session_id": sid,
+                                                                          "text": "Read this file\n" + file_result["ref_text"]})
+                            if submitted.get("status") not in {"streaming", "queued"}:
+                                raise RuntimeError(f"attachment prompt was not admitted: {submitted}")
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
+                                params = frame.get("params", {})
+                                if params.get("session_id") == sid and params.get("type") == "message.complete":
+                                    if params.get("payload", {}).get("text") != "Attachment canary reply":
+                                        raise RuntimeError(f"attachment turn failed: {params}")
+                                    break
+                    asyncio.run(verify_attachments())
                     async def reconnect_live_turn() -> None:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         model.push(Text("Reconnect stream canary reached completion", chunk_chars=2, delay_per_chunk=0.12))
@@ -325,7 +371,7 @@ def main() -> None:
                         raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, auth rejection, streamed chat, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
+                    print(f"owned serve, auth rejection, streamed chat, file/image attachment, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()

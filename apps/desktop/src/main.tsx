@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
 import './style.css'
 
@@ -34,6 +35,7 @@ type SessionRow = { id: string; title?: string; preview?: string; message_count?
 type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string }
 type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
+type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 type ResumeResult = {
   session_id: string
   stored_session_id?: string
@@ -77,6 +79,9 @@ function App() {
   const [modelBusy, setModelBusy] = React.useState(false)
   const [modelStatus, setModelStatus] = React.useState('')
   const [modelConfirmation, setModelConfirmation] = React.useState('')
+  const [attachments, setAttachments] = React.useState<PendingAttachment[]>([])
+  const [attachmentBusy, setAttachmentBusy] = React.useState(false)
+  const [draggingFiles, setDraggingFiles] = React.useState(false)
   const lastSeqRef = React.useRef<Record<string, number>>({})
   const epochRef = React.useRef<Record<string, string>>({})
   const recoveringRef = React.useRef(false)
@@ -178,27 +183,96 @@ function App() {
     } catch (cause) { setChatStatus(`处理请求失败：${String(cause)}`) }
   }
 
+  async function ensureChatSession() {
+    if (sessionRef.current) return sessionRef.current
+    const created = await invoke<{ session_id: string; stored_session_id: string }>('create_chat_session')
+    const id = created.session_id
+    sessionRef.current = id
+    epochRef.current[id] = backend?.replay_epoch || ''
+    lastSeqRef.current[id] = 0
+    storedSessionRef.current = created.stored_session_id
+    setSessionId(id)
+    return id
+  }
+
+  async function addAttachments(paths: string[]) {
+    if (!backend || turnBusy || attachmentBusy) return
+    if (paths.length + attachments.length > 10) { setChatStatus('每轮最多暂存 10 个附件'); return }
+    setAttachmentBusy(true)
+    try {
+      const id = await ensureChatSession()
+      const existing = new Set(attachments.map(item => item.source_path))
+      for (const path of paths) {
+        if (existing.has(path)) continue
+        const attached = await invoke<PendingAttachment>('attach_chat_file', { sessionId: id, path })
+        setAttachments(current => [...current, attached])
+        existing.add(attached.source_path)
+      }
+      setChatStatus(`已暂存 ${paths.length} 个附件；发送消息时生效`)
+    } catch (cause) { setChatStatus(`暂存附件失败：${String(cause)}`) }
+    finally { setAttachmentBusy(false) }
+  }
+
+  async function chooseAttachments() {
+    try {
+      const selected = await open({ directory: false, multiple: true, title: '选择附件（单个不超过 20 MiB）' })
+      if (selected) await addAttachments(Array.isArray(selected) ? selected : [selected])
+    } catch (cause) { setChatStatus(`选择附件失败：${String(cause)}`) }
+  }
+
+  React.useEffect(() => {
+    if (!backend) return
+    let active = true
+    let unlisten: (() => void) | undefined
+    void getCurrentWebview().onDragDropEvent(event => {
+      if (!active) return
+      if (event.payload.type === 'enter') setDraggingFiles(true)
+      if (event.payload.type === 'leave') setDraggingFiles(false)
+      if (event.payload.type === 'drop') {
+        setDraggingFiles(false)
+        void addAttachments(event.payload.paths)
+      }
+    }).then(fn => { if (active) unlisten = fn; else fn() })
+      .catch(cause => setChatStatus(`文件拖入监听失败：${String(cause)}`))
+    return () => { active = false; unlisten?.() }
+  }, [backend, turnBusy, attachmentBusy])
+
+  async function removeAttachment(index: number) {
+    const attachment = attachments[index]
+    if (!attachment || attachmentBusy) return
+    setAttachmentBusy(true)
+    try {
+      if (attachment.kind === 'image' && attachment.path) {
+        await invoke('detach_chat_image', { sessionId: sessionRef.current, path: attachment.path })
+      }
+      setAttachments(current => current.filter((_, position) => position !== index))
+    } catch (cause) { setChatStatus(`移除附件失败：${String(cause)}`) }
+    finally { setAttachmentBusy(false) }
+  }
+
+  async function clearPendingImages() {
+    for (const attachment of attachments) {
+      if (attachment.kind === 'image' && attachment.path) {
+        await invoke('detach_chat_image', { sessionId: sessionRef.current, path: attachment.path })
+      }
+    }
+    setAttachments([])
+  }
+
   async function sendMessage() {
-    const text = draft.trim()
-    if (!text || turnBusy) return
+    const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
+    const text = [draft.trim(), ...refs].filter(Boolean).join('\n') || (attachments.length ? '请查看附件' : '')
+    if (!text || turnBusy || attachmentBusy) return
     assistantRef.current = ''
     setAssistant('')
     setTurnBusy(true)
     setChatStatus('提交中…')
     try {
-      let id = sessionRef.current
-      if (!id) {
-        const created = await invoke<{ session_id: string; stored_session_id: string }>('create_chat_session')
-        id = created.session_id
-        sessionRef.current = id
-        epochRef.current[id] = backend?.replay_epoch || ''
-        lastSeqRef.current[id] = 0
-        storedSessionRef.current = created.stored_session_id
-        setSessionId(id)
-      }
+      const id = await ensureChatSession()
       setConversation(rows => [...rows, { role: 'user', text }])
       setDraft('')
       const result = await invoke<{ status?: string }>('submit_chat_prompt', { sessionId: id, text })
+      setAttachments([])
       setChatStatus(previous => previous === '回复完成' ? previous : `已接收：${result.status || '等待事件'}`)
     } catch (cause) {
       setChatStatus(`提交失败：${String(cause)}。请先查看历史，避免重复提交。`)
@@ -260,8 +334,10 @@ function App() {
     finally { setModelBusy(false) }
   }
 
-  function newChat() {
-    if (turnBusy) return
+  async function newChat() {
+    if (turnBusy || attachmentBusy) return
+    try { await clearPendingImages() }
+    catch (cause) { setChatStatus(`新建会话前移除图片失败：${String(cause)}`); return }
     sessionRef.current = ''
     storedSessionRef.current = ''
     setSessionId('')
@@ -273,9 +349,10 @@ function App() {
   }
 
   async function resumeSession(id: string) {
-    if (turnBusy) return
+    if (turnBusy || attachmentBusy) return
     setChatStatus('恢复会话中…')
     try {
+      await clearPendingImages()
       const result = await invoke<ResumeResult>('resume_chat_session', { sessionId: id })
       sessionRef.current = result.session_id
       storedSessionRef.current = result.stored_session_id || result.session_key || id
@@ -314,7 +391,11 @@ function App() {
     try {
       const info = await invoke<BackendInfo>('reconnect_backend')
       setBackend(info)
-      setBackendStatus('已重新连接')
+      setBackendStatus(previousEpoch && info.replay_epoch !== previousEpoch
+        ? '已重新连接；待发送图片需重新添加' : '已重新连接')
+      if (previousEpoch && info.replay_epoch !== previousEpoch) {
+        setAttachments(current => current.filter(item => item.kind === 'file'))
+      }
       if (storedSessionRef.current) {
         const snapshot = await invoke<ResumeResult>('resume_chat_session', { sessionId: storedSessionRef.current })
         const id = snapshot.session_id
@@ -386,6 +467,7 @@ function App() {
       setAssistant('')
       setServerRequests([])
       setSessions([])
+      setAttachments([])
       setBackendStatus(`启动失败：${String(cause)}`)
     } finally { setBusy(false) }
   }
@@ -419,6 +501,7 @@ function App() {
       setAssistant('')
       setServerRequests([])
       setSessions([])
+      setAttachments([])
       setBackendStatus('已停止')
     } catch (cause) { setBackendStatus(`停止失败：${String(cause)}`) }
     finally { setBusy(false) }
@@ -466,11 +549,11 @@ function App() {
       {modelConfirmation && <div role="alert"><p>{modelConfirmation}</p><button disabled={modelBusy} onClick={() => void saveModel(true)}>确认使用该模型</button></div>}
       <p role="status">{modelStatus}</p>
     </section>}
-    {backend && <section>
+    {backend && <section className={draggingFiles ? 'drop-active' : ''}>
       <h2>最小聊天链路</h2>
-      <p>使用固定提交的会话和消息 RPC。修改默认模型后请新建会话；附件尚未接入。</p>
+      <p>使用固定提交的会话和消息 RPC。修改默认模型后请新建会话；文件会暂存到会话目录，图片会加入下一轮提问。</p>
       {sessionId && <small>会话：{sessionId}</small>}
-      <div className="actions"><button disabled={turnBusy} onClick={() => newChat()}>新建会话</button><button onClick={() => void loadSessions()}>读取历史会话</button><button disabled={!turnBusy || !sessionId} onClick={() => void interruptSession()}>停止当前任务</button></div>
+      <div className="actions"><button disabled={turnBusy || attachmentBusy} onClick={() => void newChat()}>新建会话</button><button onClick={() => void loadSessions()}>读取历史会话</button><button disabled={!turnBusy || !sessionId} onClick={() => void interruptSession()}>停止当前任务</button></div>
       {sessions.length > 0 && <ul className="session-list">{sessions.map(session => <li key={session.id}>
         <button disabled={turnBusy} onClick={() => void resumeSession(session.id)}>{session.title || session.preview || session.id}</button>
         <small>{session.message_count ?? 0} 条消息</small>
@@ -496,7 +579,14 @@ function App() {
         <button onClick={() => void answerRequest()}>提交回答</button>
       </div>}
       <textarea value={draft} onChange={event => setDraft(event.target.value)} placeholder="输入消息" rows={3} />
-      <div className="actions"><button disabled={turnBusy || !draft.trim()} onClick={() => void sendMessage()}>发送</button></div>
+      {attachments.length > 0 && <ul>{attachments.map((attachment, index) => <li key={`${attachment.path || attachment.ref_text}-${index}`}>
+        <span>{attachment.kind === 'image' ? '图片' : '文件'}：{attachment.name}（{attachment.bytes} 字节）</span>
+        <button disabled={attachmentBusy || turnBusy} onClick={() => void removeAttachment(index)}>移除</button>
+        <code title="来源路径">{attachment.source_path}</code>
+        {attachment.preview && <details><summary>文本预览</summary><pre>{attachment.preview}</pre></details>}
+      </li>)}</ul>}
+      <div className="actions"><button disabled={turnBusy || attachmentBusy} onClick={() => void chooseAttachments()}>选择附件…</button><button disabled={turnBusy || attachmentBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>发送</button></div>
+      <small>{draggingFiles ? '松开以暂存文件' : '也可将文件拖入窗口；单个附件不超过 20 MiB'}</small>
       <p role="status">{chatStatus}</p>
     </section>}
     <p className="note">检测结果仅是候选；Hermes 固定版本的依赖环境与真实启动仍需单独验收。</p>

@@ -651,6 +651,114 @@ pub async fn submit_chat_prompt(
 }
 
 #[tauri::command]
+pub async fn attach_chat_file(
+    state: State<'_, BackendState>,
+    session_id: String,
+    path: String,
+) -> Result<Value, String> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err("会话 ID 无效".into());
+    }
+    if path.len() > 4096 {
+        return Err("附件路径过长".into());
+    }
+    let source = PathBuf::from(path);
+    if !source.is_absolute() {
+        return Err("附件必须使用绝对路径".into());
+    }
+    let source = source
+        .canonicalize()
+        .map_err(|_| "无法读取附件路径".to_string())?;
+    let metadata = fs::metadata(&source).map_err(|_| "无法读取附件信息".to_string())?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 20 * 1024 * 1024 {
+        return Err("附件必须是非空文件且不超过 20 MiB".into());
+    }
+    let name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("附件");
+    let is_image = matches!(
+        source
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tiff" | "tif" | "svg" | "ico")
+    );
+    let is_text = matches!(
+        source
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("txt" | "md" | "json" | "yaml" | "yml" | "csv" | "tsv" | "py" | "js" | "ts" | "rs")
+    );
+    let preview = if is_text && metadata.len() <= 128 * 1024 {
+        fs::read_to_string(&source)
+            .ok()
+            .map(|content| content.chars().take(1000).collect::<String>())
+    } else {
+        None
+    };
+    let method = if is_image {
+        "image.attach"
+    } else {
+        "file.attach"
+    };
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let result = backend
+        .gateway
+        .request(
+            method,
+            json!({
+                "session_id": session_id, "path": source.to_string_lossy(), "name": name
+            }),
+        )
+        .await?;
+    if result.get("attached").and_then(Value::as_bool) != Some(true) {
+        return Err("后端未接受附件".into());
+    }
+    if is_image && result.get("path").and_then(Value::as_str).is_none()
+        || !is_image && result.get("ref_text").and_then(Value::as_str).is_none()
+    {
+        return Err("后端附件响应缺少必要标识".into());
+    }
+    Ok(
+        json!({"kind": if is_image { "image" } else { "file" }, "name": name,
+        "source_path": source.to_string_lossy(), "bytes": metadata.len(), "preview": preview,
+        "ref_text": result.get("ref_text"),
+        "path": result.get("path")}),
+    )
+}
+
+#[tauri::command]
+pub async fn detach_chat_image(
+    state: State<'_, BackendState>,
+    session_id: String,
+    path: String,
+) -> Result<(), String> {
+    if session_id.is_empty() || session_id.len() > 256 || path.len() > 4096 {
+        return Err("附件标识无效".into());
+    }
+    let owned = state.0.lock().await;
+    let backend = owned.as_ref().ok_or("后端尚未启动")?;
+    let result = backend
+        .gateway
+        .request(
+            "image.detach",
+            json!({
+                "session_id": session_id, "path": path
+            }),
+        )
+        .await?;
+    if result.get("detached").and_then(Value::as_bool) != Some(true) {
+        return Err("未找到待移除的图片".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn answer_gateway_request(
     state: State<'_, BackendState>,
     request_id: String,
@@ -770,7 +878,10 @@ pub async fn set_default_model(
         .await
         .map_err(|_| "本地模型配置请求失败".to_string())?;
     let status = response.status();
-    if response.content_length().is_some_and(|size| size > 64 * 1024) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > 64 * 1024)
+    {
         return Err("模型配置响应过大".into());
     }
     let mut bytes = Vec::new();

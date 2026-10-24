@@ -144,6 +144,8 @@ fn main() {
             backend::stop_backend,
             backend::create_chat_session,
             backend::submit_chat_prompt,
+            backend::attach_chat_file,
+            backend::detach_chat_image,
             backend::answer_gateway_request,
             backend::list_chat_sessions,
             backend::list_model_options,

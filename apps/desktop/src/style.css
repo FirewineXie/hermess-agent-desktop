@@ -29,3 +29,6 @@ textarea { width: 100%; margin-top: 16px; padding: 10px; border: 1px solid #c8d1
 .session-list li { grid-template-columns: 1fr auto; align-items: center; }
 .session-list button { text-align: left; overflow-wrap: anywhere; }
 .session-list small { grid-column: 2; }
+.drop-active { outline: 2px dashed #4d8cf7; outline-offset: -6px; }
+li details, li code { grid-column: 1 / -1; overflow-wrap: anywhere; }
+li details pre { white-space: pre-wrap; max-height: 180px; overflow: auto; }
