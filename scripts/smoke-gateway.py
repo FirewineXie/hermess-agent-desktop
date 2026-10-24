@@ -38,7 +38,7 @@ def main() -> None:
 
     scratch = product / ".build"
     scratch.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="gateway-smoke-", dir=scratch, ignore_cleanup_errors=True) as temp:
+    with tempfile.TemporaryDirectory(prefix="中文 空格 gateway-smoke-", dir=scratch, ignore_cleanup_errors=True) as temp:
         root = Path(temp)
         home = root / "hermes-home"
         fixture = root / "notes.txt"

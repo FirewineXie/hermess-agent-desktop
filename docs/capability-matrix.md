@@ -16,5 +16,6 @@
 | 历史 | `session.list` 返回持久化 ID，`session.resume` 返回运行时 ID | 开发态 UI 列表和消息渲染 | 脚本读取列表并用存储 ID 恢复消息；窗口未验收 |
 | 模型配置 | `config.get`、`config.set`、管理接口 | 尚未实现；脚本使用临时假模型配置 | 真实模型未验收 |
 | 完整 payload | 上游 `pm bundle`、manifest、内置工具/PM runtime/venv | `.build` 下暂存，源码校验脚本逐项对比锁定提交 | Windows x64 6,922 个发行源码条目匹配；禁用按需安装与不可达公共代理下通过假模型冒烟。包过大，物理断网和正式安装未验收 |
+| 核心候选 payload | 上游 PM 工具校验、基础 venv、PM runtime 与 assembler | 产品外置组装脚本只选 Python/uv 和基础依赖；1.54 GB | 与固定源码匹配；中文空格数据根、禁用按需安装及不可达公共代理下通过聊天、文件工具、审批、停止和重连；PM/runtime 依赖离线重建通过。原子修复与安装路径迁移未验收 |
 
 专用 `serve` 不发布 canonical gateway 的私有控制端点；因此此路线验证的是每次启动会话凭据，并未验证原生票据。正式产品需完成进程创建身份、端点身份、鉴权、并行官方 Hermes 共存与退出证明。若改用 `gateway ensure`，必须重新验收私有发现范围和生命周期，不能直接沿用本矩阵结论。
