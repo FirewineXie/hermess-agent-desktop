@@ -5,20 +5,20 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .48; cursor: not-allowed; }
 .app-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100vh; min-height: 560px; }
-.sidebar { display: flex; flex-direction: column; min-height: 0; padding: 22px 12px 14px; background: #f7f8fa; border-right: 1px solid #eaedf1; }
+.sidebar { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 22px 12px 14px; background: #f7f8fa; border-right: 1px solid #eaedf1; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 25px; font-size: 17px; font-weight: 750; }
 .brand small { display: block; color: #858c97; font-size: 11px; font-weight: 500; }
 .brand-mark, .hero-mark { display: grid; place-items: center; color: #fff; background: #e65b4d; font-weight: 800; }
 .brand-mark { width: 30px; height: 30px; border-radius: 9px; }
 .new-chat { width: 100%; padding: 11px 13px; text-align: left; color: #fff; background: #273f66; border: 0; border-radius: 10px; font-weight: 650; }
-.primary-nav { display: grid; gap: 4px; margin: 18px 0 24px; }
+.primary-nav { display: grid; flex: 0 1 auto; gap: 4px; min-height: 0; margin: 18px 0 24px; overflow-y: auto; }
 .primary-nav button, .sidebar-sessions button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 38px; padding: 8px 11px; border: 0; border-radius: 9px; color: #4a5260; background: transparent; text-align: left; }
 .primary-nav button:hover, .sidebar-sessions button:hover { background: #eceff3; }
 .primary-nav button.active, .sidebar-sessions button.active { color: #1b355d; background: #e7edf5; font-weight: 700; }
 .primary-nav button > span { flex: 1; }
-.sidebar-section-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 7px 7px; padding-top: 15px; border-top: 1px solid #e5e8ec; color: #7b838e; font-size: 12px; }
+.sidebar-section-heading { display: flex; flex: none; align-items: center; justify-content: space-between; margin: 0 7px 7px; padding-top: 15px; border-top: 1px solid #e5e8ec; color: #7b838e; font-size: 12px; }
 .sidebar-section-heading button { padding: 2px 7px; border: 0; background: transparent; color: #667387; font-size: 18px; }
-.sidebar-sessions { flex: 1; min-height: 0; overflow: auto; }
+.sidebar-sessions { flex: 1 0 144px; min-height: 0; overflow: auto; }
 .sidebar-sessions p { margin: 10px 11px; color: #949ba4; font-size: 12px; line-height: 1.5; }
 .sidebar-sessions button { font-size: 13px; }
 .sidebar-sessions button.pending { background: #e7edf5; }
@@ -118,8 +118,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .chat-workspace strong { color: #415269; overflow-wrap: anywhere; }
 .chat-panel .chat-workspace button { flex: none; padding: 5px 8px; color: #315c91; background: #eef4fc; font-size: 12px; }
 .personal-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
-.settings-panel .personal-tabs button, .settings-panel .project-file-list button { color: #415269; background: #eef1f5; }
-.settings-panel .personal-tabs button.selected, .settings-panel .project-file-list button.selected { color: #fff; background: #315c91; }
+.settings-panel .personal-tabs button { color: #415269; background: #eef1f5; }
+.settings-panel .personal-tabs button.selected { color: #fff; background: #315c91; }
 .personal-description { margin-bottom: 18px; }
 .personal-file-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; color: #68717d; font-size: 12px; }
 .personal-file-meta code { overflow-wrap: anywhere; }
@@ -130,9 +130,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .memory-entry label { margin: 0 0 8px; }
 .memory-entry button { margin-top: 8px; }
 .personal-actions { display: flex; gap: 12px; align-items: center; margin: 20px 0; color: #68717d; font-size: 12px; }
-.project-file-list { display: grid; gap: 7px; margin: 14px 0; }
-.project-file-list button { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; }
-.project-file-list small { color: inherit; }
 .config-mode-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0; }
 .agent-settings .config-mode-tabs button { color: #415269; background: #eef1f5; }
 .agent-settings .config-mode-tabs button.selected { color: #fff; background: #315c91; }
@@ -292,7 +289,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .messages .message-user { width: fit-content; max-width: 70%; margin-left: auto; padding: 11px 15px; border-radius: 14px; background: #f1f3f5; white-space: pre-wrap; }
 .messages .message-assistant { max-width: 800px; padding: 0 4px; }
 .reasoning-block { max-width: 800px; margin: 0 0 14px; border: 1px solid #e1e6ec; border-radius: 9px; color: #68717d; background: #f7f8fa; }
-.reasoning-block > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; font-size: 12px; }
+.reasoning-heading { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; font-size: 12px; font-weight: 600; }
 .reasoning-block > summary::-webkit-details-marker { display: none; }
 .reasoning-block > summary .tool-activity-chevron { margin-left: auto; }
 .reasoning-block[open] > summary .tool-activity-chevron { transform: rotate(180deg); }
@@ -324,23 +321,25 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .markdown-body hr { border: 0; border-top: 1px solid #e1e6ec; margin: 16px 0; }
 .turn-duration { min-height: 28px; margin: -8px 0 12px; padding: 4px 8px; border-bottom: 1px solid #eceff2; color: #68717d; font-size: 12px; }
 .turn-activity { margin: -8px 0 14px; }
-.turn-activity > summary.turn-duration { display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 0; cursor: pointer; list-style: none; }
+.turn-activity > summary.turn-duration { display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 0; cursor: pointer; list-style: none; font-weight: 600; }
 .turn-activity > summary::-webkit-details-marker { display: none; }
 .turn-activity > summary:hover { color: #263448; background: #f7f8fa; border-radius: 6px; }
 .turn-activity > summary:focus-visible { outline: 2px solid #315c91; outline-offset: 2px; }
-.turn-activity > summary .tool-activity-chevron { margin-left: 2px; }
+.turn-activity > summary .tool-activity-chevron { margin-left: auto; }
 .turn-activity[open] > summary .tool-activity-chevron { transform: rotate(180deg); }
 .turn-activity.has-failure > summary { color: #a43e35; }
-.turn-process { max-height: 320px; overflow-y: auto; padding: 6px 8px 0 20px; }
+.turn-process { max-height: 320px; overflow-y: auto; scrollbar-gutter: stable; padding: 6px 8px 6px 12px; border: 1px solid #e1e6ec; border-radius: 9px; background: #fafbfc; }
 .tool-activity { margin: 0 0 14px; color: #68717d; font-size: 13px; }
-.tool-activity > summary { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 8px; border-bottom: 1px solid #eceff2; cursor: pointer; list-style: none; }
+.tool-activity-heading { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 8px; border-bottom: 1px solid #eceff2; font-weight: 600; }
+.tool-activity > summary { cursor: pointer; list-style: none; }
 .tool-activity > summary::-webkit-details-marker { display: none; }
 .tool-activity > summary:hover { color: #263448; background: #f7f8fa; border-radius: 6px; }
 .tool-activity > summary:focus-visible { outline: 2px solid #315c91; outline-offset: 2px; }
+.tool-activity > summary .tool-activity-chevron { margin-left: auto; }
+.tool-activity[open] > summary .tool-activity-chevron { transform: rotate(180deg); }
 .tool-activity.has-failure > summary { color: #a43e35; }
 .tool-activity-icon { width: 16px; text-align: center; flex: none; }
 .tool-activity-chevron { color: #89919b; transition: transform .15s; }
-.tool-activity[open] .tool-activity-chevron { transform: rotate(180deg); }
 .tool-steps { max-height: 280px; margin-left: 20px; overflow-y: auto; }
 .tool-step { color: #68717d; font-size: 13px; }
 .tool-step > summary, .tool-step-heading { display: flex; align-items: center; gap: 6px; min-height: 27px; padding: 2px 4px; list-style: none; }

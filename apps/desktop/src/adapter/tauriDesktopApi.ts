@@ -126,9 +126,6 @@ export const tauriDesktopApi: DesktopApi = {
   personalFiles: {
     read: kind => invoke('read_personal_file', { kind }),
     save: args => invoke('save_personal_file', args),
-    listProject: sessionId => invoke('list_project_files', { sessionId }),
-    readProject: (sessionId, path) => invoke('read_project_file', { sessionId, path }),
-    saveProject: args => invoke('save_project_file', args),
   },
   models: {
     options: args => invoke('list_model_options', args),

@@ -1,8 +1,6 @@
 use super::{
-    decode, file_version, memory_text, parse_entries, project_files_from_manifest, read_bytes,
-    write_checked, ENTRY_DELIMITER,
+    decode, file_version, memory_text, parse_entries, read_bytes, write_checked, ENTRY_DELIMITER,
 };
-use serde_json::json;
 use std::{fs, path::Path};
 use uuid::Uuid;
 
@@ -22,34 +20,21 @@ fn memory_save_checks_unicode_capacity_and_duplicate_entries() {
 }
 
 #[test]
-fn project_manifest_excludes_hermes_home_and_preserves_load_status() {
-    let manifest = json!({"context_files": [
-        {"path":"C:/owned/hermes-home/SOUL.md","label":"SOUL.md","status":"loaded","loaded":true,"chars":12},
-        {"path":"C:/work/AGENTS.md","label":"AGENTS.md","status":"shadowed","loaded":false,"chars":24}
-    ]});
-    let files = project_files_from_manifest(&manifest, Path::new("C:/owned/hermes-home"));
-    assert_eq!(files.len(), 1);
-    assert_eq!(files[0].path, "C:/work/AGENTS.md");
-    assert_eq!(files[0].status, "shadowed");
-    assert!(!files[0].loaded);
-}
-
-#[test]
 fn file_save_rejects_external_change_without_overwriting_it() {
     let root = std::env::temp_dir().join(format!("hermess-personal-file-{}", Uuid::new_v4()));
     fs::create_dir_all(&root).unwrap();
     let path = root.join("SOUL.md");
     let lock = root.join("SOUL.md.lock");
-    write_checked(&path, &lock, true, "missing", "初始内容").unwrap();
+    write_checked(&path, &lock, "missing", "初始内容").unwrap();
     let old_version = file_version(read_bytes(&path).unwrap().as_deref());
     fs::write(&path, "外部修改").unwrap();
     assert!(matches!(
-        write_checked(&path, &lock, true, &old_version, "旧草稿"),
+        write_checked(&path, &lock, &old_version, "旧草稿"),
         Err(_)
     ));
     assert_eq!(fs::read_to_string(&path).unwrap(), "外部修改");
     let current = file_version(read_bytes(&path).unwrap().as_deref());
-    write_checked(&path, &lock, true, &current, "更新内容").unwrap();
+    write_checked(&path, &lock, &current, "更新内容").unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), "更新内容");
     fs::remove_dir_all(&root).unwrap();
 }

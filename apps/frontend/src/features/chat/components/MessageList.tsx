@@ -15,13 +15,13 @@ const toolNames: Record<string, [string, string]> = {
 
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
-function activityTitle(steps: ToolStep[], language: Language) {
+function activityTitle(steps: ToolStep[], language: Language, includeRunning = true) {
   const failures = steps.filter(step => step.state === 'failed').length
   const running = steps.some(step => step.state === 'running')
   const parts = language === 'zh-CN'
-    ? ['执行过程', `${steps.length} 项操作`]
-    : ['Activity', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
-  if (running) parts.push(label(language, '正在执行', 'Running'))
+    ? ['工具调用', `${steps.length} 项操作`]
+    : ['Tool calls', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
+  if (running && includeRunning) parts.push(label(language, '正在执行', 'Running'))
   if (failures) parts.push(language === 'zh-CN' ? `${failures} 项失败` : `${failures} failed`)
   return parts.join(' · ')
 }
@@ -74,7 +74,7 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
 
 function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
   return <details className={`tool-activity${steps.some(step => step.state === 'failed') ? ' has-failure' : ''}`}>
-    <summary><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <summary className="tool-activity-heading"><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
     <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
 }
@@ -89,26 +89,31 @@ function ReasoningBlock({ text, streaming, language }: { text: string; streaming
     if (streaming && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight
   }, [text, streaming])
   return <details className="reasoning-block" open={streaming}>
-    <summary><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
     <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} /></div>
   </details>
 }
 
-function TurnActivity({ user, items, now, showTime, language }: { user: Extract<TimelineItem, { kind: 'message' }>; items: TimelineItem[]; now: number; showTime: boolean; language: Language }) {
-  const steps = items.flatMap(item => item.kind === 'tools' ? item.steps : [])
+function TurnActivity({ user, steps, now, showTime, language }: { user: Extract<TimelineItem, { kind: 'message' }>; steps: ToolStep[]; now: number; showTime: boolean; language: Language }) {
+  const detailsRef = React.useRef<HTMLDetailsElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
+  const followStepsRef = React.useRef(true)
+  React.useLayoutEffect(() => {
+    if (user.turnState == null && detailsRef.current?.open && followStepsRef.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+  }, [steps, user.turnState])
   const failed = steps.filter(step => step.state === 'failed').length
   const time = showTime ? turnTimeText(user, now, language) : ''
-  const count = language === 'zh-CN' ? `${steps.length} 项操作` : `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`
-  const title = time ? `${time} · ${count}` : activityTitle(steps, language)
-  return <details className={`turn-activity${failed ? ' has-failure' : ''}`}>
+  const title = time ? `${activityTitle(steps, language, false)} · ${time}` : activityTitle(steps, language)
+  return <details ref={detailsRef} className={`turn-activity${failed ? ' has-failure' : ''}`} onToggle={event => {
+    if (event.currentTarget.open && user.turnState == null && followStepsRef.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+  }}>
     <summary className="turn-duration" title={user.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>
-      <span>{title}{time && failed ? (language === 'zh-CN' ? ` · ${failed} 项失败` : ` · ${failed} failed`) : ''}</span>
-      <span className="tool-activity-chevron" aria-hidden="true">⌄</span>
+      <span>{title}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span>
     </summary>
-    <div className="turn-process">{items.map((item, index) => item.kind === 'tools'
-      ? item.steps.map((step, stepIndex) => <ToolRow key={`${index}-${step.id}-${stepIndex}`} step={step} language={language} />)
-      : item.kind === 'message' && item.role === 'assistant' ? <AssistantMessage key={index} text={item.text} language={language} /> : null
-    )}</div>
+    <div ref={listRef} className="turn-process" onScroll={event => {
+      const list = event.currentTarget
+      followStepsRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 32
+    }}>{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
 }
 
@@ -151,20 +156,16 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       }
       const process = following.filter((item, position) => item.kind === 'tools' || position !== finalIndex)
       const steps = process.flatMap(item => item.kind === 'tools' ? item.steps : [])
-      const firstTools = process.findIndex(item => item.kind === 'tools')
-      const lastReasoning = process.reduce((last, item, position) => item.kind === 'reasoning' ? position : last, -1)
       const reasoning = process.filter((item): item is Extract<TimelineItem, { kind: 'reasoning' }> => item.kind === 'reasoning')
+      const intermediateMessages = process.filter((item): item is Extract<TimelineItem, { kind: 'message' }> => item.kind === 'message' && item.role === 'assistant')
       const hasTime = message.duration != null || index === activeUserIndex
       const finalMessage = finalIndex >= 0 ? following[finalIndex] : undefined
       blocks.push(<React.Fragment key={`turn-${index}`}>
         <p className="message message-user">{message.text}</p>
         {!steps.length && hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
-        {process.map((item, position) => item.kind === 'reasoning'
-          ? position === lastReasoning && <ReasoningBlock key={position} text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} language={language} />
-          : steps.length && position === firstTools
-            ? <TurnActivity key={position} user={message} items={process} now={now} showTime={hasTime} language={language} />
-            : !steps.length && item.kind === 'message' && item.role === 'assistant'
-              ? <AssistantMessage key={position} text={item.text} language={language} /> : null)}
+        {steps.length > 0 && <TurnActivity user={message} steps={steps} now={now} showTime={hasTime} language={language} />}
+        {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} language={language} />}
+        {intermediateMessages.map((item, position) => <AssistantMessage key={position} text={item.text} language={language} />)}
         {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} language={language} />}
       </React.Fragment>)
       index = end

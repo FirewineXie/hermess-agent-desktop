@@ -1,13 +1,13 @@
 use super::{config::config_request, BackendState};
 use crate::errors::DesktopFailure;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     fs::{self, File, OpenOptions},
     io::Write,
-    path::{Path, PathBuf},
+    path::Path,
 };
 use tauri::State;
 use uuid::Uuid;
@@ -51,23 +51,6 @@ pub struct PersonalFile {
     version: String,
     limit: Option<usize>,
     enabled: Option<bool>,
-}
-
-#[derive(Serialize)]
-pub struct ProjectFile {
-    path: String,
-    label: String,
-    status: String,
-    loaded: bool,
-    chars: usize,
-}
-
-#[derive(Serialize)]
-pub struct EditableFile {
-    path: String,
-    exists: bool,
-    content: String,
-    version: String,
 }
 
 fn file_version(raw: Option<&[u8]>) -> String {
@@ -160,7 +143,6 @@ fn lock_file(lock_path: &Path) -> Result<File, DesktopFailure> {
 fn write_checked(
     path: &Path,
     lock_path: &Path,
-    create_parent: bool,
     expected_version: &str,
     content: &str,
 ) -> Result<(), DesktopFailure> {
@@ -168,11 +150,7 @@ fn write_checked(
         return Err(DesktopFailure::invalid_input());
     }
     let parent = path.parent().ok_or_else(DesktopFailure::invalid_input)?;
-    if create_parent {
-        fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
-    } else if !parent.is_dir() {
-        return Err(DesktopFailure::operation_failed());
-    }
+    fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
     let _lock = lock_file(lock_path)?;
     let current = read_bytes(path)?;
     if file_version(current.as_deref()) != expected_version {
@@ -252,118 +230,10 @@ pub async fn save_personal_file(
     write_checked(
         &path,
         &path.with_extension("md.lock"),
-        true,
         &expected_version,
         &value,
     )?;
     read_personal_file(state, kind).await
-}
-
-async fn context_files(
-    state: &State<'_, BackendState>,
-    session_id: &str,
-) -> Result<Vec<ProjectFile>, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
-        return Err(DesktopFailure::invalid_input());
-    }
-    let result = state
-        .gateway()
-        .await?
-        .request(
-            "session.context_breakdown",
-            json!({"session_id": session_id}),
-        )
-        .await
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    let home = state.profile_home().await?;
-    Ok(project_files_from_manifest(&result, &home))
-}
-
-fn project_files_from_manifest(result: &Value, home: &Path) -> Vec<ProjectFile> {
-    let files = result
-        .get("context_files")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    files
-        .iter()
-        .filter_map(|item| {
-            let path = item.get("path")?.as_str()?;
-            if Path::new(path).starts_with(&home) {
-                return None;
-            }
-            Some(ProjectFile {
-                path: path.to_owned(),
-                label: item.get("label")?.as_str()?.to_owned(),
-                status: item.get("status")?.as_str()?.to_owned(),
-                loaded: item.get("loaded")?.as_bool()?,
-                chars: usize::try_from(item.get("chars")?.as_u64()?).ok()?,
-            })
-        })
-        .take(128)
-        .collect()
-}
-
-#[tauri::command]
-pub async fn list_project_files(
-    state: State<'_, BackendState>,
-    session_id: String,
-) -> Result<Vec<ProjectFile>, DesktopFailure> {
-    context_files(&state, &session_id).await
-}
-
-async fn allowed_project_path(
-    state: &State<'_, BackendState>,
-    session_id: &str,
-    path: &str,
-) -> Result<PathBuf, DesktopFailure> {
-    let files = context_files(state, session_id).await?;
-    if files.iter().any(|file| file.path == path) {
-        Ok(PathBuf::from(path))
-    } else {
-        Err(DesktopFailure::invalid_input())
-    }
-}
-
-#[tauri::command]
-pub async fn read_project_file(
-    state: State<'_, BackendState>,
-    session_id: String,
-    path: String,
-) -> Result<EditableFile, DesktopFailure> {
-    let path = allowed_project_path(&state, &session_id, &path).await?;
-    let raw = read_bytes(&path)?;
-    Ok(EditableFile {
-        path: path.to_string_lossy().into_owned(),
-        exists: raw.is_some(),
-        content: decode(raw.as_deref())?,
-        version: file_version(raw.as_deref()),
-    })
-}
-
-#[tauri::command]
-pub async fn save_project_file(
-    state: State<'_, BackendState>,
-    session_id: String,
-    path: String,
-    content: String,
-    expected_version: String,
-) -> Result<EditableFile, DesktopFailure> {
-    let path = allowed_project_path(&state, &session_id, &path).await?;
-    let storage = state.storage().await?;
-    let name = format!(
-        "{:x}.lock",
-        Sha256::digest(path.to_string_lossy().as_bytes())
-    );
-    let lock_path = storage.join("control").join("file-locks").join(name);
-    write_checked(&path, &lock_path, false, &expected_version, &content)?;
-    let raw = read_bytes(&path)?;
-    Ok(EditableFile {
-        path: path.to_string_lossy().into_owned(),
-        exists: raw.is_some(),
-        content: decode(raw.as_deref())?,
-        version: file_version(raw.as_deref()),
-    })
 }
 
 #[cfg(test)]

@@ -74,7 +74,6 @@ fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, Deskto
 #[tauri::command]
 pub async fn submit_chat_prompt(
     state: State<'_, BackendState>,
-    browser_bridge: State<'_, super::browser_bridge::BrowserBridgeState>,
     session_id: String,
     text: String,
 ) -> Result<Value, DesktopFailure> {
@@ -84,9 +83,6 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    // Prepare the product-owned browser before the model can call browser_exec. A missing
-    // optional Chromium must not prevent ordinary chat; details remain in browser logs.
-    let _ = browser_bridge.ensure(&state, &session_id).await;
     let gateway = state.gateway().await?;
     gateway
         .request(
@@ -435,10 +431,40 @@ pub async fn interrupt_chat_session(
         return Err(DesktopFailure::invalid_input());
     }
     let gateway = state.gateway().await?;
-    gateway
-        .request("session.interrupt", json!({"session_id":session_id}))
-        .await
-        .map_err(Into::into)
+    // The ticketed session authority requires the current execution generation.
+    // Reattaching an already subscribed session is idempotent and gives us that fence.
+    let mut snapshot = gateway
+        .request("session.resume", json!({"session_id":session_id,"source":"desktop","defer_history":true,"omit_messages":true}))
+        .await?;
+    for attempt in 0..2 {
+        let generation = snapshot
+            .get("execution_generation")
+            .and_then(Value::as_u64)
+            .ok_or_else(DesktopFailure::operation_failed)?;
+        let was_running = snapshot.get("running").and_then(Value::as_bool) == Some(true);
+        match gateway
+            .request(
+                "session.interrupt",
+                json!({"session_id":session_id,"execution_generation":generation}),
+            )
+            .await
+        {
+            Ok(handle) => {
+                let running =
+                    handle.get("execution_state").and_then(Value::as_str) == Some("running");
+                return Ok(
+                    json!({"status": if was_running || running { "interrupted" } else { "not_interrupted" }}),
+                );
+            }
+            Err(error) if attempt == 0 && error.starts_with("stale_generation (") => {
+                snapshot = gateway
+                    .request("session.resume", json!({"session_id":session_id,"source":"desktop","defer_history":true,"omit_messages":true}))
+                    .await?;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err(DesktopFailure::operation_failed())
 }
 
 #[tauri::command]

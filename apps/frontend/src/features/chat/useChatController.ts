@@ -52,13 +52,18 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   const assistantRef = React.useRef('')
   const [chatStatus, setChatStatus] = React.useState('')
   const [turnBusy, setTurnBusy] = React.useState(false)
+  const [canContinue, setCanContinue] = React.useState(false)
   const [navigationBusy, setNavigationBusy] = React.useState(false)
   const [sessionCreating, setSessionCreating] = React.useState(false)
   const navigationBusyRef = React.useRef(false)
   const submittingRef = React.useRef(false)
+  const promptDispatchStartedRef = React.useRef(false)
+  const stopRequestedRef = React.useRef(false)
+  const retryInterruptAfterSubmitRef = React.useRef(false)
   const sessionCreationRef = React.useRef<Promise<string> | null>(null)
   const sessionGenerationRef = React.useRef(0)
   const pendingBySessionRef = React.useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
+  const interruptedSessionsRef = React.useRef(new Set<string>())
   const turnStartedAtRef = React.useRef<number | null>(null)
   const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
@@ -120,7 +125,10 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       assistantRef.current = ''
       setAssistant('')
       setTurnBusy(false)
-      setChatStatus(data.payload?.status === 'error' ? t("ui.response.failed") : t("ui.response.complete"))
+      const interrupted = interruptedSessionsRef.current.has(storedSessionRef.current)
+      setCanContinue(interrupted)
+      setChatStatus(interrupted ? t("ui.requested.to.stop.current.task")
+        : data.payload?.status === 'error' ? t("ui.response.failed") : t("ui.response.complete"))
       void loadSessions(true)
     } else if (data.kind === 'error') {
       setChatStatus(t("ui.backend.error"))
@@ -368,9 +376,9 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     finally { setAttachmentBusy(false) }
   }
 
-  async function sendMessage() {
+  async function sendMessage(overrideText?: string) {
     const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
-    const typed = draft.trim()
+    const typed = draft.trim() || overrideText?.trim() || ''
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
@@ -412,6 +420,9 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     assistantRef.current = ''
     setAssistant('')
     let idForSubmission = sessionRef.current
+    stopRequestedRef.current = false
+    retryInterruptAfterSubmitRef.current = false
+    promptDispatchStartedRef.current = false
     submittingRef.current = true
     setNavigationBusy(true)
     setTurnBusy(true)
@@ -439,6 +450,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       }
       const id = await ensureChatSession()
       idForSubmission = id
+      if (stopRequestedRef.current) return
       if (isCommand) {
         const result = isSkill
           ? await chat.dispatchSkill(id, commandName.slice(1), commandArg)
@@ -461,23 +473,36 @@ export function useChatController({ backend, chatVisible, activeModel, language,
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
       }
+      if (stopRequestedRef.current) return
       const startedAt = Date.now()
       turnStartedAtRef.current = startedAt
       setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
       setDraft('')
+      promptDispatchStartedRef.current = true
       const result = await chat.submitPrompt(id, text)
+      if (!stopRequestedRef.current) {
+        interruptedSessionsRef.current.delete(storedSessionRef.current)
+        setCanContinue(false)
+      }
+      if (retryInterruptAfterSubmitRef.current && sessionRef.current === id) {
+        retryInterruptAfterSubmitRef.current = false
+        await interruptSession()
+      }
       if (sessionRef.current === id) {
         setAttachments([])
-        setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
+        if (!stopRequestedRef.current) {
+          setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
+        }
       }
     } catch (cause) {
-      if (!sessionRef.current || sessionRef.current === idForSubmission) {
+      if (!stopRequestedRef.current && (!sessionRef.current || sessionRef.current === idForSubmission)) {
         setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
         finishCurrentTurn('failed')
         setTurnBusy(false)
       }
     } finally {
       submittingRef.current = false
+      promptDispatchStartedRef.current = false
       setNavigationBusy(false)
     }
   }
@@ -521,6 +546,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setDraft('')
     setAttachments([])
     setChatUsage(null)
+    setCanContinue(false)
     setCommandCatalog(null)
     commandCatalogPromiseRef.current = null
     setChatStatus(t("ui.new.session.ready"))
@@ -552,6 +578,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       const pending = pendingBySessionRef.current[storedSessionRef.current]
       setDraft(pending?.draft || '')
       setAttachments(pending?.attachments || [])
+      setCanContinue(!result.running && interruptedSessionsRef.current.has(storedSessionRef.current))
       setCommandCatalog(null)
       commandCatalogPromiseRef.current = null
       setConversation(historyTimeline(result.messages))
@@ -564,14 +591,31 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   async function interruptSession() {
-    if (!sessionRef.current) return
+    if (submittingRef.current && !promptDispatchStartedRef.current) {
+      stopRequestedRef.current = true
+      setChatStatus(t("ui.requested.to.stop.current.task"))
+      setTurnBusy(false)
+      return
+    }
+    const targetSessionId = sessionRef.current
+    if (!targetSessionId) return
+    const targetStoredId = storedSessionRef.current
+    stopRequestedRef.current = true
     try {
-      const result = await chat.interruptSession(sessionRef.current)
+      const result = await chat.interruptSession(targetSessionId)
+      if (result.status === 'interrupted' && targetStoredId) interruptedSessionsRef.current.add(targetStoredId)
+      if (sessionRef.current !== targetSessionId) return
+      if (result.status !== 'interrupted' && submittingRef.current) retryInterruptAfterSubmitRef.current = true
       setChatStatus(result.status === 'interrupted' ? t("ui.requested.to.stop.current.task") : t("ui.there.are.currently.no.tasks.running"))
-      if (result.status === 'interrupted') finishCurrentTurn('interrupted')
+      if (result.status === 'interrupted') {
+        finishCurrentTurn('interrupted')
+        setCanContinue(true)
+      }
       else setConversation(finishReasoning)
       setTurnBusy(false)
-    } catch (cause) { setChatStatus(t("ui.failed.to.stop.task.arg", describeError(cause, language))) }
+    } catch (cause) {
+      if (sessionRef.current === targetSessionId) setChatStatus(t("ui.failed.to.stop.task.arg", describeError(cause, language)))
+    }
   }
 
   async function reconnectBackend() {
@@ -618,6 +662,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
           replay?.events || [], buffered,
         ))
         setTurnBusy(Boolean(snapshot.running))
+        setCanContinue(!snapshot.running && interruptedSessionsRef.current.has(storedSessionRef.current))
         if (useSnapshot) {
           turnStartedAtRef.current = null
           setConversation(historyTimeline(snapshot.messages))
@@ -654,6 +699,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     sessionsRequestRef.current += 1
     sessionGenerationRef.current += 1
     pendingBySessionRef.current = {}
+    interruptedSessionsRef.current.clear()
     navigationBusyRef.current = false
     submittingRef.current = false
     sessionCreationRef.current = null
@@ -677,13 +723,14 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     commandCatalogPromiseRef.current = null
     setChatUsage(null)
     setTurnBusy(false)
+    setCanContinue(false)
   }
 
   return {
     sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
-    turnBusy, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
+    turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
     attachmentBusy, draggingFiles, trigger, choices, answerRequest, ensureChatSession,
     changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,

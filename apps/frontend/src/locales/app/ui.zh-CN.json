@@ -357,6 +357,8 @@
   "ui.select.or.modify.a.model": "选择或修改模型",
   "ui.select.your.provider.and.model.below.and.save": "在下方选择提供方和模型后保存。",
   "ui.send": "发送",
+  "ui.continue": "继续",
+  "ui.continue.stopped.task.prompt": "继续刚才未完成的任务。",
   "ui.session.resumed": "会话已恢复",
   "ui.show.history.sessions.after.starting.runtime": "启动运行时后显示历史会话",
   "ui.simplified.chinese": "简体中文",

@@ -51,8 +51,6 @@ export type PersonalFile = {
   kind: PersonalFileKind; path: string; exists: boolean; content: string; entries: string[]
   version: string; limit: number | null; enabled: boolean | null
 }
-export type ProjectFile = { path: string; label: string; status: string; loaded: boolean; chars: number }
-export type EditableFile = { path: string; exists: boolean; content: string; version: string }
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
@@ -208,9 +206,6 @@ export interface DesktopApi {
   personalFiles: {
     read(kind: PersonalFileKind): Promise<PersonalFile>
     save(args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
-    listProject(sessionId: string): Promise<ProjectFile[]>
-    readProject(sessionId: string, path: string): Promise<EditableFile>
-    saveProject(args: { sessionId: string; path: string; content: string; expectedVersion: string }): Promise<EditableFile>
   }
   models: {
     options(args: { refresh: boolean; includeUnconfigured?: boolean; sessionId?: string }): Promise<ModelOptions>

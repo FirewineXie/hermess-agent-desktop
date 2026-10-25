@@ -357,6 +357,8 @@
   "ui.select.or.modify.a.model": "Select or modify a model",
   "ui.select.your.provider.and.model.below.and.save": "Select your provider and model below and save.",
   "ui.send": "Send",
+  "ui.continue": "Continue",
+  "ui.continue.stopped.task.prompt": "Continue the unfinished task.",
   "ui.session.resumed": "Session resumed",
   "ui.show.history.sessions.after.starting.runtime": "Show history sessions after starting runtime",
   "ui.simplified.chinese": "简体中文",

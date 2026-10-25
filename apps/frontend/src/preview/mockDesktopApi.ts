@@ -68,9 +68,6 @@ export const previewDesktopApi: DesktopApi = {
   personalFiles: {
     async read() { throw previewOnly() },
     async save() { throw previewOnly() },
-    async listProject() { return [] },
-    async readProject() { throw previewOnly() },
-    async saveProject() { throw previewOnly() },
   },
   models: {
     async options() { throw previewOnly() },

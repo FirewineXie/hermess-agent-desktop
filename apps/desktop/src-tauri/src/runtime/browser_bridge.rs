@@ -9,6 +9,7 @@ use std::{
     process::Stdio,
     time::Duration,
 };
+use tauri::State;
 use tokio::{
     process::{Child, Command},
     sync::Mutex,
@@ -251,6 +252,60 @@ impl BrowserBridgeState {
     pub async fn stop_all(&self) {
         self.0.lock().await.clear();
     }
+
+    pub async fn close(
+        &self,
+        backend: &BackendState,
+        session_id: &str,
+    ) -> Result<(), DesktopFailure> {
+        if session_id.is_empty() || session_id.len() > 256 {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let (profile, epoch) = {
+            let owned = backend.0.lock().await;
+            let current = owned
+                .as_ref()
+                .ok_or_else(DesktopFailure::runtime_unavailable)?;
+            (
+                current.selected_profile.clone(),
+                current.gateway.replay_epoch.clone(),
+            )
+        };
+        let gateway = backend.gateway().await?;
+        let mut browsers = self.0.lock().await;
+        let Some(instance) = browsers.get(&profile) else {
+            return Ok(());
+        };
+        if instance.connected_epoch.as_deref() == Some(&epoch) {
+            gateway
+                .request(
+                    "browser.manage",
+                    json!({"action":"disconnect", "session_id":session_id}),
+                )
+                .await?;
+        }
+        browsers.remove(&profile);
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub async fn open_visible_browser(
+    backend: State<'_, BackendState>,
+    browser_bridge: State<'_, BrowserBridgeState>,
+    session_id: String,
+) -> Result<(), DesktopFailure> {
+    browser_bridge.ensure(&backend, &session_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_visible_browser(
+    backend: State<'_, BackendState>,
+    browser_bridge: State<'_, BrowserBridgeState>,
+    session_id: String,
+) -> Result<(), DesktopFailure> {
+    browser_bridge.close(&backend, &session_id).await
 }
 
 #[cfg(all(test, windows))]

@@ -49,7 +49,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const openView = (view: 'runtime' | 'model') => view === 'runtime' ? onOpenRuntime() : onOpenModelSettings()
   const {
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice, sessionId, sessionWorkspacePath,
-    setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, navigationBusy,
+    setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
@@ -66,6 +66,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const lastUserCountRef = React.useRef(0)
   const lastSessionRef = React.useRef(sessionId)
   const userCount = conversation.filter(item => item.kind === 'message' && item.role === 'user').length
+  const hasSubmission = Boolean(draft.trim() || attachments.length)
 
   React.useLayoutEffect(() => {
     if (sessionId !== lastSessionRef.current || userCount !== lastUserCountRef.current) followMessagesRef.current = true
@@ -131,7 +132,10 @@ export default function ChatView({ connected, backendStatus, language, t, contro
           </select>
         </label>
         <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
-        {turnBusy ? <button disabled={navigationBusy} onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={navigationBusy || attachmentBusy || reasoningBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+        {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button>
+          : canContinue && !hasSubmission
+            ? <button disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
+            : <button disabled={navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
