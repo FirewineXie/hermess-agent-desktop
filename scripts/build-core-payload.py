@@ -80,6 +80,9 @@ def main() -> None:
         cache.mkdir()
     stage_pm_runtime(out, python_bin, repo, offline=False, cache=cache)
     venv = out / "venv"
+    if target.startswith("darwin-"):
+        # The staged PBS interpreter retains an AR path from its deleted build tree.
+        os.environ["AR"] = "/usr/bin/ar"
     pm.build_environment(source=repo, out=venv, python=python_bin, cache=cache,
                          extras=["messaging", "feishu"], all_extras=False,
                          sealed=True, offline=False, explicit=True)

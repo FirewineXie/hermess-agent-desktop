@@ -2,7 +2,7 @@
 
 基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；Windows、macOS 和 Linux 的安装包已在 GitHub Actions 构建成功，macOS 与 Linux 仍需实机安装和运行验收。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
 
-**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前准备发布 `v0.1.5-rc.1` 候选版本，正式版 `v0.1.5` 尚未发布。
+**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前准备发布 `v0.1.5-rc.2` 候选版本，正式版 `v0.1.5` 尚未发布。
 
 **[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
 
