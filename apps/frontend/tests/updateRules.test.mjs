@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { compareProductVersions, defaultUpdateChannel, selectUpdate } from './updateRules.ts'
+import { compareProductVersions, defaultUpdateChannel, selectUpdate } from '../src/features/about/updateRules.ts'
 
 test('RC versions order before their stable release and after older stable versions', () => {
   assert.equal(compareProductVersions('0.5.0-rc.1', '0.5.0-rc.2'), -1)

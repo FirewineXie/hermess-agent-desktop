@@ -3,6 +3,13 @@ target/
 dist/
 .build/
 .cache/
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.toml
+*.local.yaml
+*.local.yml
 upstream/hermes-agent/
 *.log
 __pycache__/

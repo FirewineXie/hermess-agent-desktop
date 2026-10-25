@@ -1,6 +1,7 @@
 import React from 'react'
 import { useLanguage, translateApp } from '../i18n'
 import type { SessionRow, View } from './types'
+import { sessionSourceLabel } from '../features/chat/sessionSource'
 
 type Props = {
   view: View
@@ -8,6 +9,7 @@ type Props = {
   connected: boolean
   busy: boolean
   sessions: SessionRow[]
+  sessionsState: 'loading' | 'ready' | 'error'
   activeSessionId: string
   onClose: () => void
   onOpenView: (view: View) => void
@@ -16,7 +18,7 @@ type Props = {
   onResumeSession: (id: string) => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, activeSessionId, onClose, onOpenView, onNewChat, onRefreshSessions, onResumeSession }: Props) {
+export default function Sidebar({ view, open, connected, busy, sessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onRefreshSessions, onResumeSession }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSessionId, setPendingSessionId] = React.useState<string | null>(null)
@@ -53,13 +55,16 @@ export default function Sidebar({ view, open, connected, busy, sessions, activeS
       <div className="sidebar-section-heading"><strong>{t('ui.recent.sessions')}</strong><button disabled={!connected} onClick={onRefreshSessions} aria-label={t('ui.refresh.recent.conversations')}>↻</button></div>
       <div className="sidebar-sessions">
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}
-        {connected && sessions.length === 0 && <p>{t('ui.no.previous.sessions')}</p>}
+        {connected && sessionsState === 'loading' && sessions.length === 0 && <p>{t('ui.sessions.loading')}</p>}
+        {connected && sessionsState === 'error' && sessions.length === 0 && <p>{t('ui.sessions.failed')}</p>}
+        {connected && sessionsState === 'ready' && sessions.length === 0 && <p>{t('ui.no.previous.sessions')}</p>}
         {connected && sessions.map(session => <button key={session.id}
           className={[view === 'chat' && session.id === activeSessionId ? 'active' : '', pendingSessionId === session.id ? 'pending' : ''].filter(Boolean).join(' ')}
           aria-busy={pendingSessionId === session.id}
           title={session.title || session.preview || session.id}
           onClick={() => selectSession(session.id)}>
           <span>▤</span><span className="session-title">{session.title || session.preview || session.id}</span>
+          {sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}
         </button>)}
       </div>
       <div className="sidebar-footer"><span className={`status-dot ${connected ? 'ready' : ''}`} />

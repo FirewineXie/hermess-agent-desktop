@@ -10,7 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test:recovery": "node --experimental-strip-types --test src/features/chat/requestRecovery.test.mjs"
+    "test:recovery": "node --experimental-strip-types --test tests/requestRecovery.test.mjs"
   },
   "dependencies": {
     "@hermess/contracts": "workspace:*",

@@ -6,6 +6,7 @@ mod gateway;
 mod runtime;
 mod storage;
 mod tray;
+mod updates;
 
 fn main() {
     tauri::Builder::default()
@@ -25,10 +26,13 @@ fn main() {
             runtime::start_packed_backend,
             runtime::ping_backend,
             runtime::reconnect_backend,
+            runtime::restart_backend_gracefully,
             runtime::stop_backend,
             diagnostics::read_diagnostic_logs,
             diagnostics::record_client_event,
             runtime::about::get_product_info,
+            updates::check_updates,
+            updates::download_update,
             runtime::channels::channel_status,
             runtime::channels::channel_qr_start,
             runtime::channels::channel_qr_poll,

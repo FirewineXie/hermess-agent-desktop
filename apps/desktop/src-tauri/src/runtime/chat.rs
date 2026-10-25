@@ -66,7 +66,7 @@ pub async fn submit_chat_prompt(
     gateway
         .request(
             "prompt.submit",
-            json!({"session_id":session_id,"text":text}),
+            json!({"session_id":session_id,"text":text,"submission_id":Uuid::new_v4().to_string()}),
         )
         .await
         .map_err(Into::into)
@@ -285,10 +285,42 @@ pub async fn answer_gateway_request(
 #[tauri::command]
 pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
     let gateway = state.gateway().await?;
-    gateway
-        .request("session.list", json!({"limit":50}))
-        .await
-        .map_err(Into::into)
+    let live = gateway.request("session.list", json!({"limit":50})).await?;
+    let stored = gateway
+        .request("session.list", json!({"limit":50,"scope":"stored"}))
+        .await?;
+    Ok(merge_session_lists(&live, &stored))
+}
+
+fn merge_session_lists(live: &Value, stored: &Value) -> Value {
+    let mut sessions = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for row in live
+        .get("sessions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .chain(
+            stored
+                .get("sessions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten(),
+        )
+    {
+        if let Some(id) = row.get("id").and_then(Value::as_str) {
+            if seen.insert(id.to_owned()) {
+                sessions.push(row.clone());
+            }
+        }
+    }
+    sessions.sort_by(|a, b| {
+        let left = a.get("started_at").and_then(Value::as_f64).unwrap_or(0.0);
+        let right = b.get("started_at").and_then(Value::as_f64).unwrap_or(0.0);
+        right.total_cmp(&left)
+    });
+    sessions.truncate(50);
+    json!({"sessions": sessions})
 }
 
 #[tauri::command]
@@ -296,15 +328,17 @@ pub async fn get_chat_reasoning(
     state: State<'_, BackendState>,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
+    if session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
     let gateway = state.gateway().await?;
+    let params = if session_id.is_empty() {
+        json!({"key": "reasoning"})
+    } else {
+        json!({"session_id": session_id, "key": "reasoning"})
+    };
     gateway
-        .request(
-            "config.get",
-            json!({"session_id": session_id, "key": "reasoning"}),
-        )
+        .request("config.get", params)
         .await
         .map_err(Into::into)
 }
@@ -403,22 +437,5 @@ pub async fn replay_chat_events(
 }
 
 #[cfg(test)]
-mod contract_tests {
-    use super::ReplayResult;
-
-    #[test]
-    fn replay_result_matches_shared_fixture_and_rejects_missing_watermark() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../../packages/contracts/fixtures/replay-result.json"
-        ))
-        .unwrap();
-        let result: ReplayResult = serde_json::from_value(fixture.clone()).unwrap();
-        assert_eq!(serde_json::to_value(result).unwrap(), fixture);
-        let mut missing_watermark = fixture;
-        missing_watermark
-            .as_object_mut()
-            .unwrap()
-            .remove("latest_seq");
-        assert!(serde_json::from_value::<ReplayResult>(missing_watermark).is_err());
-    }
-}
+#[path = "tests/chat.rs"]
+mod contract_tests;

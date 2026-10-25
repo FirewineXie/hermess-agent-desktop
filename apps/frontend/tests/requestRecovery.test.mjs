@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mergeRecoveredRequests } from './requestRecovery.ts'
+import { mergeRecoveredRequests } from '../src/features/chat/requestRecovery.ts'
 
 const request = (id, sessionId = 'active', answers = undefined) => ({
   id,

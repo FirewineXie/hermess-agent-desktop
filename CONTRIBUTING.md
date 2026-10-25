@@ -1,6 +1,6 @@
 # 参与 Hermess Agent Desktop 开发
 
-本项目仍在内测。提交代码或文档前，请先阅读 [README.md](README.md)、[能力矩阵](docs/capability-matrix.md) 和与改动相关的 [运行时决策记录](docs/ADR-0001-runtime-and-process.md)。阶段计划见 [桌面端迭代方案](桌面端迭代方案.md)；计划中的能力不能写成已经验收的能力。
+本项目仍在内测。提交代码或文档前，请先阅读 [README.md](README.md)、[能力矩阵](docs/capability-matrix.md) 和与改动相关的 [运行时决策记录](docs/ADR-0001-runtime-and-process.md)。版本计划见 [产品路线图](ROADMAP.md)；计划中的能力不能写成已经验收的能力。
 
 ## 分支与提交
 
@@ -60,4 +60,4 @@ PR 描述请包含：
 
 ## 发布约束
 
-发布前遵循 [发行流程](docs/release-process.md)。`vX.Y.Z` 生成正式 Release，`vX.Y.Z-rc.1` 等预发布 tag 生成预发布 Release；两者都要等四个原生 runner 构建成功。推送 tag 前须确认四处产品版本、`releases/<tag>.md`、上游锁定提交及安装包输入一致。正式发布还须依据 [桌面端迭代方案](桌面端迭代方案.md) 的门槛逐项确认安装、签名、升级和真实模型验收。Release 工作流成功只证明构建产物已汇总。
+发布前遵循 [发行流程](docs/release-process.md)。`vX.Y.Z` 生成正式 Release，`vX.Y.Z-rc.1` 等预发布 tag 生成预发布 Release；两者都要等四个原生 runner 构建成功。推送 tag 前须确认四处产品版本、`releases/<tag>.md`、上游锁定提交及安装包输入一致。正式发布还须逐项确认安装、签名、升级和真实模型验收。Release 工作流成功只证明构建产物已汇总。

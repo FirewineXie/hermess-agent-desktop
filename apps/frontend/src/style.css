@@ -23,7 +23,9 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .sidebar-sessions button { font-size: 13px; }
 .sidebar-sessions button.pending { background: #e7edf5; }
 .sidebar-sessions button.pending::after { content: '…'; margin-left: auto; }
-.session-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.session-title { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.session-source { flex: none; padding: 2px 5px; border-radius: 5px; color: #315c91; background: #e4edf7; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.header-source { display: inline-block; margin-left: 9px; vertical-align: middle; }
 .sidebar-footer { display: flex; align-items: center; gap: 8px; padding: 14px 6px 0; border-top: 1px solid #e5e8ec; color: #66717f; font-size: 12px; }
 .sidebar-footer button { margin-left: auto; padding: 4px 5px; color: #315c91; background: transparent; border: 0; }
 .status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #a8afb7; }

@@ -33,8 +33,8 @@ export function defaultUpdateChannel(version: string): UpdateChannel {
   return parsed?.rc !== null && parsed !== null ? 'rc' : 'stable'
 }
 
-export function selectUpdate(current: string, channel: UpdateChannel, releases: ReleaseCandidate[]): ReleaseCandidate | null {
-  let selected: ReleaseCandidate | null = null
+export function selectUpdate<T extends ReleaseCandidate>(current: string, channel: UpdateChannel, releases: T[]): T | null {
+  let selected: T | null = null
   for (const release of releases) {
     const parsed = parseProductVersion(release.version)
     if (!parsed || !release.eligible || (channel === 'stable' && release.channel !== 'stable')) continue

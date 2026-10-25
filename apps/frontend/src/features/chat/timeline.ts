@@ -18,6 +18,22 @@ export type TimelineItem =
 
 type HistoryRow = ResumeResult['messages'][number]
 
+function contentText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) return content.map(contentText).filter(Boolean).join('\n')
+  if (!content || typeof content !== 'object') return ''
+  const part = content as Record<string, unknown>
+  if (['image', 'image_url', 'input_image', 'audio', 'input_audio'].includes(String(part.type || ''))) return ''
+  for (const key of ['text', 'content', 'input_text', 'output_text', 'summary_text']) {
+    if (typeof part[key] === 'string') return part[key]
+  }
+  return ''
+}
+
+function historyText(row: HistoryRow): string {
+  return contentText(row.content) || row.text || ''
+}
+
 function reasoningText(row: HistoryRow): string {
   for (const value of [row.reasoning, row.reasoning_content]) {
     if (typeof value === 'string' && value.trim()) return value
@@ -42,21 +58,22 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
   let pendingUserIndex = -1
   let pendingUserTimestamp: number | undefined
   for (const row of rows) {
+    const text = historyText(row)
     if (row.role === 'tool') {
       items = appendTool(items, {
-        id: row.tool_call_id || `history-${items.length}-${row.name || 'tool'}`,
-        name: row.name || 'tool', context: row.context || undefined,
+        id: row.tool_call_id || `history-${items.length}-${row.tool_name || row.name || 'tool'}`,
+        name: row.tool_name || row.name || 'tool', context: row.context || undefined,
         args: row.args, state: 'recorded',
       })
-    } else if (row.role === 'user' && row.text?.trim()) {
+    } else if (row.role === 'user' && text.trim()) {
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
       pendingUserIndex = items.length
       pendingUserTimestamp = timestamp
-      items = [...items, { kind: 'message', role: 'user', text: row.text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
+      items = [...items, { kind: 'message', role: 'user', text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
     } else if (row.role === 'assistant') {
       const thinking = reasoningText(row)
-      if (!row.text?.trim() && !thinking) continue
+      if (!text.trim() && !thinking) continue
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
       if (pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
@@ -66,7 +83,7 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
         }
       }
       if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false }]
-      if (row.text?.trim()) items = [...items, { kind: 'message', role: 'assistant', text: row.text }]
+      if (text.trim()) items = [...items, { kind: 'message', role: 'assistant', text }]
     }
   }
   return items

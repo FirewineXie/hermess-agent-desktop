@@ -51,7 +51,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
-    reasoningBusy, chatUsage, sessionId,
+    reasoningBusy, reasoningLoadFailed, chatUsage,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -101,9 +101,11 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
-            <option value="" disabled>{sessionId
-              ? language === 'zh-CN' ? '思考 · 选择档位' : 'Reasoning · Choose level'
-              : language === 'zh-CN' ? '思考 · 使用默认' : 'Reasoning · Use default'}</option>
+            <option value="" disabled>{!backend
+              ? language === 'zh-CN' ? '思考 · 未连接' : 'Reasoning · Disconnected'
+              : reasoningLoadFailed
+                ? language === 'zh-CN' ? '思考 · 读取失败' : 'Reasoning · Unavailable'
+                : language === 'zh-CN' ? '思考 · 读取中' : 'Reasoning · Loading'}</option>
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
         </label>

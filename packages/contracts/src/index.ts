@@ -61,7 +61,7 @@ export type ModelAssignment = { ok?: boolean; model?: string; provider?: string;
 export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
-export type SessionRow = { id: string; title?: string; preview?: string; message_count?: number }
+export type SessionRow = { id: string; title?: string; preview?: string; source?: string; message_count?: number }
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
@@ -77,7 +77,7 @@ export type ResumeResult = {
   info?: { provider?: string; model?: string }
   stored_session_id?: string
   session_key?: string
-  messages: Array<{ role: string; text?: string | null; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
+  messages: Array<{ role: string; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
   running?: boolean
   replay_epoch?: string
   last_sequence?: number
@@ -104,9 +104,21 @@ export type ProductInfo = {
   hermesLicense: string
 }
 
+export type UpdateAsset = { id: number; name: string; size: number; sha256: string }
+export type UpdateRelease = {
+  tagName: string
+  version: string
+  channel: 'stable' | 'rc'
+  eligible: boolean
+  asset: UpdateAsset | null
+}
+export type UpdateLookup = { status: 'available' | 'unavailable'; releases: UpdateRelease[] }
+export type UpdateDownloadProgress = { tagName: string; downloaded: number; total: number }
+
 export type ChannelStatus = { id: 'feishu' | 'weixin'; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
+export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
@@ -118,6 +130,9 @@ export interface DesktopApi {
   }
   about: {
     productInfo(): Promise<ProductInfo>
+    checkUpdates(): Promise<UpdateLookup>
+    downloadUpdate(tagName: string, assetId: number): Promise<string>
+    onDownloadProgress(handler: (progress: UpdateDownloadProgress) => void): Promise<Unsubscribe>
   }
   extensions: {
     request<T>(operation: string, payload?: Record<string, unknown>): Promise<T>
@@ -129,6 +144,7 @@ export interface DesktopApi {
     startPacked(storagePath: string): Promise<BackendInfo>
     ping(): Promise<void>
     reconnect(): Promise<BackendInfo>
+    restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
     probeLocalTools(): Promise<RuntimeProbe[]>
   }

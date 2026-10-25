@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { resolve } from 'node:path'
-import { relativeImportViolations } from './architecture-dependencies.mjs'
+import { relativeImportViolations } from '../scripts/architecture-dependencies.mjs'
 
 const frontend = resolve(import.meta.dirname, '../apps/frontend/src')
 const file = resolve(frontend, 'features/chat/ChatView.tsx')

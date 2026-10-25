@@ -54,26 +54,5 @@ impl From<&str> for DesktopFailure {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::DesktopFailure;
-
-    #[test]
-    fn desktop_failure_matches_shared_contract_fixture() {
-        let expected: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../packages/contracts/fixtures/desktop-failure.json"
-        ))
-        .unwrap();
-        assert_eq!(
-            serde_json::to_value(DesktopFailure::operation_failed()).unwrap(),
-            expected
-        );
-        assert_eq!(
-            serde_json::to_value(DesktopFailure::runtime_unavailable()).unwrap()["category"],
-            "runtime"
-        );
-        assert_eq!(
-            serde_json::to_value(DesktopFailure::connection_lost()).unwrap()["category"],
-            "connection"
-        );
-    }
-}
+#[path = "tests/errors.rs"]
+mod tests;

@@ -1,9 +1,9 @@
 import React from 'react'
-import type { ProductInfo } from '@hermess/contracts'
+import type { ProductInfo, UpdateDownloadProgress, UpdateLookup } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
-import { defaultUpdateChannel, type UpdateChannel } from './updateRules'
+import { defaultUpdateChannel, selectUpdate, type UpdateChannel } from './updateRules'
 
 type Tab = 'license' | 'tools' | 'feedback' | 'update'
 const tabs: Tab[] = ['license', 'tools', 'feedback', 'update']
@@ -23,6 +23,12 @@ export default function AboutView() {
   const [error, setError] = React.useState('')
   const [channel, setChannel] = React.useState<UpdateChannel | null>(savedChannel)
   const [copyState, setCopyState] = React.useState('')
+  const [lookup, setLookup] = React.useState<UpdateLookup | null>(null)
+  const [updateError, setUpdateError] = React.useState('')
+  const [checking, setChecking] = React.useState(false)
+  const [downloading, setDownloading] = React.useState(false)
+  const [downloadPath, setDownloadPath] = React.useState('')
+  const [progress, setProgress] = React.useState<UpdateDownloadProgress | null>(null)
 
   React.useEffect(() => {
     let active = true
@@ -31,10 +37,41 @@ export default function AboutView() {
     return () => { active = false }
   }, [about, language])
 
+  React.useEffect(() => {
+    let active = true
+    let unsubscribe: (() => void) | undefined
+    void about.onDownloadProgress(value => { if (active) setProgress(value) })
+      .then(stop => { if (active) unsubscribe = stop; else stop() })
+      .catch(() => {})
+    return () => { active = false; unsubscribe?.() }
+  }, [about])
+
   const effectiveChannel = channel ?? defaultUpdateChannel(info?.version ?? '')
+  const candidate = info && lookup?.status === 'available'
+    ? selectUpdate(info.version, effectiveChannel, lookup.releases)
+    : null
   function changeChannel(next: UpdateChannel) {
     localStorage.setItem(CHANNEL_KEY, next)
     setChannel(next)
+  }
+  async function checkUpdates() {
+    setChecking(true)
+    setUpdateError('')
+    setLookup(null)
+    setDownloadPath('')
+    try { setLookup(await about.checkUpdates()) }
+    catch (cause) { setUpdateError(describeError(cause, language)) }
+    finally { setChecking(false) }
+  }
+  async function downloadUpdate() {
+    if (!candidate?.asset) return
+    setDownloading(true)
+    setProgress(null)
+    setDownloadPath('')
+    setUpdateError('')
+    try { setDownloadPath(await about.downloadUpdate(candidate.tagName, candidate.asset.id)) }
+    catch (cause) { setUpdateError(describeError(cause, language)) }
+    finally { setDownloading(false) }
   }
   async function copyEnvironment() {
     if (!info) return
@@ -101,8 +138,17 @@ export default function AboutView() {
           </select>
         </label>
       </div>
-      <p role="status">{t('ui.about.update.unavailable')}</p>
-      <button type="button" disabled>{t('ui.about.check.update')}</button>
+      <button type="button" disabled={!info || checking || downloading} onClick={() => void checkUpdates()}>{checking ? t('ui.about.update.checking') : t('ui.about.check.update')}</button>
+      {lookup?.status === 'unavailable' && <p role="status">{t('ui.about.update.unavailable')}</p>}
+      {lookup?.status === 'available' && !candidate && <p role="status">{t('ui.about.update.none')}</p>}
+      {candidate?.asset && <div className="about-card">
+        <p>{t('ui.about.update.found', candidate.version)}</p>
+        <p><code className="about-monospace">{candidate.asset.name}</code> ({(candidate.asset.size / 1024 / 1024).toFixed(1)} MB)</p>
+        <button type="button" disabled={downloading || checking} onClick={() => void downloadUpdate()}>{downloading ? t('ui.about.update.downloading') : t('ui.about.update.download')}</button>
+      </div>}
+      {downloading && progress && progress.tagName === candidate?.tagName && <p role="status">{t('ui.about.update.progress', Math.floor(progress.downloaded / progress.total * 100))}</p>}
+      {downloadPath && <p role="status">{t('ui.about.update.saved', downloadPath)}</p>}
+      {updateError && <p role="alert">{updateError}</p>}
       <small>{t('ui.about.update.rule')}</small>
       <small>{t('ui.about.update.manual')}</small>
     </div>}

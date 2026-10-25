@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { relativeImportViolations } from './architecture-dependencies.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -38,6 +38,34 @@ for (const rule of rules) {
   visit(resolve(root, rule.directory))
 }
 
+const typescriptSources = [
+  'apps/frontend/src',
+  'apps/desktop/src',
+  'packages/contracts/src',
+].map(directory => resolve(root, directory))
+const rustSource = resolve(root, 'apps/desktop/src-tauri/src')
+const checkTestSeparation = directory => {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const file = join(directory, entry.name)
+    const typescriptSource = typescriptSources.some(source => directory === source || directory.startsWith(source + sep))
+    if (entry.name === 'tests') {
+      if (typescriptSource) failures.push(`${relative(root, file)}: move tests outside src/`)
+      continue
+    }
+    if (entry.isDirectory()) checkTestSeparation(file)
+    else if (entry.isFile() && typescriptSource && /\.test\.[cm]?[jt]sx?$/.test(entry.name)) {
+      failures.push(`${relative(root, file)}: move tests outside src/`)
+    } else if (entry.isFile() && directory.startsWith(rustSource) && entry.name.endsWith('.rs')) {
+      const source = readFileSync(file, 'utf8')
+      if (/#\[cfg\(test\)\]\s*mod\s+\w+\s*\{/m.test(source)) {
+        failures.push(`${relative(root, file)}: move inline test module into a separate file`)
+      }
+    }
+  }
+}
+for (const source of typescriptSources) checkTestSeparation(source)
+checkTestSeparation(rustSource)
+
 const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
 const adapter = readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8')
 const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')
@@ -54,6 +82,7 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/runtime/mod.rs',
   ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
   'apps/desktop/src-tauri/src/diagnostics.rs',
+  'apps/desktop/src-tauri/src/updates.rs',
 ]
 const definedCommands = new Set()
 for (const file of nativeCommandFiles) {
@@ -74,7 +103,8 @@ for (const file of nativeCommandFiles) {
 }
 for (const name of registered) if (!definedCommands.has(name)) failures.push(`registered command definition not found: ${name}`)
 
-const emitted = new Set([...gateway.matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
+const updates = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/updates.rs'), 'utf8')
+const emitted = new Set([...(gateway + updates).matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
 const listened = new Set([...adapter.matchAll(/listenPayload(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
 if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')
 for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)

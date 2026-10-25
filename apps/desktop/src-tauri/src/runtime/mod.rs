@@ -16,12 +16,10 @@ use crate::errors::DesktopFailure;
 use crate::gateway::GatewayClient;
 use futures_util::{SinkExt, StreamExt};
 use location::{acquire_storage_lock, save_storage_path, saved_storage_path};
-#[cfg(test)]
-use location::{read_storage_location, write_storage_location};
 use payload::install_packed_payload;
-#[cfg(test)]
-use payload::validate_payload;
+use reqwest::Client;
 use serde::Serialize;
+use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -42,7 +40,7 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 #[derive(Default)]
-pub struct BackendState(Mutex<Option<OwnedBackend>>);
+pub struct BackendState(Mutex<Option<OwnedBackend>>, Mutex<()>);
 
 struct OwnedBackend {
     _storage_lock: fs::File,
@@ -54,6 +52,15 @@ struct OwnedBackend {
     endpoint: serde_json::Value,
     gateway: Arc<GatewayClient>,
     bundled_tools_root: Option<PathBuf>,
+    disable_lazy_installs: bool,
+}
+
+struct RestartDrainGuard(PathBuf);
+
+impl Drop for RestartDrainGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 impl BackendState {
@@ -86,6 +93,13 @@ pub struct BackendInfo {
     port: u16,
     pid: u32,
     replay_epoch: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum GracefulRestartResult {
+    Restarted { info: BackendInfo },
+    Deferred,
 }
 
 #[derive(Serialize)]
@@ -124,7 +138,7 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
         .canonicalize()
         .map_err(|_| "无法定位产品目录".to_string())?;
     let build = product.join(".build");
-    let python = build.join("hermes-venv-i0").join(if cfg!(windows) {
+    let python = build.join("hermes-venv-i1").join(if cfg!(windows) {
         "Scripts/python.exe"
     } else {
         "bin/python"
@@ -371,7 +385,7 @@ pub async fn start_dev_backend(
     if !hermes.is_file() {
         return Err(DesktopFailure::runtime_unavailable());
     }
-    launch_backend(app, state, hermes, PathBuf::from(storage_path), false)
+    launch_backend(app, &state, hermes, PathBuf::from(storage_path), false)
         .await
         .map_err(Into::into)
 }
@@ -446,14 +460,14 @@ pub async fn start_packed_backend(
             .map_err(|_| "无法解析主要存储位置".to_string())?;
         save_storage_path(&app, &resolved)?;
     }
-    launch_backend(app, state, hermes, selected, true)
+    launch_backend(app, &state, hermes, selected, true)
         .await
         .map_err(Into::into)
 }
 
 async fn launch_backend(
     app: AppHandle,
-    state: State<'_, BackendState>,
+    state: &BackendState,
     hermes: PathBuf,
     selected: PathBuf,
     disable_lazy_installs: bool,
@@ -552,6 +566,7 @@ async fn launch_backend(
         endpoint,
         gateway,
         bundled_tools_root,
+        disable_lazy_installs,
     });
     Ok(BackendInfo {
         port,
@@ -657,6 +672,154 @@ pub async fn reconnect_backend(
     })
 }
 
+async fn restart_status(client: &Client, port: u16) -> Result<Value, DesktopFailure> {
+    let response = client
+        .get(format!("http://127.0.0.1:{port}/api/status"))
+        .send()
+        .await
+        .map_err(|_| DesktopFailure::connection_lost())?;
+    if !response.status().is_success() {
+        return Err(DesktopFailure::connection_lost());
+    }
+    response
+        .json()
+        .await
+        .map_err(|_| DesktopFailure::operation_failed())
+}
+
+#[tauri::command]
+pub async fn restart_backend_gracefully(
+    app: AppHandle,
+    state: State<'_, BackendState>,
+) -> Result<GracefulRestartResult, DesktopFailure> {
+    let _restart_gate = state.1.try_lock().map_err(|_| DesktopFailure::conflict())?;
+    let (pid, port, token, hermes, storage, disable_lazy_installs) = {
+        let mut owned = state.0.lock().await;
+        let backend = owned
+            .as_mut()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        if backend
+            .child
+            .try_wait()
+            .map_err(|_| "无法读取网关进程状态".to_string())?
+            .is_some()
+        {
+            return Err(DesktopFailure::runtime_unavailable());
+        }
+        (
+            backend.child.id().ok_or("无法读取网关 PID")?,
+            backend.port,
+            backend.token.clone(),
+            backend.hermes.clone(),
+            backend.storage.clone(),
+            backend.disable_lazy_installs,
+        )
+    };
+    let home = storage.join("hermes-home");
+    let drain_marker = home.join(".drain_request.json");
+    if drain_marker.exists() {
+        return Err("网关已在等待停止，请稍后再试".into());
+    }
+    let client = Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    let initial = restart_status(&client, port).await?;
+    if initial.get("gateway_running").and_then(Value::as_bool) != Some(true)
+        || !matches!(
+            initial.get("gateway_state").and_then(Value::as_str),
+            Some("running" | "degraded")
+        )
+    {
+        return Err("网关不在可重启状态".into());
+    }
+    // The guard removes our reversible drain request if polling, stopping, or the
+    // Tauri command itself fails. Keep the old gateway alive on a timeout.
+    let drain_guard = RestartDrainGuard(drain_marker);
+    let response = client
+        .post(format!("http://127.0.0.1:{port}/api/gateway/drain"))
+        .header("X-Hermes-Session-Token", &token)
+        .json(&serde_json::json!({"action":"drain","suppress_notification":true}))
+        .send()
+        .await
+        .map_err(|_| DesktopFailure::connection_lost())?;
+    if !response.status().is_success() {
+        return Err(DesktopFailure::operation_failed());
+    }
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        let status = restart_status(&client, port).await?;
+        if status.get("gateway_running").and_then(Value::as_bool) != Some(true) {
+            return Err(DesktopFailure::connection_lost());
+        }
+        if status.get("gateway_state").and_then(Value::as_str) == Some("draining")
+            && status.get("active_agents").and_then(Value::as_u64) == Some(0)
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            return Ok(GracefulRestartResult::Deferred);
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    let mut owned = state.0.lock().await;
+    let backend = owned
+        .as_mut()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    if backend.child.id() != Some(pid)
+        || backend
+            .child
+            .try_wait()
+            .map_err(|_| "无法读取网关进程状态".to_string())?
+            .is_some()
+    {
+        return Err("等待期间网关进程已改变，已取消重启".into());
+    }
+    let mut stop = tokio::process::Command::new(&hermes);
+    stop.args(["gateway", "stop"])
+        .env("HERMES_HOME", &home)
+        .env(
+            "HERMES_GATEWAY_LOCK_DIR",
+            storage.join("control").join("gateway-locks"),
+        )
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    stop.creation_flags(0x08000000);
+    let mut helper = stop
+        .spawn()
+        .map_err(|_| "无法启动网关停止命令".to_string())?;
+    let exit = timeout(Duration::from_secs(60), helper.wait())
+        .await
+        .map_err(|_| DesktopFailure::timeout())?
+        .map_err(|_| "无法读取网关停止结果".to_string())?;
+    if !exit.success() {
+        return Ok(GracefulRestartResult::Deferred);
+    }
+    timeout(Duration::from_secs(60), backend.child.wait())
+        .await
+        .map_err(|_| DesktopFailure::timeout())?
+        .map_err(|_| "无法等待旧网关退出".to_string())?;
+    let old = owned
+        .take()
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    old.gateway.close();
+    drop(old);
+    drop(owned);
+    drop(drain_guard);
+
+    let selected = storage
+        .parent()
+        .ok_or("无法定位网关存储目录")?
+        .to_path_buf();
+    let info = launch_backend(app, &state, hermes, selected, disable_lazy_installs).await?;
+    Ok(GracefulRestartResult::Restarted { info })
+}
+
 #[tauri::command]
 pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
     let mut owned = state.0.lock().await;
@@ -707,264 +870,5 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
 }
 
 #[cfg(test)]
-mod tests {
-    use super::models::{load_model_lists, parse_saved_model_config, save_model_lists};
-    use super::{
-        acquire_storage_lock, install_packed_payload, read_storage_location,
-        running_storage_matches, validate_payload, write_storage_location,
-    };
-    use super::{BackendInfo, BundledTool, BundledToolsInventory, DevDefaults, PackedDefaults};
-    use crate::diagnostics::{
-        append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
-    };
-    use std::collections::HashMap;
-    use std::fs;
-    use std::process::Command;
-    use uuid::Uuid;
-
-    #[test]
-    fn backend_info_matches_shared_contract_fixture() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/contracts/fixtures/backend-info.json"
-        )))
-        .unwrap();
-        let actual = serde_json::to_value(BackendInfo {
-            port: 1421,
-            pid: 421,
-            replay_epoch: "fixture-epoch".to_owned(),
-        })
-        .unwrap();
-        assert_eq!(actual, fixture);
-    }
-
-    #[test]
-    fn runtime_defaults_and_tool_inventory_match_shared_contract_fixtures() {
-        let dev: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/contracts/fixtures/dev-defaults.json"
-        )))
-        .unwrap();
-        let packed: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/contracts/fixtures/packed-defaults.json"
-        )))
-        .unwrap();
-        let tools: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/contracts/fixtures/bundled-tools-inventory.json"
-        )))
-        .unwrap();
-        assert_eq!(
-            serde_json::to_value(DevDefaults {
-                python_path: "E:/product/.build/hermes-venv-i0/Scripts/python.exe".into(),
-                storage_path: "E:/product/.build/desktop-dev-data".into(),
-            })
-            .unwrap(),
-            dev
-        );
-        assert_eq!(
-            serde_json::to_value(PackedDefaults {
-                storage_path: "E:/product-data".into(),
-                initialized: true,
-            })
-            .unwrap(),
-            packed
-        );
-        assert_eq!(
-            serde_json::to_value(BundledToolsInventory {
-                has_manifest: true,
-                tools: vec![BundledTool {
-                    name: "python".into(),
-                    version: "3.14".into(),
-                    path: "E:/product-data/runtime/tools/python".into(),
-                    present: true,
-                }],
-            })
-            .unwrap(),
-            tools
-        );
-    }
-
-    #[test]
-    fn model_lists_survive_a_second_read() {
-        let root = std::env::temp_dir().join(format!("hermess-model-lists-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("HermessAgentDesktop")).unwrap();
-        let storage = root.to_string_lossy().into_owned();
-        assert!(load_model_lists(storage.clone()).unwrap().is_none());
-        let lists = HashMap::from([(
-            "ark-provider".to_string(),
-            vec!["ark-code-latest".to_string()],
-        )]);
-        save_model_lists(storage.clone(), lists.clone()).unwrap();
-        assert_eq!(load_model_lists(storage).unwrap(), Some(lists));
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn running_backend_rejects_a_different_storage_location() {
-        let root = std::env::temp_dir().join(format!("hermess-storage-match-{}", Uuid::new_v4()));
-        let first = root.join("first");
-        let second = root.join("second");
-        fs::create_dir_all(first.join("HermessAgentDesktop")).unwrap();
-        fs::create_dir_all(&second).unwrap();
-        let running = first.join("HermessAgentDesktop").canonicalize().unwrap();
-        assert!(running_storage_matches(&running, &first));
-        assert!(!running_storage_matches(&running, &second));
-        assert!(!running_storage_matches(&running, &root.join("missing")));
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn diagnostic_entries_show_newest_first_without_reversing_stack_traces() {
-        let content = "2026-10-24 23:22:15 INFO first\n  first detail\n2026-10-24 23:22:16 ERROR second\n  second detail";
-        assert_eq!(
-            newest_log_entries_first(content),
-            "2026-10-24 23:22:16 ERROR second\n  second detail\n2026-10-24 23:22:15 INFO first\n  first detail"
-        );
-    }
-
-    #[test]
-    fn saved_model_config_returns_only_public_model_fields() {
-        let yaml = "model:\n  provider: custom\n  default: ark-code-latest\n  base_url: https://ark.cn-beijing.volces.com/api/coding/v3\n  api_key: secret-example\n";
-        let config = parse_saved_model_config(yaml).unwrap();
-        assert_eq!(config.provider, "custom");
-        assert_eq!(config.model, "ark-code-latest");
-        assert_eq!(
-            config.base_url,
-            "https://ark.cn-beijing.volces.com/api/coding/v3"
-        );
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../packages/contracts/fixtures/saved-model-config.json"
-        )))
-        .unwrap();
-        assert_eq!(serde_json::to_value(&config).unwrap(), fixture);
-        assert!(!serde_json::to_string(&config)
-            .unwrap()
-            .contains("secret-example"));
-    }
-
-    #[test]
-    fn storage_lock_child() {
-        let Ok(path) = std::env::var("HERMESS_TEST_STORAGE_LOCK_PATH") else {
-            return;
-        };
-        let acquired = acquire_storage_lock(std::path::Path::new(&path)).is_ok();
-        let expected =
-            std::env::var("HERMESS_TEST_STORAGE_LOCK_AVAILABLE").unwrap_or_default() == "1";
-        assert_eq!(acquired, expected);
-    }
-
-    fn check_child_lock(root: &std::path::Path, available: bool) {
-        let output = Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "runtime::tests::storage_lock_child"])
-            .env("HERMESS_TEST_STORAGE_LOCK_PATH", root)
-            .env(
-                "HERMESS_TEST_STORAGE_LOCK_AVAILABLE",
-                if available { "1" } else { "0" },
-            )
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "child lock check failed: {}",
-            String::from_utf8_lossy(&output.stdout)
-        );
-    }
-
-    #[test]
-    fn storage_lock_rejects_second_owner_and_recovers_after_release() {
-        let root = std::env::temp_dir().join(format!("hermess-storage-lock-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("control")).unwrap();
-        let first = acquire_storage_lock(&root).unwrap();
-        assert!(acquire_storage_lock(&root).is_err());
-        check_child_lock(&root, false);
-        drop(first);
-        let second = acquire_storage_lock(&root).unwrap();
-        drop(second);
-        check_child_lock(&root, true);
-        fs::remove_file(root.join("control").join("owner.lock")).unwrap();
-        fs::remove_dir(root.join("control")).unwrap();
-        fs::remove_dir(root).unwrap();
-    }
-
-    #[cfg(all(windows, target_arch = "x86_64"))]
-    #[test]
-    fn packed_payload_rejects_a_different_upstream_commit() {
-        let root = std::env::temp_dir().join(format!("hermess-payload-check-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("bin")).unwrap();
-        fs::write(root.join("bin/hermes.exe"), b"test launcher").unwrap();
-        let lock: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../../runtime/upstream.lock.json"))
-                .unwrap();
-        let mut manifest = serde_json::json!({
-            "schema": 1, "target": "win32-x64", "repo": "hermes-agent",
-            "ref": lock["commit"], "runtime": {"commands": {"hermes": "bin/hermes.exe"}}
-        });
-        fs::write(root.join("manifest.json"), manifest.to_string()).unwrap();
-        assert!(validate_payload(&root).is_ok());
-        manifest["ref"] = serde_json::json!("different-upstream-commit");
-        fs::write(root.join("manifest.json"), manifest.to_string()).unwrap();
-        assert!(validate_payload(&root).is_err());
-        fs::remove_file(root.join("manifest.json")).unwrap();
-        fs::remove_file(root.join("bin/hermes.exe")).unwrap();
-        fs::remove_dir(root.join("bin")).unwrap();
-        fs::remove_dir(root).unwrap();
-    }
-
-    #[cfg(all(windows, target_arch = "x86_64"))]
-    #[test]
-    #[ignore = "requires a prepared 1.6 GB offline runtime archive under .build/runtime"]
-    fn packed_payload_installs_from_real_archive() {
-        let product = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let build = product.join(".build");
-        let selected = build.join("installed-runtime-smoke");
-        let launcher = install_packed_payload(&build, &selected).unwrap();
-        assert!(launcher.is_file());
-        assert_eq!(install_packed_payload(&build, &selected).unwrap(), launcher);
-    }
-
-    #[test]
-    fn storage_location_survives_restart_and_refuses_corruption() {
-        let root = std::env::temp_dir().join(format!("hermess-location-{}", Uuid::new_v4()));
-        let file = root.join("config/location.json");
-        assert!(read_storage_location(&file).unwrap().is_none());
-        let selected = root.join("中文 空格 存储");
-        write_storage_location(&file, &selected).unwrap();
-        assert_eq!(read_storage_location(&file).unwrap(), Some(selected));
-        fs::write(&file, b"{broken").unwrap();
-        assert!(read_storage_location(&file).is_err());
-        fs::remove_file(file).unwrap();
-        fs::remove_dir(root.join("config")).unwrap();
-        fs::remove_dir(root).unwrap();
-    }
-
-    #[test]
-    fn client_events_use_daily_files_and_diagnostics_keep_sources_separate() {
-        let selected = std::env::temp_dir().join(format!("hermess-logs-{}", Uuid::new_v4()));
-        let storage = selected.join("HermessAgentDesktop");
-        fs::create_dir_all(&storage).unwrap();
-        append_client_event(&storage, "backend_starting").unwrap();
-        append_client_event(&storage, "backend_started").unwrap();
-        let files = daily_log_files(&storage, "client-").unwrap();
-        assert_eq!(files.len(), 1);
-        assert!(files[0]
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .starts_with("client-"));
-        let client_logs =
-            read_diagnostic_logs(selected.to_string_lossy().into_owned(), "client".into()).unwrap();
-        assert!(
-            client_logs.find("backend_started").unwrap()
-                < client_logs.find("backend_starting").unwrap()
-        );
-        assert!(
-            !read_diagnostic_logs(selected.to_string_lossy().into_owned(), "hermes".into())
-                .unwrap()
-                .contains("backend_starting")
-        );
-        fs::remove_dir_all(selected).unwrap();
-    }
-}
+#[path = "tests/mod.rs"]
+mod tests;

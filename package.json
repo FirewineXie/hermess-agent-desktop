@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "pnpm --dir apps/desktop dev",
     "build": "pnpm --dir apps/desktop build",
-    "check:architecture": "node --test scripts/architecture-dependencies.test.mjs && node scripts/check-architecture-boundaries.mjs",
-    "check:contracts": "node scripts/check-contract-fixtures.mjs",
+    "check:architecture": "node --test tests/architecture-dependencies.test.mjs && node scripts/check-architecture-boundaries.mjs",
+    "check:contracts": "node scripts/check-contract-schemas.mjs",
     "check:legal": "node scripts/check-legal.mjs",
-    "test:update-rules": "node --experimental-strip-types --test apps/frontend/src/features/about/updateRules.test.mjs",
+    "test:update-rules": "node --experimental-strip-types --test apps/frontend/tests/updateRules.test.mjs",
     "generate:contracts": "node scripts/generate-contracts.mjs",
     "check:generated-contracts": "node scripts/generate-contracts.mjs --check",
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",

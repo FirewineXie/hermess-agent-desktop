@@ -35,6 +35,7 @@ HermessAgentDesktop/
 │  │  │  ├─ locales/
 │  │  │  └─ public.tsx                    # 向宿主导出 mountApp
 │  │  ├─ preview/                        # 注入模拟能力的浏览器预览入口
+│  │  ├─ tests/                          # 前端纯逻辑测试，独立于 src
 │  │  ├─ package.json
 │  │  ├─ README.md
 │  │  ├─ AGENTS.md
@@ -47,6 +48,7 @@ HermessAgentDesktop/
 │     │  ├─ src/
 │     │  │  ├─ main.rs                    # 初始化、状态注入、命令注册
 │     │  │  ├─ runtime/                   # 唯一所有者、生命周期、资源安装、存储定位及各功能命令
+│     │  │  ├─ tests/                     # Rust 单元测试；runtime/tests 存放运行时测试
 │     │  │  ├─ gateway.rs                 # WS/RPC、事件和上游请求协议
 │     │  │  ├─ diagnostics.rs             # 环境探测与日志
 │     │  │  └─ storage.rs                 # 产品存储位置
@@ -60,7 +62,6 @@ HermessAgentDesktop/
 │  └─ contracts/                        # 两端共享的稳定接口契约
 │     ├─ src/                            # 能力接口、DTO、事件和错误类型
 │     ├─ schema/                         # 跨语言数据格式的规范源
-│     ├─ fixtures/                       # Rust/TypeScript 共用的契约样本
 │     ├─ package.json
 │     ├─ README.md
 │     ├─ AGENTS.md

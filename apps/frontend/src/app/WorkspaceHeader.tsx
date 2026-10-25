@@ -1,7 +1,8 @@
 import { useLanguage, changeLanguage, translateApp, type Language } from '../i18n'
 import type { View } from './types'
+import { sessionSourceLabel } from '../features/chat/sessionSource'
 
-export default function WorkspaceHeader({ view, sessionTitle, connected, onOpenNavigation }: { view: View; sessionTitle?: string; connected: boolean; onOpenNavigation: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, onOpenNavigation }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; onOpenNavigation: () => void }) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
@@ -16,7 +17,7 @@ export default function WorkspaceHeader({ view, sessionTitle, connected, onOpenN
   })[view]
   return <header className="workspace-header">
     <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>
-    <div><span className="workspace-kicker">Hermess Agent Desktop</span><h1>{title}</h1></div>
+    <div><span className="workspace-kicker">Hermess Agent Desktop</span><h1>{title}{view === 'chat' && sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</h1></div>
     <label className="language-switch">
       <span>{t('ui.language')}</span>
       <select aria-label={t('ui.language')} value={language} onChange={event => changeLanguage(event.target.value as Language)}>

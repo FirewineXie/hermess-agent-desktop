@@ -423,42 +423,5 @@ pub fn record_client_event(storage_path: String, event: String) -> Result<(), De
 }
 
 #[cfg(test)]
-mod contract_tests {
-    use super::RuntimeProbe;
-
-    #[test]
-    fn runtime_probes_match_shared_contract_fixtures() {
-        let found: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../packages/contracts/fixtures/runtime-probe-found.json"
-        ))
-        .unwrap();
-        let missing: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../packages/contracts/fixtures/runtime-probe-missing.json"
-        ))
-        .unwrap();
-        assert_eq!(
-            serde_json::to_value(RuntimeProbe {
-                tool: "Python",
-                kind: "runtime",
-                path: Some("E:/tools/python.exe".into()),
-                version: Some("Python 3.14 CPython AMD64".into()),
-                usable: true,
-                reason: String::new(),
-            })
-            .unwrap(),
-            found
-        );
-        assert_eq!(
-            serde_json::to_value(RuntimeProbe {
-                tool: "Git",
-                kind: "command",
-                path: None,
-                version: None,
-                usable: false,
-                reason: "没有找到可执行文件".into(),
-            })
-            .unwrap(),
-            missing
-        );
-    }
-}
+#[path = "tests/diagnostics.rs"]
+mod contract_tests;

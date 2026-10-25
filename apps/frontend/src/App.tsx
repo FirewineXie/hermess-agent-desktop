@@ -31,20 +31,20 @@ function App() {
   const {
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, backendStatus, setBackendStatus, busy, setBusy,
-    startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend,
+    startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend, forceRestartBackend,
   } = useRuntimeController({
     t,
     onStarted: () => { void loadModelOptions(); void loadSessions(true) },
     onReset: () => { setActiveModel(null); resetChat(); resetModel() },
   })
   const chatController = useChatController({
-    backend, activeModel, language, storagePath, t,
+    backend, chatVisible: view === 'chat', activeModel, language, storagePath, t,
     openView: next => openView(next), setSidebarOpen, setActiveModel,
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
     setBackend, setBackendStatus, setBusy,
   })
   const {
-    sessionId, sessionRef, storedSessionRef, setChatStatus, turnBusy, navigationBusy, sessionCreating, reasoningBusy, sessions,
+    sessionId, sessionRef, storedSessionRef, setChatStatus, turnBusy, navigationBusy, sessionCreating, reasoningBusy, sessions, sessionsState,
     attachmentBusy, ensureChatSession, loadSessions, newChat, resumeSession,
     reconnectBackend, resetChat,
   } = chatController
@@ -65,13 +65,20 @@ function App() {
     return true
   }
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
+  const restartForChannel = async (force = false) => {
+    const selectedSession = storedSessionRef.current
+    const restarted = force ? await forceRestartBackend() : await restartBackend()
+    if (!restarted) return false
+    if (selectedSession) await resumeSession(selectedSession, true, restarted.replay_epoch)
+    return true
+  }
   return <div className="app-shell">
-    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions()} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
     <main className="workspace">
-      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
+      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
-    {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={restartBackend} />}
+    {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
     {view === 'about' && <AboutView />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} sessionId={sessionId} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}

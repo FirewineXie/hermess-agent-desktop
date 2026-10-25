@@ -2,7 +2,7 @@ import { invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open } from '@tauri-apps/plugin-dialog'
-import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
+import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
 
 function desktopFailure(cause: unknown): DesktopFailure {
   if (isDesktopFailure(cause)) return cause
@@ -69,6 +69,9 @@ export const tauriDesktopApi: DesktopApi = {
   },
   about: {
     productInfo: () => invoke('get_product_info'),
+    checkUpdates: () => invoke('check_updates'),
+    downloadUpdate: (tagName, assetId) => invoke('download_update', { tagName, assetId }),
+    onDownloadProgress: handler => listenPayload<UpdateDownloadProgress>('update-download-progress', handler),
   },
   extensions: {
     request: (operation, payload = {}) => invoke('extension_request', { operation, payload }),
@@ -80,6 +83,7 @@ export const tauriDesktopApi: DesktopApi = {
     startPacked: storagePath => invoke('start_packed_backend', { storagePath }),
     ping: () => invoke('ping_backend'),
     reconnect: () => invoke('reconnect_backend'),
+    restartGracefully: () => invoke('restart_backend_gracefully'),
     stop: () => invoke('stop_backend'),
     probeLocalTools: () => invoke('probe_local_tools'),
   },

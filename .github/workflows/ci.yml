@@ -31,7 +31,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check architecture boundaries
         run: pnpm check:architecture
-      - name: Check shared contract fixtures
+      - name: Check shared contract schemas
         run: pnpm check:contracts
       - name: Check generated contract types
         run: pnpm check:generated-contracts
