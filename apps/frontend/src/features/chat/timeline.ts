@@ -14,7 +14,7 @@ export type ToolStep = {
 export type TimelineItem =
   | { kind: 'message'; role: 'user' | 'assistant'; text: string; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
-  | { kind: 'reasoning'; text: string; streaming: boolean }
+  | { kind: 'reasoning'; text: string; streaming: boolean; expanded: boolean }
 
 type HistoryRow = ResumeResult['messages'][number]
 
@@ -82,7 +82,7 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
           items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }
         }
       }
-      if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false }]
+      if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false, expanded: false }]
       if (text.trim()) items = [...items, { kind: 'message', role: 'assistant', text }]
     }
   }
@@ -93,25 +93,29 @@ export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant',
   return text.trim() ? [...items, { kind: 'message', role, text, ...(startedAt == null ? {} : { startedAt }) }] : items
 }
 
-export function appendReasoning(items: TimelineItem[], text: string, completed = false): TimelineItem[] {
-  const current = completed ? finishReasoning(items) : items
+export function appendReasoning(items: TimelineItem[], text: string, available = false, expanded = true): TimelineItem[] {
+  if (!text.trim()) return items
+  const current = available ? pauseReasoning(items) : items
   const last = current.at(-1)
-  if (!text.trim() && !(last?.kind === 'reasoning' && last.streaming)) return current
-  if (!completed && last?.kind === 'reasoning' && last.streaming) {
+  if (available) {
+    // reasoning.available is a bounded preview, not an end-of-reasoning event.
+    const latest = [...current].reverse().find(item => item.kind === 'reasoning' || (item.kind === 'message' && item.role === 'user'))
+    if (latest?.kind === 'reasoning' && latest.text.trim().startsWith(text.trim())) return current
+  } else if (last?.kind === 'reasoning' && last.streaming && last.expanded === expanded) {
     return [...current.slice(0, -1), { ...last, text: last.text + text }]
   }
-  if (completed && last?.kind === 'reasoning' && last.text.trim() === text.trim()) return current
-  return [...current, { kind: 'reasoning', text, streaming: !completed }]
+  return [...current, { kind: 'reasoning', text, streaming: !available, expanded }]
+}
+
+export function pauseReasoning(items: TimelineItem[]): TimelineItem[] {
+  if (!items.some(item => item.kind === 'reasoning' && item.streaming)) return items
+  return items.map(item => item.kind === 'reasoning' && item.streaming ? { ...item, streaming: false } : item)
 }
 
 export function finishReasoning(items: TimelineItem[]): TimelineItem[] {
-  for (let index = items.length - 1; index >= 0; index--) {
-    const item = items[index]
-    if (item.kind === 'reasoning' && item.streaming) {
-      return items.map((current, position) => position === index ? { ...item, streaming: false } : current)
-    }
-  }
-  return items
+  if (!items.some(item => item.kind === 'reasoning' && (item.streaming || item.expanded))) return items
+  return items.map(item => item.kind === 'reasoning' && (item.streaming || item.expanded)
+    ? { ...item, streaming: false, expanded: false } : item)
 }
 
 export function finishTurn(items: TimelineItem[], duration: number, turnState: 'completed' | 'failed' | 'interrupted'): TimelineItem[] {

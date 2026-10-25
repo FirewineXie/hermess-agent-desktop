@@ -13,9 +13,9 @@ test('multiple tool calls show one running state and active reasoning stays expa
   const html = renderToStaticMarkup(React.createElement(MessageList, {
     messages: [
       { kind: 'message', role: 'user', text: '查找资料', startedAt: 1000 },
-      { kind: 'reasoning', text: '第一段思考', streaming: false },
+      { kind: 'reasoning', text: '第一段思考', streaming: false, expanded: false },
       { kind: 'tools', steps: [{ id: 'tool-1', name: 'browser_exec', state: 'finished' }] },
-      { kind: 'reasoning', text: '第二段思考', streaming: true },
+      { kind: 'reasoning', text: '第二段思考', streaming: true, expanded: true },
       { kind: 'tools', steps: [{ id: 'tool-2', name: 'vision_analyze', state: 'running' }] },
     ],
     assistant: '', turnBusy: true, language: 'zh-CN', t: key => key,
@@ -38,7 +38,7 @@ test('completed reasoning is collapsed below the tool list and above the final a
     messages: [
       { kind: 'message', role: 'user', text: '历史问题', duration: 4, turnState: 'completed' },
       { kind: 'tools', steps: [{ id: 'tool-1', name: 'browser_exec', state: 'recorded' }] },
-      { kind: 'reasoning', text: '历史思考', streaming: false },
+      { kind: 'reasoning', text: '历史思考', streaming: false, expanded: false },
       { kind: 'message', role: 'assistant', text: '最终回答' },
     ],
     assistant: '', turnBusy: false, language: 'zh-CN', t: key => key,
@@ -50,4 +50,17 @@ test('completed reasoning is collapsed below the tool list and above the final a
   assert.ok(!html.includes('class="turn-activity" open'))
   assert.ok(html.includes('<details class="reasoning-block"'))
   assert.ok(!html.includes('class="reasoning-block" open'))
+})
+
+test('reasoning remains expanded while tools run and before assistant text appears', () => {
+  const html = renderToStaticMarkup(React.createElement(MessageList, {
+    messages: [
+      { kind: 'message', role: 'user', text: '处理任务', startedAt: 1000 },
+      { kind: 'reasoning', text: '检查文件', streaming: false, expanded: true },
+      { kind: 'tools', steps: [{ id: 'tool-1', name: 'read_file', state: 'running' }] },
+    ],
+    assistant: '', turnBusy: true, language: 'zh-CN', t: key => key,
+  }))
+  assert.ok(html.includes('class="reasoning-block" open'))
+  assert.ok(html.includes('思考过程'))
 })

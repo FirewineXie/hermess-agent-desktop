@@ -83,12 +83,12 @@ function AssistantMessage({ text, language }: { text: string; language: Language
   return <div className="message message-assistant"><MarkdownMessage text={text} language={language} /></div>
 }
 
-function ReasoningBlock({ text, streaming, language }: { text: string; streaming: boolean; language: Language }) {
+function ReasoningBlock({ text, streaming, expanded, language }: { text: string; streaming: boolean; expanded: boolean; language: Language }) {
   const contentRef = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
-    if (streaming && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight
-  }, [text, streaming])
-  return <details className="reasoning-block" open={streaming}>
+    if (expanded && streaming && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight
+  }, [text, streaming, expanded])
+  return <details className="reasoning-block" open={expanded}>
     <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
     <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} /></div>
   </details>
@@ -164,7 +164,7 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         <p className="message message-user">{message.text}</p>
         {!steps.length && hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
         {steps.length > 0 && <TurnActivity user={message} steps={steps} now={now} showTime={hasTime} language={language} />}
-        {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} language={language} />}
+        {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} expanded={reasoning.some(part => part.expanded)} language={language} />}
         {intermediateMessages.map((item, position) => <AssistantMessage key={position} text={item.text} language={language} />)}
         {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} language={language} />}
       </React.Fragment>)
@@ -173,7 +173,7 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       blocks.push(message.kind === 'tools'
         ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
         : message.kind === 'reasoning'
-          ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} language={language} />
+          ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
           : <AssistantMessage key={`orphan-${index}`} text={message.text} language={language} />)
       index++
     }
