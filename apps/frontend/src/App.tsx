@@ -120,8 +120,8 @@ function App() {
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
       onOpenRuntime={() => openView('runtime')} onOpenModelSettings={() => openView('model')} />
-      <WorkspacePanel open={panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionWorkspacePath : workspaces.selected}
-        profile={profileController.snapshot?.selected || 'default'} browserSignal={chatController.browserSignal} ensureChatSession={ensureChatSession} /></div>}
+      <WorkspacePanel open={panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionCurrentDirectory : workspaces.selected}
+      /></div>}
     </main>
   </div>
 }

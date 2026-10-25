@@ -3,7 +3,6 @@
 mod diagnostics;
 mod errors;
 mod gateway;
-mod panel_browser;
 mod panel_terminal;
 mod runtime;
 mod storage;
@@ -25,11 +24,10 @@ fn main() {
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
+            workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
-            panel_browser::panel_browser_action,
-            runtime::browser_bridge::browser_bridge_frame,
-            runtime::browser_bridge::browser_bridge_command,
             panel_terminal::start_panel_terminal,
+            panel_terminal::activate_panel_terminal,
             panel_terminal::write_panel_terminal,
             panel_terminal::resize_panel_terminal,
             panel_terminal::close_panel_terminal,

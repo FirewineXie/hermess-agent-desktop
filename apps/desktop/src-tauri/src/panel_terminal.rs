@@ -4,6 +4,7 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use serde::Serialize;
 use std::{
     collections::HashMap,
+    ffi::OsString,
     io::{Read, Write},
     path::Path,
     sync::{Arc, Mutex},
@@ -13,6 +14,7 @@ use uuid::Uuid;
 
 struct TerminalSession {
     master: Mutex<Box<dyn MasterPty + Send>>,
+    reader: Mutex<Option<Box<dyn Read + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
 }
@@ -50,9 +52,20 @@ fn terminal_size(cols: u16, rows: u16) -> PtySize {
     }
 }
 
+fn default_shell() -> OsString {
+    if cfg!(windows) {
+        std::env::var_os("ComSpec")
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "cmd.exe".into())
+    } else {
+        std::env::var_os("SHELL")
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "sh".into())
+    }
+}
+
 #[tauri::command]
 pub fn start_panel_terminal(
-    app: AppHandle,
     state: State<'_, TerminalState>,
     cwd: Option<String>,
 ) -> Result<StartedTerminal, DesktopFailure> {
@@ -69,18 +82,14 @@ pub fn start_panel_terminal(
     let pair = native_pty_system()
         .openpty(terminal_size(80, 24))
         .map_err(|_| DesktopFailure::operation_failed())?;
-    let mut command = CommandBuilder::new(if cfg!(windows) {
-        "powershell.exe"
-    } else {
-        "sh"
-    });
+    let mut command = CommandBuilder::new(default_shell());
     command.cwd(&directory);
     let child = pair
         .slave
         .spawn_command(command)
         .map_err(|_| DesktopFailure::operation_failed())?;
     drop(pair.slave);
-    let mut reader = pair
+    let reader = pair
         .master
         .try_clone_reader()
         .map_err(|_| DesktopFailure::operation_failed())?;
@@ -91,6 +100,7 @@ pub fn start_panel_terminal(
     let id = Uuid::new_v4().to_string();
     let session = Arc::new(TerminalSession {
         master: Mutex::new(pair.master),
+        reader: Mutex::new(Some(reader)),
         writer: Mutex::new(writer),
         child: Mutex::new(child),
     });
@@ -99,7 +109,27 @@ pub fn start_panel_terminal(
         .lock()
         .map_err(|_| DesktopFailure::operation_failed())?
         .insert(id.clone(), session);
-    let output_id = id.clone();
+    Ok(StartedTerminal {
+        id,
+        cwd: directory.to_string_lossy().into_owned(),
+    })
+}
+
+#[tauri::command]
+pub fn activate_panel_terminal(
+    app: AppHandle,
+    state: State<'_, TerminalState>,
+    id: String,
+) -> Result<(), DesktopFailure> {
+    let session = get_session(&state, &id)?;
+    let Some(mut reader) = session
+        .reader
+        .lock()
+        .map_err(|_| DesktopFailure::operation_failed())?
+        .take()
+    else {
+        return Ok(());
+    };
     std::thread::spawn(move || {
         let mut buffer = [0u8; 8192];
         loop {
@@ -109,7 +139,7 @@ pub fn start_panel_terminal(
                     let _ = app.emit(
                         "panel-terminal-output",
                         TerminalOutput {
-                            id: output_id.clone(),
+                            id: id.clone(),
                             data: STANDARD.encode(&buffer[..n]),
                             closed: false,
                         },
@@ -120,16 +150,13 @@ pub fn start_panel_terminal(
         let _ = app.emit(
             "panel-terminal-output",
             TerminalOutput {
-                id: output_id,
+                id,
                 data: String::new(),
                 closed: true,
             },
         );
     });
-    Ok(StartedTerminal {
-        id,
-        cwd: directory.to_string_lossy().into_owned(),
-    })
+    Ok(())
 }
 
 fn get_session(
@@ -193,3 +220,7 @@ pub fn close_panel_terminal(
         .remove(&id);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/panel_terminal.rs"]
+mod tests;

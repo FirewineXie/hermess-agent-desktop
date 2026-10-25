@@ -32,8 +32,8 @@ export default function TerminalTab({ id, active }: { id: string; active: boolea
       if (event.closed) screen.write('\r\n[终端已结束]')
     }).then(stop => {
       if (disposed) stop()
-      else { unlisten = stop; void api.writeTerminal(id, '\r') }
-    })
+      else { unlisten = stop; void api.activateTerminal(id).catch(() => screen.write('\r\n[终端启动失败]')) }
+    }).catch(() => { if (!disposed) screen.write('\r\n[终端输出连接失败]') })
     return () => {
       disposed = true
       unlisten?.()

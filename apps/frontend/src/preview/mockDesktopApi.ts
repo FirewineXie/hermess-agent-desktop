@@ -4,19 +4,14 @@ const previewOnly = () => new Error('此操作需要桌面客户端；当前是�
 
 export const previewDesktopApi: DesktopApi = {
   workspacePanel: {
-    async browserFrame() { throw previewOnly() },
-    async browserCommand() { throw previewOnly() },
+    async listDirectory() { throw previewOnly() },
     async readFile() { throw previewOnly() },
     async startTerminal() { throw previewOnly() },
+    async activateTerminal() { throw previewOnly() },
     async writeTerminal() { throw previewOnly() },
     async resizeTerminal() { throw previewOnly() },
     async closeTerminal() {},
     async onTerminalOutput() { return () => {} },
-    async createBrowser() { throw previewOnly() },
-    async positionBrowser() {},
-    async showBrowser() {},
-    async browserAction() { throw previewOnly() },
-    async closeBrowser() {},
   },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },

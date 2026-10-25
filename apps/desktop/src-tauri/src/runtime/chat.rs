@@ -84,8 +84,8 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    // Prepare a shared browser before the model can call browser_exec. A missing optional
-    // Chromium must not prevent ordinary chat; the panel reports connection failure itself.
+    // Prepare the product-owned browser before the model can call browser_exec. A missing
+    // optional Chromium must not prevent ordinary chat; details remain in browser logs.
     let _ = browser_bridge.ensure(&state, &session_id).await;
     let gateway = state.gateway().await?;
     gateway

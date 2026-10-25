@@ -84,7 +84,6 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/diagnostics.rs',
   'apps/desktop/src-tauri/src/updates.rs',
   'apps/desktop/src-tauri/src/panel_terminal.rs',
-  'apps/desktop/src-tauri/src/panel_browser.rs',
   'apps/desktop/src-tauri/src/workspace_panel.rs',
 ]
 const definedCommands = new Set()

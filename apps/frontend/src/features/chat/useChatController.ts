@@ -32,7 +32,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   const { events, nativeFiles, chat, runtime, diagnostics } = useDesktop()
   const [sessionId, setSessionId] = React.useState('')
   const [sessionWorkspacePath, setSessionWorkspacePath] = React.useState('')
-  const [browserSignal, setBrowserSignal] = React.useState({ sessionId: '', sequence: 0 })
+  const [sessionCurrentDirectory, setSessionCurrentDirectory] = React.useState('')
   const [reasoningEffort, setReasoningEffort] = React.useState('')
   const [reasoningLoadFailed, setReasoningLoadFailed] = React.useState(false)
   const [reasoningBusy, setReasoningBusy] = React.useState(false)
@@ -127,9 +127,6 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       finishCurrentTurn('failed')
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
-      if (data.kind === 'tool.start' && data.payload?.name === 'browser_exec') {
-        setBrowserSignal(current => ({ sessionId: id, sequence: current.sequence + 1 }))
-      }
       setConversation(rows => updateTool(finishReasoning(rows), data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
       setChatStatus(t("ui.arg.arg", t(data.kind === 'tool.start' ? 'ui.calling' : 'ui.tool.finished'), String(data.payload?.name || t("ui.tool"))))
     } else if (data.kind === 'request.cancel') {
@@ -200,6 +197,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       storedSessionRef.current = created.stored_session_id
       setSessionId(id)
       setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
+      setSessionCurrentDirectory(created.info?.cwd || workspacePath)
       setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
       await loadSessions(true)
       return id
@@ -511,6 +509,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     storedSessionRef.current = ''
     setSessionId('')
     setSessionWorkspacePath('')
+    setSessionCurrentDirectory('')
     setReasoningEffort('')
     setActiveModel(null)
     setModelPickerOpen(false)
@@ -546,6 +545,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       setClarifyDraft({ requestId: '', answers: {} })
       setSessionId(result.session_id)
       setSessionWorkspacePath(selectedWorkspacePath(result.info))
+      setSessionCurrentDirectory(result.info?.cwd || '')
       setReasoningEffort('')
       setActiveModel(result.info?.provider && result.info.model ? { provider: result.info.provider, model: result.info.model } : null)
       setModelPickerOpen(false)
@@ -608,6 +608,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
         storedSessionRef.current = snapshot.stored_session_id || snapshot.session_key || storedSessionRef.current
         setSessionId(id)
         setSessionWorkspacePath(selectedWorkspacePath(snapshot.info))
+        setSessionCurrentDirectory(snapshot.info?.cwd || '')
         setActiveModel(snapshot.info?.provider && snapshot.info.model ? { provider: snapshot.info.provider, model: snapshot.info.model } : null)
         setClarifyDraft({ requestId: '', answers: {} })
         const buffered = bufferedEventsRef.current.splice(0)
@@ -663,6 +664,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     storedSessionRef.current = ''
     setSessionId('')
     setSessionWorkspacePath('')
+    setSessionCurrentDirectory('')
     setConversation([])
     assistantRef.current = ''
     setAssistant('')
@@ -678,7 +680,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   return {
-    sessionId, sessionWorkspacePath, browserSignal, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
+    sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,

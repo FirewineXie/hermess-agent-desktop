@@ -144,19 +144,14 @@ export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } |
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
   workspacePanel: {
-    browserFrame(sessionId: string, targetId?: string): Promise<{ image: string; target: { id: string; title: string; url: string }; targets: Array<{ id: string; title: string; url: string }> }>
-    browserCommand(sessionId: string, targetId: string, method: string, params: Record<string, unknown>): Promise<void>
+    listDirectory(path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
     readFile(path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
     startTerminal(cwd?: string): Promise<{ id: string; cwd: string }>
+    activateTerminal(id: string): Promise<void>
     writeTerminal(id: string, data: string): Promise<void>
     resizeTerminal(id: string, cols: number, rows: number): Promise<void>
     closeTerminal(id: string): Promise<void>
     onTerminalOutput(handler: (event: { id: string; data: string; closed: boolean }) => void): Promise<Unsubscribe>
-    createBrowser(id: string, url: string, bounds: { x: number; y: number; width: number; height: number }): Promise<void>
-    positionBrowser(id: string, bounds: { x: number; y: number; width: number; height: number }): Promise<void>
-    showBrowser(id: string, visible: boolean): Promise<void>
-    browserAction(id: string, action: 'back' | 'forward' | 'reload'): Promise<void>
-    closeBrowser(id: string): Promise<void>
   }
   channels: {
     status(): Promise<{ platforms: ChannelStatus[] }>

@@ -87,21 +87,17 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .panel-empty { margin: auto; padding: 20px; color: #89929f; text-align: center; font-size: 13px; }
 .panel-error { margin: 8px 12px; color: #a13838; font-size: 12px; }
 .panel-file { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.panel-tree { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.panel-tree-list { flex: 1; overflow: auto; padding: 5px 0; }
+.panel-tree-entry { display: block; width: 100%; overflow: hidden; border: 0; background: transparent; color: #354255; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 28px; cursor: pointer; }
+.panel-tree-entry:hover { background: #eef3f8; }
+.panel-tree-entry span { display: inline-block; width: 14px; }
+.panel-tree-note { color: #89929f; font-size: 12px; line-height: 26px; }
 .panel-file-path { overflow: hidden; flex: none; padding: 9px 12px; border-bottom: 1px solid #edf0f3; color: #697586; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .panel-file pre { flex: 1; margin: 0; padding: 14px; overflow: auto; font: 12px/1.55 Consolas, monospace; white-space: pre; }
 .panel-file img { max-width: 100%; max-height: 100%; margin: auto; object-fit: contain; }
 .panel-file p { padding: 14px; color: #697586; }
 .panel-terminal { flex: 1; min-width: 0; min-height: 0; padding: 5px; background: #171d27; }
-.panel-browser { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-.panel-browser-toolbar { display: flex; gap: 5px; flex: none; padding: 7px; border-bottom: 1px solid #edf0f3; }
-.panel-browser-toolbar input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #d7dde5; border-radius: 6px; font-size: 12px; }
-.panel-browser-toolbar button { padding: 6px 8px; border: 1px solid #d7dde5; border-radius: 6px; color: #415269; background: #fff; font-size: 12px; }
-.panel-browser-page-input { display: flex; flex: none; gap: 5px; padding: 5px 7px; border-bottom: 1px solid #edf0f3; }
-.panel-browser-page-input input { flex: 1; min-width: 0; padding: 5px; border: 1px solid #d7dde5; border-radius: 6px; font-size: 12px; }
-.panel-browser-page-input button { padding: 5px 8px; border: 1px solid #d7dde5; border-radius: 6px; background: #fff; font-size: 12px; }
-.panel-browser-viewport { display: flex; flex: 1; min-height: 0; align-items: flex-start; justify-content: center; overflow: auto; color: #9097a2; font-size: 12px; }
-.panel-browser-viewport img { width: 100%; height: auto; cursor: pointer; touch-action: none; user-select: none; }
-.panel-browser > select { flex: none; max-width: 100%; margin: 5px 7px; font-size: 12px; }
 .settings-panel { width: min(760px, calc(100% - 64px)); margin: 36px auto 60px; padding: 28px 32px; border: 1px solid #e7ebef; border-radius: 16px; box-shadow: 0 12px 42px rgba(35, 51, 76, .04); overflow: auto; }
 .settings-panel.flat-settings-panel { padding: 0; border: 0; border-radius: 0; box-shadow: none; }
 .settings-panel h2 { margin: 0; font-size: 21px; }
