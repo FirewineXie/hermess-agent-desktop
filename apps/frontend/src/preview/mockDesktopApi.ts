@@ -65,6 +65,9 @@ export const previewDesktopApi: DesktopApi = {
     async checkRuntime() { throw previewOnly() },
     async selectChat() { throw previewOnly() },
   },
+  usage: {
+    async statistics() { throw previewOnly() },
+  },
   chat: {
     async createSession() { throw previewOnly() },
     async resumeSession() { throw previewOnly() },

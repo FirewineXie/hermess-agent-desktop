@@ -6,6 +6,8 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
+    usage: t('ui.usage.title'),
+    workspaces: t('ui.workspace.title'),
     model: t('ui.model.settings'),
     agent: t('ui.agent.settings'),
     memory: t('ui.persona.and.memory'),

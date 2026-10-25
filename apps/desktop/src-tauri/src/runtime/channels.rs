@@ -102,7 +102,7 @@ pub async fn channel_status(state: State<'_, BackendState>) -> Result<Value, Des
         .cloned()
         .unwrap_or_default();
     Ok(
-        json!({"platforms": platforms.iter().filter(|p| ["feishu", "weixin"].contains(&p.get("id").and_then(Value::as_str).unwrap_or("")))
+        json!({"platforms": platforms.iter().filter(|p| p.get("id").and_then(Value::as_str).is_some())
         .map(|p| json!({"id": p.get("id"), "name": p.get("name"), "enabled": p.get("enabled"),
             "configured": p.get("configured"), "state": p.get("state"),
             "error_code": p.get("error_code")})).collect::<Vec<_>>() }),

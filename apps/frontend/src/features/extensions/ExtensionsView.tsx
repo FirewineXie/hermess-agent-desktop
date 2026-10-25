@@ -24,8 +24,10 @@ export default function ExtensionsView({ connected }: { connected: boolean }) {
       {state.tab === 'skills' && <LocalSkills skills={state.skills} busy={state.busy} t={t} request={state.request} run={state.run} onError={state.setMessage} />}
       {state.tab === 'mcp' && <LocalMcp servers={state.servers} busy={state.busy} t={t} request={state.request} run={state.run} onMessage={state.setMessage} />}
       {state.tab === 'skillHub' && <SkillHub official={state.official} featured={state.featured} sources={state.sources} installed={state.installed}
-        results={state.results} busy={state.busy} loading={state.loading} t={t} search={state.searchSkills} request={state.request} run={state.run} onMessage={state.setMessage} />}
-      {state.tab === 'mcpCatalog' && <McpCatalog entries={state.catalog} busy={state.busy} t={t} run={state.run} />}
+        results={state.results} resultsSource={state.resultsSource} busy={state.busy} loading={state.loading} t={t} search={state.searchSkills} request={state.request} run={state.run} onMessage={state.setMessage} />}
+      {state.tab === 'mcpCatalog' && <McpCatalog entries={state.catalog} results={state.catalogResults}
+        resultsSource={state.catalogResultsSource} servers={state.servers} busy={state.busy} loading={state.loading}
+        t={t} search={state.searchCatalog} request={state.request} run={state.run} onMessage={state.setMessage} />}
     </>}
   </section>
 }

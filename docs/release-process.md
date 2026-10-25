@@ -30,6 +30,8 @@ git push origin vX.Y.Z
 
 每个原生 runner 先使用固定上游 PM 准备 Python/uv 和基础依赖，再验证 payload 与上游提交，归档并计算摘要后交给 Tauri 打包。安装包应包含匹配目标平台的运行时；构建失败时不创建 Release。四个构建都成功后，汇总五个安装包和 `SHA256SUMS.txt` 到对应 Release，正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。重跑同一 tag 时会更新已有 Release 的附件、正文和发布类型。
 
+桌面前端的发行构建在 Vite 写出内容哈希前混淆 JavaScript；`scripts/check-desktop-assets.mjs` 要求产物包含 JS 且没有独立或内联的 source map。开发服务器不混淆，前端工作区的浏览器预览构建也不作为桌面发行物。Rust release 配置裁剪符号。上述处理只增加阅读成本；离线载荷仍包含与锁定 fork 提交逐字节一致的 Hermes Python 源码，本产品的 PowerShell 工具代码也仍作为 Python 插件部署。不得以混淆或字节码生成宣称安装包无法逆向。
+
 Release 附件在仓库的 Releases 页面查看；仓库为私有仓库，仍需有仓库访问权限。预发布仅表示构建产物已汇总。推送正式 tag 前须完成实机验证；工作流成功不能代替安装、签名、真实模型和升级验收。
 
 「关于」页面内嵌 `legal/hermes-agent-LICENSE`；CI 和 tag 构建从锁定上游检出后运行 `pnpm check:legal`，要求它与上游许可证逐字节一致。更新通道规则见 [关于与软件更新](about-and-updates.md)。客户端可匿名检查公开 GitHub Release，并下载、校验 Windows 或 macOS 安装包；仓库仍为私有时普通客户端无法访问，也不执行自动安装。后续接入签名更新清单前，还需停止已公开版本的同 tag 附件覆盖，避免同一版本号指向不同字节的安装包。

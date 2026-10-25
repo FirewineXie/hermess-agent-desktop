@@ -49,6 +49,7 @@ fn main() {
             runtime::tools::list_bundled_tools,
             runtime::tools::list_agent_toolsets,
             runtime::tools::list_active_agent_tools,
+            runtime::usage::get_usage_statistics,
             runtime::extensions::extension_request,
             runtime::models::list_model_options,
             runtime::models::select_chat_model,

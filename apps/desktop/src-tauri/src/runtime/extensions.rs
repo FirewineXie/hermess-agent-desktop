@@ -1,4 +1,4 @@
-use super::BackendState;
+use super::{mcp_registry, modelscope, modelscope_mcp, BackendState};
 use crate::errors::DesktopFailure;
 use reqwest::{Method, Url};
 use serde_json::Value;
@@ -19,7 +19,175 @@ pub async fn extension_request(
     operation: String,
     payload: Value,
 ) -> Result<Value, DesktopFailure> {
-    let (method, route, path_key, query_key) = match operation.as_str() {
+    match operation.as_str() {
+        "mcp.modelscope.search" => {
+            state.storage().await?;
+            let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
+            return modelscope_mcp::search(query).await;
+        }
+        "mcp.modelscope.preview" => {
+            state.storage().await?;
+            return modelscope_mcp::preview(field(&payload, "identifier", 220)?).await;
+        }
+        "mcp.modelscope.install" => {
+            state.storage().await?;
+            let identifier = field(&payload, "identifier", 220)?;
+            let expected_url = field(&payload, "url", 2048)?;
+            let auth = payload
+                .get("auth")
+                .and_then(Value::as_str)
+                .unwrap_or("none");
+            if auth != "none" && auth != "oauth" {
+                return Err(DesktopFailure::invalid_input());
+            }
+            let detail = modelscope_mcp::preview(identifier).await?;
+            if detail.get("url").and_then(Value::as_str) != Some(expected_url) {
+                return Err(DesktopFailure::conflict());
+            }
+            let name = detail
+                .get("install_name")
+                .and_then(Value::as_str)
+                .ok_or_else(DesktopFailure::operation_failed)?;
+            return upstream_request(
+                &state,
+                "mcp.add",
+                &serde_json::json!({"name": name, "url": expected_url, "auth": auth}),
+            )
+            .await;
+        }
+        "mcp.registry.search" => {
+            state.storage().await?;
+            let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
+            return mcp_registry::search(query).await;
+        }
+        "mcp.registry.preview" => {
+            state.storage().await?;
+            return mcp_registry::preview(field(&payload, "identifier", 200)?).await;
+        }
+        "mcp.registry.install" => {
+            state.storage().await?;
+            let name = field(&payload, "identifier", 200)?;
+            let version = field(&payload, "version", 100)?;
+            let expected_url = field(&payload, "url", 2048)?;
+            let auth = payload
+                .get("auth")
+                .and_then(Value::as_str)
+                .unwrap_or("none");
+            if auth != "none" && auth != "oauth" {
+                return Err(DesktopFailure::invalid_input());
+            }
+            let detail = mcp_registry::preview(name).await?;
+            if detail.get("version").and_then(Value::as_str) != Some(version)
+                || detail.get("url").and_then(Value::as_str) != Some(expected_url)
+            {
+                return Err(DesktopFailure::conflict());
+            }
+            let address = detail
+                .get("url")
+                .and_then(Value::as_str)
+                .ok_or_else(DesktopFailure::invalid_input)?;
+            return upstream_request(
+                &state,
+                "mcp.add",
+                &serde_json::json!({"name": name, "url": address, "auth": auth}),
+            )
+            .await;
+        }
+        "modelscope.installed" => return modelscope::installed(&state.storage().await?),
+        "modelscope.install" => {
+            let storage = state.storage().await?;
+            let existing = upstream_request(&state, "skills.list", &serde_json::json!({})).await?;
+            let names: Vec<String> = existing
+                .as_array()
+                .ok_or_else(DesktopFailure::operation_failed)?
+                .iter()
+                .filter_map(|skill| skill.get("name").and_then(Value::as_str).map(str::to_owned))
+                .collect();
+            return modelscope::install(
+                &storage,
+                field(&payload, "identifier", 220)?,
+                field(&payload, "digest", 64)?,
+                payload.get("confirmed").and_then(Value::as_bool) == Some(true),
+                &names,
+            )
+            .await;
+        }
+        "modelscope.uninstall" => {
+            let storage = state.storage().await?;
+            let name = field(&payload, "name", 200)?.to_owned();
+            return tauri::async_runtime::spawn_blocking(move || {
+                modelscope::uninstall(&storage, &name)
+            })
+            .await
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        }
+        "skills.preview" | "skills.scan" => {
+            let identifier = field(&payload, "identifier", 220)?;
+            if identifier.starts_with("modelscope:") {
+                state.storage().await?;
+                return if operation == "skills.preview" {
+                    modelscope::preview(identifier).await
+                } else {
+                    modelscope::scan(identifier).await
+                };
+            }
+        }
+        "skills.search" => {
+            let source = payload
+                .get("source")
+                .and_then(Value::as_str)
+                .unwrap_or("all");
+            if source == "modelscope" {
+                let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
+                state.storage().await?;
+                return modelscope::search(query).await;
+            }
+            let query = field(&payload, "q", 500)?;
+            if source == "all" {
+                let (upstream, external) = tokio::join!(
+                    upstream_request(&state, &operation, &payload),
+                    modelscope::search(query),
+                );
+                match (upstream, external) {
+                    (Ok(mut response), Ok(extra)) => {
+                        if let (Some(results), Some(items)) = (
+                            response.get_mut("results").and_then(Value::as_array_mut),
+                            extra.get("results").and_then(Value::as_array),
+                        ) {
+                            results.extend(items.iter().cloned());
+                        }
+                        return Ok(response);
+                    }
+                    (Ok(mut response), Err(_)) => {
+                        response["source_errors"] = serde_json::json!(["modelscope"]);
+                        return Ok(response);
+                    }
+                    (Err(_), Ok(mut response)) => {
+                        response["source_errors"] = serde_json::json!(["hermes"]);
+                        return Ok(response);
+                    }
+                    (Err(error), Err(_)) => return Err(error),
+                }
+            }
+        }
+        "skills.sources" => {
+            let mut response = upstream_request(&state, &operation, &payload).await?;
+            if let Some(sources) = response.get_mut("sources").and_then(Value::as_array_mut) {
+                sources.push(serde_json::json!({"id": "modelscope", "label": "ModelScope"}));
+            }
+            return Ok(response);
+        }
+        _ => {}
+    }
+    upstream_request(&state, &operation, &payload).await
+}
+
+async fn upstream_request(
+    state: &State<'_, BackendState>,
+    operation: &str,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    let (method, route, path_key, query_key) = match operation {
         "skills.list" => (Method::GET, "/api/skills", None, None),
         "skills.content" => (Method::GET, "/api/skills/content", None, Some("name")),
         "skills.create" => (Method::POST, "/api/skills", None, None),

@@ -74,7 +74,7 @@ export type CommandCatalog = {
 export type CommandResult = { type?: string; output?: string; message?: string; display?: string; notice?: string }
 export type ResumeResult = {
   session_id: string
-  info?: { provider?: string; model?: string }
+  info?: { provider?: string; model?: string; cwd?: string }
   stored_session_id?: string
   session_key?: string
   messages: Array<{ role: string; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
@@ -85,6 +85,14 @@ export type ResumeResult = {
   open_requests?: GatewayRequest[]
 }
 export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
+
+export type UsagePeriodDays = 7 | 30 | 90
+export type UsageStatistics = {
+  daily: Array<{ day: string; input_tokens: number | null; output_tokens: number | null; reasoning_tokens: number | null; api_calls: number | null; estimated_cost: number | null }>
+  totals: { total_input: number | null; total_output: number | null; total_reasoning: number | null; total_cache_read: number | null; total_sessions: number; total_api_calls: number | null; total_estimated_cost: number | null }
+  models: Array<{ model: string; provider: string; input_tokens: number; output_tokens: number; reasoning_tokens: number; cache_read_tokens: number; api_calls: number; estimated_cost: number | null }>
+  period_days: UsagePeriodDays
+}
 
 export type NativeDropEvent =
   | { type: 'drop'; paths: string[] }
@@ -115,7 +123,7 @@ export type UpdateRelease = {
 export type UpdateLookup = { status: 'available' | 'unavailable'; releases: UpdateRelease[] }
 export type UpdateDownloadProgress = { tagName: string; downloaded: number; total: number }
 
-export type ChannelStatus = { id: 'feishu' | 'weixin'; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
+export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
@@ -184,8 +192,11 @@ export interface DesktopApi {
     checkRuntime(): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
     selectChat(args: { sessionId: string; provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
   }
+  usage: {
+    statistics(days: UsagePeriodDays): Promise<UsageStatistics>
+  }
   chat: {
-    createSession(): Promise<{ session_id: string; stored_session_id: string; info?: { provider?: string; model?: string } }>
+    createSession(cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: { provider?: string; model?: string; cwd?: string } }>
     resumeSession(sessionId: string): Promise<ResumeResult>
     listSessions(): Promise<{ sessions: SessionRow[] }>
     submitPrompt(sessionId: string, text: string): Promise<{ status?: string }>

@@ -5,14 +5,14 @@ import type { labels } from './labels'
 type T = ReturnType<typeof labels>
 type Props = {
   official: HubSkill[]; featured: HubSkill[]; sources: Array<{ id: string; label: string }>;
-  installed: Record<string, unknown>; results: HubSkill[] | null; busy: boolean; loading: boolean; t: T;
+  installed: Record<string, unknown>; results: HubSkill[] | null; resultsSource: string | null; busy: boolean; loading: boolean; t: T;
   search: (query: string, source: string) => Promise<void>
   request: <R>(operation: string, payload?: Record<string, unknown>) => Promise<R>
   run: (operation: string, payload?: Record<string, unknown>, after?: 'skillHub') => Promise<boolean>
   onMessage: (message: string) => void
 }
 
-export default function SkillHub({ official, featured, sources, installed, results, busy, loading, t, search, request, run, onMessage }: Props) {
+export default function SkillHub({ official, featured, sources, installed, results, resultsSource, busy, loading, t, search, request, run, onMessage }: Props) {
   const [query, setQuery] = React.useState('')
   const [source, setSource] = React.useState('all')
   const [selected, setSelected] = React.useState<HubPreview | null>(null)
@@ -20,7 +20,16 @@ export default function SkillHub({ official, featured, sources, installed, resul
   const [openingId, setOpeningId] = React.useState('')
   const [detailError, setDetailError] = React.useState('')
   const [errorId, setErrorId] = React.useState('')
-  const entries = results || [...official, ...featured.filter(item => !official.some(other => other.identifier === item.identifier))]
+  const initialEntries = [...official, ...featured.filter(item => !official.some(other => other.identifier === item.identifier))]
+  const visibleResults = resultsSource === source || (source !== 'hermes-index' && resultsSource === 'all') ? results : null
+  const entries = (visibleResults || (source === 'hermes-index' ? featured : initialEntries))
+    .filter(item => source === 'all' || (source === 'hermes-index' ? item.source !== 'official' : item.source === source))
+
+  function changeSource(nextSource: string) {
+    setSource(nextSource)
+    setSelected(null); setScan(null); setErrorId('')
+    void search(query, nextSource)
+  }
 
   async function preview(item: HubSkill) {
     setOpeningId(item.identifier); setSelected(null); setScan(null); setDetailError(''); setErrorId('')
@@ -29,6 +38,7 @@ export default function SkillHub({ official, featured, sources, installed, resul
         request<HubPreview>('skills.preview', { identifier: item.identifier }),
         request<HubScan>('skills.scan', { identifier: item.identifier }),
       ])
+      if (detail.digest && detail.digest !== verdict.digest) throw new Error('ModelScope archive changed during preview')
       setSelected(detail); setScan(verdict)
     } catch { setErrorId(item.identifier); setDetailError(t('failed')); onMessage(t('failed')) }
     finally { setOpeningId('') }
@@ -38,20 +48,24 @@ export default function SkillHub({ official, featured, sources, installed, resul
     if (!selected || !scan) return
     if (scan.policy === 'block') { onMessage(t('scanBlocked', scan.policy_reason || scan.summary || '')); return }
     if (scan.policy === 'ask' && !window.confirm(t('scanAsk', scan.policy_reason || scan.summary || ''))) return
-    if (await run('skills.install', { identifier: selected.identifier }, 'skillHub')) setSelected(null)
+    const isModelScope = selected.source === 'modelscope'
+    if (isModelScope && (!scan.digest || scan.digest !== selected.digest)) { onMessage(t('failed')); return }
+    if (await run(isModelScope ? 'modelscope.install' : 'skills.install', {
+      identifier: selected.identifier, ...(isModelScope ? { digest: scan.digest, confirmed: true } : {}),
+    }, 'skillHub')) setSelected(null)
   }
 
   return <>
     <p>{t('index')}</p>
     <form className="row extension-toolbar" onSubmit={event => { event.preventDefault(); void search(query, source) }}>
       <input aria-label={t('search')} placeholder={t('search')} value={query} onChange={event => setQuery(event.target.value)} />
-      <select aria-label={t('source')} value={source} onChange={event => setSource(event.target.value)}>
+      <select aria-label={t('source')} value={source} onChange={event => changeSource(event.target.value)}>
         <option value="all">{t('sourceAll')}</option>
         {sources.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
       </select>
       <button disabled={loading}>{t('search')}</button>
     </form>
-    {!entries.length && <p>{results ? t('noResults') : t('empty')}</p>}
+    {!entries.length && <p>{visibleResults ? t('noResults') : !query.trim() && source !== 'all' ? t('sourceSearchHint') : t('empty')}</p>}
     <div className="extension-list">{entries.map(item => <article className="extension-card" key={item.identifier}>
       <div className="row"><strong>{item.name}</strong><small>{installed[item.identifier] || item.installed ? t('installed') : item.source}</small></div>
       <p>{item.description}</p>

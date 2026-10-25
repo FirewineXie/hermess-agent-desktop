@@ -12,6 +12,9 @@ import RuntimeView from './features/runtime/RuntimeView'
 import PersonalFilesView from './features/personal-files/PersonalFilesView'
 import AboutView from './features/about/AboutView'
 import ChannelsView from './features/channels/ChannelsView'
+import UsageView from './features/usage/UsageView'
+import WorkspacesView from './features/workspaces/WorkspacesView'
+import { useWorkspaces } from './features/workspaces/useWorkspaces'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
@@ -28,6 +31,7 @@ function App() {
   const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [activeModel, setActiveModel] = React.useState<ModelPick | null>(null)
+  const workspaces = useWorkspaces()
   const {
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, backendStatus, setBackendStatus, busy, setBusy,
@@ -38,7 +42,7 @@ function App() {
     onReset: () => { setActiveModel(null); resetChat(); resetModel() },
   })
   const chatController = useChatController({
-    backend, chatVisible: view === 'chat', activeModel, language, storagePath, t,
+    backend, chatVisible: view === 'chat', activeModel, language, storagePath, workspacePath: workspaces.selected, t,
     openView: next => openView(next), setSidebarOpen, setActiveModel,
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
     setBackend, setBackendStatus, setBusy,
@@ -76,7 +80,11 @@ function App() {
     <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions()} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
     <main className="workspace">
       <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
+    {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
+      paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
+      onNewChat={path => { if (openView('chat')) { workspaces.select(path); void newChat() } }} />}
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
+    {view === 'usage' && <UsageView connected={Boolean(backend)} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
     {view === 'about' && <AboutView />}
@@ -85,7 +93,7 @@ function App() {
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
     {view === 'model' && <ModelSettingsView connected={Boolean(backend)} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}
     {view === 'chat' && <ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
-      controller={chatController} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
+      controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
       onOpenRuntime={() => openView('runtime')} onOpenModelSettings={() => openView('model')} />}

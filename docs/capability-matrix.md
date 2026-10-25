@@ -8,6 +8,7 @@
 | 本地鉴权 | loopback HTTP 使用 `HERMES_DASHBOARD_SESSION_TOKEN`；会话 WebSocket 使用私有控制端票据 | 令牌和票据仅在 Rust 层；前端收不到凭据 | 私有 HTTP、票据 WebSocket ping 和带浏览器 Origin 的拒绝路径已用本机探针验证；并行官方 Hermes 共存与原生窗口仍待验收 |
 | 网关连通 | `ping` | Rust 持续连接 + RPC 请求匹配；另有独立 ping | 原版后端脚本通过；Rust 长连接未完成窗口验收 |
 | 新建会话 | `session.create`，`source: gui`、`request_id` | Rust RPC 保留运行时 ID 与持久化 ID，开发态 UI 分别记录 | 票据连接以显式模型创建会话通过；无模型配置时上游返回 `storage_unavailable`；新流程的 UI 未验收 |
+| 工作区模式 | `session.create` 的 `cwd`、`cwd_explicit` | 工作区页保存本地目录快捷入口，所选目录只作用于新会话；Rust 校验目录存在，聊天页显示当前会话目录，恢复会话沿用原目录 | 前端类型检查、桌面 UI 构建、Rust 目录校验单元测试与编译通过；假模型 Gateway 冒烟包含显式 `cwd` 创建和文件工具执行，但原生目录选择、跨重启保存及工作区内实际文件操作仍待窗口验收 |
 | 飞书与微信扫码 | 飞书设备注册；微信 iLink 二维码；`/api/messaging/platforms` | Rust 保管待确认凭据，前端只取得扫码 URL；授权后由网关保存配置并重启该自有进程 | 两个线上二维码启动接口返回有效数据；锁定 fork 的 core payload 含所需 Python 依赖，打包网关的渠道列表可读取。手机扫码、实际收发和重启后生效未验收 |
 | 系统托盘 | Tauri tray icon、单实例插件 | 关闭窗口隐藏；菜单恢复与退出，退出前停止自有网关 | Rust 编译和单元测试通过；Windows 原生窗口行为未验收 |
 | 提交消息 | `prompt.submit` | Rust RPC 命令，无盲目重试 | 脚本取得 admission；UI 未验收 |

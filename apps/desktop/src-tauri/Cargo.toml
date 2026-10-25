@@ -21,3 +21,7 @@ tar = "0.4"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls"] }
 tauri-plugin-dialog = "2"
 chrono = "0.4"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+
+[profile.release]
+strip = "symbols"

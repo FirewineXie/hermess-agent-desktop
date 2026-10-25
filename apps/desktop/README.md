@@ -11,12 +11,16 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/storage.rs`：产品存储位置校验。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
+- `src-tauri/src/runtime/modelscope.rs`：客户端自有的 ModelScope Skill 搜索、ZIP 检查与安装适配；只写入本产品的 Hermes 数据目录，不修改固定上游源码。
+- `src-tauri/src/runtime/mcp_registry.rs`：公开 MCP Registry 的只读搜索、详情及可直接配置的 HTTPS 远程条目筛选；实际安装经当前自有 Hermes 的 MCP 配置接口。
+- `src-tauri/src/runtime/modelscope_mcp.rs`：ModelScope MCP 广场的公开搜索与详情适配；仅在公开详情提供静态 HTTPS 地址时经当前自有 Hermes 安装，不代管 ModelScope 账号部署。
 - `src-tauri/src/tray.rs`：窗口关闭时收起到系统托盘，托盘菜单可恢复窗口或退出。
 - `src-tauri/src/runtime/about.rs`：读取编译时产品版本、固定上游锁与随程序内嵌的产品及上游许可证。
 - `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
 - `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，启动自有 Hermes 实例前部署并注册为 `powershell_execute`；使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
+- 新建聊天会话可接收工作区目录；Rust 在调用网关前要求该目录是本机已存在的绝对目录，并向 `session.create` 传递明确的 `cwd`。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
 - `src-tauri/src/tests/`、`src-tauri/src/runtime/tests/`：Rust 单元测试；生产模块只保留 `#[cfg(test)]` 下的模块声明。
 
@@ -39,3 +43,5 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
 ```
 
 离线安装包和发布仍按根目录 [发行流程](../../docs/release-process.md) 构建；普通前端构建不等于原生窗口或安装包验收。
+
+`pnpm build` 会混淆桌面发行前端的 JavaScript，并检查产物未携带 source map；`pnpm tauri:dev` 的开发服务器仍使用可调试代码。Rust release 构建裁剪符号。Hermes 离线载荷按锁定提交原样归档，见 [发行流程](../../docs/release-process.md)。

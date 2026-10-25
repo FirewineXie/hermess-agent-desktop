@@ -1,4 +1,4 @@
-use super::{merge_session_lists, ReplayResult};
+use super::{merge_session_lists, validate_workspace_path, ReplayResult};
 use serde_json::json;
 
 #[test]
@@ -12,6 +12,27 @@ fn recent_sessions_include_stored_rows_after_gateway_restart() {
     assert_eq!(merged["sessions"].as_array().unwrap().len(), 2);
     assert_eq!(merged["sessions"][0]["id"], "current");
     assert_eq!(merged["sessions"][1]["id"], "previous");
+}
+
+#[test]
+fn selected_workspace_must_be_an_existing_absolute_directory() {
+    assert!(validate_workspace_path(None).unwrap().is_none());
+    assert!(validate_workspace_path(Some(String::new()))
+        .unwrap()
+        .is_none());
+    let current = std::env::current_dir()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(
+        validate_workspace_path(Some(current.clone())).unwrap(),
+        Some(current)
+    );
+    assert!(validate_workspace_path(Some("relative-folder".into())).is_err());
+    let missing = std::env::current_dir()
+        .unwrap()
+        .join("missing-hermess-workspace-test");
+    assert!(validate_workspace_path(Some(missing.to_string_lossy().into_owned())).is_err());
 }
 
 #[test]

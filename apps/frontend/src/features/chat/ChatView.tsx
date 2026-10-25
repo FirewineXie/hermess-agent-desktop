@@ -7,7 +7,6 @@ import GatewayRequestCard from './components/GatewayRequestCard'
 import MessageList from './components/MessageList'
 import AttachmentQueue from './components/AttachmentQueue'
 import CommandSuggestions from './components/CommandSuggestions'
-import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
 
 type Picker = {
@@ -37,21 +36,23 @@ type Props = {
   language: 'zh-CN' | 'en-US'
   t: (key: string, ...values: unknown[]) => string
   controller: ReturnType<typeof useChatController>
+  workspacePath: string
+  onOpenWorkspaces: () => void
   picker: Picker
   onOpenRuntime: () => void
   onOpenModelSettings: () => void
 }
 
-export default function ChatView({ connected, backendStatus, language, t, controller, picker, onOpenRuntime, onOpenModelSettings }: Props) {
+export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, picker, onOpenRuntime, onOpenModelSettings }: Props) {
   const backend = connected
   const openView = (view: 'runtime' | 'model') => view === 'runtime' ? onOpenRuntime() : onOpenModelSettings()
   const {
-    draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
+    draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice, sessionId, sessionWorkspacePath,
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
-    reasoningBusy, reasoningLoadFailed, chatUsage,
+    reasoningBusy, reasoningLoadFailed,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -59,9 +60,28 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     pickerProvider, setPickerProvider, pickerModels, pickerModelInput, setPickerModelInput,
     openModelPicker, pickModel,
   } = picker
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const followMessagesRef = React.useRef(true)
+  const lastUserCountRef = React.useRef(0)
+  const lastSessionRef = React.useRef(sessionId)
+  const userCount = conversation.filter(item => item.kind === 'message' && item.role === 'user').length
+
+  React.useLayoutEffect(() => {
+    if (sessionId !== lastSessionRef.current || userCount !== lastUserCountRef.current) followMessagesRef.current = true
+    lastSessionRef.current = sessionId
+    lastUserCountRef.current = userCount
+    const content = contentRef.current
+    if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
+  }, [conversation, assistant, serverRequest, sessionId, userCount])
+
   return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${conversation.length === 0 && !assistant ? 'chat-empty' : ''}`}>
+      <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
+        <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button></div>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={() => openView('runtime')}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
-      <div className="chat-content">
+      <div ref={contentRef} className="chat-content" onScroll={event => {
+        const content = event.currentTarget
+        followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
+      }}>
       <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />
       {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={setClarifyAnswer}
@@ -98,7 +118,6 @@ export default function ChatView({ connected, backendStatus, language, t, contro
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
         <span className="composer-spacer" />
-        <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
             <option value="" disabled>{!backend

@@ -123,8 +123,11 @@ export const tauriDesktopApi: DesktopApi = {
     checkRuntime: () => invoke('check_model_runtime'),
     selectChat: args => invoke('select_chat_model', args),
   },
+  usage: {
+    statistics: days => invoke('get_usage_statistics', { days }),
+  },
   chat: {
-    createSession: () => invoke('create_chat_session'),
+    createSession: cwd => invoke('create_chat_session', { cwd }),
     resumeSession: async sessionId => {
       const result = await invoke<ResumeResult>('resume_chat_session', { sessionId })
       return { ...result, open_requests: supportedRequests(result.open_requests) }

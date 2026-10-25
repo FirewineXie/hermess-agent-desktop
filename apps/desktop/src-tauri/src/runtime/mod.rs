@@ -4,12 +4,16 @@ pub mod chat;
 pub mod config;
 pub mod extensions;
 mod location;
+mod mcp_registry;
 pub mod models;
+mod modelscope;
+mod modelscope_mcp;
 mod payload;
 pub mod personal_files;
 #[cfg(windows)]
 mod powershell_tool;
 pub mod tools;
+pub mod usage;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;

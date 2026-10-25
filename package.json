@@ -17,5 +17,8 @@
     "setup:hooks": "git config --local core.hooksPath .githooks",
     "fetch:upstream": "node scripts/fetch-upstream.mjs",
     "verify:upstream": "node scripts/verify-upstream.mjs"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "5.9.0"
   }
 }

@@ -19,9 +19,13 @@ pnpm build
 
 ## fork 分支约束
 
+产品功能先在客户端适配层实现，不因现有 Hermes 接口缺少某个外部来源就直接修改 fork。所有 fork 代码改动（包括官方版本升级）默认禁止；确需修改时，先记录客户端不可适配的具体限制或版本升级原因、最小改动范围及影响，取得用户明确审批后才可修改。批准修改不等于批准合并；代码仍须经独立审核、PR 和既有门槛。未获审批时保持 fork 与锁文件不变。
+
 fork 的 `main` 保持只读，tags 不允许创建、改写或删除。`hermess-desktop` 是默认分支和唯一正式桌面集成分支，禁止强推与删除，改动必须通过 PR 和 `Hermess desktop gate`。开发者从该分支创建开发分支，PR 只合入该分支。Git 不记录分支创建时的命令；PR 检查验证开发分支继承了桌面基线提交。
 
 ## 升级官方正式 Release
+
+本节仅适用于已按上述规则取得审批的升级。
 
 1. 确认 [官方 Releases](https://github.com/NousResearch/hermes-agent/releases/latest) 中要采用的正式 tag，核对 tag 解引用后的完整提交 SHA；不要把 `main`、预发布或 canary 当作正式 Release。
 2. 从 fork 的 `hermess-desktop` 创建升级分支，在升级分支合入该官方 tag 指向的提交，解决与桌面私有 API 的冲突；不改 fork 的 `main`，也不需要在 fork 创建 tag。

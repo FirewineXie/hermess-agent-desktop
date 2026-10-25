@@ -43,6 +43,8 @@ export default function Sidebar({ view, open, connected, busy, sessions, session
       <button className="new-chat" disabled={!connected || busy} onClick={onNewChat}>{t('ui.new.session')}</button>
       <nav className="primary-nav" aria-label={t('ui.features')}>
         <button className={view === 'chat' ? 'active' : ''} onClick={() => onOpenView('chat')}>◫ <span>{t('ui.chat')}</span></button>
+        <button className={view === 'workspaces' ? 'active' : ''} onClick={() => onOpenView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
+        <button className={view === 'usage' ? 'active' : ''} onClick={() => onOpenView('usage')}>▥ <span>{t('ui.usage.title')}</span></button>
         <button className={view === 'model' ? 'active' : ''} onClick={() => onOpenView('model')}>◇ <span>{t('ui.model.settings')}</span></button>
         <button className={view === 'agent' ? 'active' : ''} onClick={() => onOpenView('agent')}>⚙ <span>{t('ui.agent.settings')}</span></button>
         <button className={view === 'memory' ? 'active' : ''} onClick={() => onOpenView('memory')}>▤ <span>{t('ui.persona.and.memory')}</span></button>

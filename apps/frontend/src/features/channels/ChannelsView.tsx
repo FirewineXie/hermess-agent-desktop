@@ -6,13 +6,35 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
 
 type Platform = 'feishu' | 'weixin'
+type RowsState = 'loading' | 'ready' | 'error'
+
+const STATE_LABELS: Record<string, string> = {
+  connected: 'ui.channels.state.connected',
+  fatal: 'ui.channels.state.failed',
+  pending_restart: 'ui.channels.state.pending.restart',
+  disabled: 'ui.channels.state.disabled',
+  not_configured: 'ui.channels.state.not.configured',
+  gateway_stopped: 'ui.channels.state.gateway.stopped',
+  startup_failed: 'ui.channels.state.failed',
+  starting: 'ui.channels.state.starting',
+  degraded: 'ui.channels.state.degraded',
+}
+
+function channelStatusText(row: ChannelStatus | undefined, connected: boolean, rowsState: RowsState, t: (key: string) => string): string {
+  if (!connected) return '—'
+  if (rowsState === 'loading') return t('ui.loading')
+  if (rowsState === 'error') return t('ui.channels.status.failed')
+  const configured = t(row?.configured ? 'ui.channels.configured' : 'ui.channels.unconfigured')
+  const state = row?.state ? (STATE_LABELS[row.state] ? t(STATE_LABELS[row.state]) : row.state) : ''
+  return state ? `${configured} · ${state}` : configured
+}
 
 export default function ChannelsView({ connected, onRestart, onForceRestart }: { connected: boolean; onRestart: () => Promise<boolean>; onForceRestart: () => Promise<boolean> }) {
   const { channels } = useDesktop()
   const language = useLanguage()
   const t = (key: string, ...args: unknown[]) => translateApp(language, key, ...args)
   const [rows, setRows] = React.useState<ChannelStatus[]>([])
-  const [rowsState, setRowsState] = React.useState<'loading' | 'ready' | 'error'>('loading')
+  const [rowsState, setRowsState] = React.useState<RowsState>('loading')
   const [active, setActive] = React.useState<{ platform: Platform; qr: ChannelQrStart; image: string } | null>(null)
   const [status, setStatus] = React.useState('')
   const [busy, setBusy] = React.useState(false)
@@ -112,6 +134,8 @@ export default function ChannelsView({ connected, onRestart, onForceRestart }: {
     } finally { setBusy(false) }
   }
 
+  const otherRows = rows.filter(row => row.id !== 'feishu' && row.id !== 'weixin')
+
   return <section className="channels-view">
     <h2>{t('ui.channels')}</h2>
     <p>{t('ui.channels.intro')}</p>
@@ -120,22 +144,25 @@ export default function ChannelsView({ connected, onRestart, onForceRestart }: {
       {(['feishu', 'weixin'] as const).map(platform => {
         const row = rows.find(item => item.id === platform)
         const rowReady = connected && rowsState === 'ready'
-        const state = row?.state === 'connected' ? t('ui.channels.state.connected')
-          : row?.state === 'fatal' ? t('ui.channels.state.failed')
-            : row?.state === 'pending_restart' ? t('ui.channels.state.pending.restart')
-              : row?.state || ''
-        const displayStatus = !connected ? '—'
-          : rowsState === 'loading' ? t('ui.loading')
-            : rowsState === 'error' ? t('ui.channels.status.failed')
-              : row?.configured ? t('ui.channels.configured') : t('ui.channels.unconfigured')
         return <article className="channel-card" key={platform}>
           <h3>{platform === 'feishu' ? t('ui.channels.feishu') : t('ui.channels.weixin')}</h3>
-          <p>{displayStatus}{rowReady && state ? ` · ${state}` : ''}</p>
+          <p>{channelStatusText(row, connected, rowsState, t)}</p>
           {rowReady && row?.error_code && <p role="alert">{row.error_code === 'adapter_unavailable' ? t('ui.channels.adapter.unavailable') : row.error_code}</p>}
           <button disabled={!rowReady || busy} onClick={() => void begin(platform)}>{rowReady && row?.configured ? t('ui.channels.reconnect') : t('ui.channels.scan')}</button>
         </article>
       })}
     </div>
+    {connected && rowsState === 'ready' && otherRows.length > 0 && <section className="other-channels" aria-labelledby="other-channels-title">
+      <h3 id="other-channels-title">{t('ui.channels.other')}</h3>
+      <p>{t('ui.channels.other.read.only')}</p>
+      <div className="other-channel-grid">
+        {otherRows.map(row => <article className="other-channel-card" key={row.id}>
+          <h4>{row.name || row.id}</h4>
+          <p>{channelStatusText(row, connected, rowsState, t)}</p>
+          {row.error_code && <small>{row.error_code === 'adapter_unavailable' ? t('ui.channels.adapter.unavailable') : row.error_code}</small>}
+        </article>)}
+      </div>
+    </section>}
     {connected && rowsState === 'error' && <button onClick={() => { setStatus(''); void refresh().catch(() => setStatus(t('ui.channels.status.failed'))) }}>{t('ui.channels.retry.status')}</button>}
     {active && <div className="channel-qr">
       <h3>{active.platform === 'feishu' ? t('ui.channels.feishu.scan') : t('ui.channels.weixin.scan')}</h3>
@@ -144,7 +171,7 @@ export default function ChannelsView({ connected, onRestart, onForceRestart }: {
       <button onClick={() => void cancel()}>{t('ui.channels.cancel')}</button>
     </div>}
     {!active && status && <p role="status">{status}</p>}
-    {!active && (pendingRestart || rows.some(row => row.state === 'pending_restart')) && <div className="channel-restart-actions">
+    {!active && (pendingRestart || rows.some(row => (row.id === 'feishu' || row.id === 'weixin') && row.state === 'pending_restart')) && <div className="channel-restart-actions">
       <button disabled={busy || !connected} onClick={() => void retryRestart(false)}>{t('ui.channels.restart.retry')}</button>
       <button disabled={busy || !connected} onClick={() => void retryRestart(true)}>{t('ui.channels.restart.force')}</button>
     </div>}

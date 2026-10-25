@@ -29,13 +29,19 @@ struct ReplayEvent {
 }
 
 #[tauri::command]
-pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
+pub async fn create_chat_session(
+    state: State<'_, BackendState>,
+    cwd: Option<String>,
+) -> Result<Value, DesktopFailure> {
+    let cwd = validate_workspace_path(cwd)?;
+    let cwd_explicit = cwd.is_some();
     let gateway = state.gateway().await?;
     let result = gateway
         .request(
             "session.create",
             json!({
-                "source": "gui", "request_id": Uuid::new_v4().to_string()
+                "source": "gui", "request_id": Uuid::new_v4().to_string(),
+                "cwd": cwd, "cwd_explicit": cwd_explicit
             }),
         )
         .await?;
@@ -48,6 +54,17 @@ pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value
         return Err("网关未返回完整会话标识".into());
     }
     Ok(result)
+}
+
+fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, DesktopFailure> {
+    let Some(path) = cwd.filter(|path| !path.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let directory = PathBuf::from(&path);
+    if !directory.is_absolute() || !directory.is_dir() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(Some(path))
 }
 
 #[tauri::command]

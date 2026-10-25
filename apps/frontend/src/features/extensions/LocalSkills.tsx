@@ -59,8 +59,8 @@ export default function LocalSkills({ skills, busy, t, request, run, onError }: 
           <button disabled={busy} onClick={() => void run('skills.toggle', { name: skill.name, enabled: !skill.enabled }, 'skills')}>
             {skill.enabled ? t('disable') : t('enable')}
           </button>
-          {skill.provenance === 'hub' && <button disabled={busy} onClick={() => {
-            if (window.confirm(t('uninstallConfirm'))) void run('skills.uninstall', { name: skill.name }, 'skills')
+          {(skill.provenance === 'hub' || skill.provenance === 'modelscope') && <button disabled={busy} onClick={() => {
+            if (window.confirm(t('uninstallConfirm'))) void run(skill.provenance === 'modelscope' ? 'modelscope.uninstall' : 'skills.uninstall', { name: skill.name }, 'skills')
           }}>{t('uninstall')}</button>}
         </div>
       </article>)}</div>
@@ -70,7 +70,7 @@ export default function LocalSkills({ skills, busy, t, request, run, onError }: 
         <label>{t('category')}<input value={category} maxLength={100} onChange={event => setCategory(event.target.value)} /></label></>}
       <label>{t('content')}<textarea className="extension-editor" value={content} readOnly={!editing} onChange={event => setContent(event.target.value)} /></label>
       <div className="extension-actions">
-        {!creating && selected?.provenance !== 'bundled' && selected?.provenance !== 'hub' &&
+        {!creating && selected?.provenance !== 'bundled' && selected?.provenance !== 'hub' && selected?.provenance !== 'modelscope' &&
           <button onClick={() => setEditing(true)}>{t('edit')}</button>}
         {editing && <button disabled={busy || (creating && !name.trim()) || !content.trim()} onClick={() => void save()}>{t('save')}</button>}
       </div>
