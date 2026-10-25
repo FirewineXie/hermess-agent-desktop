@@ -25,5 +25,8 @@ zip = { version = "2.4", default-features = false, features = ["deflate"] }
 base64 = "0.22"
 portable-pty = "0.9"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
 [profile.release]
 strip = "symbols"

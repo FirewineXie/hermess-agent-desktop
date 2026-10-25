@@ -24,6 +24,11 @@ export default function BrowserTab({ active, onClose, sessionId, autoFollowToken
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const imageRef = React.useRef<HTMLImageElement>(null)
+  const dragRef = React.useRef<{ pointerId: number; button: 'left' | 'right'; targetId: string } | null>(null)
+  const pointerQueue = React.useRef<Promise<void>>(Promise.resolve())
+  const latestMove = React.useRef<{ targetId: string; point: { x: number; y: number }; button: 'left' | 'right' | 'none'; buttons: number } | null>(null)
+  const moveQueued = React.useRef(false)
+  const releasePending = React.useRef(false)
   const currentTarget = frame?.target.id || ''
 
   React.useEffect(() => { setManualTargetId('') }, [autoFollowToken, sessionId])
@@ -40,7 +45,7 @@ export default function BrowserTab({ active, onClose, sessionId, autoFollowToken
           setError('')
         }
       } catch {
-        if (!cancelled) setError('无法连接 Agent 正在使用的浏览器。请检查 Chromium 是否已安装。')
+        if (!cancelled) setError('无法连接 Agent 正在使用的浏览器。请在「运行时 → 开发者诊断 → 浏览器日志」查看详情。')
       }
     }
     void refresh()
@@ -70,13 +75,64 @@ export default function BrowserTab({ active, onClose, sessionId, autoFollowToken
       y: (event.clientY - box.top) * image.naturalHeight / box.height }
   }
 
-  async function click(event: React.PointerEvent<HTMLImageElement>) {
+  function sendPointer(targetId: string, type: 'mousePressed' | 'mouseReleased',
+    point: { x: number; y: number }, button: 'left' | 'right', buttons: number) {
+    pointerQueue.current = pointerQueue.current.catch(() => {}).then(async () => {
+      await api.browserCommand(sessionId, targetId, 'Input.dispatchMouseEvent', {
+        type, button, buttons, clickCount: 1, ...point,
+      })
+    }).catch(() => { setError('网页操作失败。') })
+    return pointerQueue.current
+  }
+
+  function sendMove(targetId: string, point: { x: number; y: number },
+    button: 'left' | 'right' | 'none', buttons: number) {
+    latestMove.current = { targetId, point, button, buttons }
+    if (moveQueued.current) return
+    moveQueued.current = true
+    pointerQueue.current = pointerQueue.current.catch(() => {}).then(async () => {
+      while (latestMove.current) {
+        const move = latestMove.current
+        latestMove.current = null
+        await api.browserCommand(sessionId, move.targetId, 'Input.dispatchMouseEvent', {
+          type: 'mouseMoved', button: move.button, buttons: move.buttons, ...move.point,
+        })
+      }
+    }).catch(() => { setError('网页操作失败。') }).finally(() => { moveQueued.current = false })
+  }
+
+  function pointerDown(event: React.PointerEvent<HTMLImageElement>) {
     const point = pointerPosition(event)
-    if (!point || !currentTarget) return
+    if (!point || !currentTarget || dragRef.current || releasePending.current) return
+    event.preventDefault()
     imageRef.current?.focus()
     const button = event.button === 2 ? 'right' : 'left'
-    await command('Input.dispatchMouseEvent', { type: 'mousePressed', button, clickCount: 1, ...point })
-    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', button, clickCount: 1, ...point })
+    dragRef.current = { pointerId: event.pointerId, button, targetId: currentTarget }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    sendPointer(currentTarget, 'mousePressed', point, button, button === 'left' ? 1 : 2)
+  }
+
+  function pointerMove(event: React.PointerEvent<HTMLImageElement>) {
+    const drag = dragRef.current
+    const point = pointerPosition(event)
+    if (!point || !currentTarget || releasePending.current || (drag && drag.pointerId !== event.pointerId)) return
+    const button = drag?.button || 'none'
+    const buttons = button === 'left' ? 1 : button === 'right' ? 2 : 0
+    sendMove(drag?.targetId || currentTarget, point, button, buttons)
+  }
+
+  function pointerUp(event: React.PointerEvent<HTMLImageElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    dragRef.current = null
+    const point = pointerPosition(event)
+    if (point) {
+      releasePending.current = true
+      sendMove(drag.targetId, point, drag.button, drag.button === 'left' ? 1 : 2)
+      void sendPointer(drag.targetId, 'mouseReleased', point, drag.button, 0)
+        .finally(() => { releasePending.current = false })
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
   async function key(event: React.KeyboardEvent<HTMLImageElement>) {
@@ -119,7 +175,9 @@ export default function BrowserTab({ active, onClose, sessionId, autoFollowToken
     {error && <p className="panel-error">{error}</p>}
     <div className="panel-browser-viewport">
       {frame ? <img ref={imageRef} src={`data:image/jpeg;base64,${frame.image}`} alt={frame.target.title || '浏览器页面'}
-        tabIndex={0} onPointerDown={event => void click(event)} onKeyDown={event => void key(event)}
+        tabIndex={0} draggable={false} onContextMenu={event => event.preventDefault()}
+        onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
+        onKeyDown={event => void key(event)}
         onWheel={event => { event.preventDefault(); const point = pointerPosition(event); if (point) void command('Input.dispatchMouseEvent', {
           type: 'mouseWheel', ...point, deltaX: event.deltaX, deltaY: event.deltaY,
         }) }} /> : <span>{sessionId ? '正在连接 Agent 浏览器…' : '先创建会话后使用浏览器'}</span>}

@@ -1,4 +1,6 @@
-use super::{mcp_registry, modelscope, modelscope_mcp, BackendState};
+use super::{
+    config::config_request_to_profile, mcp_registry, modelscope, modelscope_mcp, BackendState,
+};
 use crate::errors::DesktopFailure;
 use reqwest::{Method, Url};
 use serde_json::Value;
@@ -27,6 +29,7 @@ pub async fn extension_request(
         return Err(DesktopFailure::conflict());
     }
     match operation.as_str() {
+        "mcp.update" => return update_mcp_server(&state, &payload).await,
         "mcp.modelscope.search" => {
             state.storage().await?;
             let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
@@ -188,6 +191,91 @@ pub async fn extension_request(
     }
     upstream_request(&state, &operation, &payload).await
 }
+
+async fn update_mcp_server(
+    state: &State<'_, BackendState>,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    // Keep the profile fixed across both requests. The upstream API only offers a
+    // whole-map replace, so read the raw map here rather than rebuilding it from
+    // the redacted summaries exposed to the UI.
+    let profile = state.selected_profile().await?;
+    let raw =
+        config_request_to_profile(state, &profile, Method::GET, "/api/config/raw", None).await?;
+    let yaml = raw
+        .get("yaml")
+        .and_then(Value::as_str)
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    let config: Value =
+        serde_yaml::from_str(yaml).map_err(|_| DesktopFailure::operation_failed())?;
+    let servers = prepare_mcp_update(&config, payload)?;
+    config_request_to_profile(
+        state,
+        &profile,
+        Method::PUT,
+        "/api/mcp/servers",
+        Some(serde_json::json!({ "servers": servers })),
+    )
+    .await
+}
+
+fn prepare_mcp_update(config: &Value, payload: &Value) -> Result<Value, DesktopFailure> {
+    let name = field(payload, "name", 200)?;
+    let url = payload
+        .get("url")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let command = payload
+        .get("command")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if (url.is_empty() == command.is_empty()) || url.len() > 2048 || command.len() > 2048 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let args = payload.get("args").and_then(Value::as_array);
+    if command.is_empty() && args.is_some_and(|values| !values.is_empty()) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    if args.is_some_and(|values| {
+        values.iter().any(|value| {
+            value
+                .as_str()
+                .is_none_or(|arg| arg.len() > 2048 || arg.chars().any(char::is_control))
+        })
+    }) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut servers = config
+        .get("mcp_servers")
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    let server = servers
+        .get_mut(name)
+        .and_then(Value::as_object_mut)
+        .ok_or_else(DesktopFailure::invalid_input)?;
+    // A transport switch needs different auth and environment settings. Keep this
+    // edit scoped to the existing transport so those settings remain intact.
+    if server.contains_key("url") != !url.is_empty() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    if !url.is_empty() {
+        server.insert("url".into(), Value::String(url.into()));
+    } else {
+        server.insert("command".into(), Value::String(command.into()));
+        server.insert(
+            "args".into(),
+            Value::Array(args.cloned().unwrap_or_default()),
+        );
+    }
+    Ok(Value::Object(servers))
+}
+
+#[cfg(test)]
+#[path = "tests/extensions.rs"]
+mod tests;
 
 async fn upstream_request(
     state: &State<'_, BackendState>,

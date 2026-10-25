@@ -17,6 +17,7 @@ import WorkspacesView from './features/workspaces/WorkspacesView'
 import { useWorkspaces } from './features/workspaces/useWorkspaces'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
 import { useProfiles } from './features/profiles/useProfiles'
+import ProfilesView from './features/profiles/ProfilesView'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
 import WorkspacePanel from './features/workspace-panel/WorkspacePanel'
@@ -104,6 +105,10 @@ function App() {
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
     {view === 'usage' && <UsageView connected={Boolean(backend)} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
+    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} profiles={profileController.snapshot} profileBusy={profileController.busy}
+      profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
+      onSelect={profileController.select} onCreate={profileController.create} onRetry={profileController.retryPending}
+      onOpenExtensions={() => { openView('extensions') }} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
     {view === 'about' && <AboutView />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} sessionId={sessionId} onDirtyChange={setPersonalFilesDirty} />}

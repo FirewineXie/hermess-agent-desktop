@@ -1,12 +1,22 @@
 use super::{python_for_hermes, BackendState};
 use crate::errors::DesktopFailure;
 use crate::gateway::GatewayClient;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::Path, sync::Arc, time::Duration};
 use tauri::State;
 use tokio::{process::Command, time::timeout};
 
 const SELECTED_FILE: &str = "selected-profile";
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfilePresetSelection {
+    personality_name: String,
+    personality_prompt: String,
+    skills: Vec<String>,
+    mcp: Vec<String>,
+}
 
 /// A request keeps the profile selected when it began, even if the UI switches meanwhile.
 pub(super) struct ProfiledGateway {
@@ -215,10 +225,40 @@ pub async fn list_profiles(state: State<'_, BackendState>) -> Result<Value, Desk
 pub async fn create_profile(
     state: State<'_, BackendState>,
     name: String,
+    preset: Option<ProfilePresetSelection>,
 ) -> Result<Value, DesktopFailure> {
     let name = name.trim();
     if name.is_empty() || name.len() > 64 {
         return Err(DesktopFailure::invalid_input());
+    }
+    if let Some(preset) = &preset {
+        if !preset.personality_name.starts_with("hermess_")
+            || preset.personality_name.len() > 64
+            || !preset
+                .personality_name
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+            || preset.personality_prompt.is_empty()
+            || preset.personality_prompt.len() > 4096
+            || preset.skills.len() > 16
+            || preset.mcp.len() > 8
+            || preset.skills.iter().any(|skill| {
+                skill.is_empty()
+                    || skill.len() > 100
+                    || !skill
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+            })
+            || preset.mcp.iter().any(|name| {
+                name.is_empty()
+                    || name.len() > 80
+                    || !name.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+            })
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
     }
     let (hermes, home, lock_dir) = {
         let owned = state.0.lock().await;
@@ -231,19 +271,68 @@ pub async fn create_profile(
             backend.storage.join("control").join("gateway-locks"),
         )
     };
-    // Gateway WS does not expose profiles.create. The bundled profile API creates under
-    // HERMES_HOME and signals the running multiplexer, without installing a host CLI alias.
+    // Use the bundled profile API with no_alias and no credential mirroring. The WS create
+    // method defaults to mirroring credentials, which this product must not do implicitly.
     const SCRIPT: &str = r#"import json, sys
 from hermes_cli.profiles import create_profile, normalize_profile_name, seed_profile_skills
 name = normalize_profile_name(sys.argv[1])
+preset = json.loads(sys.argv[2])
 path = create_profile(name, no_alias=True, clone_channels=False)
 seed_profile_skills(path, quiet=True)
-print(json.dumps({'name': name}))
+warnings = []
+personality_applied = False
+if preset:
+    try:
+        from utils import atomic_roundtrip_yaml_update
+        config_path = path / 'config.yaml'
+        personality = preset['personalityName']
+        atomic_roundtrip_yaml_update(config_path, 'agent.personalities.' + personality,
+                                     preset['personalityPrompt'])
+        atomic_roundtrip_yaml_update(config_path, 'display.personality', personality)
+        personality_applied = True
+    except Exception:
+        warnings.append('personality')
+    try:
+        from agent.skill_utils import ESSENTIAL_SKILLS
+        skills_root = path / 'skills'
+        installed = {entry.parent.name for entry in skills_root.rglob('SKILL.md')} if skills_root.is_dir() else set()
+        requested = set(preset['skills'])
+        missing = sorted(requested - installed)
+        if missing:
+            warnings.append('skills_missing:' + ','.join(missing))
+        disabled = sorted(installed - requested - ESSENTIAL_SKILLS)
+        atomic_roundtrip_yaml_update(path / 'config.yaml', 'skills.disabled', disabled)
+    except Exception:
+        warnings.append('skills')
+    if preset['mcp']:
+        import os, subprocess
+        mcp_script = '''import sys
+from hermes_cli.mcp_catalog import get_entry, card_install_config
+from hermes_cli.mcp_config import _save_mcp_server
+entry = get_entry(sys.argv[1])
+if entry is None or entry.install is not None or entry.auth.type != "none" or entry.auth.env:
+    raise SystemExit(2)
+if not _save_mcp_server(entry.name, card_install_config(entry)):
+    raise SystemExit(3)
+'''
+        for mcp_name in preset['mcp']:
+            try:
+                result = subprocess.run([sys.executable, '-c', mcp_script, mcp_name],
+                    env={**os.environ, 'HERMES_HOME': str(path)},
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, timeout=20, check=False)
+                if result.returncode != 0:
+                    warnings.append('mcp:' + mcp_name)
+            except Exception:
+                warnings.append('mcp:' + mcp_name)
+print(json.dumps({'name': name, 'personality_applied': personality_applied, 'warnings': warnings}))
 "#;
     let mut command = Command::new(python_for_hermes(&hermes).map_err(DesktopFailure::from)?);
     command
         .args(["-P", "-u", "-c", SCRIPT, name])
+        .arg(serde_json::to_string(&preset).map_err(|_| DesktopFailure::invalid_input())?)
         .env("HERMES_HOME", home)
+        .env("PYTHONIOENCODING", "utf-8")
         .env("HERMES_GATEWAY_LOCK_DIR", lock_dir)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

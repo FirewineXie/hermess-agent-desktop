@@ -409,6 +409,7 @@
   "ui.log.source": "Log source",
   "ui.hermes.logs": "Hermes logs",
   "ui.client.logs": "Client logs",
+  "ui.browser.logs": "Browser logs",
   "ui.refresh.logs": "Refresh logs",
   "ui.loading.logs": "Loading logs…",
   "ui.no.logs.yet": "No logs yet",

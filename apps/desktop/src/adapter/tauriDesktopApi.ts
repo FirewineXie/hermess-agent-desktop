@@ -111,8 +111,10 @@ export const tauriDesktopApi: DesktopApi = {
   },
   profiles: {
     list: () => invoke('list_profiles'),
-    create: name => invoke('create_profile', { name }),
+    create: (name, preset) => invoke('create_profile', { name, preset }),
     select: name => invoke('select_profile', { name }),
+    listPersonalities: () => invoke('list_personalities'),
+    applyPersonality: (name, prompt) => invoke('apply_personality', { name, prompt }),
   },
   channels: {
     status: () => invoke('channel_status'),

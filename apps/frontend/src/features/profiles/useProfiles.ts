@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ProfilesSnapshot } from '@hermess/contracts'
+import type { ProfilesSnapshot, ProfilePresetSelection } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
@@ -55,12 +55,25 @@ export function useProfiles({ connected, backendEpoch, onSelected, restart }: Op
     }
   }
 
-  const create = async (name: string) => {
+  const create = async (name: string, preset?: ProfilePresetSelection) => {
     if (busy) return
     setBusy(true)
     setError('')
     try {
-      const created = await profiles.create(name.trim())
+      const created = await profiles.create(name.trim(), preset)
+      const warnings = created.warnings || []
+      if (warnings.length) {
+        const details = warnings.map(warning => {
+          if (warning === 'personality') return language === 'zh-CN' ? '性格' : 'personality'
+          if (warning === 'skills') return 'Skill'
+          if (warning.startsWith('skills_missing:')) return `${language === 'zh-CN' ? '缺少 Skill' : 'Missing skills'} ${warning.slice(15)}`
+          if (warning.startsWith('mcp:')) return `MCP ${warning.slice(4)}`
+          return warning
+        })
+        setError(language === 'zh-CN'
+          ? `Profile 已创建，但以下设置未完成：${details.join('、')}`
+          : `Profile created, but some settings need attention: ${details.join(', ')}`)
+      }
       let latest = await refresh()
       let served = latest.gateways.some(gateway => gateway.served_profiles?.includes(created.name))
       if (!served) {

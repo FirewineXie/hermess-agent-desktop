@@ -257,6 +257,23 @@ pub(crate) async fn capture_backend_output<R: tokio::io::AsyncRead + Unpin>(
     stream: R,
     name: &'static str,
 ) {
+    capture_process_output(storage, stream, name, "hermes-backend-").await;
+}
+
+pub(crate) async fn capture_browser_output<R: tokio::io::AsyncRead + Unpin>(
+    storage: PathBuf,
+    stream: R,
+    name: String,
+) {
+    capture_process_output(storage, stream, &name, "chromium-").await;
+}
+
+async fn capture_process_output<R: tokio::io::AsyncRead + Unpin>(
+    storage: PathBuf,
+    stream: R,
+    name: &str,
+    prefix: &str,
+) {
     let mut reader = BufReader::new(stream);
     let mut line = Vec::new();
     loop {
@@ -269,7 +286,7 @@ pub(crate) async fn capture_backend_output<R: tokio::io::AsyncRead + Unpin>(
                 if fs::create_dir_all(&logs).is_err() {
                     break;
                 }
-                let path = logs.join(format!("hermes-backend-{}.log", now.format("%Y-%m-%d")));
+                let path = logs.join(format!("{prefix}{}.log", now.format("%Y-%m-%d")));
                 if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
                     let _ = writeln!(
                         file,
@@ -387,6 +404,7 @@ pub fn read_diagnostic_logs(
             ],
         ),
         "client" => ("client-", &[("desktop.log (旧版)", "control/desktop.log")]),
+        "browser" => ("chromium-", &[]),
         _ => return Err(DesktopFailure::invalid_input()),
     };
     let mut sections = Vec::new();

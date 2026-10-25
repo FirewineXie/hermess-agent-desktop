@@ -12,6 +12,7 @@ mod modelscope;
 mod modelscope_mcp;
 mod payload;
 pub mod personal_files;
+pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
 pub mod profiles;
@@ -583,6 +584,8 @@ async fn launch_backend(
     if disable_lazy_installs {
         command.env("HERMES_DISABLE_LAZY_INSTALLS", "1");
     }
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
     let mut child = command.spawn().map_err(|_| "后端启动失败".to_string())?;
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(capture_backend_output(storage.clone(), stdout, "stdout"));

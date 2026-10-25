@@ -10,6 +10,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
     workspaces: t('ui.workspace.title'),
     model: t('ui.model.settings'),
     agent: t('ui.agent.settings'),
+    profiles: language === 'zh-CN' ? '角色与 Profile' : 'Roles and profiles',
     memory: t('ui.persona.and.memory'),
     runtime: t('ui.runtime.and.storage'),
     tools: t('ui.tools.and.capabilities'),

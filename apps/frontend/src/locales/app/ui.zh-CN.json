@@ -409,6 +409,7 @@
   "ui.log.source": "日志来源",
   "ui.hermes.logs": "Hermes 日志",
   "ui.client.logs": "客户端日志",
+  "ui.browser.logs": "浏览器日志",
   "ui.refresh.logs": "刷新日志",
   "ui.loading.logs": "正在读取日志…",
   "ui.no.logs.yet": "暂无日志",

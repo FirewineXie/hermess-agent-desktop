@@ -42,3 +42,35 @@ fn runtime_probes_serialize_contract_fields() {
         })
     );
 }
+
+#[tokio::test]
+async fn chromium_output_uses_separate_diagnostic_log() {
+    use std::fs;
+    use tokio::io::AsyncWriteExt;
+
+    let selected =
+        std::env::temp_dir().join(format!("hermess-browser-logs-{}", uuid::Uuid::new_v4()));
+    let storage = selected.join("HermessAgentDesktop");
+    fs::create_dir_all(&storage).unwrap();
+    let (mut writer, reader) = tokio::io::duplex(1024);
+    let capture = tokio::spawn(super::capture_browser_output(
+        storage.clone(),
+        reader,
+        "default/stderr".into(),
+    ));
+    writer.write_all(b"DevTools listening\n").await.unwrap();
+    drop(writer);
+    capture.await.unwrap();
+
+    let files = super::daily_log_files(&storage, "chromium-").unwrap();
+    assert_eq!(files.len(), 1);
+    let browser_logs =
+        super::read_diagnostic_logs(selected.to_string_lossy().into_owned(), "browser".into())
+            .unwrap();
+    assert!(browser_logs.contains("[default/stderr] DevTools listening"));
+    let client_logs =
+        super::read_diagnostic_logs(selected.to_string_lossy().into_owned(), "client".into())
+            .unwrap();
+    assert!(!client_logs.contains("DevTools listening"));
+    fs::remove_dir_all(selected).unwrap();
+}

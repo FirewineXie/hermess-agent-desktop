@@ -24,7 +24,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
   const { diagnostics } = useDesktop()
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
-  const [logSource, setLogSource] = React.useState<'hermes' | 'client'>('hermes')
+  const [logSource, setLogSource] = React.useState<'hermes' | 'client' | 'browser'>('hermes')
   const [logText, setLogText] = React.useState('')
   const [logError, setLogError] = React.useState('')
   const [logLoading, setLogLoading] = React.useState(false)
@@ -56,9 +56,10 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
         </>}
         <div className="diagnostic-log-toolbar">
           <label>{t('ui.log.source')}
-            <select value={logSource} onChange={event => setLogSource(event.target.value as 'hermes' | 'client')}>
+            <select value={logSource} onChange={event => setLogSource(event.target.value as 'hermes' | 'client' | 'browser')}>
               <option value="hermes">{t('ui.hermes.logs')}</option>
               <option value="client">{t('ui.client.logs')}</option>
+              <option value="browser">{t('ui.browser.logs')}</option>
             </select>
           </label>
           <button type="button" disabled={!storagePath || logLoading} onClick={() => setLogRefresh(value => value + 1)}>{t('ui.refresh.logs')}</button>

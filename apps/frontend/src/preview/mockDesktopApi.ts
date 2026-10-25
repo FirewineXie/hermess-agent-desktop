@@ -22,6 +22,8 @@ export const previewDesktopApi: DesktopApi = {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
     async create() { throw previewOnly() },
     async select() { throw previewOnly() },
+    async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
+    async applyPersonality() { throw previewOnly() },
   },
   channels: {
     async status() { return { platforms: [] } },

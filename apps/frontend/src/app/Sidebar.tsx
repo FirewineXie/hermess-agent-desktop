@@ -72,6 +72,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, session
         <button className={view === 'usage' ? 'active' : ''} onClick={() => onOpenView('usage')}>▥ <span>{t('ui.usage.title')}</span></button>
         <button className={view === 'model' ? 'active' : ''} onClick={() => onOpenView('model')}>◇ <span>{t('ui.model.settings')}</span></button>
         <button className={view === 'agent' ? 'active' : ''} onClick={() => onOpenView('agent')}>⚙ <span>{t('ui.agent.settings')}</span></button>
+        <button className={view === 'profiles' ? 'active' : ''} onClick={() => onOpenView('profiles')}>◈ <span>{zh ? '角色与 Profile' : 'Roles and profiles'}</span></button>
         <button className={view === 'memory' ? 'active' : ''} onClick={() => onOpenView('memory')}>▤ <span>{t('ui.persona.and.memory')}</span></button>
         <button className={view === 'runtime' ? 'active' : ''} onClick={() => onOpenView('runtime')}>◉ <span>{t('ui.runtime.and.storage')}</span></button>
         <button className={view === 'tools' ? 'active' : ''} onClick={() => onOpenView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>

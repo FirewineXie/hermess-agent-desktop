@@ -71,6 +71,10 @@ export type ProfilesSnapshot = {
   gateways: Array<{ profile: string; served_profiles?: string[] }>
   reason: string | null
 }
+export type PersonalityEntry = { name: string; description: string; source: 'hermes' | 'custom' }
+export type PersonalitiesSnapshot = { profile: string; active: string; entries: PersonalityEntry[] }
+export type ProfilePresetSelection = { personalityName: string; personalityPrompt: string; skills: string[]; mcp: string[] }
+export type ProfileCreateResult = { ok?: boolean; name: string; personality_applied?: boolean; warnings?: string[] }
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
@@ -182,8 +186,10 @@ export interface DesktopApi {
   }
   profiles: {
     list(): Promise<ProfilesSnapshot>
-    create(name: string): Promise<{ ok: boolean; name: string }>
+    create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
     select(name: string): Promise<void>
+    listPersonalities(): Promise<PersonalitiesSnapshot>
+    applyPersonality(name: string, prompt?: string): Promise<PersonalitiesSnapshot>
   }
   tools: {
     listAgentToolsets(sessionId: string | null): Promise<AgentToolCatalog>
@@ -193,7 +199,7 @@ export interface DesktopApi {
     installDownloadableTool(name: string): Promise<void>
   }
   diagnostics: {
-    readLogs(storagePath: string, source: 'hermes' | 'client'): Promise<string>
+    readLogs(storagePath: string, source: 'hermes' | 'client' | 'browser'): Promise<string>
     recordEvent(storagePath: string, event: string): Promise<void>
   }
   agentSettings: {

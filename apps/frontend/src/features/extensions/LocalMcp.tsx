@@ -12,6 +12,10 @@ type Props = {
 
 export default function LocalMcp({ servers, busy, t, request, run, onMessage }: Props) {
   const [adding, setAdding] = React.useState(false)
+  const [editing, setEditing] = React.useState<string | null>(null)
+  const [editUrl, setEditUrl] = React.useState('')
+  const [editCommand, setEditCommand] = React.useState('')
+  const [editArgs, setEditArgs] = React.useState('')
   const [name, setName] = React.useState('')
   const [url, setUrl] = React.useState('')
   const [command, setCommand] = React.useState('')
@@ -46,6 +50,25 @@ export default function LocalMcp({ servers, busy, t, request, run, onMessage }: 
     if (success) { setAdding(false); setName(''); setUrl(''); setCommand(''); setArgs(''); setToken(''); setAuth('none') }
   }
 
+  function startEdit(server: McpServer) {
+    setAdding(false)
+    setEditing(server.name)
+    setEditUrl(server.url || '')
+    setEditCommand(server.command || '')
+    setEditArgs((server.args || []).join('\n'))
+  }
+
+  async function saveEdit(server: McpServer) {
+    const url = editUrl.trim()
+    const command = editCommand.trim()
+    if (server.url ? !url : !command) { onMessage(t('selectTransport')); return }
+    const success = await run('mcp.update', {
+      name: server.name,
+      ...(server.url ? { url } : { command, args: editArgs.split('\n').map(value => value.trim()).filter(Boolean) }),
+    }, 'mcp')
+    if (success) setEditing(null)
+  }
+
   async function test(name: string) {
     setTestBusy(name)
     try {
@@ -64,7 +87,7 @@ export default function LocalMcp({ servers, busy, t, request, run, onMessage }: 
   }
 
   return <>
-    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button onClick={() => setAdding(!adding)}>{adding ? t('cancel') : t('add')}</button></div>
+    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button onClick={() => { setEditing(null); setAdding(!adding) }}>{adding ? t('cancel') : t('add')}</button></div>
     {adding && <section className="extension-detail">
       <label>{t('name')}<input value={name} onChange={event => setName(event.target.value)} /></label>
       <label>{t('url')}<input value={url} onChange={event => setUrl(event.target.value)} /></label>
@@ -81,10 +104,22 @@ export default function LocalMcp({ servers, busy, t, request, run, onMessage }: 
       <div className="row"><strong>{server.name}</strong><small>{server.enabled ? t('enabled') : t('disabled')}</small></div>
       <small>{t('source')}: {server.plugin || server.source} · {t('transport')}: {server.transport}</small>
       <code>{server.url || [server.command, ...(server.args || [])].filter(Boolean).join(' ')}</code>
+      {editing === server.name && <section className="extension-detail">
+        {server.url
+          ? <label>{t('url')}<input value={editUrl} onChange={event => setEditUrl(event.target.value)} /></label>
+          : <><label>{t('command')}<input value={editCommand} onChange={event => setEditCommand(event.target.value)} /></label>
+            <label>{t('args')}<textarea value={editArgs} onChange={event => setEditArgs(event.target.value)} /></label></>}
+        <p>{t('mcpEditHint')}</p>
+        <div className="extension-actions">
+          <button disabled={busy || (server.url ? !editUrl.trim() : !editCommand.trim())} onClick={() => void saveEdit(server)}>{t('save')}</button>
+          <button disabled={busy} onClick={() => setEditing(null)}>{t('cancel')}</button>
+        </div>
+      </section>}
       <div className="extension-actions">
         <button disabled={busy || Boolean(testBusy)} onClick={() => void test(server.name)}>{testBusy === server.name ? t('working') : t('test')}</button>
         {server.auth === 'oauth' && server.source !== 'plugin' && <button disabled={busy} onClick={() => void authorize(server.name)}>{t('authorize')}</button>}
         {server.source !== 'plugin' && <>
+          <button disabled={busy} onClick={() => editing === server.name ? setEditing(null) : startEdit(server)}>{editing === server.name ? t('cancel') : t('edit')}</button>
           <button disabled={busy} onClick={() => void run('mcp.toggle', { name: server.name, enabled: !server.enabled }, 'mcp')}>
             {server.enabled ? t('disable') : t('enable')}</button>
           <button disabled={busy} onClick={() => {

@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 mod diagnostics;
 mod errors;
@@ -44,6 +44,8 @@ fn main() {
             runtime::profiles::list_profiles,
             runtime::profiles::create_profile,
             runtime::profiles::select_profile,
+            runtime::personalities::list_personalities,
+            runtime::personalities::apply_personality,
             diagnostics::read_diagnostic_logs,
             diagnostics::record_client_event,
             runtime::about::get_product_info,
