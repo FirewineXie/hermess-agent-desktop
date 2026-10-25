@@ -56,9 +56,12 @@ def main() -> None:
     repo = out / "hermes-agent"
     commit = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))["commit"]
     snapshot(upstream, commit, repo, exclude=INERT_SNAPSHOT_DIRS)
+    # The snapshot lives inside the product checkout but has no Git metadata.
+    # Stop Git discovery at .build so apply operates on the snapshot itself.
     subprocess.run(["git", "apply", "--unidiff-zero",
                     str(product / "adapters" / "hermess_desktop_private_api.patch")],
-                   cwd=repo, check=True)
+                   cwd=repo, env={**os.environ, "GIT_CEILING_DIRECTORIES": str(build)},
+                   check=True)
     shutil.copy2(product / "adapters" / "hermess_private_api.py",
                  repo / "hermes_cli" / "hermess_private_api.py")
     if (repo / "pm" / "lock.json").read_bytes() != lockfile_path().read_bytes():
