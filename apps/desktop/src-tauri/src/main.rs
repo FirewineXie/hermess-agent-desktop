@@ -5,11 +5,18 @@ mod errors;
 mod gateway;
 mod runtime;
 mod storage;
+mod tray;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            tray::show_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(runtime::BackendState::default())
+        .manage(runtime::channels::ChannelState::default())
+        .setup(tray::setup)
+        .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
             runtime::dev_backend_defaults,
@@ -21,6 +28,11 @@ fn main() {
             runtime::stop_backend,
             diagnostics::read_diagnostic_logs,
             diagnostics::record_client_event,
+            runtime::about::get_product_info,
+            runtime::channels::channel_status,
+            runtime::channels::channel_qr_start,
+            runtime::channels::channel_qr_poll,
+            runtime::channels::channel_qr_cancel,
             runtime::chat::create_chat_session,
             runtime::chat::submit_chat_prompt,
             runtime::chat::list_composer_commands,

@@ -61,6 +61,15 @@ function supportedRequests(value: unknown): GatewayRequest[] {
 }
 
 export const tauriDesktopApi: DesktopApi = {
+  channels: {
+    status: () => invoke('channel_status'),
+    start: platform => invoke('channel_qr_start', { platform }),
+    poll: id => invoke('channel_qr_poll', { id }),
+    cancel: id => invoke('channel_qr_cancel', { id }),
+  },
+  about: {
+    productInfo: () => invoke('get_product_info'),
+  },
   extensions: {
     request: (operation, payload = {}) => invoke('extension_request', { operation, payload }),
   },

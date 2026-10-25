@@ -102,10 +102,29 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
     finally { setBusy(false) }
   }
 
+  async function restartBackend() {
+    setBusy(true)
+    setBackendStatus(t('ui.channels.restarting'))
+    try {
+      await runtime.stop()
+      setBackend(null)
+      onReset()
+      const info = import.meta.env.DEV
+        ? await runtime.startDev(storagePath, pythonPath)
+        : await runtime.startPacked(storagePath)
+      setBackend(info)
+      setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
+      onStarted()
+    } catch (cause) {
+      setBackendStatus(t('ui.startup.failed.arg', describeError(cause, language)))
+      throw cause
+    } finally { setBusy(false) }
+  }
+
 
   return {
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, backendStatus, setBackendStatus, busy, setBusy,
-    startBackend, chooseStoragePath, pingBackend, stopBackend,
+    startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend,
   }
 }

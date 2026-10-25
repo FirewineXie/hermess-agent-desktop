@@ -3,6 +3,15 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  channels: {
+    async status() { return { platforms: [] } },
+    async start() { throw previewOnly() },
+    async poll() { throw previewOnly() },
+    async cancel() {},
+  },
+  about: {
+    async productInfo() { return { version: '0.1.5-rc.1', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
+  },
   extensions: {
     async request() { throw previewOnly() },
   },

@@ -1,28 +1,32 @@
-# 上游 Hermes 源码获取与升级
+# Hermes 源码获取与升级
 
-产品仓库不使用 Git submodule，也不把上游源码提交进产品仓库。`upstream/hermes-agent/` 是忽略目录，构建来源是产品维护的 [Hermes fork](https://github.com/FirewineXie/hermes-agent)，由 `runtime/upstream.lock.json` 固定仓库地址、正式 Release tag 和完整提交 SHA。产品适配源文件放在 `adapters/hermess_*`，可直接审阅；检出目录中的对应差异由脚本生成。官方 [NousResearch 仓库](https://github.com/NousResearch/hermes-agent) 用于上游升级参考，不是日常构建来源。
+产品仓库不使用 Git submodule，也不提交 Hermes 源码。`upstream/hermes-agent/` 是忽略目录。桌面私有 API 和三个上游接入点直接由 [Hermes fork](https://github.com/FirewineXie/hermes-agent) 的 `hermess-desktop` 分支跟踪，产品构建不应用补丁。
+
+`runtime/upstream.lock.json` 同时记录官方正式 Release 的 `tag`/`baseCommit` 和 fork 的 `branch`/`commit`。构建内容只由 fork 的完整 `commit` 决定；分支名用于确认该提交仍属于维护分支，不能代替 SHA 锁定。
 
 ## 日常克隆与构建
 
 在产品仓库根目录运行：
 
 ```sh
-git clone https://github.com/FirewineXie/hermess-agent-desktop.git
-cd hermess-agent-desktop
 pnpm fetch:upstream
 pnpm install --frozen-lockfile
 pnpm verify:upstream
 pnpm build
 ```
 
-`fetch:upstream` 在目录不存在时按锁定 tag 从上游仓库浅克隆，应用固定补丁并复制带 `hermess_` 前缀的产品模块；目录已存在时只核对或对干净官方基线应用适配，不覆盖其他本地改动。`verify:upstream` 检查 `origin`、tag、HEAD 完整 SHA、官方文件差异恰好等于补丁，以及产品模块字节一致。克隆失败留下不完整目录时，先检查目录内容，再删除该不完整目录并重试。构建需要可访问上游 Git 仓库；运行已打包的安装包不需要克隆源码。
+`fetch:upstream` 在目录不存在时克隆 fork 的 `hermess-desktop` 分支历史并检出锁定 SHA；目录已存在时只校验，不覆盖已有工作树。`verify:upstream` 核对 fork 来源、HEAD、干净工作树、两个提交在维护分支中的祖先关系，以及官方 tag 指向的基线提交。旧版带产品补丁的检出不符合新锁文件；迁移时先保留旧目录，再重新获取。构建需要访问 fork 和官方 Git 仓库；已打包的安装包运行时不需要访问它们。
 
-## 明确升级到当时最新的正式 Release
+## fork 分支约束
 
-1. 查看 [上游 Releases](https://github.com/NousResearch/hermes-agent/releases/latest)，确认其 `Latest` 正式 Release tag。不要把 `main`、预发布或 canary tag 当成正式 Release。
-2. 以 `v0.22.5` 为例，分别对官方来源和产品 fork 执行 `git ls-remote --tags <仓库地址>`，核对 `refs/tags/v0.22.5` 及 `refs/tags/v0.22.5^{}`；注解 tag 有 tag 对象和 `^{}` 指向的提交，锁文件记录后者。确认 fork 保留同一提交后再更新锁文件。
-3. 审查 Release 说明和当前产品依赖的接口。把 tag 与完整 SHA 一起写入 `runtime/upstream.lock.json`；升级须走产品代码审查，不在 CI 中查询“最新”。
-4. 在干净目录按新锁文件运行 `pnpm fetch:upstream`、`pnpm verify:upstream`。已存在旧检出时，先保留或移走旧目录；脚本不会自动替换它。
-5. 重新运行前端、Rust、协议、payload 和目标平台的安装验收。更新能力矩阵与运行时决策记录，只发布通过版本配对检查的桌面版本。
+fork 的 `main` 保持只读，tags 不允许创建、改写或删除。`hermess-desktop` 是默认分支和唯一正式桌面集成分支，禁止强推与删除，改动必须通过 PR 和 `Hermess desktop gate`。开发者从该分支创建开发分支，PR 只合入该分支。Git 不记录分支创建时的命令；PR 检查验证开发分支继承了桌面基线提交。
 
-2026-10-24 查得最新正式 Release 为 `v0.22.5`，提交 `bf0203a794a07aac3ff764972ab9087baa4e4f4e`。这是本次锁定来源，不代表现有 I0 验收已覆盖该提交。
+## 升级官方正式 Release
+
+1. 确认 [官方 Releases](https://github.com/NousResearch/hermes-agent/releases/latest) 中要采用的正式 tag，核对 tag 解引用后的完整提交 SHA；不要把 `main`、预发布或 canary 当作正式 Release。
+2. 从 fork 的 `hermess-desktop` 创建升级分支，在升级分支合入该官方 tag 指向的提交，解决与桌面私有 API 的冲突；不改 fork 的 `main`，也不需要在 fork 创建 tag。
+3. 在 fork 的升级分支运行私有监听、令牌及 WebSocket 边界检查，通过 PR 合入 `hermess-desktop`，保留合并历史。
+4. 在产品版本分支审查新的官方基线和 fork 提交，将完整 `baseCommit` 与 `commit` 写入锁文件。用干净目录运行 `pnpm fetch:upstream`、`pnpm verify:upstream`，重新验证前端、Rust、协议、payload 和目标平台安装包。
+5. 更新能力矩阵和运行时决策记录。只有产品 PR 检查通过、合入 `main` 且发布资源核对完成后，才能创建新的产品发布 tag。
+
+当前官方基线是 `v0.22.5`（`bf0203a794a07aac3ff764972ab9087baa4e4f4e`）。fork 桌面提交及产品版本的验收范围以当前锁文件和验证记录为准。

@@ -11,6 +11,8 @@ export default function WorkspaceHeader({ view, sessionTitle, connected, onOpenN
     runtime: t('ui.runtime.and.storage'),
     tools: t('ui.tools.and.capabilities'),
     extensions: t('ui.extensions'),
+    channels: t('ui.channels'),
+    about: t('ui.about'),
   })[view]
   return <header className="workspace-header">
     <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>

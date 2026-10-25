@@ -35,7 +35,7 @@ pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value
         .request(
             "session.create",
             json!({
-                "source": "desktop", "idempotency_key": Uuid::new_v4().to_string()
+                "source": "gui", "request_id": Uuid::new_v4().to_string()
             }),
         )
         .await?;

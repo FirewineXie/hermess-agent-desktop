@@ -96,8 +96,29 @@ export type NativeOpenOptions = {
   title: string
 }
 
+export type ProductInfo = {
+  version: string
+  hermesVersion: string
+  hermesCommit: string
+  productLicense: string
+  hermesLicense: string
+}
+
+export type ChannelStatus = { id: 'feishu' | 'weixin'; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
+export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
+export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
+
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  channels: {
+    status(): Promise<{ platforms: ChannelStatus[] }>
+    start(platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
+    poll(id: string): Promise<ChannelQrPoll>
+    cancel(id: string): Promise<void>
+  }
+  about: {
+    productInfo(): Promise<ProductInfo>
+  }
   extensions: {
     request<T>(operation: string, payload?: Record<string, unknown>): Promise<T>
   }

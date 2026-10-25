@@ -47,6 +47,8 @@ export default function Sidebar({ view, open, connected, busy, sessions, activeS
         <button className={view === 'runtime' ? 'active' : ''} onClick={() => onOpenView('runtime')}>◉ <span>{t('ui.runtime.and.storage')}</span></button>
         <button className={view === 'tools' ? 'active' : ''} onClick={() => onOpenView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
         <button className={view === 'extensions' ? 'active' : ''} onClick={() => onOpenView('extensions')}>✦ <span>{t('ui.extensions')}</span></button>
+        <button className={view === 'channels' ? 'active' : ''} onClick={() => onOpenView('channels')}>◎ <span>{t('ui.channels')}</span></button>
+        <button className={view === 'about' ? 'active' : ''} onClick={() => onOpenView('about')}>ⓘ <span>{t('ui.about')}</span></button>
       </nav>
       <div className="sidebar-section-heading"><strong>{t('ui.recent.sessions')}</strong><button disabled={!connected} onClick={onRefreshSessions} aria-label={t('ui.refresh.recent.conversations')}>↻</button></div>
       <div className="sidebar-sessions">

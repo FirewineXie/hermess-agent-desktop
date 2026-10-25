@@ -1,12 +1,7 @@
 # 上游源码目录
 
-`hermes-agent/` 是按 `runtime/upstream.lock.json` 中的正式 Release tag 和完整提交 SHA 单独克隆的上游源码目录。它被产品仓库忽略，不是 Git submodule。官方基线由 Git 提交确定；产品改动保存在仓库跟踪的 `../adapters/hermess_*` 文件中。
+`hermes-agent/` 是按 `runtime/upstream.lock.json` 从产品维护的 Hermes fork 克隆、并检出完整提交 SHA 的源码目录。它被产品仓库忽略，不是 Git submodule。锁文件另行记录官方正式 Release 的 tag 和基线提交；实际打包内容由 fork 提交决定。
 
-## 产品适配方式
+`pnpm fetch:upstream` 获取锁定源码；`pnpm verify:upstream` 核对来源、提交、干净工作树、桌面维护分支历史以及官方基线。产品构建不会向检出目录应用补丁，也不复制适配器文件。不要手工编辑该目录，或用其他分支、tag 绕过锁文件。
 
-- `pnpm fetch:upstream` 把 `hermess_desktop_private_api.patch` 应用到三个官方入口，并复制 `hermess_private_api.py`；实际安全逻辑在带 `hermess_` 前缀的产品文件中。
-- 不手工编辑检出目录。`pnpm verify:upstream` 要求工作树差异和带前缀文件与产品源码完全一致。
-- 不把 `hermes-agent/` 加入产品仓库，不用 `git add -f` 绕过忽略规则。
-- 不将其切换到 `main`、canary 或其他 tag 来绕过锁文件。校验失败时停止构建或发布。
-
-首次获取源码运行 `pnpm fetch:upstream`。需要升级上游时，先核对最新正式 Release，将 tag 和完整 SHA 一起更新到锁文件，再重新克隆、验证兼容性。详细步骤见 [上游源码流程](../docs/upstream-source.md)。
+桌面适配代码由 fork 的 `hermess-desktop` 分支直接跟踪。开发者从该分支建立开发分支，经 PR 合回 `hermess-desktop`。升级正式版时在升级分支合入官方 tag 指向的提交，再更新产品锁文件并重新验证。详细步骤见 [上游源码流程](../docs/upstream-source.md)。

@@ -8,7 +8,10 @@ use tokio::{
     task::JoinHandle,
     time::timeout,
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 
 struct RpcRequest {
     method: &'static str,
@@ -263,12 +266,28 @@ pub struct GatewayClient {
 }
 
 impl GatewayClient {
-    pub async fn connect(port: u16, token: &str, app: AppHandle) -> Result<Self, String> {
-        let url = format!("ws://127.0.0.1:{port}/api/ws?token={token}");
-        let (socket, _) = timeout(Duration::from_secs(5), connect_async(url))
+    pub async fn connect(port: u16, ticket: &str, app: AppHandle) -> Result<Self, String> {
+        let url = format!("ws://127.0.0.1:{port}/api/ws");
+        let mut request = url
+            .into_client_request()
+            .map_err(|_| "无法构造网关连接".to_string())?;
+        let protocol = format!("hermes-gateway-v1, hermes-gateway-ticket.{ticket}");
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::from_str(&protocol).map_err(|_| "无效的网关票据".to_string())?,
+        );
+        let (socket, response) = timeout(Duration::from_secs(5), connect_async(request))
             .await
             .map_err(|_| "网关连接超时".to_string())?
             .map_err(|_| "网关鉴权或连接失败".to_string())?;
+        if response
+            .headers()
+            .get("Sec-WebSocket-Protocol")
+            .and_then(|v| v.to_str().ok())
+            != Some("hermes-gateway-v1")
+        {
+            return Err("网关未确认桌面会话协议".into());
+        }
         let (mut writer, mut reader) = socket.split();
         let (sender, mut receiver) = mpsc::channel::<GatewayCommand>(64);
         let (ready_sender, ready_receiver) = oneshot::channel();

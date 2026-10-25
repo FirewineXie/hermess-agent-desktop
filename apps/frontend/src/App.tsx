@@ -10,6 +10,8 @@ import ModelSettingsView from './features/models/ModelSettingsView'
 import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
 import PersonalFilesView from './features/personal-files/PersonalFilesView'
+import AboutView from './features/about/AboutView'
+import ChannelsView from './features/channels/ChannelsView'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
@@ -29,7 +31,7 @@ function App() {
   const {
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, backendStatus, setBackendStatus, busy, setBusy,
-    startBackend, chooseStoragePath, pingBackend, stopBackend,
+    startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend,
   } = useRuntimeController({
     t,
     onStarted: () => { void loadModelOptions(); void loadSessions(true) },
@@ -69,6 +71,8 @@ function App() {
       <WorkspaceHeader view={view} sessionTitle={activeSession?.title} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
+    {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={restartBackend} />}
+    {view === 'about' && <AboutView />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} sessionId={sessionId} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}

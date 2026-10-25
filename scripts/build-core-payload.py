@@ -56,14 +56,6 @@ def main() -> None:
     repo = out / "hermes-agent"
     commit = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))["commit"]
     snapshot(upstream, commit, repo, exclude=INERT_SNAPSHOT_DIRS)
-    # The snapshot lives inside the product checkout but has no Git metadata.
-    # Stop Git discovery at .build so apply operates on the snapshot itself.
-    subprocess.run(["git", "apply", "--unidiff-zero",
-                    str(product / "adapters" / "hermess_desktop_private_api.patch")],
-                   cwd=repo, env={**os.environ, "GIT_CEILING_DIRECTORIES": str(build)},
-                   check=True)
-    shutil.copy2(product / "adapters" / "hermess_private_api.py",
-                 repo / "hermes_cli" / "hermess_private_api.py")
     if (repo / "pm" / "lock.json").read_bytes() != lockfile_path().read_bytes():
         raise RuntimeError("staged PM lock differs from the selected upstream commit")
 
@@ -89,7 +81,8 @@ def main() -> None:
     stage_pm_runtime(out, python_bin, repo, offline=False, cache=cache)
     venv = out / "venv"
     pm.build_environment(source=repo, out=venv, python=python_bin, cache=cache,
-                         all_extras=False, sealed=True, offline=False, explicit=True)
+                         extras=["messaging", "feishu"], all_extras=False,
+                         sealed=True, offline=False, explicit=True)
     features = installed_extras(repo, venv, python_exe=python_bin)
     write_features(features, out)
     facts.record_state("venv", Venv(repo).expected_stamp(features, plugin_dirs=[]), features)

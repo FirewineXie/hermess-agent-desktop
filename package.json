@@ -1,6 +1,6 @@
 {
   "name": "hermess-agent-desktop",
-  "version": "0.5.0-rc.1",
+  "version": "0.1.5-rc.1",
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "scripts": {
@@ -8,6 +8,8 @@
     "build": "pnpm --dir apps/desktop build",
     "check:architecture": "node --test scripts/architecture-dependencies.test.mjs && node scripts/check-architecture-boundaries.mjs",
     "check:contracts": "node scripts/check-contract-fixtures.mjs",
+    "check:legal": "node scripts/check-legal.mjs",
+    "test:update-rules": "node --experimental-strip-types --test apps/frontend/src/features/about/updateRules.test.mjs",
     "generate:contracts": "node scripts/generate-contracts.mjs",
     "check:generated-contracts": "node scripts/generate-contracts.mjs --check",
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",

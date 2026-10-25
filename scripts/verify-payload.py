@@ -31,11 +31,8 @@ def main() -> None:
     if current != commit:
         parser.error(f"upstream HEAD differs from lock: {current}")
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
-    patched = frozenset(subprocess.check_output(
-        ["git", "diff", "--name-only"], cwd=upstream, text=True).splitlines())
     source = payload / manifest["repo"]
     checked = 0
-    seen_patched = set()
     with tempfile.TemporaryDirectory(prefix="payload-archive-", dir=product / ".build") as temp:
         archive = Path(temp) / "source.tar"
         subprocess.run(["git", "archive", "--format=tar", "--output", str(archive), commit,
@@ -49,25 +46,16 @@ def main() -> None:
                     stream = tar.extractfile(entry)
                     if stream is None or not destination.is_file():
                         raise RuntimeError(f"payload source file missing: {entry.name}")
-                    expected = ((upstream / entry.name).read_bytes() if entry.name in patched
-                                else stream.read())
-                    if entry.name in patched:
-                        seen_patched.add(entry.name)
+                    expected = stream.read()
                     if hashlib.sha256(destination.read_bytes()).digest() != hashlib.sha256(expected).digest():
-                        raise RuntimeError(f"payload source differs from product adapter: {entry.name}")
+                        raise RuntimeError(f"payload source differs from locked fork commit: {entry.name}")
                 elif entry.issym():
                     if not destination.is_symlink() or destination.readlink().as_posix() != entry.linkname:
                         raise RuntimeError(f"payload source link differs from pinned commit: {entry.name}")
                 else:
                     raise RuntimeError(f"unexpected archive entry: {entry.name}")
                 checked += 1
-    if seen_patched != patched:
-        raise RuntimeError(f"product adapter paths are absent from the pinned archive: {patched - seen_patched}")
-    adapter = product / "adapters" / "hermess_private_api.py"
-    installed_adapter = source / "hermes_cli" / adapter.name
-    if not installed_adapter.is_file() or installed_adapter.read_bytes() != adapter.read_bytes():
-        raise RuntimeError("payload Hermess adapter differs from product source")
-    print(f"payload source matches pinned commit {commit} plus product adapter: {checked} entries; target={manifest['target']}")
+    print(f"payload source matches locked fork commit {commit}: {checked} entries; target={manifest['target']}")
 
 
 if __name__ == "__main__":

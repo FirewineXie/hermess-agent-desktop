@@ -17,11 +17,11 @@
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建，无需先合入 `main`；正式版 tag `vX.Y.Z` 只能从已合入且通过 CI 的 `main` 创建。tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 
 ## 项目边界
 
-- `upstream/hermes-agent` 是按 `runtime/upstream.lock.json` 中正式 Release tag 和完整提交 SHA 单独克隆的忽略目录，不是 submodule。运行 `pnpm fetch:upstream` 获取源码并应用 `adapters/hermess_*` 产品适配文件；不要手工修改检出目录。`pnpm verify:upstream` 同时校验官方版本和产品适配差异。升级上游时审查新 tag、提交及适配兼容性；日常构建只使用锁定版本。
+- `upstream/hermes-agent` 是按 `runtime/upstream.lock.json` 中 fork 维护分支及完整提交 SHA 单独检出的忽略目录，不是 submodule。`pnpm fetch:upstream` 获取锁定的 fork 源码，不在产品构建中应用补丁或修改检出目录；`pnpm verify:upstream` 校验来源、分支历史、官方正式 Release tag/基线及干净工作区。fork 的桌面改动只经开发分支 PR 合入 `hermess-desktop`；产品升级须审查新官方 tag 和 fork 提交，日常构建只使用锁定 SHA。
 
 - 本产品自行实现桌面层。参考项目 `cankao/Hermes-CN-Desktop` 用于研究，不直接复制其源码、图标或素材；需要复用具体文件时，先核对该文件的许可。
 - 产品只管理自己创建的后端进程、数据根和凭据。修改连接、重连、安装、升级或卸载逻辑时，验证不会误连、重启、覆盖或停止用户已有的 Hermes 实例，也不会误删所选目录的父目录。

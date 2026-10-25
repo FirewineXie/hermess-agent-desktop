@@ -25,6 +25,8 @@ jobs:
           run_install: false
       - name: Verify locked upstream source
         run: node scripts/fetch-upstream.mjs
+      - name: Check bundled upstream license
+        run: pnpm check:legal
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
       - name: Check architecture boundaries
@@ -33,6 +35,8 @@ jobs:
         run: pnpm check:contracts
       - name: Check generated contract types
         run: pnpm check:generated-contracts
+      - name: Check update channel rules
+        run: pnpm test:update-rules
       - name: Build frontend preview
         run: pnpm --dir apps/frontend build
       - name: Build frontend

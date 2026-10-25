@@ -1,13 +1,15 @@
 # 固定提交接入能力矩阵
 
-基线：`upstream/hermes-agent` 提交 `bf0203a794a07aac3ff764972ab9087baa4e4f4e`（v0.22.5）。下表的“已验收”仅指 2026-10-24 Windows x64 上的脚本级集成测试，不代表桌面 UI 或其他平台已通过。
+当前源码锁定 fork 提交 `882037eb8745b505db438217513c4c94f95c93c1`，官方基线为 `v0.22.5`（`bf0203a794a07aac3ff764972ab9087baa4e4f4e`）。旧验收记录仍标注其当时的 `serve` 路线；2026-10-25 的单网关与渠道验证另列。脚本测试、payload 构建和原生窗口验收是不同层次。
 
 | 能力 | 固定提交接口 | 当前产品实现 | 验收状态 |
 | --- | --- | --- | --- |
-| 本地独立启动 | `hermes serve --host 127.0.0.1 --port 0 --isolated`、`HERMES_DESKTOP_READY_FILE` | 开发态 Rust 命令管理一个子进程，私有数据根与锁目录 | Windows 脚本启动与就绪通过；窗口按钮未操作验收 |
-| 本地鉴权 | loopback `/api/ws` 使用每次启动的 `HERMES_DASHBOARD_SESSION_TOKEN` | 凭据仅在 Rust 层；前端收不到 token | 正确凭据 ping 成功、错误凭据拒绝；进程身份与共存仍待验收 |
+| 本地独立启动 | `hermes gateway run`、私有发现接口 | Rust 管理一个自有网关进程、私有数据根与锁目录；发现时核对自有 PID | Windows 开发态及重新构建的 core payload 均启动成功；原生窗口未操作验收 |
+| 本地鉴权 | loopback HTTP 使用 `HERMES_DASHBOARD_SESSION_TOKEN`；会话 WebSocket 使用私有控制端票据 | 令牌和票据仅在 Rust 层；前端收不到凭据 | 私有 HTTP、票据 WebSocket ping 和带浏览器 Origin 的拒绝路径已用本机探针验证；并行官方 Hermes 共存与原生窗口仍待验收 |
 | 网关连通 | `ping` | Rust 持续连接 + RPC 请求匹配；另有独立 ping | 原版后端脚本通过；Rust 长连接未完成窗口验收 |
-| 新建会话 | `session.create`，`source: desktop`、`idempotency_key` | Rust RPC 保留运行时 ID 与持久化 ID，开发态 UI 分别记录 | 脚本从真实后端取得两个 ID；UI 未验收 |
+| 新建会话 | `session.create`，`source: gui`、`request_id` | Rust RPC 保留运行时 ID 与持久化 ID，开发态 UI 分别记录 | 票据连接以显式模型创建会话通过；无模型配置时上游返回 `storage_unavailable`；新流程的 UI 未验收 |
+| 飞书与微信扫码 | 飞书设备注册；微信 iLink 二维码；`/api/messaging/platforms` | Rust 保管待确认凭据，前端只取得扫码 URL；授权后由网关保存配置并重启该自有进程 | 两个线上二维码启动接口返回有效数据；锁定 fork 的 core payload 含所需 Python 依赖，打包网关的渠道列表可读取。手机扫码、实际收发和重启后生效未验收 |
+| 系统托盘 | Tauri tray icon、单实例插件 | 关闭窗口隐藏；菜单恢复与退出，退出前停止自有网关 | Rust 编译和单元测试通过；Windows 原生窗口行为未验收 |
 | 提交消息 | `prompt.submit` | Rust RPC 命令，无盲目重试 | 脚本取得 admission；UI 未验收 |
 | 命令与 Skill 输入 | `commands.catalog`、`slash.exec`、`command.dispatch` | `/` 显示网关完整命令目录并标出桌面可用状态，`/model` 打开模型配置页；`@` 显示当前会话已安装的 Skill。每项显示用途说明，Skill 调用经网关展开后提交 | Windows x64 假模型脚本验证目录含 `/model`、`/help` 可执行及临时 Skill 分发；前端与 Rust 构建通过。原生窗口候选菜单与键盘交互未操作验收 |
 | 流式回复 | `message.delta`、`message.complete` | Rust 筛选事件送前端，最简文本视图 | 脚本收到 7 个 delta 与最终内容；UI 未验收 |
@@ -24,4 +26,4 @@
 | 路径与并行实例 | 封装启动器可移动；后端支持独立 `HERMES_HOME` 和 WS 凭据 | 中文空格安装目录复制运行；Rust 持有产品存储 OS 锁，release 路径保存首次选择的存储位置 | 复制后完整冒烟通过；独立进程锁测试通过；来源 CLI 与产品并行的凭据、会话和退出隔离通过。NSIS 候选包在当前机器中文空格路径静默安装与卸载通过；用户现有官方数据及窗口操作未验收 |
 | 跨平台安装包 | 固定上游 PM 构建原生运行时，Tauri 封装离线归档 | 标签流水线分别生成 Windows NSIS、macOS Intel/Apple Silicon DMG、Linux AppImage 和 deb，并汇总预发布 Release | `v0.1.4` 的四个原生 runner 与 Release 汇总均成功，附件名与 SHA256SUMS 一致；Windows 同机静默安装另有证据。2026-10-25 `8c6f515` 源码状态在 Windows x64 本地通过锁定资源归档、离线安装单测、NSIS 构建及发行资源暂存哈希比对；后续提交尚未重新打包，该安装包也尚未实际安装。macOS/Linux 安装、原生窗口、真实模型和工具仍未实机验收 |
 
-专用 `serve` 不发布 canonical gateway 的私有控制端点；因此此路线验证的是每次启动会话凭据，并未验证原生票据。正式产品需完成进程创建身份、端点身份、鉴权、并行官方 Hermes 共存与退出证明。若改用 `gateway ensure`，必须重新验收私有发现范围和生命周期，不能直接沿用本矩阵结论。
+2026-10-24 及更早的 `serve`、假模型、安装包记录是历史验证，不自动适用于当前单网关版本。当前版本仍需完成进程归属、扫码后渠道实际收发、原生窗口及与官方 Hermes 并行的实机验收。

@@ -26,6 +26,7 @@ jobs:
           node-version: '24'
           check-latest: true
       - run: node scripts/fetch-upstream.mjs
+      - run: node scripts/check-legal.mjs
 
   build:
     needs: validate
@@ -65,6 +66,7 @@ jobs:
         run: |
           node scripts/fetch-upstream.mjs
           node scripts/verify-upstream.mjs
+          node scripts/check-legal.mjs
           pnpm install --frozen-lockfile
           cargo --version
       - name: Build sealed native Hermes runtime

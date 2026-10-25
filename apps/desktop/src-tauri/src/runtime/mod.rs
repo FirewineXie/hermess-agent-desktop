@@ -1,3 +1,5 @@
+pub mod about;
+pub mod channels;
 pub mod chat;
 pub mod config;
 pub mod extensions;
@@ -48,6 +50,8 @@ struct OwnedBackend {
     child: Child,
     port: u16,
     token: String,
+    hermes: PathBuf,
+    endpoint: serde_json::Value,
     gateway: Arc<GatewayClient>,
     bundled_tools_root: Option<PathBuf>,
 }
@@ -203,6 +207,142 @@ async fn verify_private_api(port: u16, token: &str) -> Result<(), String> {
     }
 }
 
+fn python_for_hermes(hermes: &Path) -> Result<PathBuf, String> {
+    let scripts = hermes.parent().ok_or("无法定位网关运行时")?;
+    let python = if scripts.file_name().and_then(|n| n.to_str()) == Some("bin") {
+        scripts
+            .parent()
+            .ok_or("无法定位网关运行时")?
+            .join("venv")
+            .join(if cfg!(windows) {
+                "Scripts/python.exe"
+            } else {
+                "bin/python"
+            })
+    } else {
+        scripts.join(if cfg!(windows) {
+            "python.exe"
+        } else {
+            "python"
+        })
+    };
+    if !python.is_file() {
+        return Err("网关解释器不存在".into());
+    }
+    Ok(python)
+}
+
+async fn discover_owned_gateway(
+    hermes: &Path,
+    home: &Path,
+    launched_pid: u32,
+) -> Option<(u16, serde_json::Value)> {
+    const SCRIPT: &str = r#"import json,sys
+from contextlib import redirect_stdout
+from pathlib import Path
+import psutil
+home=Path(sys.argv[1])
+launched_pid=int(sys.argv[2])
+try:
+    gateway_pid=json.loads((home/'gateway.lock').read_text(encoding='utf-8'))['pid']
+    gateway=psutil.Process(gateway_pid)
+    if gateway.pid != launched_pid and not any(parent.pid == launched_pid for parent in gateway.parents()):
+        raise SystemExit(1)
+except (OSError, ValueError, KeyError, TypeError, psutil.Error):
+    raise SystemExit(1)
+with redirect_stdout(sys.stderr):
+    from hermes_cli.gateway_runtime import discover_gateway_endpoint
+result=discover_gateway_endpoint(home)
+if result.state != 'ready' or result.endpoint is None:
+    raise SystemExit(1)
+e=result.endpoint
+print(json.dumps({'profile_id':e.profile_id,'instance_id':e.instance_id,
+    'runtime_protocol':e.runtime_protocol,'control_home':e.control_home,
+    'api_origin':e.api_origin}))
+"#;
+    let mut command = tokio::process::Command::new(python_for_hermes(hermes).ok()?);
+    command
+        .args(["-P", "-u", "-c", SCRIPT])
+        .arg(home)
+        .arg(launched_pid.to_string())
+        .env("HERMES_HOME", home)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let output = timeout(Duration::from_secs(5), command.output())
+        .await
+        .ok()?
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let endpoint: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    if !endpoint
+        .get("profile_id")
+        .and_then(|v| v.as_str())?
+        .eq_ignore_ascii_case(home.to_str()?)
+    {
+        return None;
+    }
+    let port = endpoint
+        .get("api_origin")
+        .and_then(|v| v.as_str())?
+        .strip_prefix("http://127.0.0.1:")?
+        .parse::<u16>()
+        .ok()?;
+    Some((port, endpoint))
+}
+
+async fn mint_gateway_ticket(
+    hermes: &Path,
+    home: &Path,
+    endpoint: &serde_json::Value,
+) -> Result<String, String> {
+    const SCRIPT: &str = r#"import json,os,sys
+from contextlib import redirect_stdout
+from pathlib import Path
+from types import SimpleNamespace
+with redirect_stdout(sys.stderr):
+    from hermes_cli.gateway_client import _session_ticket
+    from hermes_cli.gateway_runtime_discovery import _private_node
+home=Path(sys.argv[1]).resolve()
+endpoint=SimpleNamespace(**json.loads(sys.argv[2]))
+if endpoint.runtime_protocol != 1 or os.path.normcase(str(home)) != os.path.normcase(endpoint.profile_id):
+    raise SystemExit(1)
+if os.name != 'nt':
+    _private_node(home, kind='directory', home=True)
+with redirect_stdout(sys.stderr):
+    ticket=_session_ticket(home, endpoint, purpose='interactive', scope='host')
+print(ticket)
+"#;
+    let mut command = tokio::process::Command::new(python_for_hermes(hermes)?);
+    command
+        .args(["-P", "-u", "-c", SCRIPT])
+        .arg(home)
+        .arg(endpoint.to_string())
+        .env("HERMES_HOME", home)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let output = timeout(Duration::from_secs(8), command.output())
+        .await
+        .map_err(|_| "获取网关票据超时".to_string())?
+        .map_err(|_| "无法获取网关票据".to_string())?;
+    if !output.status.success() {
+        return Err("网关拒绝桌面票据".into());
+    }
+    let ticket = String::from_utf8(output.stdout).map_err(|_| "网关票据无效".to_string())?;
+    let ticket = ticket.trim();
+    if ticket.is_empty() || ticket.len() > 4096 || !ticket.is_ascii() {
+        return Err("网关票据无效".into());
+    }
+    Ok(ticket.to_owned())
+}
+
 #[tauri::command]
 pub async fn start_dev_backend(
     app: AppHandle,
@@ -338,24 +478,19 @@ async fn launch_backend(
     #[cfg(windows)]
     powershell_tool::install(&storage)?;
     let _ = append_client_event(&storage, "backend_starting");
-    let run = storage.join("control").join(Uuid::new_v4().to_string());
-    fs::create_dir_all(&run).map_err(|_| "无法创建私有控制目录".to_string())?;
-    let ready = run.join("ready.json");
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let bundled_tools_root = hermes.parent().and_then(Path::parent).and_then(|root| {
         root.join("manifest.json")
             .is_file()
             .then(|| root.join("tools"))
     });
-    let mut command = tokio::process::Command::new(hermes);
+    let hermes_home = storage.join("hermes-home");
+    let gateway_locks = storage.join("control").join("gateway-locks");
+    let mut command = tokio::process::Command::new(&hermes);
     command
-        .args(["serve", "--host", "127.0.0.1", "--port", "0", "--isolated"])
-        .env("HERMES_HOME", storage.join("hermes-home"))
-        .env(
-            "HERMES_GATEWAY_LOCK_DIR",
-            storage.join("control").join("gateway-locks"),
-        )
-        .env("HERMES_DESKTOP_READY_FILE", &ready)
+        .args(["gateway", "run"])
+        .env("HERMES_HOME", &hermes_home)
+        .env("HERMES_GATEWAY_LOCK_DIR", &gateway_locks)
         .env("HERMES_DESKTOP", "1")
         .env("HERMESS_DESKTOP_PRIVATE_API", "1")
         .env("HERMES_DASHBOARD_SESSION_TOKEN", &token)
@@ -376,7 +511,7 @@ async fn launch_backend(
     }
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let deadline = Instant::now() + Duration::from_secs(60);
-    let port = loop {
+    let (port, endpoint) = loop {
         if child
             .try_wait()
             .map_err(|_| "后端进程状态读取失败".to_string())?
@@ -384,15 +519,9 @@ async fn launch_backend(
         {
             return Err("后端在发布就绪状态前退出；请查看开发者诊断中的 Hermess 日志".into());
         }
-        if let Ok(bytes) = fs::read(&ready) {
-            if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                if let Some(port) = value.get("port").and_then(|port| port.as_u64()) {
-                    if let Ok(port) = u16::try_from(port) {
-                        if port > 0 {
-                            break port;
-                        }
-                    }
-                }
+        if hermes_home.join("gateway.lock").is_file() {
+            if let Some(found) = discover_owned_gateway(&hermes, &hermes_home, pid).await {
+                break found;
             }
         }
         if Instant::now() >= deadline {
@@ -409,7 +538,8 @@ async fn launch_backend(
     {
         return Err("后端在鉴权后退出".into());
     }
-    let gateway = Arc::new(GatewayClient::connect(port, &token, app).await?);
+    let ticket = mint_gateway_ticket(&hermes, &hermes_home, &endpoint).await?;
+    let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
     let replay_epoch = gateway.replay_epoch.clone();
     let _ = append_client_event(&storage, "backend_ready");
     *owned = Some(OwnedBackend {
@@ -418,6 +548,8 @@ async fn launch_backend(
         child,
         port,
         token,
+        hermes,
+        endpoint,
         gateway,
         bundled_tools_root,
     });
@@ -444,8 +576,14 @@ async fn reuse_owned_backend(
                 return Err(DesktopFailure::conflict());
             }
             if existing.gateway.is_closed() {
+                let ticket = mint_gateway_ticket(
+                    &existing.hermes,
+                    &existing.storage.join("hermes-home"),
+                    &existing.endpoint,
+                )
+                .await?;
                 existing.gateway =
-                    Arc::new(GatewayClient::connect(existing.port, &existing.token, app).await?);
+                    Arc::new(GatewayClient::connect(existing.port, &ticket, app).await?);
             }
             return Ok(Some(BackendInfo {
                 port: existing.port,
@@ -500,8 +638,14 @@ pub async fn reconnect_backend(
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
+    let ticket = mint_gateway_ticket(
+        &backend.hermes,
+        &backend.storage.join("hermes-home"),
+        &backend.endpoint,
+    )
+    .await?;
     let replacement = Arc::new(
-        GatewayClient::connect(backend.port, &backend.token, app)
+        GatewayClient::connect(backend.port, &ticket, app)
             .await
             .map_err(|_| DesktopFailure::connection_lost())?,
     );
@@ -524,10 +668,31 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
             .map_err(|_| "后端进程状态读取失败".to_string())?
             .is_none()
         {
-            backend
-                .child
-                .start_kill()
-                .map_err(|_| "停止本产品后端失败".to_string())?;
+            let mut stop = tokio::process::Command::new(&backend.hermes);
+            stop.args(["gateway", "stop"])
+                .env("HERMES_HOME", backend.storage.join("hermes-home"))
+                .env(
+                    "HERMES_GATEWAY_LOCK_DIR",
+                    backend.storage.join("control").join("gateway-locks"),
+                )
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .kill_on_drop(true);
+            #[cfg(windows)]
+            stop.creation_flags(0x08000000);
+            if let Ok(mut helper) = stop.spawn() {
+                let _ = timeout(Duration::from_secs(8), helper.wait()).await;
+            }
+            if timeout(Duration::from_secs(5), backend.child.wait())
+                .await
+                .is_err()
+            {
+                backend
+                    .child
+                    .start_kill()
+                    .map_err(|_| "停止本产品后端失败".to_string())?;
+            }
         }
         timeout(Duration::from_secs(8), backend.child.wait())
             .await
