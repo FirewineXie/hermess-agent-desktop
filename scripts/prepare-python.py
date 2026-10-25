@@ -38,7 +38,7 @@ def main() -> None:
 
     executable = build_environment(
         source=upstream, out=out, python=python, no_install_project=False,
-        frozen=True, explicit=True,
+        extras=["messaging", "feishu"], frozen=True, explicit=True,
     )
     print(f"Isolated upstream environment: {executable}")
 
