@@ -2,6 +2,7 @@ pub mod chat;
 pub mod config;
 mod location;
 pub mod models;
+pub mod personal_files;
 mod payload;
 #[cfg(windows)]
 mod powershell_tool;
@@ -22,6 +23,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Stdio,
+    sync::Arc,
     time::Duration,
 };
 use tauri::{AppHandle, Manager, State};
@@ -42,8 +44,31 @@ struct OwnedBackend {
     child: Child,
     port: u16,
     token: String,
-    gateway: GatewayClient,
+    gateway: Arc<GatewayClient>,
     bundled_tools_root: Option<PathBuf>,
+}
+
+impl BackendState {
+    async fn storage(&self) -> Result<PathBuf, DesktopFailure> {
+        let owned = self.0.lock().await;
+        let backend = owned.as_ref().ok_or_else(DesktopFailure::runtime_unavailable)?;
+        Ok(backend.storage.clone())
+    }
+    async fn gateway(&self) -> Result<Arc<GatewayClient>, DesktopFailure> {
+        let owned = self.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        Ok(Arc::clone(&backend.gateway))
+    }
+
+    async fn local_endpoint(&self) -> Result<(u16, String), DesktopFailure> {
+        let owned = self.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        Ok((backend.port, backend.token.clone()))
+    }
 }
 
 #[derive(Serialize)]
@@ -346,7 +371,7 @@ async fn launch_backend(
     {
         return Err("后端在鉴权后退出".into());
     }
-    let gateway = GatewayClient::connect(port, &token, app).await?;
+    let gateway = Arc::new(GatewayClient::connect(port, &token, app).await?);
     let replay_epoch = gateway.replay_epoch.clone();
     let _ = append_client_event(&storage, "backend_ready");
     *owned = Some(OwnedBackend {
@@ -382,7 +407,7 @@ async fn reuse_owned_backend(
             }
             if existing.gateway.is_closed() {
                 existing.gateway =
-                    GatewayClient::connect(existing.port, &existing.token, app).await?;
+                    Arc::new(GatewayClient::connect(existing.port, &existing.token, app).await?);
             }
             return Ok(Some(BackendInfo {
                 port: existing.port,
@@ -437,9 +462,11 @@ pub async fn reconnect_backend(
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
-    let replacement = GatewayClient::connect(backend.port, &backend.token, app)
-        .await
-        .map_err(|_| DesktopFailure::connection_lost())?;
+    let replacement = Arc::new(
+        GatewayClient::connect(backend.port, &backend.token, app)
+            .await
+            .map_err(|_| DesktopFailure::connection_lost())?,
+    );
     std::mem::replace(&mut backend.gateway, replacement).close();
     Ok(BackendInfo {
         port: backend.port,

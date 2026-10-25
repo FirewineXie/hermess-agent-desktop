@@ -30,12 +30,8 @@ struct ReplayEvent {
 
 #[tauri::command]
 pub async fn create_chat_session(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let result = backend
-        .gateway
+    let gateway = state.gateway().await?;
+    let result = gateway
         .request(
             "session.create",
             json!({
@@ -66,12 +62,8 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "prompt.submit",
             json!({"session_id":session_id,"text":text}),
@@ -88,12 +80,8 @@ pub async fn list_composer_commands(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("commands.catalog", json!({"session_id": session_id}))
         .await
         .map_err(Into::into)
@@ -111,12 +99,8 @@ pub async fn execute_composer_command(
     if !command.starts_with('/') || command.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "slash.exec",
             json!({"session_id": session_id, "command": command}),
@@ -142,12 +126,8 @@ pub async fn dispatch_composer_skill(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "command.dispatch",
             json!({
@@ -213,12 +193,8 @@ pub async fn attach_chat_file(
     } else {
         "file.attach"
     };
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let result = backend
-        .gateway
+    let gateway = state.gateway().await?;
+    let result = gateway
         .request(
             method,
             json!({
@@ -251,12 +227,8 @@ pub async fn detach_chat_image(
     if session_id.is_empty() || session_id.len() > 256 || path.len() > 4096 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let result = backend
-        .gateway
+    let gateway = state.gateway().await?;
+    let result = gateway
         .request(
             "image.detach",
             json!({
@@ -303,12 +275,8 @@ pub async fn answer_gateway_request(
         }
         _ => return Err(DesktopFailure::invalid_input()),
     };
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .answer(request_id, method, result)
         .await
         .map_err(Into::into)
@@ -316,12 +284,8 @@ pub async fn answer_gateway_request(
 
 #[tauri::command]
 pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("session.list", json!({"limit":50}))
         .await
         .map_err(Into::into)
@@ -335,12 +299,8 @@ pub async fn get_chat_reasoning(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "config.get",
             json!({"session_id": session_id, "key": "reasoning"}),
@@ -364,12 +324,8 @@ pub async fn set_chat_reasoning(
     ) {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "config.set",
             json!({"session_id": session_id, "key": "reasoning", "value": value}),
@@ -386,12 +342,8 @@ pub async fn get_chat_usage(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("session.stats", json!({"session_id": session_id}))
         .await
         .map_err(Into::into)
@@ -405,12 +357,8 @@ pub async fn resume_chat_session(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request(
             "session.resume",
             json!({"session_id":session_id,"source":"desktop"}),
@@ -427,12 +375,8 @@ pub async fn interrupt_chat_session(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("session.interrupt", json!({"session_id":session_id}))
         .await
         .map_err(Into::into)
@@ -448,12 +392,8 @@ pub async fn replay_chat_events(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let result = backend
-        .gateway
+    let gateway = state.gateway().await?;
+    let result = gateway
         .request(
             "session.events.since",
             json!({"session_id":session_id,"last_seen":last_seen,"replay_epoch":replay_epoch}),

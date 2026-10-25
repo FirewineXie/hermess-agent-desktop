@@ -65,17 +65,13 @@ pub async fn list_model_options(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    let gateway = state.gateway().await?;
     let mut params = json!({"include_unconfigured": include_unconfigured.unwrap_or(true),
                             "refresh": refresh});
     if let Some(id) = session_id {
         params["session_id"] = json!(id);
     }
-    backend
-        .gateway
+    gateway
         .request("model.options", params)
         .await
         .map_err(Into::into)
@@ -102,12 +98,8 @@ pub async fn select_chat_model(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let snapshot = backend
-        .gateway
+    let gateway = state.gateway().await?;
+    let snapshot = gateway
         .request("session.resume", json!({"session_id": session_id}))
         .await?;
     let revision = snapshot
@@ -122,8 +114,7 @@ pub async fn select_chat_model(
     if let Some(token) = confirm.filter(|value| !value.is_empty() && value.len() <= 256) {
         payload["confirm"] = json!(token);
     }
-    backend
-        .gateway
+    gateway
         .request(
             "session.mutate",
             json!({
@@ -179,10 +170,7 @@ pub(super) fn parse_saved_model_config(yaml: &str) -> Result<SavedModelConfig, S
 pub async fn get_saved_model_config(
     state: State<'_, BackendState>,
 ) -> Result<SavedModelConfig, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    let (port, token) = state.local_endpoint().await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -190,8 +178,8 @@ pub async fn get_saved_model_config(
         .build()
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut response = client
-        .get(format!("http://127.0.0.1:{}/api/config/raw", backend.port))
-        .header("X-Hermes-Session-Token", &backend.token)
+        .get(format!("http://127.0.0.1:{port}/api/config/raw"))
+        .header("X-Hermes-Session-Token", token)
         .send()
         .await
         .map_err(|_| "读取本地模型配置失败".to_string())?;
@@ -321,12 +309,8 @@ pub async fn delete_custom_endpoint(
 
 #[tauri::command]
 pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("setup.runtime_check", json!({}))
         .await
         .map_err(Into::into)
@@ -364,10 +348,7 @@ pub async fn set_default_model(
             return Err(DesktopFailure::invalid_input());
         }
     }
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    let (port, token) = state.local_endpoint().await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -375,8 +356,8 @@ pub async fn set_default_model(
         .build()
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut response = client
-        .post(format!("http://127.0.0.1:{}/api/model/set", backend.port))
-        .header("X-Hermes-Session-Token", &backend.token)
+        .post(format!("http://127.0.0.1:{port}/api/model/set"))
+        .header("X-Hermes-Session-Token", token)
         .json(&json!({
             "scope": "main", "provider": provider, "model": model,
             "base_url": base_url, "api_key": api_key,

@@ -10,10 +10,7 @@ pub(super) async fn config_request(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    let (port, token) = state.local_endpoint().await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -21,8 +18,8 @@ pub(super) async fn config_request(
         .build()
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut request = client
-        .request(method, format!("http://127.0.0.1:{}{path}", backend.port))
-        .header("X-Hermes-Session-Token", &backend.token);
+        .request(method, format!("http://127.0.0.1:{port}{path}"))
+        .header("X-Hermes-Session-Token", token);
     if let Some(body) = body {
         request = request.json(&body);
     }

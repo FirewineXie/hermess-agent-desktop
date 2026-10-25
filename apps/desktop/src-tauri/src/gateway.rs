@@ -24,10 +24,13 @@ fn prune_abandoned_rpc(pending: &mut PendingRpc) {
 
 #[cfg(test)]
 mod state_tests {
-    use super::{prune_abandoned_rpc, validate_server_answer, PendingRpc};
+    use super::{prune_abandoned_rpc, validate_server_answer, GatewayClient, PendingRpc};
     use serde_json::{json, Value};
-    use std::collections::HashMap;
-    use tokio::sync::oneshot;
+    use std::{collections::HashMap, sync::Arc, time::Duration};
+    use tokio::{
+        sync::{mpsc, oneshot},
+        time::timeout,
+    };
 
     #[test]
     fn timed_out_calls_release_pending_capacity() {
@@ -104,6 +107,64 @@ mod state_tests {
         )
         .is_err());
         assert!(validate_server_answer(&requests, "srq-2", "clarify", &json!({})).is_err());
+    }
+
+    #[tokio::test]
+    async fn closing_an_old_gateway_releases_an_inflight_rpc() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let (queued, observed) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _command = receiver.recv().await;
+            let _ = queued.send(());
+            std::future::pending::<()>().await;
+        });
+        let gateway = Arc::new(GatewayClient {
+            sender,
+            task,
+            replay_epoch: String::new(),
+        });
+        let waiting = {
+            let gateway = Arc::clone(&gateway);
+            tokio::spawn(async move { gateway.request("session.list", json!({})).await })
+        };
+        observed.await.unwrap();
+        gateway.close();
+        assert!(timeout(Duration::from_secs(1), waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn closing_an_old_gateway_releases_an_inflight_answer() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let (queued, observed) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _command = receiver.recv().await;
+            let _ = queued.send(());
+            std::future::pending::<()>().await;
+        });
+        let gateway = Arc::new(GatewayClient {
+            sender,
+            task,
+            replay_epoch: String::new(),
+        });
+        let waiting = {
+            let gateway = Arc::clone(&gateway);
+            tokio::spawn(async move {
+                gateway
+                    .answer("srq-1".into(), "clarify".into(), json!({"answers":{}}))
+                    .await
+            })
+        };
+        observed.await.unwrap();
+        gateway.close();
+        assert!(timeout(Duration::from_secs(1), waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err());
     }
 }
 
@@ -238,6 +299,7 @@ impl GatewayClient {
                                 pending.insert(id, (request.method, request.reply));
                             }
                             GatewayCommand::Answer { id, method, result, reply } => {
+                                if reply.is_closed() { continue; }
                                 if let Err(error) = validate_server_answer(&server_requests, &id, &method, &result) {
                                     let _ = reply.send(Err(error));
                                     continue;
@@ -364,35 +426,40 @@ impl GatewayClient {
 
     pub async fn request(&self, method: &'static str, params: Value) -> Result<Value, String> {
         let (reply, received) = oneshot::channel();
-        self.sender
-            .send(GatewayCommand::Rpc(RpcRequest {
-                method,
-                params,
-                reply,
-            }))
-            .await
-            .map_err(|_| "网关连接已断开".to_string())?;
-        timeout(Duration::from_secs(30), received)
-            .await
-            .map_err(|_| "网关请求超时；写操作结果未知，请先恢复会话".to_string())?
-            .map_err(|_| "网关连接已断开".to_string())?
+        timeout(Duration::from_secs(30), async {
+            self.sender
+                .send(GatewayCommand::Rpc(RpcRequest {
+                    method,
+                    params,
+                    reply,
+                }))
+                .await
+                .map_err(|_| "网关连接已断开".to_string())?;
+            received.await.map_err(|_| "网关连接已断开".to_string())?
+        })
+        .await
+        .map_err(|_| "网关请求超时；写操作结果未知，请先恢复会话".to_string())?
     }
 
     pub async fn answer(&self, id: String, method: String, result: Value) -> Result<(), String> {
         let (reply, received) = oneshot::channel();
-        self.sender
-            .send(GatewayCommand::Answer {
-                id,
-                method,
-                result,
-                reply,
-            })
-            .await
-            .map_err(|_| "网关连接已断开".to_string())?;
-        received.await.map_err(|_| "网关连接已断开".to_string())?
+        timeout(Duration::from_secs(30), async {
+            self.sender
+                .send(GatewayCommand::Answer {
+                    id,
+                    method,
+                    result,
+                    reply,
+                })
+                .await
+                .map_err(|_| "网关连接已断开".to_string())?;
+            received.await.map_err(|_| "网关连接已断开".to_string())?
+        })
+        .await
+        .map_err(|_| "网关回应超时；结果未知，请先恢复会话".to_string())?
     }
 
-    pub fn close(self) {
+    pub fn close(&self) {
         self.task.abort();
     }
 

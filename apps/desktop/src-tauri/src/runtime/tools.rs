@@ -11,11 +11,15 @@ use tauri::State;
 pub async fn list_bundled_tools(
     state: State<'_, BackendState>,
 ) -> Result<BundledToolsInventory, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    let Some(root) = &backend.bundled_tools_root else {
+    let root = {
+        let owned = state.0.lock().await;
+        owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?
+            .bundled_tools_root
+            .clone()
+    };
+    let Some(root) = root else {
         return Ok(BundledToolsInventory {
             has_manifest: false,
             tools: Vec::new(),
@@ -66,12 +70,8 @@ pub async fn list_agent_toolsets(
     state: State<'_, BackendState>,
     session_id: Option<String>,
 ) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("tools.list", json!({"session_id": session_id}))
         .await
         .map_err(Into::into)
@@ -82,12 +82,8 @@ pub async fn list_active_agent_tools(
     state: State<'_, BackendState>,
     session_id: Option<String>,
 ) -> Result<Value, DesktopFailure> {
-    let owned = state.0.lock().await;
-    let backend = owned
-        .as_ref()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    backend
-        .gateway
+    let gateway = state.gateway().await?;
+    gateway
         .request("tools.show", json!({"session_id": session_id}))
         .await
         .map_err(Into::into)
