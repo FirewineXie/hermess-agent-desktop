@@ -1,4 +1,4 @@
-use super::{merge_session_lists, validate_workspace_path, ReplayResult};
+use super::{merge_session_lists, session_create_params, validate_workspace_path, ReplayResult};
 use serde_json::json;
 
 #[test]
@@ -33,6 +33,16 @@ fn selected_workspace_must_be_an_existing_absolute_directory() {
         .unwrap()
         .join("missing-hermess-workspace-test");
     assert!(validate_workspace_path(Some(missing.to_string_lossy().into_owned())).is_err());
+}
+
+#[test]
+fn default_workspace_leaves_cwd_out_of_the_gateway_request() {
+    let default = session_create_params(None);
+    assert!(default.get("cwd").is_none());
+    assert!(default.get("cwd_explicit").is_none());
+    let selected = session_create_params(Some("C:\\work".into()));
+    assert_eq!(selected["cwd"], "C:\\work");
+    assert_eq!(selected["cwd_explicit"], true);
 }
 
 #[test]

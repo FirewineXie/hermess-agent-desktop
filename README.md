@@ -56,6 +56,4 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 ## 许可
 
-本项目自行编写的代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。商业使用需要版权所有人另行授权；版权所有人保留自行商用的权利。`upstream/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源也遵循各自许可证。本仓库的非商业许可不限制他人按 MIT 条款使用上游 Hermes Agent。
-
-GitHub 仓库的初始提交曾包含 MIT 许可和一行 README；后续更改许可不会撤销此前已经授出的权利。产品代码首次上传时使用上述非商业许可。
+本项目由 Firewine 享有著作权的原创代码和文档采用 [PolyForm Strict 1.0.0](LICENSE)：允许非商业使用，包括安装和运行桌面软件；修改、制作衍生作品、分发或商业使用，均须事先取得 Firewine 的书面授权。详见[版权与使用说明](COPYRIGHT.md)。`upstream/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源遵循各自许可证。此前版本已按当时许可证授予的权利不因本次变更而撤销。

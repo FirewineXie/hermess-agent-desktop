@@ -7,7 +7,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "unstable"] }
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["process", "time", "macros", "sync", "rt", "io-util", "fs"] }
@@ -22,6 +22,8 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "for
 tauri-plugin-dialog = "2"
 chrono = "0.4"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
+base64 = "0.22"
+portable-pty = "0.9"
 
 [profile.release]
 strip = "symbols"

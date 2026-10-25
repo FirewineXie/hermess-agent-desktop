@@ -1,6 +1,8 @@
 import { invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWebview, Webview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { LogicalPosition, LogicalSize } from '@tauri-apps/api/dpi'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
 
@@ -60,7 +62,58 @@ function supportedRequests(value: unknown): GatewayRequest[] {
   return Array.isArray(value) ? value.filter(isSupportedRequest) : []
 }
 
+const panelBrowsers = new Map<string, Webview>()
+
+function browserLabel(id: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Invalid browser tab ID')
+  return `panel-${id}`
+}
+
+type BrowserBounds = { x: number; y: number; width: number; height: number }
+
+async function positionBrowser(id: string, bounds: BrowserBounds): Promise<void> {
+  const browser = panelBrowsers.get(id)
+  if (!browser) return
+  await browser.setPosition(new LogicalPosition(bounds.x, bounds.y))
+  await browser.setSize(new LogicalSize(Math.max(1, bounds.width), Math.max(1, bounds.height)))
+}
+
 export const tauriDesktopApi: DesktopApi = {
+  workspacePanel: {
+    browserFrame: (sessionId, targetId) => invoke('browser_bridge_frame', { sessionId, targetId }),
+    browserCommand: (sessionId, targetId, method, params) => invoke('browser_bridge_command', { sessionId, targetId, method, params }),
+    readFile: path => invoke('read_workspace_panel_file', { path }),
+    startTerminal: cwd => invoke('start_panel_terminal', { cwd }),
+    writeTerminal: (id, data) => invoke('write_panel_terminal', { id, data }),
+    resizeTerminal: (id, cols, rows) => invoke('resize_panel_terminal', { id, cols, rows }),
+    closeTerminal: id => invoke('close_panel_terminal', { id }),
+    onTerminalOutput: handler => listenPayload('panel-terminal-output', handler),
+    createBrowser: (id, url, bounds) => nativeCall(async () => {
+      if (panelBrowsers.has(id)) await panelBrowsers.get(id)!.close()
+      const browser = new Webview(getCurrentWindow(), browserLabel(id), { url, ...bounds })
+      await new Promise<void>((resolve, reject) => {
+        void browser.once('tauri://created', () => resolve())
+        void browser.once('tauri://error', event => reject(event.payload))
+      })
+      panelBrowsers.set(id, browser)
+    }),
+    positionBrowser: (id, bounds) => nativeCall(() => positionBrowser(id, bounds)),
+    showBrowser: (id, visible) => nativeCall(async () => {
+      const browser = panelBrowsers.get(id)
+      if (browser) await (visible ? browser.show() : browser.hide())
+    }),
+    browserAction: (id, action) => invoke('panel_browser_action', { id, action }),
+    closeBrowser: id => nativeCall(async () => {
+      const browser = panelBrowsers.get(id)
+      panelBrowsers.delete(id)
+      if (browser) await browser.close()
+    }),
+  },
+  profiles: {
+    list: () => invoke('list_profiles'),
+    create: name => invoke('create_profile', { name }),
+    select: name => invoke('select_profile', { name }),
+  },
   channels: {
     status: () => invoke('channel_status'),
     start: platform => invoke('channel_qr_start', { platform }),
@@ -91,6 +144,8 @@ export const tauriDesktopApi: DesktopApi = {
     listAgentToolsets: sessionId => invoke('list_agent_toolsets', { sessionId }),
     listActiveAgentTools: sessionId => invoke('list_active_agent_tools', { sessionId }),
     listBundledTools: () => invoke('list_bundled_tools'),
+    listDownloadableTools: () => invoke('list_downloadable_tools'),
+    installDownloadableTool: name => invoke('install_downloadable_tool', { name }),
   },
   diagnostics: {
     readLogs: (storagePath, source) => invoke('read_diagnostic_logs', { storagePath, source }),

@@ -83,6 +83,9 @@ const nativeCommandFiles = [
   ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
   'apps/desktop/src-tauri/src/diagnostics.rs',
   'apps/desktop/src-tauri/src/updates.rs',
+  'apps/desktop/src-tauri/src/panel_terminal.rs',
+  'apps/desktop/src-tauri/src/panel_browser.rs',
+  'apps/desktop/src-tauri/src/workspace_panel.rs',
 ]
 const definedCommands = new Set()
 for (const file of nativeCommandFiles) {
@@ -104,7 +107,8 @@ for (const file of nativeCommandFiles) {
 for (const name of registered) if (!definedCommands.has(name)) failures.push(`registered command definition not found: ${name}`)
 
 const updates = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/updates.rs'), 'utf8')
-const emitted = new Set([...(gateway + updates).matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
+const nativeEventSources = [gateway, updates, ...nativeCommandFiles.map(file => readFileSync(resolve(root, file), 'utf8'))].join('\n')
+const emitted = new Set([...nativeEventSources.matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
 const listened = new Set([...adapter.matchAll(/listenPayload(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
 if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')
 for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)

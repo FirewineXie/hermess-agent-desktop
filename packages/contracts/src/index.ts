@@ -42,6 +42,7 @@ import type { RuntimeProbe } from './generated/runtime-probe'
 export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
 export type AgentToolCatalog = { toolsets: AgentToolset[] }
 export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
+export type DownloadableTool = { name: string; version: string; installed: boolean; supported: boolean }
 export type AgentConfigField = { type: string; description?: string; category?: string; options?: unknown[] }
 export type AgentConfigSchema = { fields: Record<string, AgentConfigField>; category_order: string[] }
 export type AgentRawConfig = { yaml: string; path: string }
@@ -62,6 +63,14 @@ export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 export type SessionRow = { id: string; title?: string; preview?: string; source?: string; message_count?: number }
+export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null }
+export type ProfilesSnapshot = {
+  profiles: ProfileRow[]
+  selected: string
+  gateway_mode: string | null
+  gateways: Array<{ profile: string; served_profiles?: string[] }>
+  reason: string | null
+}
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
@@ -74,7 +83,7 @@ export type CommandCatalog = {
 export type CommandResult = { type?: string; output?: string; message?: string; display?: string; notice?: string }
 export type ResumeResult = {
   session_id: string
-  info?: { provider?: string; model?: string; cwd?: string }
+  info?: { provider?: string; model?: string; cwd?: string; launch_request?: { cwd?: string; cwd_explicit?: boolean } }
   stored_session_id?: string
   session_key?: string
   messages: Array<{ role: string; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
@@ -84,7 +93,7 @@ export type ResumeResult = {
   inflight?: { assistant?: string; user?: string }
   open_requests?: GatewayRequest[]
 }
-export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
+export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; config_context_length?: number | null; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
 
 export type UsagePeriodDays = 7 | 30 | 90
 export type UsageStatistics = {
@@ -130,6 +139,21 @@ export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } |
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  workspacePanel: {
+    browserFrame(sessionId: string, targetId?: string): Promise<{ image: string; target: { id: string; title: string; url: string }; targets: Array<{ id: string; title: string; url: string }> }>
+    browserCommand(sessionId: string, targetId: string, method: string, params: Record<string, unknown>): Promise<void>
+    readFile(path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
+    startTerminal(cwd?: string): Promise<{ id: string; cwd: string }>
+    writeTerminal(id: string, data: string): Promise<void>
+    resizeTerminal(id: string, cols: number, rows: number): Promise<void>
+    closeTerminal(id: string): Promise<void>
+    onTerminalOutput(handler: (event: { id: string; data: string; closed: boolean }) => void): Promise<Unsubscribe>
+    createBrowser(id: string, url: string, bounds: { x: number; y: number; width: number; height: number }): Promise<void>
+    positionBrowser(id: string, bounds: { x: number; y: number; width: number; height: number }): Promise<void>
+    showBrowser(id: string, visible: boolean): Promise<void>
+    browserAction(id: string, action: 'back' | 'forward' | 'reload'): Promise<void>
+    closeBrowser(id: string): Promise<void>
+  }
   channels: {
     status(): Promise<{ platforms: ChannelStatus[] }>
     start(platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
@@ -156,10 +180,17 @@ export interface DesktopApi {
     stop(): Promise<void>
     probeLocalTools(): Promise<RuntimeProbe[]>
   }
+  profiles: {
+    list(): Promise<ProfilesSnapshot>
+    create(name: string): Promise<{ ok: boolean; name: string }>
+    select(name: string): Promise<void>
+  }
   tools: {
     listAgentToolsets(sessionId: string | null): Promise<AgentToolCatalog>
     listActiveAgentTools(sessionId: string | null): Promise<ActiveAgentTools>
     listBundledTools(): Promise<BundledToolsInventory>
+    listDownloadableTools(): Promise<DownloadableTool[]>
+    installDownloadableTool(name: string): Promise<void>
   }
   diagnostics: {
     readLogs(storagePath: string, source: 'hermes' | 'client'): Promise<string>
@@ -196,7 +227,7 @@ export interface DesktopApi {
     statistics(days: UsagePeriodDays): Promise<UsageStatistics>
   }
   chat: {
-    createSession(cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: { provider?: string; model?: string; cwd?: string } }>
+    createSession(cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(sessionId: string): Promise<ResumeResult>
     listSessions(): Promise<{ sessions: SessionRow[] }>
     submitPrompt(sessionId: string, text: string): Promise<{ status?: string }>

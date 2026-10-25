@@ -1,6 +1,14 @@
 use super::RuntimeProbe;
 
 #[test]
+fn npm_version_probe_accepts_only_numeric_versions() {
+    assert!(super::is_numeric_version("10.9.2"));
+    assert!(super::is_numeric_version("11.0.0-rc.1"));
+    assert!(!super::is_numeric_version("npm: command not found"));
+    assert!(!super::is_numeric_version("10.9"));
+}
+
+#[test]
 fn runtime_probes_serialize_contract_fields() {
     use serde_json::json;
     assert_eq!(

@@ -34,16 +34,9 @@ pub async fn create_chat_session(
     cwd: Option<String>,
 ) -> Result<Value, DesktopFailure> {
     let cwd = validate_workspace_path(cwd)?;
-    let cwd_explicit = cwd.is_some();
     let gateway = state.gateway().await?;
     let result = gateway
-        .request(
-            "session.create",
-            json!({
-                "source": "gui", "request_id": Uuid::new_v4().to_string(),
-                "cwd": cwd, "cwd_explicit": cwd_explicit
-            }),
-        )
+        .request("session.create", session_create_params(cwd))
         .await?;
     if result.get("session_id").and_then(Value::as_str).is_none()
         || result
@@ -54,6 +47,17 @@ pub async fn create_chat_session(
         return Err("网关未返回完整会话标识".into());
     }
     Ok(result)
+}
+
+fn session_create_params(cwd: Option<String>) -> Value {
+    let mut params = json!({
+        "source": "gui", "request_id": Uuid::new_v4().to_string()
+    });
+    if let Some(cwd) = cwd {
+        params["cwd"] = json!(cwd);
+        params["cwd_explicit"] = json!(true);
+    }
+    params
 }
 
 fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, DesktopFailure> {
@@ -70,6 +74,7 @@ fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, Deskto
 #[tauri::command]
 pub async fn submit_chat_prompt(
     state: State<'_, BackendState>,
+    browser_bridge: State<'_, super::browser_bridge::BrowserBridgeState>,
     session_id: String,
     text: String,
 ) -> Result<Value, DesktopFailure> {
@@ -79,6 +84,9 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
+    // Prepare a shared browser before the model can call browser_exec. A missing optional
+    // Chromium must not prevent ordinary chat; the panel reports connection failure itself.
+    let _ = browser_bridge.ensure(&state, &session_id).await;
     let gateway = state.gateway().await?;
     gateway
         .request(

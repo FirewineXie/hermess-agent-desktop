@@ -7,6 +7,7 @@ import GatewayRequestCard from './components/GatewayRequestCard'
 import MessageList from './components/MessageList'
 import AttachmentQueue from './components/AttachmentQueue'
 import CommandSuggestions from './components/CommandSuggestions'
+import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
 
 type Picker = {
@@ -52,7 +53,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
-    reasoningBusy, reasoningLoadFailed,
+    reasoningBusy, reasoningLoadFailed, chatUsage,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -118,6 +119,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
         <span className="composer-spacer" />
+        <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
             <option value="" disabled>{!backend

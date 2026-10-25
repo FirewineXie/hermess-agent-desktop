@@ -70,6 +70,9 @@ pub async fn list_agent_toolsets(
     state: State<'_, BackendState>,
     session_id: Option<String>,
 ) -> Result<Value, DesktopFailure> {
+    if session_id.is_none() && !state.is_default_profile().await? {
+        return Err(DesktopFailure::conflict());
+    }
     let gateway = state.gateway().await?;
     gateway
         .request("tools.list", json!({"session_id": session_id}))
@@ -82,6 +85,9 @@ pub async fn list_active_agent_tools(
     state: State<'_, BackendState>,
     session_id: Option<String>,
 ) -> Result<Value, DesktopFailure> {
+    if session_id.is_none() && !state.is_default_profile().await? {
+        return Err(DesktopFailure::conflict());
+    }
     let gateway = state.gateway().await?;
     gateway
         .request("tools.show", json!({"session_id": session_id}))

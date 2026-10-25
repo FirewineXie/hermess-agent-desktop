@@ -19,6 +19,13 @@ pub async fn extension_request(
     operation: String,
     payload: Value,
 ) -> Result<Value, DesktopFailure> {
+    if matches!(
+        operation.as_str(),
+        "modelscope.installed" | "modelscope.install" | "modelscope.uninstall"
+    ) && !state.is_default_profile().await?
+    {
+        return Err(DesktopFailure::conflict());
+    }
     match operation.as_str() {
         "mcp.modelscope.search" => {
             state.storage().await?;
@@ -223,7 +230,7 @@ async fn upstream_request(
         "actions.status" => (Method::GET, "/api/actions", Some("name"), None),
         _ => return Err(DesktopFailure::invalid_input()),
     };
-    let (port, token) = state.local_endpoint().await?;
+    let (port, auth_header, token) = state.profile_http_auth().await?;
     let mut url = Url::parse(&format!("http://127.0.0.1:{port}{route}"))
         .map_err(|_| DesktopFailure::operation_failed())?;
     if let Some(key) = path_key {
@@ -276,7 +283,7 @@ async fn upstream_request(
         .map_err(|_| DesktopFailure::operation_failed())?;
     let mut request = client
         .request(method.clone(), url)
-        .header("X-Hermes-Session-Token", token);
+        .header(auth_header, token);
     if method != Method::GET && method != Method::DELETE {
         request = request.json(&payload);
     }

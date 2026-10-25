@@ -16,7 +16,8 @@
 | 流式回复 | `message.delta`、`message.complete` | Rust 筛选事件送前端，最简文本视图 | 脚本收到 7 个 delta 与最终内容；UI 未验收 |
 | 基础工具 | `tool.start`、`tool.complete` | Rust 转发工具事件，UI 仅显示状态 | 原版 `read_file` 实际执行，收到 1 个完成事件；工具卡片未完成 |
 | 工具目录 | `tools.list`、`tools.show` | 桌面端按当前运行时返回的工具组展示完整名称，并标出本会话暴露的工具；本机程序探测单独展示 | Windows x64 隔离后端脚本确认目录包含 `terminal`、`browser_navigate`，当前工具分组可读取；原生窗口展示仍待操作验收 |
-| 工具来源 | 当前载荷 `tools/facts.json`、系统 `PATH` | 分开显示当前载荷记录的工具资源与系统命令；系统探测覆盖 Python、Node、Git、FFmpeg、FFprobe、ripgrep、uv、GitHub CLI | Windows x64 全量测试载荷清单含 FFmpeg 9.0.1 等资源，核心候选仅含 Python/uv；页面原生窗口及各工具实际调用仍待验收 |
+| 工具来源 | 当前载荷 `tools/facts.json`、按需安装记录、系统 `PATH` | 同一工具合并为一行，展开后分别显示运行时资源、按需安装和系统命令；FFprobe 作为 FFmpeg 的关联命令显示。系统探测覆盖 Python、Node、npm、Git、FFmpeg、FFprobe、ripgrep、uv、GitHub CLI；“未安装锁定版本”不代表系统命令不可用 | Windows x64 全量测试载荷清单含 FFmpeg 9.0.1 等资源，核心候选仅含 Python/uv；本机 `npm.cmd --version` 返回 10.9.2，Rust 启动 Windows `.cmd` 探针成功；合并视图通过前端类型检查、构建及去重逻辑测试，原生窗口仍待验收 |
+| 可选工具下载 | 固定 PM `pm/lock.json`、显式 `hermes pm install NAME` | 工具页展示平台候选与安装状态，限定名称调用上游 PM；工具放入产品自有 Hermes 数据根，安装日志留在产品目录，运行中的网关需重启 | Windows x64 隔离数据根用当前 fork 核心 payload 实际安装 ripgrep 与 FFmpeg 9.0.1，确认 `ffmpeg.exe`、`ffprobe.exe` 存在；浏览器、GPU 工具与原生窗口未逐项验收 |
 | 审批与澄清 | `gateway.ready` 后发送 `client.capabilities`；处理 `approval`、`clarify`、`request.cancel` | Rust 限额转发服务端请求并校验审批选项；开发态 UI 展示卡片并回传决定 | 脚本级澄清往返通过；危险命令审批拒绝后目标目录保留。UI 未操作验收；其他服务端请求尚未接入 |
 | 中断与恢复 | `session.interrupt`、`session.resume`、`session.events.since` | Rust 重建断开的 WS，UI 用持久化 ID 手动重连，按纪元和序号合并重放事件 | 脚本验证流式任务中途停止、断线重附着同一运行时会话及重放水位；窗口恢复、截断并发与自动重连未验收 |
 | 历史 | `session.list` 返回持久化 ID，`session.resume` 返回运行时 ID | 开发态 UI 列表和消息渲染 | 脚本读取列表并用存储 ID 恢复消息；窗口未验收 |

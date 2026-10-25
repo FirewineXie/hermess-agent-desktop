@@ -1,5 +1,6 @@
 import React from 'react'
 import { useLanguage, translateApp } from '../i18n'
+import type { ProfilesSnapshot } from '@hermess/contracts'
 import type { SessionRow, View } from './types'
 import { sessionSourceLabel } from '../features/chat/sessionSource'
 
@@ -16,12 +17,23 @@ type Props = {
   onNewChat: () => void
   onRefreshSessions: () => void
   onResumeSession: (id: string) => void
+  profiles: ProfilesSnapshot | null
+  profileBusy: boolean
+  profileError: string
+  profilePendingRestart: boolean
+  onSelectProfile: (name: string) => void
+  onCreateProfile: (name: string) => void
+  onRetryProfile: () => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onRefreshSessions, onResumeSession }: Props) {
+export default function Sidebar({ view, open, connected, busy, sessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onRefreshSessions, onResumeSession, profiles, profileBusy, profileError, profilePendingRestart, onSelectProfile, onCreateProfile, onRetryProfile }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSessionId, setPendingSessionId] = React.useState<string | null>(null)
+  const [creatingProfile, setCreatingProfile] = React.useState(false)
+  const [profileName, setProfileName] = React.useState('')
+  const zh = language === 'zh-CN'
+  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => gateway.served_profiles || []) || [])
   React.useEffect(() => {
     if (!connected) {
       setPendingSessionId(null)
@@ -40,6 +52,19 @@ export default function Sidebar({ view, open, connected, busy, sessions, session
     {open && <button className="sidebar-scrim" aria-label={t('ui.close.navigation')} onClick={onClose} />}
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`} aria-label={t('ui.main.navigation')}>
       <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
+      <div className="profile-switcher">
+        <label htmlFor="active-profile">{zh ? '当前 Profile' : 'Current profile'}</label>
+        <select id="active-profile" value={profiles?.selected || 'default'} disabled={!connected || profileBusy || !profiles} onChange={event => onSelectProfile(event.target.value)}>
+          {(profiles?.profiles || [{ name: 'default', is_default: true }]).map(profile => <option key={profile.name} value={profile.name} disabled={profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}{profile.name !== 'default' && !servedProfiles.has(profile.name) ? (zh ? '（等待启用）' : ' (not serving)') : ''}</option>)}
+        </select>
+        <button type="button" disabled={!connected || profileBusy} onClick={() => setCreatingProfile(value => !value)}>{zh ? '新建 Profile' : 'New profile'}</button>
+        {creatingProfile && <form onSubmit={event => { event.preventDefault(); if (profileName.trim()) { onCreateProfile(profileName); setCreatingProfile(false); setProfileName('') } }}>
+          <input value={profileName} onChange={event => setProfileName(event.target.value)} maxLength={64} placeholder={zh ? '例如 coder' : 'e.g. coder'} aria-label={zh ? 'Profile 名称' : 'Profile name'} />
+          <button type="submit" disabled={!profileName.trim() || profileBusy}>{zh ? '创建' : 'Create'}</button>
+        </form>}
+        {profilePendingRestart && <div><small role="status">{zh ? '新 Profile 已创建，等待 Gateway 空闲后启用。' : 'Profile created; enable it when the Gateway is idle.'}</small><button type="button" disabled={profileBusy} onClick={onRetryProfile}>{zh ? '重试启用' : 'Retry'}</button></div>}
+        {profileError && <small role="alert">{profileError}</small>}
+      </div>
       <button className="new-chat" disabled={!connected || busy} onClick={onNewChat}>{t('ui.new.session')}</button>
       <nav className="primary-nav" aria-label={t('ui.features')}>
         <button className={view === 'chat' ? 'active' : ''} onClick={() => onOpenView('chat')}>◫ <span>{t('ui.chat')}</span></button>

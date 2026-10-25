@@ -3,10 +3,13 @@
 mod diagnostics;
 mod errors;
 mod gateway;
+mod panel_browser;
+mod panel_terminal;
 mod runtime;
 mod storage;
 mod tray;
 mod updates;
+mod workspace_panel;
 
 fn main() {
     tauri::Builder::default()
@@ -15,11 +18,21 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(runtime::BackendState::default())
+        .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
+        .manage(panel_terminal::TerminalState::default())
         .setup(tray::setup)
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
+            workspace_panel::read_workspace_panel_file,
+            panel_browser::panel_browser_action,
+            runtime::browser_bridge::browser_bridge_frame,
+            runtime::browser_bridge::browser_bridge_command,
+            panel_terminal::start_panel_terminal,
+            panel_terminal::write_panel_terminal,
+            panel_terminal::resize_panel_terminal,
+            panel_terminal::close_panel_terminal,
             runtime::dev_backend_defaults,
             runtime::start_dev_backend,
             runtime::packed_backend_defaults,
@@ -28,6 +41,9 @@ fn main() {
             runtime::reconnect_backend,
             runtime::restart_backend_gracefully,
             runtime::stop_backend,
+            runtime::profiles::list_profiles,
+            runtime::profiles::create_profile,
+            runtime::profiles::select_profile,
             diagnostics::read_diagnostic_logs,
             diagnostics::record_client_event,
             runtime::about::get_product_info,
@@ -47,6 +63,8 @@ fn main() {
             runtime::chat::answer_gateway_request,
             runtime::chat::list_chat_sessions,
             runtime::tools::list_bundled_tools,
+            runtime::downloadable_tools::list_downloadable_tools,
+            runtime::downloadable_tools::install_downloadable_tool,
             runtime::tools::list_agent_toolsets,
             runtime::tools::list_active_agent_tools,
             runtime::usage::get_usage_statistics,

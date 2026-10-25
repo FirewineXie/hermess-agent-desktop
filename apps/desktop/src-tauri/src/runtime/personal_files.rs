@@ -201,7 +201,7 @@ pub async fn read_personal_file(
     state: State<'_, BackendState>,
     kind: PersonalFileKind,
 ) -> Result<PersonalFile, DesktopFailure> {
-    let home = state.storage().await?.join("hermes-home");
+    let home = state.profile_home().await?;
     let config = if kind.config_keys().is_some() {
         config_request(&state, reqwest::Method::GET, "/api/config", None).await?
     } else {
@@ -248,11 +248,7 @@ pub async fn save_personal_file(
     } else {
         content.ok_or_else(DesktopFailure::invalid_input)?
     };
-    let path = state
-        .storage()
-        .await?
-        .join("hermes-home")
-        .join(kind.relative_path());
+    let path = state.profile_home().await?.join(kind.relative_path());
     write_checked(
         &path,
         &path.with_extension("md.lock"),
@@ -279,7 +275,7 @@ async fn context_files(
         )
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
-    let home = state.storage().await?.join("hermes-home");
+    let home = state.profile_home().await?;
     Ok(project_files_from_manifest(&result, &home))
 }
 

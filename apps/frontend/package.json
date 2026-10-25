@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@hermess/contracts": "workspace:*",
+    "@xterm/addon-fit": "~0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "qrcode": "1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -170,7 +170,7 @@ pub(super) fn parse_saved_model_config(yaml: &str) -> Result<SavedModelConfig, S
 pub async fn get_saved_model_config(
     state: State<'_, BackendState>,
 ) -> Result<SavedModelConfig, DesktopFailure> {
-    let (port, token) = state.local_endpoint().await?;
+    let (port, auth_header, token) = state.profile_http_auth().await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -179,7 +179,7 @@ pub async fn get_saved_model_config(
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut response = client
         .get(format!("http://127.0.0.1:{port}/api/config/raw"))
-        .header("X-Hermes-Session-Token", token)
+        .header(auth_header, token)
         .send()
         .await
         .map_err(|_| "读取本地模型配置失败".to_string())?;
@@ -348,7 +348,7 @@ pub async fn set_default_model(
             return Err(DesktopFailure::invalid_input());
         }
     }
-    let (port, token) = state.local_endpoint().await?;
+    let (port, auth_header, token) = state.profile_http_auth().await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -357,7 +357,7 @@ pub async fn set_default_model(
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut response = client
         .post(format!("http://127.0.0.1:{port}/api/model/set"))
-        .header("X-Hermes-Session-Token", token)
+        .header(auth_header, token)
         .json(&json!({
             "scope": "main", "provider": provider, "model": model,
             "base_url": base_url, "api_key": api_key,

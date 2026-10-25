@@ -16,8 +16,10 @@ import UsageView from './features/usage/UsageView'
 import WorkspacesView from './features/workspaces/WorkspacesView'
 import { useWorkspaces } from './features/workspaces/useWorkspaces'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
+import { useProfiles } from './features/profiles/useProfiles'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
+import WorkspacePanel from './features/workspace-panel/WorkspacePanel'
 import type { View } from './app/types'
 import type { ModelPick } from './features/models/model'
 
@@ -30,6 +32,7 @@ function App() {
   const [agentConfigDirty, setAgentConfigDirty] = React.useState(false)
   const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
+  const [panelOpen, setPanelOpen] = React.useState(false)
   const [activeModel, setActiveModel] = React.useState<ModelPick | null>(null)
   const workspaces = useWorkspaces()
   const {
@@ -40,6 +43,18 @@ function App() {
     t,
     onStarted: () => { void loadModelOptions(); void loadSessions(true) },
     onReset: () => { setActiveModel(null); resetChat(); resetModel() },
+  })
+  const profileController = useProfiles({
+    connected: Boolean(backend),
+    backendEpoch: backend?.replay_epoch || null,
+    restart: () => restartBackend(),
+    onSelected: () => {
+      resetChat(true)
+      resetModel()
+      setActiveModel(null)
+      void loadSessions(true)
+      void loadModelOptions()
+    },
   })
   const chatController = useChatController({
     backend, chatVisible: view === 'chat', activeModel, language, storagePath, workspacePath: workspaces.selected, t,
@@ -77,9 +92,12 @@ function App() {
     return true
   }
   return <div className="app-shell">
-    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions()} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions()} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }}
+      profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
+      onSelectProfile={name => { if (openView('chat')) void profileController.select(name).catch(() => {}) }}
+      onCreateProfile={name => { if (openView('chat')) void profileController.create(name).catch(() => {}) }} onRetryProfile={() => void profileController.retryPending()} />
     <main className="workspace">
-      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
+      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)} />
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
       onNewChat={path => { if (openView('chat')) { workspaces.select(path); void newChat() } }} />}
@@ -92,11 +110,13 @@ function App() {
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
     {view === 'model' && <ModelSettingsView connected={Boolean(backend)} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}
-    {view === 'chat' && <ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
+    {view === 'chat' && <div className="chat-workspace-layout"><ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
       controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
-      onOpenRuntime={() => openView('runtime')} onOpenModelSettings={() => openView('model')} />}
+      onOpenRuntime={() => openView('runtime')} onOpenModelSettings={() => openView('model')} />
+      <WorkspacePanel open={panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionWorkspacePath : workspaces.selected}
+        profile={profileController.snapshot?.selected || 'default'} browserSignal={chatController.browserSignal} ensureChatSession={ensureChatSession} /></div>}
     </main>
   </div>
 }

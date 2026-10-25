@@ -1,5 +1,5 @@
 import React from 'react'
-import type { RuntimeProbe, BundledToolsInventory, AgentToolCatalog, ActiveAgentTools } from '@hermess/contracts'
+import type { RuntimeProbe, BundledToolsInventory, AgentToolCatalog, ActiveAgentTools, DownloadableTool } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
@@ -13,6 +13,11 @@ export function useToolsController(connected: boolean, sessionId: string) {
   const [toolCatalog, setToolCatalog] = React.useState<AgentToolCatalog | null>(null)
   const [activeTools, setActiveTools] = React.useState<ActiveAgentTools | null>(null)
   const [bundledTools, setBundledTools] = React.useState<BundledToolsInventory | null>(null)
+  const [downloadableTools, setDownloadableTools] = React.useState<DownloadableTool[]>([])
+  const [downloadableToolsError, setDownloadableToolsError] = React.useState('')
+  const [installingTool, setInstallingTool] = React.useState('')
+  const [installError, setInstallError] = React.useState('')
+  const [installedTool, setInstalledTool] = React.useState('')
   const [toolCatalogError, setToolCatalogError] = React.useState('')
   const [activeToolsError, setActiveToolsError] = React.useState('')
   const [bundledToolsError, setBundledToolsError] = React.useState('')
@@ -44,10 +49,12 @@ export function useToolsController(connected: boolean, sessionId: string) {
     setToolCatalogError('')
     setActiveToolsError('')
     setBundledToolsError('')
-    const [catalog, active, bundled] = await Promise.allSettled([
+    setDownloadableToolsError('')
+    const [catalog, active, bundled, downloadable] = await Promise.allSettled([
       tools.listAgentToolsets(id || null),
       tools.listActiveAgentTools(id || null),
       tools.listBundledTools(),
+      tools.listDownloadableTools(),
     ])
     if (request !== toolRequestRef.current) return
     if (catalog.status === 'fulfilled') setToolCatalog(catalog.value)
@@ -56,7 +63,30 @@ export function useToolsController(connected: boolean, sessionId: string) {
     else { setActiveTools(null); setActiveToolsError(describeError(active.reason, language)) }
     if (bundled.status === 'fulfilled') setBundledTools(bundled.value)
     else { setBundledTools(null); setBundledToolsError(describeError(bundled.reason, language)) }
+    if (downloadable.status === 'fulfilled') setDownloadableTools(downloadable.value)
+    else { setDownloadableTools([]); setDownloadableToolsError(describeError(downloadable.reason, language)) }
     setToolLoading(false)
+  }
+
+  async function installTool(name: string) {
+    if (installingTool) return
+    setInstallingTool(name)
+    setInstallError('')
+    setDownloadableToolsError('')
+    setInstalledTool('')
+    try {
+      await tools.installDownloadableTool(name)
+      setInstalledTool(name)
+      try {
+        setDownloadableTools(await tools.listDownloadableTools())
+      } catch (cause) {
+        setDownloadableToolsError(describeError(cause, language))
+      }
+    } catch (cause) {
+      setInstallError(describeError(cause, language))
+    } finally {
+      setInstallingTool('')
+    }
   }
 
   React.useEffect(() => {
@@ -66,6 +96,8 @@ export function useToolsController(connected: boolean, sessionId: string) {
       setToolCatalog(null)
       setActiveTools(null)
       setBundledTools(null)
+      setDownloadableTools([])
+      setDownloadableToolsError('')
       setToolLoading(false)
     }
     return () => { ++toolRequestRef.current }
@@ -81,9 +113,9 @@ export function useToolsController(connected: boolean, sessionId: string) {
     !searchTerm || [group.name, group.description, ...(group.tools || [])].some(value => value.toLowerCase().includes(searchTerm)))
 
   return {
-    probes, error, loading, toolCatalog, activeTools, bundledTools,
-    toolCatalogError, activeToolsError, bundledToolsError, toolLoading,
-    toolSearch, setToolSearch, inspect, loadAgentTools,
+    probes, error, loading, toolCatalog, activeTools, bundledTools, downloadableTools,
+    toolCatalogError, activeToolsError, bundledToolsError, downloadableToolsError, toolLoading,
+    toolSearch, setToolSearch, inspect, loadAgentTools, installTool, installingTool, installError, installedTool,
     activeToolDescriptions, searchTerm, visibleToolsets,
   }
 }

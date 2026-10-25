@@ -120,10 +120,14 @@ async fn inspect_version_command(
                     .unwrap_or_default()
                     .trim()
                     .to_owned();
-                if version
-                    .strip_prefix(version_prefix)
-                    .is_some_and(|remainder| !remainder.trim().is_empty())
-                {
+                let recognized = if version_prefix.is_empty() {
+                    is_numeric_version(&version)
+                } else {
+                    version
+                        .strip_prefix(version_prefix)
+                        .is_some_and(|remainder| !remainder.trim().is_empty())
+                };
+                if recognized {
                     return RuntimeProbe {
                         tool,
                         kind: "command",
@@ -150,6 +154,15 @@ async fn inspect_version_command(
     }
 }
 
+fn is_numeric_version(version: &str) -> bool {
+    let core = version.split(['-', '+']).next().unwrap_or_default();
+    let parts: Vec<_> = core.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 #[tauri::command]
 pub async fn probe_local_tools() -> Vec<RuntimeProbe> {
     let python_names: &[&str] = if cfg!(windows) {
@@ -161,6 +174,11 @@ pub async fn probe_local_tools() -> Vec<RuntimeProbe> {
         &["node.exe"]
     } else {
         &["node"]
+    };
+    let npm_names: &[&str] = if cfg!(windows) {
+        &["npm.cmd", "npm.exe"]
+    } else {
+        &["npm"]
     };
     let git_names: &[&str] = if cfg!(windows) {
         &["git.exe"]
@@ -179,6 +197,7 @@ pub async fn probe_local_tools() -> Vec<RuntimeProbe> {
         "22.",
     )
     .await;
+    let npm = inspect_version_command("npm", npm_names, &["--version"], "").await;
     let git = inspect_version_command("Git", git_names, &["--version"], "git version ").await;
     let ffmpeg_name = if cfg!(windows) {
         "ffmpeg.exe"
@@ -206,7 +225,7 @@ pub async fn probe_local_tools() -> Vec<RuntimeProbe> {
         inspect_version_command("ripgrep", &[ripgrep_name], &["--version"], "ripgrep ").await;
     let uv = inspect_version_command("uv", &[uv_name], &["--version"], "uv ").await;
     let gh = inspect_version_command("GitHub CLI", &[gh_name], &["--version"], "gh version ").await;
-    vec![python, node, git, ffmpeg, ffprobe, ripgrep, uv, gh]
+    vec![python, node, npm, git, ffmpeg, ffprobe, ripgrep, uv, gh]
 }
 
 use crate::storage::product_storage;

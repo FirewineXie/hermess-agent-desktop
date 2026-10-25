@@ -12,7 +12,7 @@ fn product_info_exposes_the_bundled_version_and_license_fields() {
     assert!(value["productLicense"]
         .as_str()
         .unwrap()
-        .starts_with("# PolyForm Noncommercial License"));
+        .starts_with("# PolyForm Strict License 1.0.0"));
     assert!(value["hermesLicense"]
         .as_str()
         .unwrap()

@@ -44,7 +44,8 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let state = app.state::<crate::runtime::BackendState>();
-                    if crate::runtime::stop_backend(state).await.is_ok() {
+                    let bridge = app.state::<crate::runtime::browser_bridge::BrowserBridgeState>();
+                    if crate::runtime::stop_backend(state, bridge).await.is_ok() {
                         app.exit(0);
                     } else {
                         show_main_window(&app);

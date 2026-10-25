@@ -1,7 +1,9 @@
 pub mod about;
+pub mod browser_bridge;
 pub mod channels;
 pub mod chat;
 pub mod config;
+pub mod downloadable_tools;
 pub mod extensions;
 mod location;
 mod mcp_registry;
@@ -12,6 +14,7 @@ mod payload;
 pub mod personal_files;
 #[cfg(windows)]
 mod powershell_tool;
+pub mod profiles;
 pub mod tools;
 pub mod usage;
 
@@ -55,6 +58,7 @@ struct OwnedBackend {
     hermes: PathBuf,
     endpoint: serde_json::Value,
     gateway: Arc<GatewayClient>,
+    selected_profile: String,
     bundled_tools_root: Option<PathBuf>,
     disable_lazy_installs: bool,
 }
@@ -75,20 +79,79 @@ impl BackendState {
             .ok_or_else(DesktopFailure::runtime_unavailable)?;
         Ok(backend.storage.clone())
     }
-    async fn gateway(&self) -> Result<Arc<GatewayClient>, DesktopFailure> {
+    async fn gateway(&self) -> Result<profiles::ProfiledGateway, DesktopFailure> {
         let owned = self.0.lock().await;
         let backend = owned
             .as_ref()
             .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(Arc::clone(&backend.gateway))
+        Ok(profiles::ProfiledGateway::new(
+            Arc::clone(&backend.gateway),
+            backend.selected_profile.clone(),
+        ))
     }
 
-    async fn local_endpoint(&self) -> Result<(u16, String), DesktopFailure> {
+    async fn profile_home(&self) -> Result<PathBuf, DesktopFailure> {
         let owned = self.0.lock().await;
         let backend = owned
             .as_ref()
             .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok((backend.port, backend.token.clone()))
+        let root = backend.storage.join("hermes-home");
+        Ok(if backend.selected_profile == "default" {
+            root
+        } else {
+            root.join("profiles").join(&backend.selected_profile)
+        })
+    }
+
+    async fn is_default_profile(&self) -> Result<bool, DesktopFailure> {
+        let owned = self.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        Ok(backend.selected_profile == "default")
+    }
+
+    async fn selected_profile(&self) -> Result<String, DesktopFailure> {
+        let owned = self.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        Ok(backend.selected_profile.clone())
+    }
+
+    async fn profile_http_auth(&self) -> Result<(u16, &'static str, String), DesktopFailure> {
+        let profile = self.selected_profile().await?;
+        self.profile_http_auth_for(&profile).await
+    }
+
+    async fn profile_http_auth_for(
+        &self,
+        profile: &str,
+    ) -> Result<(u16, &'static str, String), DesktopFailure> {
+        let (port, token, hermes, home, lock_dir) = {
+            let owned = self.0.lock().await;
+            let backend = owned
+                .as_ref()
+                .ok_or_else(DesktopFailure::runtime_unavailable)?;
+            (
+                backend.port,
+                backend.token.clone(),
+                backend.hermes.clone(),
+                backend.storage.join("hermes-home"),
+                backend.storage.join("control").join("gateway-locks"),
+            )
+        };
+        if profile == "default" {
+            return Ok((port, "X-Hermes-Session-Token", token));
+        }
+        let ticket = profiles::native_http_ticket(
+            &hermes,
+            &home.join("profiles").join(profile),
+            &lock_dir,
+            port,
+        )
+        .await?;
+        Ok((port, "X-Hermes-Gateway-Ticket", ticket))
     }
 }
 
@@ -558,6 +621,8 @@ async fn launch_backend(
     }
     let ticket = mint_gateway_ticket(&hermes, &hermes_home, &endpoint).await?;
     let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
+    let selected_profile =
+        profiles::restore_selected_profile(&storage, &gateway, child.id(), port, &token).await;
     let replay_epoch = gateway.replay_epoch.clone();
     let _ = append_client_event(&storage, "backend_ready");
     *owned = Some(OwnedBackend {
@@ -569,6 +634,7 @@ async fn launch_backend(
         hermes,
         endpoint,
         gateway,
+        selected_profile,
         bundled_tools_root,
         disable_lazy_installs,
     });
@@ -825,7 +891,10 @@ pub async fn restart_backend_gracefully(
 }
 
 #[tauri::command]
-pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopFailure> {
+pub async fn stop_backend(
+    state: State<'_, BackendState>,
+    browser_bridge: State<'_, browser_bridge::BrowserBridgeState>,
+) -> Result<(), DesktopFailure> {
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
@@ -870,6 +939,8 @@ pub async fn stop_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
     if let Some(backend) = owned.take() {
         backend.gateway.close();
     }
+    drop(owned);
+    browser_bridge.stop_all().await;
     Ok(())
 }
 

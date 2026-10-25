@@ -1,19 +1,20 @@
 import React from 'react'
 import { useLanguage, translateApp } from '../../i18n'
 import ToolsetCard from './components/ToolsetCard'
-import RuntimeProbeCard from './components/RuntimeProbeCard'
+import LocalToolCard from './components/LocalToolCard'
 import { useToolsController } from './useToolsController'
-import { displayPath } from '../../shared/displayPath'
+import { mergeLocalTools } from './mergeLocalTools'
 
 export default function ToolsView({ connected, sessionId }: { connected: boolean; sessionId: string }) {
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
   const {
-    probes, error, loading, toolCatalog, activeTools, bundledTools,
-    toolCatalogError, activeToolsError, bundledToolsError, toolLoading,
-    toolSearch, setToolSearch, inspect, loadAgentTools,
+    probes, error, loading, toolCatalog, activeTools, bundledTools, downloadableTools,
+    toolCatalogError, activeToolsError, bundledToolsError, downloadableToolsError, toolLoading,
+    toolSearch, setToolSearch, inspect, loadAgentTools, installTool, installingTool, installError, installedTool,
     activeToolDescriptions, searchTerm, visibleToolsets,
   } = useToolsController(connected, sessionId)
+  const localTools = mergeLocalTools(bundledTools, downloadableTools, probes)
 
   return <section className="settings-panel flat-settings-panel tools-panel">
       <div className="row"><h2>{t("ui.tools.and.capabilities")}</h2><button disabled={!connected || toolLoading} onClick={() => void loadAgentTools(sessionId)}>{toolLoading ? t("ui.loading") : t("ui.refresh.tools")}</button></div>
@@ -33,24 +34,16 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
             </div>
           </details>
           <details className="config-tree-node">
-            <summary>{t("ui.bundled.runtime.resources")}{bundledTools?.has_manifest && <span>{bundledTools.tools.length} {t("ui.items")}</span>}</summary>
+            <summary>{t('ui.local.tools')}<span>{localTools.length} {t('ui.items')}</span></summary>
             <div className="config-tree-children">
-              <p>{t("ui.read.the.tool.list.of.the.current.startup.load.file.exists.only.confirms.th")}</p>
-              {bundledToolsError && <p role="alert">{t("ui.failed.to.load.bundled.tool.manifest")}{bundledToolsError}</p>}
-              {bundledTools && !bundledTools.has_manifest && <p>{t("ui.this.is.a.development.environment.or.there.is.no.payload.tool.list.that.can")}</p>}
-              {bundledTools?.has_manifest && bundledTools.tools.map(tool => <details className="tool-item" key={tool.name}>
-                <summary><strong>{tool.name}</strong><span>{tool.present ? t("ui.file.exists") : t("ui.file.missing")}</span></summary>
-                <small>{t("ui.version")}{tool.version || t("ui.not.recorded")}</small><code>{displayPath(tool.path)}</code>
-              </details>)}
-            </div>
-          </details>
-          <details className="config-tree-node">
-            <summary>{t("ui.system.path.tools")}{probes.length > 0 && <span>{probes.length} {t("ui.items")}</span>}</summary>
-            <div className="config-tree-children">
-              <p>{t("ui.detects.python.node.git.ffmpeg.ffprobe.ripgrep.uv.and.github.cli.in.path.py")}</p>
+              <p>{t('ui.local.tools.hint')}</p>
+              {bundledToolsError && <p role="alert">{t('ui.failed.to.load.bundled.tool.manifest')}{bundledToolsError}</p>}
+              {downloadableToolsError && <p role="alert">{t('ui.optional.runtime.tools.catalog.failed')}{downloadableToolsError}</p>}
+              {installError && <p role="alert">{t('ui.optional.runtime.tools.failed')}{installError}</p>}
+              {installedTool && <p role="status">{t('ui.optional.runtime.tools.done', installedTool)}</p>}
               <button onClick={() => void inspect()} disabled={loading}>{loading ? t("ui.checking") : t("ui.check.again")}</button>
               {error && <p role="alert">{t("ui.check.failed")}{error}</p>}
-              {probes.map(probe => <RuntimeProbeCard key={probe.tool} probe={probe} t={t} />)}
+              {localTools.map(row => <LocalToolCard key={row.key} row={row} installingTool={installingTool} installTool={installTool} t={t} />)}
             </div>
           </details>
         </div>

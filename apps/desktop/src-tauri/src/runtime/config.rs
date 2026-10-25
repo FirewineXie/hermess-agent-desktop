@@ -10,7 +10,29 @@ pub(super) async fn config_request(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value, DesktopFailure> {
-    let (port, token) = state.local_endpoint().await?;
+    let (port, auth_header, token) = state.profile_http_auth().await?;
+    request_with_auth(method, path, body, port, auth_header, token).await
+}
+
+pub(super) async fn config_request_to_profile(
+    state: &State<'_, BackendState>,
+    profile: &str,
+    method: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value, DesktopFailure> {
+    let (port, auth_header, token) = state.profile_http_auth_for(profile).await?;
+    request_with_auth(method, path, body, port, auth_header, token).await
+}
+
+async fn request_with_auth(
+    method: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+    port: u16,
+    auth_header: &str,
+    token: String,
+) -> Result<Value, DesktopFailure> {
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -19,7 +41,7 @@ pub(super) async fn config_request(
         .map_err(|_| "无法建立本地配置连接".to_string())?;
     let mut request = client
         .request(method, format!("http://127.0.0.1:{port}{path}"))
-        .header("X-Hermes-Session-Token", token);
+        .header(auth_header, token);
     if let Some(body) = body {
         request = request.json(&body);
     }
@@ -94,7 +116,15 @@ pub async fn save_auxiliary_route(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let schema = config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
+    let profile = state.selected_profile().await?;
+    let schema = config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/config/schema",
+        None,
+    )
+    .await?;
     if schema
         .pointer(&format!("/fields/auxiliary.{task}.provider"))
         .is_none()
@@ -129,8 +159,9 @@ pub async fn save_auxiliary_route(
         }
     }
     auxiliary.insert(task, route);
-    config_request(
+    config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::PUT,
         "/api/config",
         Some(json!({"config": {"auxiliary": auxiliary}})),
@@ -144,6 +175,7 @@ pub async fn save_agent_config_field(
     key: String,
     value: Value,
 ) -> Result<Value, DesktopFailure> {
+    let profile = state.selected_profile().await?;
     if key.is_empty()
         || key.len() > 256
         || !key.split('.').all(|part| {
@@ -165,8 +197,14 @@ pub async fn save_agent_config_field(
             return Err(DesktopFailure::invalid_input());
         }
     } else {
-        let schema =
-            config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
+        let schema = config_request_to_profile(
+            &state,
+            &profile,
+            reqwest::Method::GET,
+            "/api/config/schema",
+            None,
+        )
+        .await?;
         if schema
             .pointer(&format!(
                 "/fields/{}",
@@ -183,8 +221,9 @@ pub async fn save_agent_config_field(
         object.insert(part.to_owned(), patch);
         patch = Value::Object(object);
     }
-    config_request(
+    config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::PUT,
         "/api/config",
         Some(json!({"config": patch})),
@@ -201,12 +240,21 @@ pub async fn save_agent_config_raw(
     if yaml_text.len() > 256 * 1024 || expected_yaml.len() > 256 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let current = config_request(&state, reqwest::Method::GET, "/api/config/raw", None).await?;
+    let profile = state.selected_profile().await?;
+    let current = config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/config/raw",
+        None,
+    )
+    .await?;
     if current.get("yaml").and_then(Value::as_str) != Some(expected_yaml.as_str()) {
         return Err(DesktopFailure::conflict());
     }
-    config_request(
+    config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::PUT,
         "/api/config/raw",
         Some(json!({"yaml_text": yaml_text})),

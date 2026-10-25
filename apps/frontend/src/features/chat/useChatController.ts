@@ -1,5 +1,5 @@
 import React from 'react'
-import type { BackendInfo, GatewayEvent, ReplayResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
+import type { BackendInfo, GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
@@ -24,10 +24,15 @@ type Options = {
   setBusy: React.Dispatch<React.SetStateAction<boolean>>
 }
 
+function selectedWorkspacePath(info?: ResumeResult['info']): string {
+  return info?.launch_request?.cwd_explicit === true ? info.cwd || info.launch_request.cwd || '' : ''
+}
+
 export function useChatController({ backend, chatVisible, activeModel, language, storagePath, workspacePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
   const { events, nativeFiles, chat, runtime, diagnostics } = useDesktop()
   const [sessionId, setSessionId] = React.useState('')
   const [sessionWorkspacePath, setSessionWorkspacePath] = React.useState('')
+  const [browserSignal, setBrowserSignal] = React.useState({ sessionId: '', sequence: 0 })
   const [reasoningEffort, setReasoningEffort] = React.useState('')
   const [reasoningLoadFailed, setReasoningLoadFailed] = React.useState(false)
   const [reasoningBusy, setReasoningBusy] = React.useState(false)
@@ -99,11 +104,10 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       const usage = data.payload?.usage
       if (usage && typeof usage === 'object' && ('context_used' in usage || 'context_max' in usage)) {
         setChatUsage(usage as ChatUsage)
-      } else {
-        void chat.usage(id).then(result => {
-          if (sessionRef.current === id) setChatUsage(result)
-        }).catch(() => {})
       }
+      void chat.usage(id).then(result => {
+        if (sessionRef.current === id && (result.context_max ?? result.context_length)) setChatUsage(result)
+      }).catch(() => {})
       const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
       const startedAt = turnStartedAtRef.current
       const endedAt = Date.now()
@@ -123,6 +127,9 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       finishCurrentTurn('failed')
       setTurnBusy(false)
     } else if (data.kind === 'tool.start' || data.kind === 'tool.complete') {
+      if (data.kind === 'tool.start' && data.payload?.name === 'browser_exec') {
+        setBrowserSignal(current => ({ sessionId: id, sequence: current.sequence + 1 }))
+      }
       setConversation(rows => updateTool(finishReasoning(rows), data.kind as 'tool.start' | 'tool.complete', data.payload || {}))
       setChatStatus(t("ui.arg.arg", t(data.kind === 'tool.start' ? 'ui.calling' : 'ui.tool.finished'), String(data.payload?.name || t("ui.tool"))))
     } else if (data.kind === 'request.cancel') {
@@ -192,7 +199,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       lastSeqRef.current[id] = 0
       storedSessionRef.current = created.stored_session_id
       setSessionId(id)
-      setSessionWorkspacePath(created.info?.cwd || workspacePath)
+      setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
       setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
       await loadSessions(true)
       return id
@@ -231,6 +238,17 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     })
     return () => { active = false }
   }, [backend, sessionId, activeModel?.provider, activeModel?.model, chatVisible])
+
+  React.useEffect(() => {
+    if (!backend || !sessionId || !turnBusy || (chatUsage?.context_max ?? chatUsage?.context_length)) return
+    let active = true
+    const timer = window.setInterval(() => {
+      void chat.usage(sessionId).then(result => {
+        if (active && sessionRef.current === sessionId && (result.context_max ?? result.context_length)) setChatUsage(result)
+      }).catch(() => {})
+    }, 1500)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [backend, sessionId, turnBusy, chatUsage?.context_max, chatUsage?.context_length])
 
   async function changeReasoning(value: string) {
     if (reasoningChangeInFlightRef.current || !backend || !value) return
@@ -527,7 +545,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
       setClarifyDraft({ requestId: '', answers: {} })
       setSessionId(result.session_id)
-      setSessionWorkspacePath(result.info?.cwd || '')
+      setSessionWorkspacePath(selectedWorkspacePath(result.info))
       setReasoningEffort('')
       setActiveModel(result.info?.provider && result.info.model ? { provider: result.info.provider, model: result.info.model } : null)
       setModelPickerOpen(false)
@@ -589,7 +607,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
         sessionRef.current = id
         storedSessionRef.current = snapshot.stored_session_id || snapshot.session_key || storedSessionRef.current
         setSessionId(id)
-        setSessionWorkspacePath(snapshot.info?.cwd || '')
+        setSessionWorkspacePath(selectedWorkspacePath(snapshot.info))
         setActiveModel(snapshot.info?.provider && snapshot.info.model ? { provider: snapshot.info.provider, model: snapshot.info.model } : null)
         setClarifyDraft({ requestId: '', answers: {} })
         const buffered = bufferedEventsRef.current.splice(0)
@@ -630,7 +648,8 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
 
-  function resetChat() {
+  function resetChat(clearDraft = false) {
+    if (clearDraft) setDraft('')
     sessionsRequestRef.current += 1
     sessionGenerationRef.current += 1
     pendingBySessionRef.current = {}
@@ -659,7 +678,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   return {
-    sessionId, sessionWorkspacePath, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
+    sessionId, sessionWorkspacePath, browserSignal, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
