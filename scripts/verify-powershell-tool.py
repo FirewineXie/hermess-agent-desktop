@@ -14,7 +14,7 @@ def main() -> None:
     if os.name != "nt":
         raise SystemExit("This verification runs on Windows only")
     product = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
+    sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     source = product / "apps" / "desktop" / "agent-tools" / "powershell"
 
     with tempfile.TemporaryDirectory(prefix="hermess-powershell-verify-") as temporary:

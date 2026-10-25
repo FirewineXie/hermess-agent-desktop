@@ -1,4 +1,5 @@
 {
+  "ui.extensions": "Extensions",
   "ui.add.and.select.model": "Add and switch",
   "ui.add.model.id.short": "Enter model ID",
   "ui.add.model.short": "Add",
@@ -15,6 +16,8 @@
   "ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create": "After starting the native runtime and configuring the model, you can create a session.",
   "ui.after.starting.the.runtime.the.complete.tool.directory.is.read.including.te": "After starting the runtime, the complete tool directory is read, including terminal, browser and extension tools.",
   "ui.agent.settings": "Agent settings",
+  "ui.persona.and.memory": "Persona and memory",
+  "ui.unsaved.personal.files.leave": "Persona or memory files have unsaved changes. Leave anyway?",
   "ui.agent.tools": "Agent tools",
   "ui.allow.for.this.session": "Allow for this session",
   "ui.allow.once": "Allow once",

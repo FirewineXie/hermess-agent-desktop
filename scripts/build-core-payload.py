@@ -23,13 +23,13 @@ def main() -> None:
     full = args.source_payload.resolve(strict=True) if args.source_payload else None
     if not out.is_relative_to(build) or (full and not full.is_relative_to(build)) or out.exists():
         parser.error("output must be fresh and paths must remain under the product .build directory")
-    vendor = product / "vendor" / "hermes-agent"
+    upstream = product / "upstream" / "hermes-agent"
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
     bootstrap = build / "pm-bootstrap"
     os.environ.update(HERMES_HOME=str(bootstrap / "hermes-home"),
                       HERMES_RUNTIME_DIR=str(bootstrap / "tools"))
     os.environ.pop("HERMES_INSTALL_ROOT", None)
-    sys.path.insert(0, str(vendor))
+    sys.path.insert(0, str(upstream))
 
     import pm
     from pm.features import installed_extras, write_features
@@ -55,7 +55,12 @@ def main() -> None:
     out.mkdir(parents=True)
     repo = out / "hermes-agent"
     commit = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))["commit"]
-    snapshot(vendor, commit, repo, exclude=INERT_SNAPSHOT_DIRS)
+    snapshot(upstream, commit, repo, exclude=INERT_SNAPSHOT_DIRS)
+    subprocess.run(["git", "apply", "--unidiff-zero",
+                    str(product / "adapters" / "hermess_desktop_private_api.patch")],
+                   cwd=repo, check=True)
+    shutil.copy2(product / "adapters" / "hermess_private_api.py",
+                 repo / "hermes_cli" / "hermess_private_api.py")
     if (repo / "pm" / "lock.json").read_bytes() != lockfile_path().read_bytes():
         raise RuntimeError("staged PM lock differs from the selected upstream commit")
 
@@ -100,7 +105,7 @@ def main() -> None:
         resources={name: repo / name for name in RESOURCE_ENV},
         features=out / "enabled-features.json",
     )
-    prepared = publish_prepared(out, vendor, commit, inputs)
+    prepared = publish_prepared(out, upstream, commit, inputs)
     finish_native(prepared, {})
     subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(out)], check=True)
     print(f"core payload ready: {out}; extras={len(features)}, tools={names}")

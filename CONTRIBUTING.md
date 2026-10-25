@@ -21,7 +21,7 @@
 
 ## 项目边界
 
-- `vendor/hermes-agent` 是按 `runtime/upstream.lock.json` 中正式 Release tag 和完整提交 SHA 单独克隆的忽略目录，不是 submodule。运行 `pnpm fetch:upstream` 获取源码；不要修改该目录，也不要让产品运行时自动追踪上游主干。升级上游时先确认 GitHub 最新正式 Release，审查新 tag 与提交，更新锁文件，再重新核对受影响的协议、封装与能力验收。日常构建只使用锁定版本。
+- `upstream/hermes-agent` 是按 `runtime/upstream.lock.json` 中正式 Release tag 和完整提交 SHA 单独克隆的忽略目录，不是 submodule。运行 `pnpm fetch:upstream` 获取源码并应用 `adapters/hermess_*` 产品适配文件；不要手工修改检出目录。`pnpm verify:upstream` 同时校验官方版本和产品适配差异。升级上游时审查新 tag、提交及适配兼容性；日常构建只使用锁定版本。
 
 - 本产品自行实现桌面层。参考项目 `cankao/Hermes-CN-Desktop` 用于研究，不直接复制其源码、图标或素材；需要复用具体文件时，先核对该文件的许可。
 - 产品只管理自己创建的后端进程、数据根和凭据。修改连接、重连、安装、升级或卸载逻辑时，验证不会误连、重启、覆盖或停止用户已有的 Hermes 实例，也不会误删所选目录的父目录。

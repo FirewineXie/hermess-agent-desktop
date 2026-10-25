@@ -2,7 +2,7 @@
 
 基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；Windows、macOS 和 Linux 的安装包已在 GitHub Actions 构建成功，macOS 与 Linux 仍需实机安装和运行验收。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
 
-**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前 `v0.5.0` 仍在开发，尚未发布 tag。
+**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前准备发布 `v0.5.0-rc.1` 候选版本，正式版 `v0.5.0` 尚未发布。
 
 **[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
 
@@ -53,6 +53,6 @@ pnpm build
 
 ## 许可
 
-本项目自行编写的代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。商业使用需要版权所有人另行授权；版权所有人保留自行商用的权利。`vendor/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源也遵循各自许可证。本仓库的非商业许可不限制他人按 MIT 条款使用上游 Hermes Agent。
+本项目自行编写的代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。商业使用需要版权所有人另行授权；版权所有人保留自行商用的权利。`upstream/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源也遵循各自许可证。本仓库的非商业许可不限制他人按 MIT 条款使用上游 Hermes Agent。
 
 GitHub 仓库的初始提交曾包含 MIT 许可和一行 README；后续更改许可不会撤销此前已经授出的权利。产品代码首次上传时使用上述非商业许可。

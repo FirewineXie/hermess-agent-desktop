@@ -155,15 +155,27 @@ pub async fn save_agent_config_field(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let schema = config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
-    if schema
-        .pointer(&format!(
-            "/fields/{}",
-            key.replace('~', "~0").replace('/', "~1")
-        ))
-        .is_none()
-    {
-        return Err(DesktopFailure::invalid_input());
+    if key == "agent.reasoning_effort" {
+        if !value.as_str().is_some_and(|level| {
+            matches!(
+                level,
+                "" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+            )
+        }) {
+            return Err(DesktopFailure::invalid_input());
+        }
+    } else {
+        let schema =
+            config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await?;
+        if schema
+            .pointer(&format!(
+                "/fields/{}",
+                key.replace('~', "~0").replace('/', "~1")
+            ))
+            .is_none()
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
     }
     let mut patch = value;
     for part in key.split('.').rev() {

@@ -38,7 +38,7 @@ def main() -> None:
         "ALL_PROXY": "http://127.0.0.1:9",
     })
     os.environ.pop("HERMES_INSTALL_ROOT", None)
-    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
+    sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     import pm
 
     with tempfile.TemporaryDirectory(prefix="offline-rebuild-", dir=build,

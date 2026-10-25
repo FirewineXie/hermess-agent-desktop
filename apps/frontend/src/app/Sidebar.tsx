@@ -1,3 +1,4 @@
+import React from 'react'
 import { useLanguage, translateApp } from '../i18n'
 import type { SessionRow, View } from './types'
 
@@ -18,6 +19,21 @@ type Props = {
 export default function Sidebar({ view, open, connected, busy, sessions, activeSessionId, onClose, onOpenView, onNewChat, onRefreshSessions, onResumeSession }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
+  const [pendingSessionId, setPendingSessionId] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (!connected) {
+      setPendingSessionId(null)
+      return
+    }
+    if (!busy && pendingSessionId) {
+      setPendingSessionId(null)
+      onResumeSession(pendingSessionId)
+    }
+  }, [busy, connected, pendingSessionId, onResumeSession])
+  const selectSession = (id: string) => {
+    if (busy) setPendingSessionId(id)
+    else { setPendingSessionId(null); onResumeSession(id) }
+  }
   return <>
     {open && <button className="sidebar-scrim" aria-label={t('ui.close.navigation')} onClick={onClose} />}
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`} aria-label={t('ui.main.navigation')}>
@@ -27,18 +43,20 @@ export default function Sidebar({ view, open, connected, busy, sessions, activeS
         <button className={view === 'chat' ? 'active' : ''} onClick={() => onOpenView('chat')}>◫ <span>{t('ui.chat')}</span></button>
         <button className={view === 'model' ? 'active' : ''} onClick={() => onOpenView('model')}>◇ <span>{t('ui.model.settings')}</span></button>
         <button className={view === 'agent' ? 'active' : ''} onClick={() => onOpenView('agent')}>⚙ <span>{t('ui.agent.settings')}</span></button>
+        <button className={view === 'memory' ? 'active' : ''} onClick={() => onOpenView('memory')}>▤ <span>{t('ui.persona.and.memory')}</span></button>
         <button className={view === 'runtime' ? 'active' : ''} onClick={() => onOpenView('runtime')}>◉ <span>{t('ui.runtime.and.storage')}</span></button>
         <button className={view === 'tools' ? 'active' : ''} onClick={() => onOpenView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
+        <button className={view === 'extensions' ? 'active' : ''} onClick={() => onOpenView('extensions')}>✦ <span>{t('ui.extensions')}</span></button>
       </nav>
       <div className="sidebar-section-heading"><strong>{t('ui.recent.sessions')}</strong><button disabled={!connected} onClick={onRefreshSessions} aria-label={t('ui.refresh.recent.conversations')}>↻</button></div>
       <div className="sidebar-sessions">
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}
         {connected && sessions.length === 0 && <p>{t('ui.no.previous.sessions')}</p>}
         {connected && sessions.map(session => <button key={session.id}
-          className={view === 'chat' && session.id === activeSessionId ? 'active' : ''}
-          disabled={busy}
+          className={[view === 'chat' && session.id === activeSessionId ? 'active' : '', pendingSessionId === session.id ? 'pending' : ''].filter(Boolean).join(' ')}
+          aria-busy={pendingSessionId === session.id}
           title={session.title || session.preview || session.id}
-          onClick={() => onResumeSession(session.id)}>
+          onClick={() => selectSession(session.id)}>
           <span>▤</span><span className="session-title">{session.title || session.preview || session.id}</span>
         </button>)}
       </div>

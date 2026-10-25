@@ -2,12 +2,7 @@ import React from 'react'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp, localizeAppMessage } from '../../i18n'
-
-function displayPath(path: string): string {
-  const windowsPrefix = '\\\\?\\'
-  const unprefixed = path.startsWith(windowsPrefix) ? path.slice(windowsPrefix.length) : path
-  return /^[A-Za-z]:\\/.test(unprefixed) ? unprefixed : path
-}
+import { displayPath } from '../../shared/displayPath'
 
 type Props = {
   storagePath: string

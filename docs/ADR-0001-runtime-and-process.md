@@ -1,13 +1,13 @@
 # ADR-0001：I0 Windows 运行时与进程边界
 
-日期：2026-10-24。状态：I0 验证中；只适用于锁定的上游提交 `5894e750c3dba980d43b25aa29e3958149ba2c61`。
+日期：2026-10-24。状态：I0 验证中。原 I0 数据基于上游提交 `5894e750c3dba980d43b25aa29e3958149ba2c61`；当前锁定版本为 `v0.22.5`（`bf0203a794a07aac3ff764972ab9087baa4e4f4e`）加产品私有 API 补丁，原数据不自动适用于当前版本。
 
 ## 当前选择
 
-- 产品仓库不再使用 Git submodule。`pnpm fetch:upstream` 将锁定的正式 Release tag 克隆到忽略目录 `vendor/hermes-agent`，不在其工作树修改源码；`pnpm verify:upstream` 校验锁文件中的 tag、完整提交 SHA、来源与干净工作树。此项为后续来源管理变更，下面的 I0 测试数据仍基于原锁定提交，不能直接归于新 Release。
+- 产品仓库不使用 Git submodule。`pnpm fetch:upstream` 将锁定的正式 Release tag 克隆到忽略目录 `upstream/hermes-agent`，再应用产品仓库跟踪的 `adapters/hermess_desktop_private_api.patch` 并复制 `adapters/hermess_private_api.py`；`pnpm verify:upstream` 校验 tag、完整提交 SHA、来源、预期差异及产品模块一致性。原有 I0 测试数据基于旧源码状态，不能直接归于适配后的 Release。
 - Windows 样机使用 `hermes serve --host 127.0.0.1 --port 0 --isolated`。Rust 进程创建子进程，提供每次启动的随机 WS 凭据、独立 `HERMES_HOME`、私有锁目录与就绪文件；只持有并停止自己创建的子进程。
 - 开发态可在产品 `.build` 内用已有 CPython 3.14 构建隔离 venv。上游 `pm.operations.build_environment` 负责依赖同步，`uv.lock` 固定应用依赖；该路径已在 Windows 实测。
-- 上游 `pm bundle` 已在 Windows 生成包含仓库快照、固定工具、PM runtime、venv、离线 uv 缓存和启动器的完整 payload。`scripts/verify-payload.py` 用固定提交的 Git archive 对比 payload 的发行源码。
+- 上游 `pm bundle` 曾在 Windows 生成包含仓库快照、固定工具、PM runtime、venv、离线 uv 缓存和启动器的完整 payload。当前 `scripts/verify-payload.py` 以固定提交的 Git archive 加产品补丁核对发行源码；旧 payload 不符合新的私有 API 边界，不能用于本轮验收。
 - Windows 核心候选通过产品脚本打成单个 tar 资源，另附字节数、SHA-256 和固定上游提交的收据。直接把 55,760 余个文件交给 NSIS 在深路径下失败；单归档避免安装器逐文件读取深路径。首次启动在主要存储位置持锁、校验归档、解到暂存目录、校验 payload 后同卷重命名启用。该路径已在 Windows 实测解包及解包后假模型网关冒烟；NSIS 候选包在当前机器的中文空格路径静默安装、归档校验与卸载通过。干净机器、安装向导、签名和窗口操作另行验收。
 
 ## 已核实的边界

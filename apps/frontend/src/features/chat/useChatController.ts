@@ -43,6 +43,13 @@ export function useChatController({ backend, activeModel, language, storagePath,
   const assistantRef = React.useRef('')
   const [chatStatus, setChatStatus] = React.useState('')
   const [turnBusy, setTurnBusy] = React.useState(false)
+  const [navigationBusy, setNavigationBusy] = React.useState(false)
+  const [sessionCreating, setSessionCreating] = React.useState(false)
+  const navigationBusyRef = React.useRef(false)
+  const submittingRef = React.useRef(false)
+  const sessionCreationRef = React.useRef<Promise<string> | null>(null)
+  const sessionGenerationRef = React.useRef(0)
+  const pendingBySessionRef = React.useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
   const turnStartedAtRef = React.useRef<number | null>(null)
   const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
@@ -68,7 +75,10 @@ export function useChatController({ backend, activeModel, language, storagePath,
 
   eventProcessorRef.current = data => {
     const id = data.session_id
-    if (!id || id !== sessionRef.current) return
+    if (!id || id !== sessionRef.current) {
+      if (id && data.kind === 'message.complete') void loadSessions(true)
+      return
+    }
     if (typeof data.seq === 'number') {
       if (data.seq <= (lastSeqRef.current[id] || 0)) return
       lastSeqRef.current[id] = data.seq
@@ -164,15 +174,30 @@ export function useChatController({ backend, activeModel, language, storagePath,
 
   async function ensureChatSession() {
     if (sessionRef.current) return sessionRef.current
-    const created = await chat.createSession()
-    const id = created.session_id
-    sessionRef.current = id
-    epochRef.current[id] = backend?.replay_epoch || ''
-    lastSeqRef.current[id] = 0
-    storedSessionRef.current = created.stored_session_id
-    setSessionId(id)
-    setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
-    return id
+    if (sessionCreationRef.current) return sessionCreationRef.current
+    setSessionCreating(true)
+    const generation = sessionGenerationRef.current
+    const creation = (async () => {
+      const created = await chat.createSession()
+      if (generation !== sessionGenerationRef.current) throw new Error('Session creation was cancelled')
+      const id = created.session_id
+      sessionRef.current = id
+      epochRef.current[id] = backend?.replay_epoch || ''
+      lastSeqRef.current[id] = 0
+      storedSessionRef.current = created.stored_session_id
+      setSessionId(id)
+      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
+      await loadSessions(true)
+      return id
+    })()
+    sessionCreationRef.current = creation
+    try { return await creation }
+    finally {
+      if (sessionCreationRef.current === creation) {
+        sessionCreationRef.current = null
+        setSessionCreating(false)
+      }
+    }
   }
 
   React.useEffect(() => {
@@ -214,18 +239,24 @@ export function useChatController({ backend, activeModel, language, storagePath,
   function loadCommandCatalog(): Promise<CommandCatalog> {
     if (commandCatalog) return Promise.resolve(commandCatalog)
     if (!commandCatalogPromiseRef.current) {
-      commandCatalogPromiseRef.current = ensureChatSession()
-        .then(id => chat.commands(id))
-        .then(catalog => {
-          setCommandCatalog(catalog)
-          setCommandCatalogError(catalog.warning || '')
+      let request: Promise<CommandCatalog>
+      request = ensureChatSession()
+        .then(async id => {
+          const catalog = await chat.commands(id)
+          if (sessionRef.current === id) {
+            setCommandCatalog(catalog)
+            setCommandCatalogError(catalog.warning || '')
+          }
           return catalog
         })
         .catch(cause => {
-          commandCatalogPromiseRef.current = null
-          setCommandCatalogError(t("ui.command.directory.read.failed.arg", describeError(cause, language)))
+          if (commandCatalogPromiseRef.current === request) {
+            commandCatalogPromiseRef.current = null
+            setCommandCatalogError(t("ui.command.directory.read.failed.arg", describeError(cause, language)))
+          }
           throw cause
         })
+      commandCatalogPromiseRef.current = request
     }
     return commandCatalogPromiseRef.current
   }
@@ -307,26 +338,20 @@ export function useChatController({ backend, activeModel, language, storagePath,
     finally { setAttachmentBusy(false) }
   }
 
-  async function clearPendingImages() {
-    for (const attachment of attachments) {
-      if (attachment.kind === 'image' && attachment.path) {
-        await chat.detachImage(sessionRef.current, attachment.path)
-      }
-    }
-    setAttachments([])
-  }
-
   async function sendMessage() {
     const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = draft.trim()
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
-    if (!text || turnBusy || attachmentBusy || reasoningChangeInFlightRef.current) return
+    if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
     let catalog: CommandCatalog | null = null
     if (slash || mentions.length) {
+      submittingRef.current = true
+      setNavigationBusy(true)
       try { catalog = await loadCommandCatalog() }
       catch { if (slash) return }
+      finally { submittingRef.current = false; setNavigationBusy(false) }
     }
     const skillMention = mentions.find(match => catalog && Object.hasOwn(catalog.skills, `/${match[2]}`))
     const commandName = slash ? `/${slash[1]}` : skillMention ? `/${skillMention[2]}` : ''
@@ -356,11 +381,15 @@ export function useChatController({ backend, activeModel, language, storagePath,
     }
     assistantRef.current = ''
     setAssistant('')
+    let idForSubmission = sessionRef.current
+    submittingRef.current = true
+    setNavigationBusy(true)
     setTurnBusy(true)
     setChatStatus(t("ui.submitting"))
     try {
       if (commandName === '/new' && isCommand) {
-        await newChat()
+        submittingRef.current = false
+        await newChat(false)
         setTurnBusy(false)
         return
       }
@@ -379,6 +408,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
         return
       }
       const id = await ensureChatSession()
+      idForSubmission = id
       if (isCommand) {
         const result = isSkill
           ? await chat.dispatchSkill(id, commandName.slice(1), commandArg)
@@ -406,12 +436,19 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
       setDraft('')
       const result = await chat.submitPrompt(id, text)
-      setAttachments([])
-      setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
+      if (sessionRef.current === id) {
+        setAttachments([])
+        setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
+      }
     } catch (cause) {
-      setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
-      finishCurrentTurn('failed')
-      setTurnBusy(false)
+      if (!sessionRef.current || sessionRef.current === idForSubmission) {
+        setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
+        finishCurrentTurn('failed')
+        setTurnBusy(false)
+      }
+    } finally {
+      submittingRef.current = false
+      setNavigationBusy(false)
     }
   }
 
@@ -423,14 +460,17 @@ export function useChatController({ backend, activeModel, language, storagePath,
     } catch (cause) { setChatStatus(t("ui.failed.to.read.history.arg", describeError(cause, language))) }
   }
 
-  async function newChat() {
-    if (turnBusy || attachmentBusy) return
-    try { await clearPendingImages() }
-    catch (cause) { setChatStatus(t("ui.failed.to.remove.image.before.creating.new.session.arg", describeError(cause, language))); return }
+  async function newChat(preserveDraft = true) {
+    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current) return
+    navigationBusyRef.current = true
+    setNavigationBusy(true)
+    if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft: preserveDraft ? draft : '', attachments }
+    if (storedSessionRef.current) void loadSessions(true)
     sessionRef.current = ''
     turnStartedAtRef.current = null
     storedSessionRef.current = ''
     setSessionId('')
+    setReasoningEffort('')
     setActiveModel(null)
     setModelPickerOpen(false)
     setConversation([])
@@ -439,17 +479,23 @@ export function useChatController({ backend, activeModel, language, storagePath,
     setServerRequests([])
     setClarifyDraft({ requestId: '', answers: {} })
     setDraft('')
+    setAttachments([])
+    setChatUsage(null)
     setCommandCatalog(null)
     commandCatalogPromiseRef.current = null
     setChatStatus(t("ui.new.session.ready"))
+    navigationBusyRef.current = false
+    setNavigationBusy(false)
   }
 
   async function resumeSession(id: string) {
-    if (turnBusy || attachmentBusy) return
+    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || id === storedSessionRef.current) return
+    navigationBusyRef.current = true
+    setNavigationBusy(true)
     setChatStatus(t("ui.resuming.session"))
     try {
-      await clearPendingImages()
       const result = await chat.resumeSession(id)
+      if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft, attachments }
       turnStartedAtRef.current = null
       sessionRef.current = result.session_id
       storedSessionRef.current = result.stored_session_id || result.session_key || id
@@ -458,9 +504,12 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
       setClarifyDraft({ requestId: '', answers: {} })
       setSessionId(result.session_id)
+      setReasoningEffort('')
       setActiveModel(result.info?.provider && result.info.model ? { provider: result.info.provider, model: result.info.model } : null)
       setModelPickerOpen(false)
-      setDraft('')
+      const pending = pendingBySessionRef.current[storedSessionRef.current]
+      setDraft(pending?.draft || '')
+      setAttachments(pending?.attachments || [])
       setCommandCatalog(null)
       commandCatalogPromiseRef.current = null
       setConversation(historyTimeline(result.messages))
@@ -469,6 +518,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
       setTurnBusy(Boolean(result.running))
       setChatStatus(result.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
     } catch (cause) { setChatStatus(t("ui.restore.failed.arg", describeError(cause, language))) }
+    finally { navigationBusyRef.current = false; setNavigationBusy(false) }
   }
 
   async function interruptSession() {
@@ -499,6 +549,9 @@ export function useChatController({ backend, activeModel, language, storagePath,
         ? t("ui.reconnected.pictures.to.be.sent.need.to.be.added.again") : t("ui.reconnected"))
       if (previousEpoch && info.replay_epoch !== previousEpoch) {
         setAttachments(current => current.filter(item => item.kind === 'file'))
+        for (const pending of Object.values(pendingBySessionRef.current)) {
+          pending.attachments = pending.attachments.filter(item => item.kind === 'file')
+        }
       }
       if (storedSessionRef.current) {
         const snapshot = await chat.resumeSession(storedSessionRef.current)
@@ -553,6 +606,13 @@ export function useChatController({ backend, activeModel, language, storagePath,
 
 
   function resetChat() {
+    sessionGenerationRef.current += 1
+    pendingBySessionRef.current = {}
+    navigationBusyRef.current = false
+    submittingRef.current = false
+    sessionCreationRef.current = null
+    setNavigationBusy(false)
+    setSessionCreating(false)
     sessionRef.current = ''
     turnStartedAtRef.current = null
     storedSessionRef.current = ''
@@ -574,7 +634,7 @@ export function useChatController({ backend, activeModel, language, storagePath,
     sessionId, reasoningEffort, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
-    turnBusy, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, attachments,
+    turnBusy, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, attachments,
     attachmentBusy, draggingFiles, trigger, choices, answerRequest, ensureChatSession,
     changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,

@@ -3,6 +3,9 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  extensions: {
+    async request() { throw previewOnly() },
+  },
   runtime: {
     async devDefaults() { return { python_path: '', storage_path: '' } },
     async packedDefaults() { return { storage_path: '', initialized: false } },
@@ -29,6 +32,13 @@ export const previewDesktopApi: DesktopApi = {
     async saveField() { throw previewOnly() },
     async saveRaw() { throw previewOnly() },
     async saveAuxiliary() { throw previewOnly() },
+  },
+  personalFiles: {
+    async read() { throw previewOnly() },
+    async save() { throw previewOnly() },
+    async listProject() { return [] },
+    async readProject() { throw previewOnly() },
+    async saveProject() { throw previewOnly() },
   },
   models: {
     async options() { throw previewOnly() },

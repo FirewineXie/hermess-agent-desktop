@@ -7,8 +7,10 @@ export default function WorkspaceHeader({ view, sessionTitle, connected, onOpenN
   const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
     model: t('ui.model.settings'),
     agent: t('ui.agent.settings'),
+    memory: t('ui.persona.and.memory'),
     runtime: t('ui.runtime.and.storage'),
     tools: t('ui.tools.and.capabilities'),
+    extensions: t('ui.extensions'),
   })[view]
   return <header className="workspace-header">
     <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>

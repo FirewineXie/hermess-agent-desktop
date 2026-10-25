@@ -45,6 +45,13 @@ export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ 
 export type AgentConfigField = { type: string; description?: string; category?: string; options?: unknown[] }
 export type AgentConfigSchema = { fields: Record<string, AgentConfigField>; category_order: string[] }
 export type AgentRawConfig = { yaml: string; path: string }
+export type PersonalFileKind = 'soul' | 'memory' | 'user'
+export type PersonalFile = {
+  kind: PersonalFileKind; path: string; exists: boolean; content: string; entries: string[]
+  version: string; limit: number | null; enabled: boolean | null
+}
+export type ProjectFile = { path: string; label: string; status: string; loaded: boolean; chars: number }
+export type EditableFile = { path: string; exists: boolean; content: string; version: string }
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
@@ -91,6 +98,9 @@ export type NativeOpenOptions = {
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  extensions: {
+    request<T>(operation: string, payload?: Record<string, unknown>): Promise<T>
+  }
   runtime: {
     devDefaults(): Promise<DevDefaults>
     packedDefaults(): Promise<PackedDefaults>
@@ -117,6 +127,13 @@ export interface DesktopApi {
     saveField(key: string, value: unknown): Promise<void>
     saveRaw(yamlText: string, expectedYaml: string): Promise<void>
     saveAuxiliary(route: AuxiliaryRoute): Promise<void>
+  }
+  personalFiles: {
+    read(kind: PersonalFileKind): Promise<PersonalFile>
+    save(args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
+    listProject(sessionId: string): Promise<ProjectFile[]>
+    readProject(sessionId: string, path: string): Promise<EditableFile>
+    saveProject(args: { sessionId: string; path: string; content: string; expectedVersion: string }): Promise<EditableFile>
   }
   models: {
     options(args: { refresh: boolean; includeUnconfigured?: boolean; sessionId?: string }): Promise<ModelOptions>

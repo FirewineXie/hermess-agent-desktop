@@ -3,7 +3,7 @@ target/
 dist/
 .build/
 .cache/
-vendor/hermes-agent/
+upstream/hermes-agent/
 *.log
 __pycache__/
 apps/desktop/src-tauri/gen/schemas/

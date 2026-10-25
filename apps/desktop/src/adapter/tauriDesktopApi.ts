@@ -61,6 +61,9 @@ function supportedRequests(value: unknown): GatewayRequest[] {
 }
 
 export const tauriDesktopApi: DesktopApi = {
+  extensions: {
+    request: (operation, payload = {}) => invoke('extension_request', { operation, payload }),
+  },
   runtime: {
     devDefaults: () => invoke('dev_backend_defaults'),
     packedDefaults: () => invoke('packed_backend_defaults'),
@@ -87,6 +90,13 @@ export const tauriDesktopApi: DesktopApi = {
     saveField: (key, value) => invoke('save_agent_config_field', { key, value }),
     saveRaw: (yamlText, expectedYaml) => invoke('save_agent_config_raw', { yamlText, expectedYaml }),
     saveAuxiliary: route => invoke('save_auxiliary_route', route),
+  },
+  personalFiles: {
+    read: kind => invoke('read_personal_file', { kind }),
+    save: args => invoke('save_personal_file', args),
+    listProject: sessionId => invoke('list_project_files', { sessionId }),
+    readProject: (sessionId, path) => invoke('read_project_file', { sessionId, path }),
+    saveProject: args => invoke('save_project_file', args),
   },
   models: {
     options: args => invoke('list_model_options', args),

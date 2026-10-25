@@ -1,4 +1,5 @@
 {
+  "ui.extensions": "扩展",
   "ui.add.and.select.model": "添加并切换",
   "ui.add.model.id.short": "输入模型标识",
   "ui.add.model.short": "添加",
@@ -15,6 +16,8 @@
   "ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create": "启动本机运行时并配置模型后，就可以创建会话。",
   "ui.after.starting.the.runtime.the.complete.tool.directory.is.read.including.te": "启动运行时后读取完整工具目录，包括终端、浏览器和扩展工具。",
   "ui.agent.settings": "Agent 配置",
+  "ui.persona.and.memory": "人格与记忆",
+  "ui.unsaved.personal.files.leave": "人格或记忆文件有未保存的修改，确定离开吗？",
   "ui.agent.tools": "Agent 工具",
   "ui.allow.for.this.session": "本会话允许",
   "ui.allow.once": "仅本次允许",

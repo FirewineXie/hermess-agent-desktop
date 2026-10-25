@@ -3,6 +3,7 @@ import { useLanguage, translateApp } from '../../i18n'
 import ToolsetCard from './components/ToolsetCard'
 import RuntimeProbeCard from './components/RuntimeProbeCard'
 import { useToolsController } from './useToolsController'
+import { displayPath } from '../../shared/displayPath'
 
 export default function ToolsView({ connected, sessionId }: { connected: boolean; sessionId: string }) {
   const language = useLanguage()
@@ -39,7 +40,7 @@ export default function ToolsView({ connected, sessionId }: { connected: boolean
               {bundledTools && !bundledTools.has_manifest && <p>{t("ui.this.is.a.development.environment.or.there.is.no.payload.tool.list.that.can")}</p>}
               {bundledTools?.has_manifest && bundledTools.tools.map(tool => <details className="tool-item" key={tool.name}>
                 <summary><strong>{tool.name}</strong><span>{tool.present ? t("ui.file.exists") : t("ui.file.missing")}</span></summary>
-                <small>{t("ui.version")}{tool.version || t("ui.not.recorded")}</small><code>{tool.path}</code>
+                <small>{t("ui.version")}{tool.version || t("ui.not.recorded")}</small><code>{displayPath(tool.path)}</code>
               </details>)}
             </div>
           </details>

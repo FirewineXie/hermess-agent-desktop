@@ -49,12 +49,10 @@ if (!registered.size || !invoked.size) failures.push('desktop command inventory 
 for (const name of invoked) if (!registered.has(name)) failures.push(`adapter invokes unregistered command: ${name}`)
 for (const name of registered) if (!invoked.has(name)) failures.push(`registered command has no adapter capability: ${name}`)
 
+const runtimeDir = resolve(root, 'apps/desktop/src-tauri/src/runtime')
 const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/runtime/mod.rs',
-  'apps/desktop/src-tauri/src/runtime/chat.rs',
-  'apps/desktop/src-tauri/src/runtime/config.rs',
-  'apps/desktop/src-tauri/src/runtime/models.rs',
-  'apps/desktop/src-tauri/src/runtime/tools.rs',
+  ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
   'apps/desktop/src-tauri/src/diagnostics.rs',
 ]
 const definedCommands = new Set()
@@ -82,9 +80,9 @@ if (!emitted.size || !listened.size) failures.push('desktop event inventory is e
 for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)
 for (const name of emitted) if (!listened.has(name)) failures.push(`native event has no adapter listener: ${name}`)
 
-for (const feature of ['chat', 'config', 'models', 'tools']) {
-  const source = readFileSync(resolve(root, `apps/desktop/src-tauri/src/runtime/${feature}.rs`), 'utf8')
-  if (/\buse\s+super::\*\s*;/.test(source)) failures.push(`runtime/${feature}.rs: use explicit imports instead of super::*`)
+for (const feature of readdirSync(runtimeDir).filter(name => name.endsWith('.rs') && name !== 'mod.rs')) {
+  const source = readFileSync(resolve(runtimeDir, feature), 'utf8')
+  if (source.includes('#[tauri::command]') && /\buse\s+super::\*\s*;/.test(source)) failures.push(`runtime/${feature}: use explicit imports instead of super::*`)
 }
 
 if (failures.length) {

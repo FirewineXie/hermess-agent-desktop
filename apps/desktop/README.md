@@ -18,6 +18,8 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 
 运行时所有者仍独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪仍持有所有权锁，最长 60 秒，尚未改为可中断启动。
 
+桌面自有 `serve` 使用产品私有 API 模式：只绑定 `127.0.0.1`，根路径不公布会话令牌，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑在 [产品模块](../../adapters/hermess_private_api.py)，[接入补丁](../../adapters/hermess_desktop_private_api.patch)只修改固定上游的三个调用点。`pnpm fetch:upstream` 将两者应用到忽略的上游检出，`pnpm verify:upstream` 校验差异。Rust 启动时检查私有入口和浏览器握手，旧版未适配 payload 无法进入就绪状态。令牌仍由 Rust 持有并用于本机 HTTP/WS；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。
+
 ## 本地命令
 
 从仓库根目录运行：

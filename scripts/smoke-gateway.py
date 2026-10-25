@@ -26,7 +26,7 @@ def main() -> None:
     if not hermes.is_file():
         parser.error(f"Hermes launcher is missing beside the selected Python: {hermes}")
     product = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
+    sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     if not python.is_relative_to(product / ".build"):
         parser.error("I0 smoke only accepts a prepared environment under the product .build directory")
     if args.hermes:
@@ -66,6 +66,7 @@ def main() -> None:
             "HERMES_GATEWAY_LOCK_DIR": str(root / "gateway-locks"),
             "HERMES_DESKTOP_READY_FILE": str(ready),
             "HERMES_DESKTOP": "1",
+            "HERMESS_DESKTOP_PRIVATE_API": "1",
             "HERMES_DASHBOARD_SESSION_TOKEN": secrets.token_urlsafe(32),
             "HERMES_PARENT_PID": str(os.getpid()),
             "HERMES_DISABLE_LAZY_INSTALLS": "1",
@@ -92,6 +93,26 @@ def main() -> None:
                     if not ready.exists() or child.poll() is not None:
                         raise RuntimeError(f"backend did not become ready; exit={child.poll()}")
                     port = json.loads(ready.read_text(encoding="utf-8"))["port"]
+                    opener = build_opener(ProxyHandler({}))
+                    try:
+                        opener.open(f"http://127.0.0.1:{port}/", timeout=5)
+                    except HTTPError as error:
+                        if error.code != 404:
+                            raise RuntimeError(f"private root returned HTTP {error.code}") from error
+                    else:
+                        raise RuntimeError("private root exposed a dashboard token page")
+
+                    async def reject_browser_origin() -> None:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        try:
+                            async with connect(url, origin=f"http://127.0.0.1:{port}",
+                                               open_timeout=5, proxy=None):
+                                pass
+                        except InvalidStatus:
+                            return
+                        raise RuntimeError("browser-origin WebSocket was accepted")
+
+                    asyncio.run(reject_browser_origin())
                     async def ping() -> object:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
@@ -138,7 +159,6 @@ def main() -> None:
 
                     asyncio.run(reject_wrong_token())
 
-                    opener = build_opener(ProxyHandler({}))
                     assignment = json.dumps({"scope": "main", "provider": "custom", "model": MODEL_ID,
                                              "base_url": model.base_url, "api_key": "sk-fake-e2e"}).encode()
                     endpoint = f"http://127.0.0.1:{port}/api/model/set"

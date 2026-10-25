@@ -1,0 +1,27 @@
+diff --git a/hermes_cli/web_server.py b/hermes_cli/web_server.py
+index 59700ba3..92ebf0d2 100644
+--- a/hermes_cli/web_server.py
++++ b/hermes_cli/web_server.py
+@@ -1376,0 +1377,2 @@ def start_server(
++    from hermes_cli.hermess_private_api import require_loopback_host
++    require_loopback_host(host)
+diff --git a/hermes_cli/web_server_boundary.py b/hermes_cli/web_server_boundary.py
+index 80a1eea3..7b6f8461 100644
+--- a/hermes_cli/web_server_boundary.py
++++ b/hermes_cli/web_server_boundary.py
+@@ -207,0 +208,3 @@ def ws_host_origin_reason(ws, state) -> Optional[str]:
++    from hermes_cli.hermess_private_api import reject_browser_origin
++    if reject_browser_origin(origin):
++        return "desktop_browser_origin"
+diff --git a/hermes_cli/web_server_dashboard.py b/hermes_cli/web_server_dashboard.py
+index 450198c2..c5337c40 100644
+--- a/hermes_cli/web_server_dashboard.py
++++ b/hermes_cli/web_server_dashboard.py
+@@ -135 +135,2 @@ def mount_spa(application: FastAPI):
+-            withheld = gated or bool(getattr(app.state, "withhold_session_token", False))
++            from hermes_cli.hermess_private_api import withhold_token
++            withheld = withhold_token(gated or bool(getattr(app.state, "withhold_session_token", False)))
+@@ -171 +172,2 @@ def mount_spa(application: FastAPI):
+-        withheld = gated or bool(getattr(app.state, "withhold_session_token", False))
++        from hermes_cli.hermess_private_api import withhold_token
++        withheld = withhold_token(gated or bool(getattr(app.state, "withhold_session_token", False)))

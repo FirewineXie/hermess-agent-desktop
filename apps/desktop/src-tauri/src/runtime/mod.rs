@@ -1,9 +1,10 @@
 pub mod chat;
 pub mod config;
+pub mod extensions;
 mod location;
 pub mod models;
-pub mod personal_files;
 mod payload;
+pub mod personal_files;
 #[cfg(windows)]
 mod powershell_tool;
 pub mod tools;
@@ -32,7 +33,10 @@ use tokio::{
     sync::Mutex,
     time::{sleep, timeout, Instant},
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -51,7 +55,9 @@ struct OwnedBackend {
 impl BackendState {
     async fn storage(&self) -> Result<PathBuf, DesktopFailure> {
         let owned = self.0.lock().await;
-        let backend = owned.as_ref().ok_or_else(DesktopFailure::runtime_unavailable)?;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
         Ok(backend.storage.clone())
     }
     async fn gateway(&self) -> Result<Arc<GatewayClient>, DesktopFailure> {
@@ -165,6 +171,36 @@ async fn ping(port: u16, token: &str) -> Result<(), String> {
         }
     }
     Err("等待网关 ping 响应超时".to_string())
+}
+
+async fn verify_private_api(port: u16, token: &str) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|_| "无法检查桌面私有接口".to_string())?;
+    let root = client
+        .get(format!("http://127.0.0.1:{port}/"))
+        .send()
+        .await
+        .map_err(|_| "无法检查桌面私有接口".to_string())?;
+    if root.status() != reqwest::StatusCode::NOT_FOUND {
+        return Err("后端公开了桌面私有入口".into());
+    }
+    let mut browser = format!("ws://127.0.0.1:{port}/api/ws?token={token}")
+        .into_client_request()
+        .map_err(|_| "无法检查 WebSocket 浏览器隔离".to_string())?;
+    browser
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static("http://127.0.0.1"));
+    match timeout(Duration::from_secs(5), connect_async(browser)).await {
+        Ok(Err(tokio_tungstenite::tungstenite::Error::Http(response)))
+            if response.status() == 403 =>
+        {
+            Ok(())
+        }
+        _ => Err("后端未拒绝浏览器 WebSocket 握手".into()),
+    }
 }
 
 #[tauri::command]
@@ -321,6 +357,7 @@ async fn launch_backend(
         )
         .env("HERMES_DESKTOP_READY_FILE", &ready)
         .env("HERMES_DESKTOP", "1")
+        .env("HERMESS_DESKTOP_PRIVATE_API", "1")
         .env("HERMES_DASHBOARD_SESSION_TOKEN", &token)
         .env("HERMES_PARENT_PID", std::process::id().to_string())
         .stdin(Stdio::null())
@@ -364,6 +401,7 @@ async fn launch_backend(
         sleep(Duration::from_millis(200)).await;
     };
     ping(port, &token).await?;
+    verify_private_api(port, &token).await?;
     if child
         .try_wait()
         .map_err(|_| "后端进程状态读取失败".to_string())?

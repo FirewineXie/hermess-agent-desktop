@@ -1,5 +1,5 @@
 {
-  "repository": "https://github.com/NousResearch/hermes-agent.git",
+  "repository": "https://github.com/FirewineXie/hermes-agent.git",
   "tag": "v0.22.5",
   "commit": "bf0203a794a07aac3ff764972ab9087baa4e4f4e",
   "python": "CPython 3.14",

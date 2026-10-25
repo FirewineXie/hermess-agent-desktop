@@ -1,6 +1,7 @@
 import { localizeAgentMessage } from '../../i18n'
 import AuxiliaryTaskCard from './components/AuxiliaryTaskCard'
 import ConfigTree from './components/ConfigTree'
+import DefaultReasoningField from './components/DefaultReasoningField'
 import YamlEditor from './components/YamlEditor'
 import { useAgentSettingsController } from './useAgentSettingsController'
 
@@ -28,7 +29,13 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
         advanced: language === 'zh-CN' ? '高级设置' : 'Advanced',
       })[item]}</button>)}
     </div>
-    {section === 'main' && <p>{language === 'zh-CN' ? '默认模型和提供商在模型提供商页面管理。' : 'Manage the default model and providers on the model providers page.'} <button type="button" onClick={onOpenModelSettings}>{language === 'zh-CN' ? '打开模型提供商' : 'Open model providers'}</button></p>}
+    {section === 'main' && <>
+      <p>{language === 'zh-CN' ? '默认模型和提供商在模型提供商页面管理。' : 'Manage the default model and providers on the model providers page.'} <button type="button" onClick={onOpenModelSettings}>{language === 'zh-CN' ? '打开模型提供商' : 'Open model providers'}</button></p>
+      {schema && <DefaultReasoningField field={{ type: 'string' }}
+        config={config} draft={drafts['agent.reasoning_effort']} busy={busy} language={language}
+        onChange={value => setDrafts(previous => ({ ...previous, 'agent.reasoning_effort': value }))}
+        onSave={() => void saveField('agent.reasoning_effort', { type: 'string' })} />}
+    </>}
     {section === 'auxiliary' ? <div className="auxiliary-list">
       <p>{language === 'zh-CN' ? '按任务选择已配置的提供商。只在主模型中临时填写的自定义端点，请先到“模型提供商”保存为具名提供商。' : 'Choose a configured provider for each task. Save a main-model-only custom endpoint as a named provider first.'}</p>
       {auxiliaryTasks.map(task => <AuxiliaryTaskCard key={task} task={task} config={config} schema={schema} providers={providers}

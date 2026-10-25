@@ -142,6 +142,12 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
     setBusy(true)
     try {
       await agentSettings.saveField(key, value)
+      if (key === 'agent.reasoning_effort') {
+        const saved = await agentSettings.config()
+        if (String(getField(saved, key) ?? '') !== text) {
+          throw new Error(language === 'zh-CN' ? '默认思考强度保存后回读不一致' : 'Default reasoning did not match after saving')
+        }
+      }
       if (await load(key)) {
         setEditingKey(null)
         setStatus(t("ui.arg.saved.some.settings.take.effect.in.a.new.session.or.after.restarting.th", key))
@@ -195,7 +201,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
   const query = search.trim().toLowerCase()
   const scoped = entries.filter(([key]) => {
     if (section === 'advanced') return true
-    if (section === 'main') return ['agent.reasoning_effort', 'agent.reasoning_overrides', 'agent.max_turns', 'model_context_length'].includes(key)
+    if (section === 'main') return ['agent.reasoning_overrides', 'agent.max_turns', 'model_context_length'].includes(key)
     if (section === 'approval') return key.startsWith('approvals.') || key.startsWith('security.')
     return false
   })

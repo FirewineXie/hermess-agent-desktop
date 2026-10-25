@@ -47,11 +47,11 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const openView = (view: 'runtime' | 'model') => view === 'runtime' ? onOpenRuntime() : onOpenModelSettings()
   const {
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
-    setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy,
+    setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
-    reasoningBusy, chatUsage,
+    reasoningBusy, chatUsage, sessionId,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -68,7 +68,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         onSubmit={choice => void answerRequest(choice)} />}
       </div>
       <div className="composer-wrap"><div className="composer">
-       <textarea ref={draftInputRef} value={draft} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
+       <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
@@ -88,25 +88,27 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if (!turnBusy && !attachmentBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if (!turnBusy && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
       <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
-      <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy} t={t} onRemove={index => void removeAttachment(index)} />
+      <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />
       <div className="composer-actions">
-        <button className="secondary-button" disabled={turnBusy || attachmentBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
+        <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
         <span className="composer-spacer" />
         <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
-          <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
-            <option value="" disabled>{language === 'zh-CN' ? '思考 · 选择档位' : 'Reasoning · Choose level'}</option>
+          <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
+            <option value="" disabled>{sessionId
+              ? language === 'zh-CN' ? '思考 · 选择档位' : 'Reasoning · Choose level'
+              : language === 'zh-CN' ? '思考 · 使用默认' : 'Reasoning · Use default'}</option>
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
         </label>
-        <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
-        {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={attachmentBusy || reasoningBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+        <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
+        {turnBusy ? <button disabled={navigationBusy} onClick={() => void interruptSession()}>{t("ui.stop")}</button> : <button disabled={navigationBusy || attachmentBusy || reasoningBusy || (!draft.trim() && attachments.length === 0)} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}

@@ -21,6 +21,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .sidebar-sessions { flex: 1; min-height: 0; overflow: auto; }
 .sidebar-sessions p { margin: 10px 11px; color: #949ba4; font-size: 12px; line-height: 1.5; }
 .sidebar-sessions button { font-size: 13px; }
+.sidebar-sessions button.pending { background: #e7edf5; }
+.sidebar-sessions button.pending::after { content: '…'; margin-left: auto; }
 .session-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sidebar-footer { display: flex; align-items: center; gap: 8px; padding: 14px 6px 0; border-top: 1px solid #e5e8ec; color: #66717f; font-size: 12px; }
 .sidebar-footer button { margin-left: auto; padding: 4px 5px; color: #315c91; background: transparent; border: 0; }
@@ -44,9 +46,30 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel label { display: block; margin: 19px 0; font-weight: 600; font-size: 13px; }
 .settings-panel input, .settings-panel select { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; color: #20242d; background: #fff; border: 1px solid #cbd3dc; border-radius: 9px; }
 .agent-settings { width: min(1000px, calc(100% - 64px)); }
+.personal-files-panel { width: min(1000px, calc(100% - 64px)); }
+.personal-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
+.settings-panel .personal-tabs button, .settings-panel .project-file-list button { color: #415269; background: #eef1f5; }
+.settings-panel .personal-tabs button.selected, .settings-panel .project-file-list button.selected { color: #fff; background: #315c91; }
+.personal-description { margin-bottom: 18px; }
+.personal-file-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; color: #68717d; font-size: 12px; }
+.personal-file-meta code { overflow-wrap: anywhere; }
+.personal-files-panel textarea { display: block; width: 100%; padding: 11px 12px; border: 1px solid #cbd3dc; border-radius: 9px; resize: vertical; font-family: Consolas, monospace; font-size: 13px; }
+.personal-editor-label { margin: 14px 0; }
+.personal-editor { min-height: 360px; margin-top: 8px; }
+.memory-entry { margin: 15px 0; padding: 13px; border: 1px solid #e1e7ef; border-radius: 10px; }
+.memory-entry label { margin: 0 0 8px; }
+.memory-entry button { margin-top: 8px; }
+.personal-actions { display: flex; gap: 12px; align-items: center; margin: 20px 0; color: #68717d; font-size: 12px; }
+.project-file-list { display: grid; gap: 7px; margin: 14px 0; }
+.project-file-list button { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; }
+.project-file-list small { color: inherit; }
 .config-mode-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0; }
 .agent-settings .config-mode-tabs button { color: #415269; background: #eef1f5; }
 .agent-settings .config-mode-tabs button.selected { color: #fff; background: #315c91; }
+.default-reasoning-field { max-width: 520px; margin: 18px 0; padding: 16px 18px; border: 1px solid #dce5f0; border-radius: 10px; background: #f8fafc; }
+.default-reasoning-field h3 { margin: 0 0 8px; font-size: 15px; }
+.default-reasoning-field p { margin: 0 0 12px; }
+.default-reasoning-field small { margin: 10px 0; }
 .config-tree-root { margin-top: 18px; border: 1px solid #e1e7ef; border-radius: 10px; }
 .config-tree-node summary { display: flex; align-items: center; gap: 8px; list-style: none; }
 .config-tree-node summary::-webkit-details-marker { display: none; }
@@ -89,6 +112,27 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel li { display: grid; grid-template-columns: minmax(100px, 1fr) auto; gap: 6px; padding: 12px 0; border-top: 1px solid #edf0f3; }
 .settings-panel li small, .settings-panel li code { grid-column: 1 / -1; overflow-wrap: anywhere; }
 .tools-panel { width: min(900px, calc(100% - 64px)); }
+.extensions-panel { width: min(980px, calc(100% - 64px)); }
+.extension-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; border-bottom: 1px solid #e1e7ef; padding-bottom: 12px; }
+.extensions-panel .extension-tabs button { color: #415269; background: #eef1f5; }
+.extensions-panel .extension-tabs button.selected { color: #fff; background: #315c91; }
+.extension-toolbar { display: flex; gap: 9px; margin: 16px 0; }
+.extension-toolbar input { flex: 1; min-width: 150px; margin: 0; }
+.extension-toolbar select { width: auto; min-width: 130px; margin: 0; }
+.extension-toolbar p { margin: 0; }
+.extension-toolbar button { flex: none; }
+.extension-list { display: grid; gap: 11px; margin: 18px 0; }
+.extension-card, .extension-detail { padding: 16px 18px; border: 1px solid #e1e7ef; border-radius: 10px; }
+.extension-card p { margin: 9px 0; }
+.extension-card code, .extension-detail code { display: block; margin: 8px 0; overflow-wrap: anywhere; color: #46556a; }
+.extension-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.extensions-panel .extension-actions button { padding: 6px 10px; color: #315c91; background: #eef2f7; }
+.extension-detail { margin: 20px 0; background: #f9fbfd; }
+.extension-detail h3 { margin: 0; }
+.extension-detail textarea { display: block; width: 100%; min-height: 90px; margin-top: 8px; padding: 10px; border: 1px solid #cbd3dc; border-radius: 8px; }
+.extension-detail .extension-editor { min-height: 320px; font-family: Consolas, monospace; font-size: 12px; }
+.extension-preview { max-height: 350px; overflow: auto; padding: 12px; background: #eef2f7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.extension-message { padding: 10px 12px; border-radius: 8px; background: #eef4fb; }
 .tool-search { margin: 16px 0; }
 .tools-tree .config-tree-node > summary span { margin-left: auto; color: #68717d; font-size: 12px; font-weight: 400; }
 .tools-tree .config-tree-children > p { margin: 8px 4px; font-size: 12px; }

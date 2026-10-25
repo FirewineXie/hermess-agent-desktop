@@ -3,11 +3,13 @@ import './style.css'
 import AgentSettingsView from './features/agent-settings/AgentSettingsView'
 import { useLanguage, translateApp } from './i18n'
 import ToolsView from './features/tools/ToolsView'
+import ExtensionsView from './features/extensions/ExtensionsView'
 import ChatView from './features/chat/ChatView'
 import { useChatController } from './features/chat/useChatController'
 import ModelSettingsView from './features/models/ModelSettingsView'
 import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
+import PersonalFilesView from './features/personal-files/PersonalFilesView'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
@@ -21,6 +23,7 @@ function App() {
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(languageRef.current, key, ...values), [])
   const [view, setView] = React.useState<View>('chat')
   const [agentConfigDirty, setAgentConfigDirty] = React.useState(false)
+  const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [activeModel, setActiveModel] = React.useState<ModelPick | null>(null)
   const {
@@ -39,7 +42,7 @@ function App() {
     setBackend, setBackendStatus, setBusy,
   })
   const {
-    sessionId, sessionRef, storedSessionRef, setChatStatus, turnBusy, sessions,
+    sessionId, sessionRef, storedSessionRef, setChatStatus, turnBusy, navigationBusy, sessionCreating, reasoningBusy, sessions,
     attachmentBusy, ensureChatSession, loadSessions, newChat, resumeSession,
     reconnectBackend, resetChat,
   } = chatController
@@ -52,17 +55,21 @@ function App() {
   } = modelController
   const openView = (next: View): boolean => {
     if (view === 'agent' && next !== 'agent' && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return false
+    if (view === 'memory' && next !== 'memory' && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return false
     if (next !== 'agent') setAgentConfigDirty(false)
+    if (next !== 'memory') setPersonalFilesDirty(false)
     setView(next)
     setSidebarOpen(false)
     return true
   }
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
   return <div className="app-shell">
-    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={turnBusy || attachmentBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions(true)} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }} />
     <main className="workspace">
       <WorkspaceHeader view={view} sessionTitle={activeSession?.title} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} />
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
+    {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
+    {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} sessionId={sessionId} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
     {view === 'model' && <ModelSettingsView connected={Boolean(backend)} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}

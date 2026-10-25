@@ -29,7 +29,7 @@ def main() -> None:
     product_cli = payload / "bin" / "hermes.exe"
     if not source_cli.is_file() or not product_cli.is_file():
         parser.error("source or payload launcher is missing")
-    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
+    sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     from tests.fakes.fake_llm_provider import FakeLLMServer, Text, write_hermes_home
     from websockets.asyncio.client import connect
     from websockets.exceptions import ConnectionClosed, InvalidStatus
