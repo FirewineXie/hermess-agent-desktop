@@ -1,5 +1,5 @@
 use super::{
-    config::{config_request, config_request_to_profile},
+    config::{config_request_for_scope, config_request_to_profile},
     BackendState,
 };
 use crate::errors::DesktopFailure;
@@ -23,6 +23,7 @@ pub struct ChannelState(Mutex<HashMap<String, PendingQr>>);
 #[derive(Clone)]
 struct PendingQr {
     profile: String,
+    gateway_epoch: String,
     platform: String,
     code: String,
     base: String,
@@ -91,9 +92,13 @@ fn weixin_request(base: &str, path: &str) -> Result<reqwest::RequestBuilder, Des
 }
 
 #[tauri::command]
-pub async fn channel_status(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let result = config_request(
+pub async fn channel_status(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    let result = config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::GET,
         "/api/messaging/platforms",
         None,
@@ -117,9 +122,10 @@ pub async fn channel_status(state: State<'_, BackendState>) -> Result<Value, Des
 pub async fn channel_qr_start(
     state: State<'_, BackendState>,
     channels: State<'_, ChannelState>,
+    profile: String,
     platform: String,
 ) -> Result<QrStart, DesktopFailure> {
-    let profile = state.selected_profile().await?;
+    let scope = state.resolve_profile(&profile).await?;
     let (code, url, expires_in, poll_interval, base) = match platform.as_str() {
         "feishu" => {
             let init = feishu_post(&[("action", "init")]).await?;
@@ -191,9 +197,7 @@ pub async fn channel_qr_start(
         _ => return Err(DesktopFailure::invalid_input()),
     };
     let id = Uuid::new_v4().to_string();
-    if state.selected_profile().await? != profile {
-        return Err(DesktopFailure::conflict());
-    }
+    scope.ensure_current(&state).await?;
     let mut active = channels.0.lock().await;
     active.retain(|_, pending| {
         pending.expires > Instant::now()
@@ -203,6 +207,7 @@ pub async fn channel_qr_start(
         id.clone(),
         PendingQr {
             profile,
+            gateway_epoch: scope.gateway_epoch,
             platform,
             code,
             base,
@@ -221,6 +226,7 @@ pub async fn channel_qr_start(
 pub async fn channel_qr_poll(
     state: State<'_, BackendState>,
     channels: State<'_, ChannelState>,
+    profile: String,
     id: String,
 ) -> Result<QrPoll, DesktopFailure> {
     let pending = channels
@@ -230,7 +236,12 @@ pub async fn channel_qr_poll(
         .get(&id)
         .cloned()
         .ok_or(DesktopFailure::invalid_input())?;
-    if state.selected_profile().await? != pending.profile {
+    if profile != pending.profile {
+        return Err(DesktopFailure::conflict());
+    }
+    let scope = state.resolve_profile(&profile).await?;
+    if pending.gateway_epoch != scope.gateway_epoch {
+        channels.0.lock().await.remove(&id);
         return Err(DesktopFailure::conflict());
     }
     if pending.expires <= Instant::now() {
@@ -277,9 +288,6 @@ pub async fn channel_qr_poll(
             result.get("client_id").and_then(Value::as_str),
             result.get("client_secret").and_then(Value::as_str),
         ) {
-            if state.selected_profile().await? != pending.profile {
-                return Err(DesktopFailure::conflict());
-            }
             let domain = if result
                 .pointer("/user_info/tenant_brand")
                 .and_then(Value::as_str)
@@ -289,9 +297,9 @@ pub async fn channel_qr_poll(
             } else {
                 "feishu"
             };
-            config_request_to_profile(
+            config_request_for_scope(
                 &state,
-                &pending.profile,
+                &scope,
                 reqwest::Method::PUT,
                 "/api/messaging/platforms/feishu",
                 Some(
@@ -348,9 +356,6 @@ pub async fn channel_qr_poll(
                 });
             }
             "confirmed" => {
-                if state.selected_profile().await? != pending.profile {
-                    return Err(DesktopFailure::conflict());
-                }
                 let account = result
                     .get("ilink_bot_id")
                     .and_then(Value::as_str)
@@ -367,7 +372,7 @@ pub async fn channel_qr_poll(
                 if !valid_weixin_base(base) {
                     return Err(DesktopFailure::invalid_input());
                 }
-                config_request_to_profile(&state, &pending.profile, reqwest::Method::PUT, "/api/messaging/platforms/weixin",
+                config_request_for_scope(&state, &scope, reqwest::Method::PUT, "/api/messaging/platforms/weixin",
                     Some(json!({"enabled":true,"env":{"WEIXIN_ACCOUNT_ID":account,"WEIXIN_TOKEN":token,
                         "WEIXIN_BASE_URL":base,"WEIXIN_DM_POLICY":"pairing",
                         "WEIXIN_GROUP_POLICY":"disabled"}}))).await?;
@@ -388,10 +393,20 @@ pub async fn channel_qr_poll(
 
 #[tauri::command]
 pub async fn channel_qr_cancel(
+    state: State<'_, BackendState>,
     channels: State<'_, ChannelState>,
+    profile: String,
     id: String,
 ) -> Result<(), DesktopFailure> {
-    channels.0.lock().await.remove(&id);
+    state.resolve_profile(&profile).await?;
+    let mut pending = channels.0.lock().await;
+    if pending
+        .get(&id)
+        .is_some_and(|request| request.profile != profile)
+    {
+        return Err(DesktopFailure::conflict());
+    }
+    pending.remove(&id);
     Ok(())
 }
 

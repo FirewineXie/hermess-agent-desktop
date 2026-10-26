@@ -31,10 +31,11 @@ struct ReplayEvent {
 #[tauri::command]
 pub async fn create_chat_session(
     state: State<'_, BackendState>,
+    profile: String,
     cwd: Option<String>,
 ) -> Result<Value, DesktopFailure> {
     let cwd = validate_workspace_path(cwd)?;
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let result = gateway
         .request("session.create", session_create_params(cwd))
         .await?;
@@ -74,6 +75,7 @@ fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, Deskto
 #[tauri::command]
 pub async fn submit_chat_prompt(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     text: String,
 ) -> Result<Value, DesktopFailure> {
@@ -83,7 +85,7 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request(
             "prompt.submit",
@@ -96,12 +98,13 @@ pub async fn submit_chat_prompt(
 #[tauri::command]
 pub async fn list_composer_commands(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request("commands.catalog", json!({"session_id": session_id}))
         .await
@@ -111,6 +114,7 @@ pub async fn list_composer_commands(
 #[tauri::command]
 pub async fn execute_composer_command(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     command: String,
 ) -> Result<Value, DesktopFailure> {
@@ -120,7 +124,7 @@ pub async fn execute_composer_command(
     if !command.starts_with('/') || command.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request(
             "slash.exec",
@@ -133,6 +137,7 @@ pub async fn execute_composer_command(
 #[tauri::command]
 pub async fn dispatch_composer_skill(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     name: String,
     arg: String,
@@ -147,7 +152,7 @@ pub async fn dispatch_composer_skill(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request(
             "command.dispatch",
@@ -162,6 +167,7 @@ pub async fn dispatch_composer_skill(
 #[tauri::command]
 pub async fn attach_chat_file(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     path: String,
 ) -> Result<Value, DesktopFailure> {
@@ -214,7 +220,7 @@ pub async fn attach_chat_file(
     } else {
         "file.attach"
     };
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let result = gateway
         .request(
             method,
@@ -242,13 +248,14 @@ pub async fn attach_chat_file(
 #[tauri::command]
 pub async fn detach_chat_image(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     path: String,
 ) -> Result<(), DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 || path.len() > 4096 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let result = gateway
         .request(
             "image.detach",
@@ -266,6 +273,8 @@ pub async fn detach_chat_image(
 #[tauri::command]
 pub async fn answer_gateway_request(
     state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
     request_id: String,
     method: String,
     choice: Option<String>,
@@ -296,9 +305,12 @@ pub async fn answer_gateway_request(
         }
         _ => return Err(DesktopFailure::invalid_input()),
     };
-    let gateway = state.gateway().await?;
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
-        .answer(request_id, method, result)
+        .answer(request_id, method, result, session_id)
         .await
         .map_err(Into::into)
 }
@@ -306,9 +318,9 @@ pub async fn answer_gateway_request(
 #[tauri::command]
 pub async fn list_chat_sessions(
     state: State<'_, BackendState>,
-    profile: Option<String>,
+    profile: String,
 ) -> Result<Value, DesktopFailure> {
-    let gateway = state.gateway_for_profile(profile).await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let live = gateway.request("session.list", json!({"limit":50})).await?;
     let stored = gateway
         .request("session.list", json!({"limit":50,"scope":"stored"}))
@@ -350,12 +362,13 @@ fn merge_session_lists(live: &Value, stored: &Value) -> Value {
 #[tauri::command]
 pub async fn get_chat_reasoning(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
     if session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let params = if session_id.is_empty() {
         json!({"key": "reasoning"})
     } else {
@@ -370,6 +383,7 @@ pub async fn get_chat_reasoning(
 #[tauri::command]
 pub async fn set_chat_reasoning(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     value: String,
 ) -> Result<Value, DesktopFailure> {
@@ -382,7 +396,7 @@ pub async fn set_chat_reasoning(
     ) {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request(
             "config.set",
@@ -395,12 +409,13 @@ pub async fn set_chat_reasoning(
 #[tauri::command]
 pub async fn get_chat_usage(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request("session.stats", json!({"session_id": session_id}))
         .await
@@ -410,12 +425,13 @@ pub async fn get_chat_usage(
 #[tauri::command]
 pub async fn resume_chat_session(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request(
             "session.resume",
@@ -428,12 +444,13 @@ pub async fn resume_chat_session(
 #[tauri::command]
 pub async fn interrupt_chat_session(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     // The ticketed session authority requires the current execution generation.
     // Reattaching an already subscribed session is idempotent and gives us that fence.
     let mut snapshot = gateway
@@ -473,6 +490,7 @@ pub async fn interrupt_chat_session(
 #[tauri::command]
 pub async fn replay_chat_events(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     last_seen: u64,
     replay_epoch: String,
@@ -480,7 +498,7 @@ pub async fn replay_chat_events(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let result = gateway
         .request(
             "session.events.since",

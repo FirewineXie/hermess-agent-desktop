@@ -6,7 +6,7 @@ export type LocalSkill = {
 }
 export type HubSkill = {
   name: string; description?: string; source: string; identifier: string;
-  trust_level?: string; installed?: boolean
+  trust_level?: string; installed?: boolean; repo?: string
 }
 export type HubPreview = HubSkill & { skill_md?: string; files?: string[]; digest?: string }
 export type HubScan = { policy: 'allow' | 'ask' | 'block'; summary?: string; policy_reason?: string; digest?: string }

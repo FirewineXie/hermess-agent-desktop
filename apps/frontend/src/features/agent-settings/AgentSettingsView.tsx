@@ -5,7 +5,7 @@ import DefaultReasoningField from './components/DefaultReasoningField'
 import YamlEditor from './components/YamlEditor'
 import { useAgentSettingsController } from './useAgentSettingsController'
 
-export default function AgentSettingsView({ connected, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
+export default function AgentSettingsView({ connected, profile, epoch, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; profile: string | null; epoch: string | null; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
   const {
     language, t, schema, config, raw, yamlDraft, setYamlDraft,
     drafts, setDrafts, editingKey, setEditingKey, expandedPaths, setExpandedPaths,
@@ -14,7 +14,7 @@ export default function AgentSettingsView({ connected, storagePath, onDirtyChang
     auxEffort, setAuxEffort, auxTimeout, setAuxTimeout, busy, status, dirtyYaml,
     canDiscard, reload, editField, cancelEdit, saveField, saveYaml,
     editAuxiliary, saveAuxiliary, visible, query, auxiliaryTasks,
-  } = useAgentSettingsController({ connected, storagePath, onDirtyChange })
+  } = useAgentSettingsController({ connected, profile, epoch, storagePath, onDirtyChange })
 
   if (!connected) return <section className="settings-panel flat-settings-panel agent-settings"><div className="empty-panel"><h2>{t("ui.start.the.runtime.first")}</h2><p>{t("ui.agent.settings.are.saved.by.this.app.s.hermes.runtime")}</p></div></section>
 

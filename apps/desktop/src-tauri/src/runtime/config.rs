@@ -1,18 +1,8 @@
-use super::BackendState;
+use super::{profile_scope::ResolvedProfileScope, BackendState};
 use crate::errors::DesktopFailure;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
-
-pub(super) async fn config_request(
-    state: &State<'_, BackendState>,
-    method: reqwest::Method,
-    path: &str,
-    body: Option<Value>,
-) -> Result<Value, DesktopFailure> {
-    let (port, auth_header, token) = state.profile_http_auth().await?;
-    request_with_auth(method, path, body, port, auth_header, token).await
-}
 
 pub(super) async fn config_request_to_profile(
     state: &State<'_, BackendState>,
@@ -21,8 +11,23 @@ pub(super) async fn config_request_to_profile(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value, DesktopFailure> {
-    let (port, auth_header, token) = state.profile_http_auth_for(profile).await?;
-    request_with_auth(method, path, body, port, auth_header, token).await
+    let scope = state.resolve_profile(profile).await?;
+    config_request_for_scope(state, &scope, method, path, body).await
+}
+
+pub(super) async fn config_request_for_scope(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    method: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+) -> Result<Value, DesktopFailure> {
+    scope.ensure_current(state).await?;
+    let (port, auth_header, token) = scope.http_auth().await?;
+    scope.ensure_current(state).await?;
+    let result = request_with_auth(method, path, body, port, auth_header, token).await?;
+    scope.ensure_current(state).await?;
+    Ok(result)
 }
 
 async fn request_with_auth(
@@ -78,25 +83,47 @@ async fn request_with_auth(
 }
 
 #[tauri::command]
-pub async fn get_agent_config(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    config_request(&state, reqwest::Method::GET, "/api/config", None).await
+pub async fn get_agent_config(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    config_request_to_profile(&state, &profile, reqwest::Method::GET, "/api/config", None).await
 }
 
 #[tauri::command]
 pub async fn get_agent_config_schema(
     state: State<'_, BackendState>,
+    profile: String,
 ) -> Result<Value, DesktopFailure> {
-    config_request(&state, reqwest::Method::GET, "/api/config/schema", None).await
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/config/schema",
+        None,
+    )
+    .await
 }
 
 #[tauri::command]
-pub async fn get_agent_config_raw(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    config_request(&state, reqwest::Method::GET, "/api/config/raw", None).await
+pub async fn get_agent_config_raw(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/config/raw",
+        None,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn save_auxiliary_route(
     state: State<'_, BackendState>,
+    profile: String,
     task: String,
     provider: String,
     model: String,
@@ -116,10 +143,10 @@ pub async fn save_auxiliary_route(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let profile = state.selected_profile().await?;
-    let schema = config_request_to_profile(
+    let scope = state.resolve_profile(&profile).await?;
+    let schema = config_request_for_scope(
         &state,
-        &profile,
+        &scope,
         reqwest::Method::GET,
         "/api/config/schema",
         None,
@@ -159,9 +186,9 @@ pub async fn save_auxiliary_route(
         }
     }
     auxiliary.insert(task, route);
-    config_request_to_profile(
+    config_request_for_scope(
         &state,
-        &profile,
+        &scope,
         reqwest::Method::PUT,
         "/api/config",
         Some(json!({"config": {"auxiliary": auxiliary}})),
@@ -172,10 +199,10 @@ pub async fn save_auxiliary_route(
 #[tauri::command]
 pub async fn save_agent_config_field(
     state: State<'_, BackendState>,
+    profile: String,
     key: String,
     value: Value,
 ) -> Result<Value, DesktopFailure> {
-    let profile = state.selected_profile().await?;
     if key.is_empty()
         || key.len() > 256
         || !key.split('.').all(|part| {
@@ -187,6 +214,7 @@ pub async fn save_agent_config_field(
     {
         return Err(DesktopFailure::invalid_input());
     }
+    let scope = state.resolve_profile(&profile).await?;
     if key == "agent.reasoning_effort" {
         if !value.as_str().is_some_and(|level| {
             matches!(
@@ -197,9 +225,9 @@ pub async fn save_agent_config_field(
             return Err(DesktopFailure::invalid_input());
         }
     } else {
-        let schema = config_request_to_profile(
+        let schema = config_request_for_scope(
             &state,
-            &profile,
+            &scope,
             reqwest::Method::GET,
             "/api/config/schema",
             None,
@@ -221,9 +249,9 @@ pub async fn save_agent_config_field(
         object.insert(part.to_owned(), patch);
         patch = Value::Object(object);
     }
-    config_request_to_profile(
+    config_request_for_scope(
         &state,
-        &profile,
+        &scope,
         reqwest::Method::PUT,
         "/api/config",
         Some(json!({"config": patch})),
@@ -234,16 +262,17 @@ pub async fn save_agent_config_field(
 #[tauri::command]
 pub async fn save_agent_config_raw(
     state: State<'_, BackendState>,
+    profile: String,
     yaml_text: String,
     expected_yaml: String,
 ) -> Result<Value, DesktopFailure> {
     if yaml_text.len() > 256 * 1024 || expected_yaml.len() > 256 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let profile = state.selected_profile().await?;
-    let current = config_request_to_profile(
+    let scope = state.resolve_profile(&profile).await?;
+    let current = config_request_for_scope(
         &state,
-        &profile,
+        &scope,
         reqwest::Method::GET,
         "/api/config/raw",
         None,
@@ -252,9 +281,9 @@ pub async fn save_agent_config_raw(
     if current.get("yaml").and_then(Value::as_str) != Some(expected_yaml.as_str()) {
         return Err(DesktopFailure::conflict());
     }
-    config_request_to_profile(
+    config_request_for_scope(
         &state,
-        &profile,
+        &scope,
         reqwest::Method::PUT,
         "/api/config/raw",
         Some(json!({"yaml_text": yaml_text})),

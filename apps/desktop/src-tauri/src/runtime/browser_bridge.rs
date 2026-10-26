@@ -196,24 +196,22 @@ impl BrowserBridgeState {
     pub async fn ensure(
         &self,
         backend: &BackendState,
+        profile: &str,
         session_id: &str,
     ) -> Result<u16, DesktopFailure> {
         if session_id.is_empty() || session_id.len() > 256 {
             return Err(DesktopFailure::invalid_input());
         }
-        let (profile, storage, bundled, epoch) = {
-            let owned = backend.0.lock().await;
-            let current = owned
-                .as_ref()
-                .ok_or_else(DesktopFailure::runtime_unavailable)?;
-            (
-                current.selected_profile.clone(),
-                current.storage.clone(),
-                current.bundled_tools_root.clone(),
-                current.gateway.replay_epoch.clone(),
-            )
-        };
-        let gateway = backend.gateway().await?;
+        let scope = backend.resolve_profile(profile).await?;
+        let storage = scope.storage.clone();
+        let bundled = scope.bundled_tools_root.clone();
+        let profile = scope.profile.clone();
+        let epoch = scope.gateway_epoch.clone();
+        scope
+            .gateway
+            .request("session.resume", json!({"session_id": session_id}))
+            .await?;
+        scope.ensure_current(backend).await?;
         let mut browsers = self.0.lock().await;
         let dead = browsers
             .get_mut(&profile)
@@ -234,13 +232,16 @@ impl BrowserBridgeState {
             .get_mut(&profile)
             .ok_or_else(DesktopFailure::operation_failed)?;
         if instance.connected_epoch.as_deref() != Some(&epoch) {
-            let result = gateway
+            scope.ensure_current(backend).await?;
+            let result = scope
+                .gateway
                 .request(
                     "browser.manage",
                     json!({"action":"connect", "session_id":session_id,
                 "url":format!("http://127.0.0.1:{}", instance.port)}),
                 )
                 .await?;
+            scope.ensure_current(backend).await?;
             if result.get("connected").and_then(Value::as_bool) != Some(true) {
                 return Err(DesktopFailure::operation_failed());
             }
@@ -256,28 +257,28 @@ impl BrowserBridgeState {
     pub async fn close(
         &self,
         backend: &BackendState,
+        profile: &str,
         session_id: &str,
     ) -> Result<(), DesktopFailure> {
         if session_id.is_empty() || session_id.len() > 256 {
             return Err(DesktopFailure::invalid_input());
         }
-        let (profile, epoch) = {
-            let owned = backend.0.lock().await;
-            let current = owned
-                .as_ref()
-                .ok_or_else(DesktopFailure::runtime_unavailable)?;
-            (
-                current.selected_profile.clone(),
-                current.gateway.replay_epoch.clone(),
-            )
-        };
-        let gateway = backend.gateway().await?;
+        let scope = backend.resolve_profile(profile).await?;
+        let profile = scope.profile.clone();
+        let epoch = scope.gateway_epoch.clone();
+        scope
+            .gateway
+            .request("session.resume", json!({"session_id": session_id}))
+            .await?;
+        scope.ensure_current(backend).await?;
         let mut browsers = self.0.lock().await;
         let Some(instance) = browsers.get(&profile) else {
             return Ok(());
         };
         if instance.connected_epoch.as_deref() == Some(&epoch) {
-            gateway
+            scope.ensure_current(backend).await?;
+            scope
+                .gateway
                 .request(
                     "browser.manage",
                     json!({"action":"disconnect", "session_id":session_id}),
@@ -293,9 +294,12 @@ impl BrowserBridgeState {
 pub async fn open_visible_browser(
     backend: State<'_, BackendState>,
     browser_bridge: State<'_, BrowserBridgeState>,
+    profile: String,
     session_id: String,
 ) -> Result<(), DesktopFailure> {
-    browser_bridge.ensure(&backend, &session_id).await?;
+    browser_bridge
+        .ensure(&backend, &profile, &session_id)
+        .await?;
     Ok(())
 }
 
@@ -303,9 +307,10 @@ pub async fn open_visible_browser(
 pub async fn close_visible_browser(
     backend: State<'_, BackendState>,
     browser_bridge: State<'_, BrowserBridgeState>,
+    profile: String,
     session_id: String,
 ) -> Result<(), DesktopFailure> {
-    browser_bridge.close(&backend, &session_id).await
+    browser_bridge.close(&backend, &profile, &session_id).await
 }
 
 #[cfg(all(test, windows))]

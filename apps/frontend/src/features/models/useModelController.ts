@@ -1,76 +1,97 @@
 import React from 'react'
-import type { BackendInfo } from '@hermess/contracts'
+import type { BackendInfo, ProfileScope, SessionScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
-import { desktopModelProviderSupported, normalizedEndpoint, readAddedModels, readModelLists, VOLCENGINE_PRESETS, savedModelFromOptions, MODEL_FALLBACKS, ADDED_MODELS_KEY, MODEL_LISTS_KEY, type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel } from './model'
+import { desktopModelProviderSupported, normalizedEndpoint, readAddedModels, readModelLists, modelStorageKey, VOLCENGINE_PRESETS, savedModelFromOptions, MODEL_FALLBACKS, ADDED_MODELS_KEY, MODEL_LISTS_KEY, type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel } from './model'
 
 type Options = {
   backend: BackendInfo | null
+  profile: string | null
   storagePath: string
   t: (key: string, ...values: unknown[]) => string
   sessionRef: React.RefObject<string>
+  sessionProfileRef: React.RefObject<string>
   turnBusy: boolean
   ensureChatSession: () => Promise<string>
   setChatStatus: React.Dispatch<React.SetStateAction<string>>
   setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
 }
 
-export function useModelController({ backend, storagePath, t, sessionRef, turnBusy, ensureChatSession, setChatStatus, setActiveModel }: Options) {
+export function useModelController({ backend, profile, storagePath, t, sessionRef, sessionProfileRef, turnBusy, ensureChatSession, setChatStatus, setActiveModel }: Options) {
   const { models } = useDesktop()
+  const workspace = workspaceKey(backend?.replay_epoch, profile)
+  let stateSlot = 0
+  const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `models:${stateSlot++}`)
+  const useRef = <T,>(initial: T) => useProfileRef(workspace, initial)
+  const profileRef = useRef(profile)
+  profileRef.current = profile
+  function profileScope(): ProfileScope {
+    const owner = profileRef.current
+    if (!owner) throw new Error('No active Profile')
+    return { kind: 'profile', profile: owner }
+  }
+  function sessionScope(id: string): SessionScope {
+    if (!id || !sessionProfileRef.current) throw new Error('Session has no Profile owner')
+    return { kind: 'session', profile: sessionProfileRef.current, sessionId: id }
+  }
   const language = useLanguage()
-  const [modelProviders, setModelProviders] = React.useState<ModelProvider[]>([])
-  const [configuredProviders, setConfiguredProviders] = React.useState<ModelProvider[]>([])
-  const [customEndpoints, setCustomEndpoints] = React.useState<CustomEndpoint[]>([])
-  const [addingProvider, setAddingProvider] = React.useState(false)
-  const [newProviderPreset, setNewProviderPreset] = React.useState('')
-  const [providerFormError, setProviderFormError] = React.useState('')
-  const [newProviderName, setNewProviderName] = React.useState('')
-  const [newProviderUrl, setNewProviderUrl] = React.useState('')
-  const [newProviderModel, setNewProviderModel] = React.useState('')
-  const [modelSuggestionsOpen, setModelSuggestionsOpen] = React.useState(false)
-  const [modelSuggestionQuery, setModelSuggestionQuery] = React.useState('')
-  const [newProviderKey, setNewProviderKey] = React.useState('')
-  const [modelFormOpen, setModelFormOpen] = React.useState(false)
-  const [modelProvider, setModelProvider] = React.useState('')
-  const [modelName, setModelName] = React.useState('')
-  const [modelBaseUrl, setModelBaseUrl] = React.useState('')
-  const [modelKey, setModelKey] = React.useState('')
-  const [modelBusy, setModelBusy] = React.useState(false)
-  const [modelStatus, setModelStatus] = React.useState('')
-  const [modelConfirmation, setModelConfirmation] = React.useState('')
-  const [modelOptionsLoaded, setModelOptionsLoaded] = React.useState(false)
-  const [modelOptionsError, setModelOptionsError] = React.useState('')
-  const [savedModel, setSavedModel] = React.useState<SavedModel | null>(null)
-  const [modelPickerOpen, setModelPickerOpen] = React.useState(false)
-  const modelButtonRef = React.useRef<HTMLButtonElement>(null)
-  const modelPickerRef = React.useRef<HTMLDivElement>(null)
-  const [pickerPosition, setPickerPosition] = React.useState<React.CSSProperties>({})
-  const [pickerProviders, setPickerProviders] = React.useState<ModelProvider[]>([])
-  const [pickerProvider, setPickerProvider] = React.useState('')
-  const [pickerModelInput, setPickerModelInput] = React.useState('')
-  const [pickerBusy, setPickerBusy] = React.useState(false)
-  const [pickerError, setPickerError] = React.useState('')
-  const [pickerConfirmation, setPickerConfirmation] = React.useState<{ provider: string; model: string; remember: boolean; token: string; message: string } | null>(null)
-  const [addedModels, setAddedModels] = React.useState<Record<string, string[]>>({})
-  const [modelLists, setModelLists] = React.useState<Record<string, string[]>>({})
-  const [modelListBusy, setModelListBusy] = React.useState(false)
-  const [modelListLoading, setModelListLoading] = React.useState(true)
+  const [modelProviders, setModelProviders] = useState<ModelProvider[]>([])
+  const [configuredProviders, setConfiguredProviders] = useState<ModelProvider[]>([])
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([])
+  const [addingProvider, setAddingProvider] = useState(false)
+  const [newProviderPreset, setNewProviderPreset] = useState('')
+  const [providerFormError, setProviderFormError] = useState('')
+  const [newProviderName, setNewProviderName] = useState('')
+  const [newProviderUrl, setNewProviderUrl] = useState('')
+  const [newProviderModel, setNewProviderModel] = useState('')
+  const [modelSuggestionsOpen, setModelSuggestionsOpen] = useState(false)
+  const [modelSuggestionQuery, setModelSuggestionQuery] = useState('')
+  const [newProviderKey, setNewProviderKey] = useState('')
+  const [modelFormOpen, setModelFormOpen] = useState(false)
+  const [modelProvider, setModelProvider] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [modelBaseUrl, setModelBaseUrl] = useState('')
+  const [modelKey, setModelKey] = useState('')
+  const [modelBusy, setModelBusy] = useState(false)
+  const [modelStatus, setModelStatus] = useState('')
+  const [modelConfirmation, setModelConfirmation] = useState('')
+  const [modelOptionsLoaded, setModelOptionsLoaded] = useState(false)
+  const [modelOptionsError, setModelOptionsError] = useState('')
+  const [savedModel, setSavedModel] = useState<SavedModel | null>(null)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const modelButtonRef = useRef<HTMLButtonElement | null>(null)
+  const modelPickerRef = useRef<HTMLDivElement | null>(null)
+  const [pickerPosition, setPickerPosition] = useState<React.CSSProperties>({})
+  const [pickerProviders, setPickerProviders] = useState<ModelProvider[]>([])
+  const [pickerProvider, setPickerProvider] = useState('')
+  const [pickerModelInput, setPickerModelInput] = useState('')
+  const [pickerBusy, setPickerBusy] = useState(false)
+  const [pickerError, setPickerError] = useState('')
+  const [pickerConfirmation, setPickerConfirmation] = useState<{ provider: string; model: string; remember: boolean; token: string; message: string } | null>(null)
+  const [addedModels, setAddedModels] = useState<Record<string, string[]>>({})
+  const [modelLists, setModelLists] = useState<Record<string, string[]>>({})
+  const [modelListBusy, setModelListBusy] = useState(false)
+  const [modelListLoading, setModelListLoading] = useState(true)
+  const modelOptionsRequestRef = useRef(0)
   React.useEffect(() => {
-    setAddedModels(readAddedModels(storagePath))
-    const legacyLists = readModelLists(storagePath)
+    if (!profile) return
+    const scope: ProfileScope = { kind: 'profile', profile }
+    setAddedModels(readAddedModels(storagePath, profile))
+    const legacyLists = readModelLists(storagePath, profile)
     setModelLists(legacyLists)
     if (!storagePath) return
     let active = true
     setModelListLoading(true)
-    void models.loadLists(storagePath).then(saved => {
+    void models.loadLists(scope, storagePath).then(saved => {
       if (!active) return
       if (saved !== null) setModelLists(saved)
-      else if (Object.keys(legacyLists).length) return models.saveLists(storagePath, legacyLists)
+      else if (Object.keys(legacyLists).length) return models.saveLists(scope, storagePath, legacyLists)
     }).catch(cause => { if (active) setModelStatus(t('ui.failed.to.save.provider.models.arg', describeError(cause, language))) })
       .finally(() => { if (active) setModelListLoading(false) })
     return () => { active = false }
-  }, [storagePath])
+  }, [storagePath, profile])
   const selectedPreset = VOLCENGINE_PRESETS.find(preset => preset.id === modelProvider)
   function savedCandidates(slug: string, providers: ModelProvider[]): string[] | undefined {
     const row = providers.find(provider => provider.slug === slug)
@@ -125,7 +146,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setPickerPosition(above >= 260 || above >= below
       ? { left, bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(390, Math.max(120, above - 8)) }
       : { left, top: rect.bottom + 8, maxHeight: Math.min(390, Math.max(120, below - 8)) })
-  }, [])
+  }, [workspace])
 
   React.useEffect(() => {
     if (!modelPickerOpen) return
@@ -145,16 +166,19 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     }
   }, [modelPickerOpen, positionModelPicker])
   async function loadModelOptions(preserveSelection = false) {
+    const request = ++modelOptionsRequestRef.current
     setModelBusy(true)
     setModelOptionsError('')
     setModelStatus(preserveSelection ? t("ui.refreshing.backend.model.directory") : t("ui.loading.model.options"))
     try {
+      const scope = profileScope()
       const [result, configured, config, endpoints] = await Promise.all([
-        models.options({ refresh: preserveSelection }),
-        models.options({ refresh: false, includeUnconfigured: false }),
-        models.savedConfig(),
-        models.endpoints(),
+        models.options(scope, { refresh: preserveSelection }),
+        models.options(scope, { refresh: false, includeUnconfigured: false }),
+        models.savedConfig(scope),
+        models.endpoints(scope),
       ])
+      if (request !== modelOptionsRequestRef.current) return
       setCustomEndpoints(endpoints.endpoints || [])
       const availableProviders = (result.providers || []).filter(provider => desktopModelProviderSupported(provider.slug))
       setModelProviders(availableProviders)
@@ -171,19 +195,14 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
         setModelName(savedProviderSupported ? saved.model : '')
         setModelBaseUrl(saved?.provider === 'custom' ? saved.baseUrl : '')
       }
-      if (preserveSelection) {
-        const count = result.providers?.find(provider => provider.slug === modelProvider)?.models?.length || 0
-        setModelStatus(selectedPreset
-          ? t("ui.the.backend.directory.has.been.refreshed.volcano.ark.s.built.in.reference.c")
-          : t("ui.backend.catalog.refreshed.current.provider.returned.arg.models.arg", count, count ? '' : t('ui.built.in.examples.or.manual.entry.remain.available')))
-      } else {
-        setModelStatus('')
-      }
+      setModelStatus('')
     } catch (cause) {
-      setModelOptionsError(describeError(cause, language))
-      setModelStatus(t("ui.failed.to.load.model.options.arg", describeError(cause, language)))
+      if (request === modelOptionsRequestRef.current) {
+        setModelOptionsError(describeError(cause, language))
+        setModelStatus(t("ui.failed.to.load.model.options.arg", describeError(cause, language)))
+      }
     }
-    finally { setModelBusy(false) }
+    finally { if (request === modelOptionsRequestRef.current) setModelBusy(false) }
   }
 
   function selectModelProvider(provider: string, model = '', fresh = false) {
@@ -196,9 +215,10 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
   }
 
   async function persistModelLists(next: Record<string, string[]>) {
-    await models.saveLists(storagePath, next)
+    const scope = profileScope()
+    await models.saveLists(scope, storagePath, next)
     setModelLists(next)
-    try { localStorage.setItem(`${MODEL_LISTS_KEY}:${storagePath}`, JSON.stringify(next)) } catch { /* Native storage is authoritative. */ }
+    try { localStorage.setItem(`${MODEL_LISTS_KEY}:${modelStorageKey(storagePath, scope.profile)}`, JSON.stringify(next)) } catch { /* Native storage is authoritative. */ }
   }
 
   async function saveProviderModels(provider: string, models: string[]): Promise<boolean> {
@@ -231,7 +251,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     }
     setModelBusy(true)
     try {
-      await models.addEndpoint({ name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey })
+      await models.addEndpoint(profileScope(), { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey })
       setAddingProvider(false)
       setNewProviderPreset('')
       setProviderFormError('')
@@ -273,7 +293,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     if (!window.confirm(t('ui.delete.provider.confirm.arg', endpoint.name))) return
     setModelBusy(true)
     try {
-      await models.deleteEndpoint(endpoint.id)
+      await models.deleteEndpoint(profileScope(), endpoint.id)
       if (modelProvider === endpoint.id) setModelFormOpen(false)
       await loadModelOptions(false)
       setModelStatus(t('ui.provider.deleted'))
@@ -286,7 +306,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setModelBusy(true)
     setModelStatus(t("ui.saving.model.configuration"))
     try {
-      const result = await models.setDefault({
+      const result = await models.setDefault(profileScope(), {
         provider: selectedPreset ? 'custom' : modelProvider.trim(), model: modelName.trim(),
         baseUrl: modelBaseUrl.trim(), apiKey: modelKey,
         confirmExpensiveModel: confirm,
@@ -315,7 +335,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
   async function checkModel() {
     setModelBusy(true)
     try {
-      const result = await models.checkRuntime()
+      const result = await models.checkRuntime(profileScope())
       setModelStatus(result.ok ? t("ui.runtime.recognized.arg.arg", result.provider || '', result.model || '')
         : t("ui.runtime.not.ready.arg", t("ui.check.the.key.and.model.settings")))
     } catch (cause) { setModelStatus(t("ui.check.model.failed.arg", describeError(cause, language))) }
@@ -328,9 +348,8 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setPickerBusy(true)
     setPickerError('')
     try {
-      const result = await models.options({
-        refresh, includeUnconfigured: false, sessionId: sessionRef.current || undefined,
-      })
+      const scope = sessionRef.current ? sessionScope(sessionRef.current) : profileScope()
+      const result = await models.options(scope, { refresh, includeUnconfigured: false })
       const providers = (result.providers || []).filter(row => desktopModelProviderSupported(row.slug) && row.authenticated !== false)
       setPickerProviders(providers)
       setActiveModel(result.model && result.provider ? { provider: result.provider, model: result.model } : null)
@@ -346,7 +365,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setPickerError('')
     try {
       const id = await ensureChatSession()
-      const result = await models.selectChat({ sessionId: id, provider, model: model.trim(), confirm })
+      const result = await models.selectChat(sessionScope(id), { provider, model: model.trim(), confirm })
       if (result.confirm_required && result.confirm) {
         setPickerConfirmation({ provider, model: model.trim(), remember, token: result.confirm, message: result.confirm_message || t('ui.please.confirm.model.selection') })
         return
@@ -366,7 +385,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
           catch { remembered = false }
         } else {
           const next = { ...addedModels, [provider]: [...new Set([...(addedModels[provider] || []), model.trim()])] }
-          try { localStorage.setItem(`${ADDED_MODELS_KEY}:${storagePath}`, JSON.stringify(next)); setAddedModels(next) }
+          try { localStorage.setItem(`${ADDED_MODELS_KEY}:${modelStorageKey(storagePath, sessionProfileRef.current)}`, JSON.stringify(next)); setAddedModels(next) }
           catch { remembered = false }
         }
         setPickerModelInput('')

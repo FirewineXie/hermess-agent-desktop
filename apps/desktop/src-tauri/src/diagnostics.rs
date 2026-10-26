@@ -3,6 +3,38 @@ use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
 
+#[tauri::command]
+pub async fn set_frontend_debug_enabled(
+    window: tauri::WebviewWindow,
+    enabled: bool,
+) -> Result<(), DesktopFailure> {
+    #[cfg(windows)]
+    {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        window
+            .with_webview(move |webview| {
+                let result = unsafe {
+                    webview
+                        .controller()
+                        .CoreWebView2()
+                        .and_then(|core| core.Settings())
+                        .and_then(|settings| settings.SetAreDevToolsEnabled(enabled))
+                };
+                let _ = sender.send(result.is_ok());
+            })
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        if receiver.await != Ok(true) {
+            return Err(DesktopFailure::operation_failed());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, enabled);
+        Err(DesktopFailure::operation_failed())
+    }
+}
+
 #[derive(Serialize)]
 pub struct RuntimeProbe {
     tool: &'static str,
@@ -59,6 +91,8 @@ async fn inspect(tool: &'static str, names: &[&str], script: &str, prefix: &str)
         } else {
             command.args(["-e", script]);
         }
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         command.kill_on_drop(true);
         match timeout(Duration::from_secs(4), command.output()).await {
             Ok(Ok(output)) if output.status.success() => {
@@ -112,6 +146,8 @@ async fn inspect_version_command(
     for path in candidates(names) {
         let mut command = Command::new(&path);
         command.args(version_args).kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         match timeout(Duration::from_secs(4), command.output()).await {
             Ok(Ok(output)) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout)

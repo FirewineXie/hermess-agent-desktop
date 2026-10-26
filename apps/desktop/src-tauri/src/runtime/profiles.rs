@@ -1,5 +1,5 @@
-use super::{python_for_hermes, BackendState};
-use crate::errors::DesktopFailure;
+use super::{profile_scope::SessionOwners, python_for_hermes, BackendState};
+use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -22,11 +22,20 @@ pub struct ProfilePresetSelection {
 pub(super) struct ProfiledGateway {
     client: Arc<GatewayClient>,
     profile: String,
+    session_owners: Arc<SessionOwners>,
 }
 
 impl ProfiledGateway {
-    pub(super) fn new(client: Arc<GatewayClient>, profile: String) -> Self {
-        Self { client, profile }
+    pub(super) fn new(
+        client: Arc<GatewayClient>,
+        profile: String,
+        session_owners: Arc<SessionOwners>,
+    ) -> Self {
+        Self {
+            client,
+            profile,
+            session_owners,
+        }
     }
 
     pub(super) async fn request(
@@ -34,8 +43,51 @@ impl ProfiledGateway {
         method: &'static str,
         params: Value,
     ) -> Result<Value, String> {
+        let requested_session = params
+            .get("session_id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned);
+        if !matches!(method, "session.create" | "session.list" | "session.resume") {
+            if let Some(session_id) = requested_session.as_deref() {
+                self.session_owners.ensure(&self.profile, session_id)?;
+            }
+        }
         let params = scoped_params(&self.profile, method, params)?;
-        self.client.request(method, params).await
+        let result = self.client.request(method, params).await?;
+        match method {
+            "session.create" => {
+                for key in ["session_id", "stored_session_id"] {
+                    if let Some(id) = result.get(key).and_then(Value::as_str) {
+                        self.session_owners.record(&self.profile, id)?;
+                    }
+                }
+            }
+            "session.list" => {
+                for row in result
+                    .get("sessions")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    for key in ["id", "session_id", "resolved_id"] {
+                        if let Some(id) = row.get(key).and_then(Value::as_str) {
+                            self.session_owners.record(&self.profile, id)?;
+                        }
+                    }
+                }
+            }
+            "session.resume" => {
+                if let Some(id) = requested_session.as_deref() {
+                    self.session_owners.record(&self.profile, id)?;
+                }
+                if let Some(id) = result.get("session_id").and_then(Value::as_str) {
+                    self.session_owners.record(&self.profile, id)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(result)
     }
 
     pub(super) async fn answer(
@@ -43,15 +95,31 @@ impl ProfiledGateway {
         id: String,
         method: String,
         result: Value,
+        session_id: String,
     ) -> Result<(), String> {
-        self.client.answer(id, method, result).await
+        self.session_owners.ensure(&self.profile, &session_id)?;
+        self.client
+            .answer(id, method, result, session_id, self.profile.clone())
+            .await
     }
 }
 
 fn scoped_params(profile: &str, method: &str, mut params: Value) -> Result<Value, String> {
-    if profile != "default" && accepts_profile(method) {
-        let map = params.as_object_mut().ok_or("网关请求参数无效")?;
+    let map = params.as_object_mut().ok_or("网关请求参数无效")?;
+    if map
+        .get("profile")
+        .is_some_and(|value| value.as_str() != Some(profile))
+    {
+        return Err(SESSION_PROFILE_MISMATCH.into());
+    }
+    if profile != "default" {
+        // Unknown methods must not silently execute against the launch Profile.
+        if !accepts_profile(method) {
+            return Err(format!("网关方法 {method} 尚未验证命名 Profile 路由"));
+        }
         map.insert("profile".into(), json!(profile));
+    } else {
+        map.remove("profile");
     }
     Ok(params)
 }
@@ -63,6 +131,8 @@ fn accepts_profile(method: &str) -> bool {
             | "session.list"
             | "session.resume"
             | "session.interrupt"
+            | "session.stats"
+            | "session.mutate"
             | "session.events.since"
             | "prompt.submit"
             | "commands.catalog"
@@ -71,15 +141,17 @@ fn accepts_profile(method: &str) -> bool {
             | "image.attach"
             | "image.attach_bytes"
             | "image.detach"
+            | "file.attach"
             | "config.get"
             | "config.set"
             | "model.options"
             | "browser.manage"
+            | "cron.manage"
             | "setup.runtime_check"
     )
 }
 
-fn roster_contains(roster: &Value, name: &str) -> bool {
+pub(super) fn roster_contains(roster: &Value, name: &str) -> bool {
     roster
         .get("profiles")
         .and_then(Value::as_array)
@@ -118,7 +190,7 @@ pub(super) async fn restore_selected_profile(
     }
 }
 
-async fn root_status(
+pub(super) async fn root_status(
     storage: &Path,
     pid: Option<u32>,
     port: u16,
@@ -176,7 +248,7 @@ fn live_served_profiles(storage: &Path, pid: Option<u32>) -> Option<Vec<String>>
     )
 }
 
-fn is_served(status: &Value, name: &str) -> bool {
+pub(super) fn is_served(status: &Value, name: &str) -> bool {
     status
         .get("gateways")
         .and_then(Value::as_array)
@@ -208,10 +280,9 @@ pub async fn list_profiles(state: State<'_, BackendState>) -> Result<Value, Desk
             backend.token.clone(),
         )
     };
-    let roster = client
-        .request("profiles.list", json!({"include_sessions": false}))
+    let (roster, status) = state
+        .refresh_profile_topology(client, &storage, pid, port, &token)
         .await?;
-    let status = root_status(&storage, pid, port, &token).await?;
     Ok(json!({
         "profiles": roster.get("profiles").cloned().unwrap_or_else(|| json!([])),
         "selected": selected,

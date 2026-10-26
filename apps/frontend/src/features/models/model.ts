@@ -8,17 +8,20 @@ export type ModelPick = { provider: string; model: string }
 export type SavedModel = { provider: string; model: string; name: string; baseUrl: string }
 export const ADDED_MODELS_KEY = 'hermess.desktop.added-models.v1'
 export const MODEL_LISTS_KEY = 'hermess.desktop.model-lists.v1'
-export function readAddedModels(storagePath: string): Record<string, string[]> {
+export function modelStorageKey(storagePath: string, profile: string): string {
+  return profile === 'default' ? storagePath : `${storagePath}:${profile}`
+}
+export function readAddedModels(storagePath: string, profile = 'default'): Record<string, string[]> {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(`${ADDED_MODELS_KEY}:${storagePath}`) || '{}')
+    const value: unknown = JSON.parse(localStorage.getItem(`${ADDED_MODELS_KEY}:${modelStorageKey(storagePath, profile)}`) || '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
     return Object.fromEntries(Object.entries(value).filter(([, models]) => Array.isArray(models))
       .map(([provider, models]) => [provider, (models as unknown[]).filter((model): model is string => typeof model === 'string' && model.length <= 256)]))
   } catch { return {} }
 }
-export function readModelLists(storagePath: string): Record<string, string[]> {
+export function readModelLists(storagePath: string, profile = 'default'): Record<string, string[]> {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(`${MODEL_LISTS_KEY}:${storagePath}`) || '{}')
+    const value: unknown = JSON.parse(localStorage.getItem(`${MODEL_LISTS_KEY}:${modelStorageKey(storagePath, profile)}`) || '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
     return Object.fromEntries(Object.entries(value).filter(([, models]) => Array.isArray(models))
       .map(([provider, models]) => [provider, [...new Set((models as unknown[])

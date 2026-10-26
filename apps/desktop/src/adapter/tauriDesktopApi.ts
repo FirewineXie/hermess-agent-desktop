@@ -27,6 +27,7 @@ function isSupportedRequest(value: unknown): value is GatewayRequest {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
   if (typeof request.id !== 'string' || !request.params || typeof request.params !== 'object' || Array.isArray(request.params)) return false
+  if (typeof request.profile !== 'string' || !request.profile) return false
   const params = request.params as Record<string, unknown>
   if (typeof params.session_id !== 'string') return false
   if (request.method === 'approval') {
@@ -57,8 +58,9 @@ function isSupportedRequest(value: unknown): value is GatewayRequest {
   return false
 }
 
-function supportedRequests(value: unknown): GatewayRequest[] {
-  return Array.isArray(value) ? value.filter(isSupportedRequest) : []
+function supportedRequests(value: unknown, profile: string): GatewayRequest[] {
+  return Array.isArray(value) ? value.map(request => request && typeof request === 'object'
+    ? { ...request, profile } : request).filter(isSupportedRequest) : []
 }
 
 export const tauriDesktopApi: DesktopApi = {
@@ -67,29 +69,34 @@ export const tauriDesktopApi: DesktopApi = {
     minimize: () => nativeCall(() => getCurrentWindow().minimize()),
     toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
     close: () => nativeCall(() => getCurrentWindow().close()),
+    setFrontendDebugEnabled: enabled => invoke('set_frontend_debug_enabled', { enabled }),
   },
   workspacePanel: {
-    listDirectory: path => invoke('list_workspace_panel_directory', { path }),
-    readFile: path => invoke('read_workspace_panel_file', { path }),
-    startTerminal: cwd => invoke('start_panel_terminal', { cwd }),
-    activateTerminal: id => invoke('activate_panel_terminal', { id }),
-    writeTerminal: (id, data) => invoke('write_panel_terminal', { id, data }),
-    resizeTerminal: (id, cols, rows) => invoke('resize_panel_terminal', { id, cols, rows }),
-    closeTerminal: id => invoke('close_panel_terminal', { id }),
+    listDirectory: (scope, path) => invoke('list_workspace_panel_directory', { scope, path }),
+    readFile: (scope, path) => invoke('read_workspace_panel_file', { scope, path }),
+    startTerminal: scope => invoke('start_panel_terminal', { scope }),
+    activateTerminal: (scope, id) => invoke('activate_panel_terminal', { scope, id }),
+    writeTerminal: (scope, id, data) => invoke('write_panel_terminal', { scope, id, data }),
+    resizeTerminal: (scope, id, cols, rows) => invoke('resize_panel_terminal', { scope, id, cols, rows }),
+    closeTerminal: (scope, id) => invoke('close_panel_terminal', { scope, id }),
     onTerminalOutput: handler => listenPayload('panel-terminal-output', handler),
   },
   profiles: {
     list: () => invoke('list_profiles'),
+    dataDirectory: scope => invoke('get_profile_data_directory', { profile: scope.profile }),
+    listDataDirectory: (scope, relativePath) => invoke('list_profile_data_directory', { profile: scope.profile, relativePath }),
+    openDataDirectory: scope => invoke('open_profile_data_directory', { profile: scope.profile }),
     create: (name, preset) => invoke('create_profile', { name, preset }),
     select: name => invoke('select_profile', { name }),
-    listPersonalities: () => invoke('list_personalities'),
-    applyPersonality: (name, prompt) => invoke('apply_personality', { name, prompt }),
+    listPersonalities: scope => invoke('list_personalities', { profile: scope.profile }),
+    listToolsets: scope => invoke('list_profile_toolsets', { profile: scope.profile }),
+    applyPersonality: (scope, name, prompt) => invoke('apply_personality', { profile: scope.profile, name, prompt }),
   },
   channels: {
-    status: () => invoke('channel_status'),
-    start: platform => invoke('channel_qr_start', { platform }),
-    poll: id => invoke('channel_qr_poll', { id }),
-    cancel: id => invoke('channel_qr_cancel', { id }),
+    status: scope => invoke('channel_status', { profile: scope.profile }),
+    start: (scope, platform) => invoke('channel_qr_start', { profile: scope.profile, platform }),
+    poll: (scope, id) => invoke('channel_qr_poll', { profile: scope.profile, id }),
+    cancel: (scope, id) => invoke('channel_qr_cancel', { profile: scope.profile, id }),
   },
   about: {
     productInfo: () => invoke('get_product_info'),
@@ -98,7 +105,7 @@ export const tauriDesktopApi: DesktopApi = {
     onDownloadProgress: handler => listenPayload<UpdateDownloadProgress>('update-download-progress', handler),
   },
   extensions: {
-    request: (operation, payload = {}) => invoke('extension_request', { operation, payload }),
+    request: (scope, operation, payload = {}) => invoke('extension_request', { profile: scope.profile, operation, payload }),
   },
   runtime: {
     devDefaults: () => invoke('dev_backend_defaults'),
@@ -112,8 +119,6 @@ export const tauriDesktopApi: DesktopApi = {
     probeLocalTools: () => invoke('probe_local_tools'),
   },
   tools: {
-    listAgentToolsets: sessionId => invoke('list_agent_toolsets', { sessionId }),
-    listActiveAgentTools: sessionId => invoke('list_active_agent_tools', { sessionId }),
     listBundledTools: () => invoke('list_bundled_tools'),
     listDownloadableTools: () => invoke('list_downloadable_tools'),
     installDownloadableTool: name => invoke('install_downloadable_tool', { name }),
@@ -123,54 +128,54 @@ export const tauriDesktopApi: DesktopApi = {
     recordEvent: (storagePath, event) => invoke('record_client_event', { storagePath, event }),
   },
   agentSettings: {
-    schema: () => invoke('get_agent_config_schema'),
-    config: () => invoke('get_agent_config'),
-    raw: () => invoke('get_agent_config_raw'),
-    saveField: (key, value) => invoke('save_agent_config_field', { key, value }),
-    saveRaw: (yamlText, expectedYaml) => invoke('save_agent_config_raw', { yamlText, expectedYaml }),
-    saveAuxiliary: route => invoke('save_auxiliary_route', route),
+    schema: scope => invoke('get_agent_config_schema', { profile: scope.profile }),
+    config: scope => invoke('get_agent_config', { profile: scope.profile }),
+    raw: scope => invoke('get_agent_config_raw', { profile: scope.profile }),
+    saveField: (scope, key, value) => invoke('save_agent_config_field', { profile: scope.profile, key, value }),
+    saveRaw: (scope, yamlText, expectedYaml) => invoke('save_agent_config_raw', { profile: scope.profile, yamlText, expectedYaml }),
+    saveAuxiliary: (scope, route) => invoke('save_auxiliary_route', { profile: scope.profile, ...route }),
   },
   personalFiles: {
-    read: kind => invoke('read_personal_file', { kind }),
-    save: args => invoke('save_personal_file', args),
+    read: (scope, kind) => invoke('read_personal_file', { profile: scope.profile, kind }),
+    save: (scope, args) => invoke('save_personal_file', { profile: scope.profile, ...args }),
   },
   models: {
-    options: args => invoke('list_model_options', args),
-    savedConfig: () => invoke('get_saved_model_config'),
-    endpoints: () => invoke('list_custom_endpoints'),
-    loadLists: storagePath => invoke('load_model_lists', { storagePath }),
-    saveLists: (storagePath, lists) => invoke('save_model_lists', { storagePath, lists }),
-    addEndpoint: args => invoke('add_custom_endpoint', args),
-    deleteEndpoint: endpointId => invoke('delete_custom_endpoint', { endpointId }),
-    setDefault: args => invoke('set_default_model', args),
-    checkRuntime: () => invoke('check_model_runtime'),
-    selectChat: args => invoke('select_chat_model', args),
+    options: (scope, args) => invoke('list_model_options', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : undefined, ...args }),
+    savedConfig: scope => invoke('get_saved_model_config', { profile: scope.profile }),
+    endpoints: scope => invoke('list_custom_endpoints', { profile: scope.profile }),
+    loadLists: (scope, storagePath) => invoke('load_model_lists', { profile: scope.profile, storagePath }),
+    saveLists: (scope, storagePath, lists) => invoke('save_model_lists', { profile: scope.profile, storagePath, lists }),
+    addEndpoint: (scope, args) => invoke('add_custom_endpoint', { profile: scope.profile, ...args }),
+    deleteEndpoint: (scope, endpointId) => invoke('delete_custom_endpoint', { profile: scope.profile, endpointId }),
+    setDefault: (scope, args) => invoke('set_default_model', { profile: scope.profile, ...args }),
+    checkRuntime: scope => invoke('check_model_runtime', { profile: scope.profile }),
+    selectChat: (scope, args) => invoke('select_chat_model', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
   },
   usage: {
-    statistics: days => invoke('get_usage_statistics', { days }),
+    statistics: (scope, days) => invoke('get_usage_statistics', { profile: scope.profile, days }),
   },
   chat: {
-    createSession: cwd => invoke('create_chat_session', { cwd }),
-    resumeSession: async sessionId => {
-      const result = await invoke<ResumeResult>('resume_chat_session', { sessionId })
-      return { ...result, open_requests: supportedRequests(result.open_requests) }
+    createSession: (scope, cwd) => invoke('create_chat_session', { profile: scope.profile, cwd }),
+    resumeSession: async scope => {
+      const result = await invoke<ResumeResult>('resume_chat_session', { profile: scope.profile, sessionId: scope.sessionId })
+      return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }
     },
-    listSessions: profile => invoke('list_chat_sessions', { profile }),
-    submitPrompt: (sessionId, text) => invoke('submit_chat_prompt', { sessionId, text }),
-    interruptSession: sessionId => invoke('interrupt_chat_session', { sessionId }),
-    replayEvents: async (sessionId, lastSeen, replayEpoch) => {
-      const result = await invoke<ReplayResult>('replay_chat_events', { sessionId, lastSeen, replayEpoch })
-      return { ...result, open_requests: supportedRequests(result.open_requests) }
+    listSessions: scope => invoke('list_chat_sessions', { profile: scope.profile }),
+    submitPrompt: (scope, text) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text }),
+    interruptSession: scope => invoke('interrupt_chat_session', { profile: scope.profile, sessionId: scope.sessionId }),
+    replayEvents: async (scope, lastSeen, replayEpoch) => {
+      const result = await invoke<ReplayResult>('replay_chat_events', { profile: scope.profile, sessionId: scope.sessionId, lastSeen, replayEpoch })
+      return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }
     },
-    usage: sessionId => invoke('get_chat_usage', { sessionId }),
-    reasoning: sessionId => invoke('get_chat_reasoning', { sessionId }),
-    setReasoning: (sessionId, value) => invoke('set_chat_reasoning', { sessionId, value }),
-    commands: sessionId => invoke('list_composer_commands', { sessionId }),
-    executeCommand: (sessionId, command) => invoke('execute_composer_command', { sessionId, command }),
-    dispatchSkill: (sessionId, name, arg) => invoke('dispatch_composer_skill', { sessionId, name, arg }),
-    attachFile: (sessionId, path) => invoke('attach_chat_file', { sessionId, path }),
-    detachImage: (sessionId, path) => invoke('detach_chat_image', { sessionId, path }),
-    answerRequest: args => invoke('answer_gateway_request', args),
+    usage: scope => invoke('get_chat_usage', { profile: scope.profile, sessionId: scope.sessionId }),
+    reasoning: scope => invoke('get_chat_reasoning', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
+    setReasoning: (scope, value) => invoke('set_chat_reasoning', { profile: scope.profile, sessionId: scope.sessionId, value }),
+    commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.sessionId }),
+    executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
+    dispatchSkill: (scope, name, arg) => invoke('dispatch_composer_skill', { profile: scope.profile, sessionId: scope.sessionId, name, arg }),
+    attachFile: (scope, path) => invoke('attach_chat_file', { profile: scope.profile, sessionId: scope.sessionId, path }),
+    detachImage: (scope, path) => invoke('detach_chat_image', { profile: scope.profile, sessionId: scope.sessionId, path }),
+    answerRequest: (scope, args) => invoke('answer_gateway_request', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
   },
   events: {
     onGatewayEvent: handler => listenPayload<GatewayEvent>('hermes-event', handler),

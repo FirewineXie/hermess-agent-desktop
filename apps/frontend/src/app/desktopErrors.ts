@@ -8,6 +8,8 @@ const messageKeys: Record<DesktopFailureCode, string> = {
   timeout: 'ui.desktop.error.timeout',
   conflict: 'ui.desktop.error.conflict',
   invalid_input: 'ui.desktop.error.invalid_input',
+  session_owner_unknown: 'ui.desktop.error.session_owner_unknown',
+  session_profile_mismatch: 'ui.desktop.error.session_profile_mismatch',
 }
 
 export function describeError(error: unknown, language: Language): string {

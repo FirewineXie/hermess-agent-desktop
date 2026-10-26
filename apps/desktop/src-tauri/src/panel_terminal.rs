@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::workspace_panel::WorkspaceScope;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
@@ -6,13 +7,13 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     io::{Read, Write},
-    path::Path,
     sync::{Arc, Mutex},
 };
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 struct TerminalSession {
+    scope: WorkspaceScope,
     master: Mutex<Box<dyn MasterPty + Send>>,
     reader: Mutex<Option<Box<dyn Read + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -39,6 +40,7 @@ pub struct StartedTerminal {
 #[derive(Clone, Serialize)]
 struct TerminalOutput {
     id: String,
+    scope: WorkspaceScope,
     data: String,
     closed: bool,
 }
@@ -67,18 +69,9 @@ fn default_shell() -> OsString {
 #[tauri::command]
 pub fn start_panel_terminal(
     state: State<'_, TerminalState>,
-    cwd: Option<String>,
+    scope: WorkspaceScope,
 ) -> Result<StartedTerminal, DesktopFailure> {
-    let directory = match cwd {
-        Some(path) if !path.trim().is_empty() => {
-            let directory = Path::new(&path);
-            if !directory.is_absolute() || !directory.is_dir() {
-                return Err(DesktopFailure::invalid_input());
-            }
-            directory.to_path_buf()
-        }
-        _ => std::env::current_dir().map_err(|_| DesktopFailure::operation_failed())?,
-    };
+    let directory = scope.root()?;
     let pair = native_pty_system()
         .openpty(terminal_size(80, 24))
         .map_err(|_| DesktopFailure::operation_failed())?;
@@ -99,6 +92,7 @@ pub fn start_panel_terminal(
         .map_err(|_| DesktopFailure::operation_failed())?;
     let id = Uuid::new_v4().to_string();
     let session = Arc::new(TerminalSession {
+        scope,
         master: Mutex::new(pair.master),
         reader: Mutex::new(Some(reader)),
         writer: Mutex::new(writer),
@@ -119,9 +113,10 @@ pub fn start_panel_terminal(
 pub fn activate_panel_terminal(
     app: AppHandle,
     state: State<'_, TerminalState>,
+    scope: WorkspaceScope,
     id: String,
 ) -> Result<(), DesktopFailure> {
-    let session = get_session(&state, &id)?;
+    let session = get_session(&state, &scope, &id)?;
     let Some(mut reader) = session
         .reader
         .lock()
@@ -140,6 +135,7 @@ pub fn activate_panel_terminal(
                         "panel-terminal-output",
                         TerminalOutput {
                             id: id.clone(),
+                            scope: session.scope.clone(),
                             data: STANDARD.encode(&buffer[..n]),
                             closed: false,
                         },
@@ -151,6 +147,7 @@ pub fn activate_panel_terminal(
             "panel-terminal-output",
             TerminalOutput {
                 id,
+                scope: session.scope.clone(),
                 data: String::new(),
                 closed: true,
             },
@@ -161,27 +158,33 @@ pub fn activate_panel_terminal(
 
 fn get_session(
     state: &State<'_, TerminalState>,
+    scope: &WorkspaceScope,
     id: &str,
 ) -> Result<Arc<TerminalSession>, DesktopFailure> {
-    state
+    let session = state
         .0
         .lock()
         .map_err(|_| DesktopFailure::operation_failed())?
         .get(id)
         .cloned()
-        .ok_or_else(DesktopFailure::invalid_input)
+        .ok_or_else(DesktopFailure::invalid_input)?;
+    if &session.scope != scope {
+        return Err(DesktopFailure::conflict());
+    }
+    Ok(session)
 }
 
 #[tauri::command]
 pub fn write_panel_terminal(
     state: State<'_, TerminalState>,
+    scope: WorkspaceScope,
     id: String,
     data: String,
 ) -> Result<(), DesktopFailure> {
     if data.len() > 16 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let session = get_session(&state, &id)?;
+    let session = get_session(&state, &scope, &id)?;
     let result = session
         .writer
         .lock()
@@ -194,11 +197,12 @@ pub fn write_panel_terminal(
 #[tauri::command]
 pub fn resize_panel_terminal(
     state: State<'_, TerminalState>,
+    scope: WorkspaceScope,
     id: String,
     cols: u16,
     rows: u16,
 ) -> Result<(), DesktopFailure> {
-    let session = get_session(&state, &id)?;
+    let session = get_session(&state, &scope, &id)?;
     let result = session
         .master
         .lock()
@@ -211,13 +215,20 @@ pub fn resize_panel_terminal(
 #[tauri::command]
 pub fn close_panel_terminal(
     state: State<'_, TerminalState>,
+    scope: WorkspaceScope,
     id: String,
 ) -> Result<(), DesktopFailure> {
-    state
+    let mut sessions = state
         .0
         .lock()
-        .map_err(|_| DesktopFailure::operation_failed())?
-        .remove(&id);
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    if sessions
+        .get(&id)
+        .is_some_and(|session| session.scope != scope)
+    {
+        return Err(DesktopFailure::conflict());
+    }
+    sessions.remove(&id);
     Ok(())
 }
 

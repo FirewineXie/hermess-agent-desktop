@@ -8,6 +8,7 @@ export const previewDesktopApi: DesktopApi = {
     async minimize() {},
     async toggleMaximize() {},
     async close() {},
+    async setFrontendDebugEnabled() {},
   },
   workspacePanel: {
     async listDirectory() { throw previewOnly() },
@@ -21,9 +22,13 @@ export const previewDesktopApi: DesktopApi = {
   },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
+    async dataDirectory() { throw previewOnly() },
+    async listDataDirectory() { throw previewOnly() },
+    async openDataDirectory() { throw previewOnly() },
     async create() { throw previewOnly() },
     async select() { throw previewOnly() },
     async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
+    async listToolsets() { return [] },
     async applyPersonality() { throw previewOnly() },
   },
   channels: {
@@ -53,8 +58,6 @@ export const previewDesktopApi: DesktopApi = {
     async probeLocalTools() { return [] },
   },
   tools: {
-    async listAgentToolsets() { return { toolsets: [] } },
-    async listActiveAgentTools() { return { sections: [], total: 0 } },
     async listBundledTools() { return { has_manifest: false, tools: [] } },
     async listDownloadableTools() { return [] },
     async installDownloadableTool() { throw previewOnly() },

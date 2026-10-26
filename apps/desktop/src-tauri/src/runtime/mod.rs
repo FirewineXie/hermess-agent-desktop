@@ -5,6 +5,7 @@ pub mod chat;
 pub mod config;
 pub mod downloadable_tools;
 pub mod extensions;
+mod jobs;
 mod location;
 mod mcp_registry;
 pub mod models;
@@ -15,6 +16,8 @@ pub mod personal_files;
 pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
+pub mod profile_data;
+mod profile_scope;
 pub mod profiles;
 pub mod tools;
 pub mod usage;
@@ -48,7 +51,11 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 #[derive(Default)]
-pub struct BackendState(Mutex<Option<OwnedBackend>>, Mutex<()>);
+pub struct BackendState(
+    Mutex<Option<OwnedBackend>>,
+    Mutex<()>,
+    Mutex<Option<profile_scope::ProfileTopology>>,
+);
 
 struct OwnedBackend {
     _storage_lock: fs::File,
@@ -69,131 +76,6 @@ struct RestartDrainGuard(PathBuf);
 impl Drop for RestartDrainGuard {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
-    }
-}
-
-impl BackendState {
-    async fn storage(&self) -> Result<PathBuf, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.storage.clone())
-    }
-    async fn gateway(&self) -> Result<profiles::ProfiledGateway, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(profiles::ProfiledGateway::new(
-            Arc::clone(&backend.gateway),
-            backend.selected_profile.clone(),
-        ))
-    }
-
-    async fn gateway_for_profile(
-        &self,
-        profile: Option<String>,
-    ) -> Result<profiles::ProfiledGateway, DesktopFailure> {
-        let Some(profile) = profile else {
-            return self.gateway().await;
-        };
-        if profile.is_empty()
-            || profile.len() > 64
-            || !profile.bytes().all(|byte| {
-                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
-            })
-        {
-            return Err(DesktopFailure::invalid_input());
-        }
-        let client = {
-            let owned = self.0.lock().await;
-            let backend = owned
-                .as_ref()
-                .ok_or_else(DesktopFailure::runtime_unavailable)?;
-            Arc::clone(&backend.gateway)
-        };
-        let roster = client
-            .request(
-                "profiles.list",
-                serde_json::json!({"include_sessions": false}),
-            )
-            .await?;
-        if !roster
-            .get("profiles")
-            .and_then(Value::as_array)
-            .is_some_and(|rows| {
-                rows.iter()
-                    .any(|row| row.get("name").and_then(Value::as_str) == Some(profile.as_str()))
-            })
-        {
-            return Err(DesktopFailure::invalid_input());
-        }
-        Ok(profiles::ProfiledGateway::new(client, profile))
-    }
-
-    async fn profile_home(&self) -> Result<PathBuf, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        let root = backend.storage.join("hermes-home");
-        Ok(if backend.selected_profile == "default" {
-            root
-        } else {
-            root.join("profiles").join(&backend.selected_profile)
-        })
-    }
-
-    async fn is_default_profile(&self) -> Result<bool, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.selected_profile == "default")
-    }
-
-    async fn selected_profile(&self) -> Result<String, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.selected_profile.clone())
-    }
-
-    async fn profile_http_auth(&self) -> Result<(u16, &'static str, String), DesktopFailure> {
-        let profile = self.selected_profile().await?;
-        self.profile_http_auth_for(&profile).await
-    }
-
-    async fn profile_http_auth_for(
-        &self,
-        profile: &str,
-    ) -> Result<(u16, &'static str, String), DesktopFailure> {
-        let (port, token, hermes, home, lock_dir) = {
-            let owned = self.0.lock().await;
-            let backend = owned
-                .as_ref()
-                .ok_or_else(DesktopFailure::runtime_unavailable)?;
-            (
-                backend.port,
-                backend.token.clone(),
-                backend.hermes.clone(),
-                backend.storage.join("hermes-home"),
-                backend.storage.join("control").join("gateway-locks"),
-            )
-        };
-        if profile == "default" {
-            return Ok((port, "X-Hermes-Session-Token", token));
-        }
-        let ticket = profiles::native_http_ticket(
-            &hermes,
-            &home.join("profiles").join(profile),
-            &lock_dir,
-            port,
-        )
-        .await?;
-        Ok((port, "X-Hermes-Gateway-Ticket", ticket))
     }
 }
 

@@ -1,5 +1,5 @@
 use super::location::{read_storage_location, write_storage_location};
-use super::models::{load_model_lists, parse_saved_model_config, save_model_lists};
+use super::models::{parse_saved_model_config, read_model_lists_file, write_model_lists_file};
 use super::payload::validate_payload;
 use super::{acquire_storage_lock, install_packed_payload, running_storage_matches};
 use super::{
@@ -101,14 +101,16 @@ fn runtime_defaults_and_tool_inventory_serialize_contract_fields() {
 fn model_lists_survive_a_second_read() {
     let root = std::env::temp_dir().join(format!("hermess-model-lists-{}", Uuid::new_v4()));
     fs::create_dir_all(root.join("HermessAgentDesktop")).unwrap();
-    let storage = root.to_string_lossy().into_owned();
-    assert!(load_model_lists(storage.clone()).unwrap().is_none());
+    let file = root
+        .join("HermessAgentDesktop")
+        .join("model-candidates.json");
+    assert!(read_model_lists_file(&file).unwrap().is_none());
     let lists = HashMap::from([(
         "ark-provider".to_string(),
         vec!["ark-code-latest".to_string()],
     )]);
-    save_model_lists(storage.clone(), lists.clone()).unwrap();
-    assert_eq!(load_model_lists(storage).unwrap(), Some(lists));
+    write_model_lists_file(&file, &lists).unwrap();
+    assert_eq!(read_model_lists_file(&file).unwrap(), Some(lists));
     fs::remove_dir_all(root).unwrap();
 }
 

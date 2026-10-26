@@ -3,20 +3,33 @@ import type { BackendInfo } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
+import { activateWorkspaceEpoch } from '../../app/profile-scope/ProfileWorkspace'
 
 type Options = {
   t: (key: string, ...values: unknown[]) => string
-  onStarted: () => void
   onReset: () => void
 }
 
-export function useRuntimeController({ t, onStarted, onReset }: Options) {
-  const { nativeFiles, runtime, diagnostics } = useDesktop()
+export function useRuntimeController({ t, onReset }: Options) {
+  const { nativeFiles, runtime, diagnostics, windowChrome } = useDesktop()
   const language = useLanguage()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
-  const [backend, setBackend] = React.useState<BackendInfo | null>(null)
+  const [debugMode, setDebugMode] = React.useState(false)
+  const changeDebugMode = async (enabled: boolean) => {
+    await windowChrome.setFrontendDebugEnabled(enabled)
+    setDebugMode(enabled)
+  }
+  React.useEffect(() => {
+    void windowChrome.setFrontendDebugEnabled(false).catch(() => {})
+  }, [])
+  const [backend, setBackendState] = React.useState<BackendInfo | null>(null)
+  const [workspaceGeneration, setWorkspaceGeneration] = React.useState(0)
+  const setBackend = (next: BackendInfo | null) => {
+    setWorkspaceGeneration(activateWorkspaceEpoch(next?.replay_epoch, next === null || !next.replay_epoch))
+    setBackendState(next)
+  }
   const [backendStatus, setBackendStatus] = React.useState(t("ui.not.started"))
   const [busy, setBusy] = React.useState(false)
   React.useEffect(() => {
@@ -58,7 +71,6 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       setBackend(info)
       setBackendStatus(t("ui.ready.websocket.ping.succeeded"))
       if (!import.meta.env.DEV) setStorageLocked(true)
-      onStarted()
     } catch (cause) {
       void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
       if (!backend) {
@@ -114,7 +126,6 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
       const info = result.info
       setBackend(info)
       setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
-      onStarted()
       return info
     } catch (cause) {
       try { await runtime.ping() }
@@ -130,13 +141,11 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
     try {
       await runtime.stop()
       setBackend(null)
-      onReset()
       const info = import.meta.env.DEV
         ? await runtime.startDev(storagePath, pythonPath)
         : await runtime.startPacked(storagePath)
       setBackend(info)
       setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
-      onStarted()
       return info
     } catch (cause) {
       try { await runtime.ping() }
@@ -148,8 +157,8 @@ export function useRuntimeController({ t, onStarted, onReset }: Options) {
 
 
   return {
-    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
-    backend, setBackend, backendStatus, setBackendStatus, busy, setBusy,
+    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, debugMode, changeDebugMode,
+    backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend, forceRestartBackend,
   }
 }

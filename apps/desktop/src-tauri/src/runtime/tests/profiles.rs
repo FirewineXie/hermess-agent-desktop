@@ -13,12 +13,36 @@ fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
         json!({"profile": "writer"})
     );
     assert_eq!(
-        scoped_params("writer", "session.mutate", json!({"session_id": "s"})).unwrap(),
-        json!({"session_id": "s"})
+        scoped_params("writer", "session.stats", json!({"session_id": "s"})).unwrap(),
+        json!({"profile": "writer", "session_id": "s"})
     );
+    assert_eq!(
+        scoped_params("writer", "session.mutate", json!({"session_id": "s"})).unwrap(),
+        json!({"session_id": "s", "profile": "writer"})
+    );
+    assert_eq!(
+        scoped_params(
+            "writer",
+            "file.attach",
+            json!({"session_id": "s", "path": "a.txt"})
+        )
+        .unwrap(),
+        json!({"session_id": "s", "path": "a.txt", "profile": "writer"})
+    );
+    assert_eq!(
+        scoped_params("writer", "cron.manage", json!({"action": "list"})).unwrap(),
+        json!({"action": "list", "profile": "writer"})
+    );
+    assert!(scoped_params("writer", "unreviewed.method", json!({})).is_err());
     assert_eq!(
         scoped_params("default", "session.list", json!({"limit": 50})).unwrap(),
         json!({"limit": 50})
+    );
+    assert!(scoped_params("default", "session.list", json!({"profile": "writer"})).is_err());
+    assert!(scoped_params("writer", "session.list", json!({"profile": "default"})).is_err());
+    assert_eq!(
+        scoped_params("default", "session.list", json!({"profile": "default"})).unwrap(),
+        json!({})
     );
 }
 

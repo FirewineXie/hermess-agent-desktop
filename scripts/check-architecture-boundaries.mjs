@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { relativeImportViolations } from './architecture-dependencies.mjs'
+import { commandScopes, extensionOperations } from './profile-scope-registry.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const rules = [
@@ -78,6 +79,21 @@ for (const name of invoked) if (!registered.has(name)) failures.push(`adapter in
 for (const name of registered) if (!invoked.has(name)) failures.push(`registered command has no adapter capability: ${name}`)
 
 const runtimeDir = resolve(root, 'apps/desktop/src-tauri/src/runtime')
+const profileGatewaySource = readFileSync(resolve(runtimeDir, 'profiles.rs'), 'utf8')
+const acceptedMethodsBlock = profileGatewaySource.match(/fn accepts_profile\([^)]*\) -> bool \{[\s\S]*?matches!\([\s\S]*?\n\s*\)\n\}/)?.[0]
+if (!acceptedMethodsBlock) failures.push('runtime/profiles.rs: named Profile Gateway method list not found')
+const acceptedMethods = new Set([...(acceptedMethodsBlock || '').matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)].map(match => match[1]))
+// These modules use ProfiledGateway. Include literal branches that select a
+// method before calling request (for example, image.attach vs file.attach).
+for (const file of ['chat.rs', 'models.rs', 'browser_bridge.rs']) {
+  const source = readFileSync(resolve(runtimeDir, file), 'utf8')
+  for (const [, method] of source.matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)) {
+    if (!acceptedMethods.has(method)) failures.push(`runtime/${file}: Gateway method ${method} has no named Profile route`)
+  }
+}
+if (readFileSync(resolve(runtimeDir, 'jobs.rs'), 'utf8').includes('.request("cron.manage"') && !acceptedMethods.has('cron.manage')) {
+  failures.push('runtime/jobs.rs: cron.manage has no named Profile route')
+}
 const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/runtime/mod.rs',
   ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
@@ -87,8 +103,12 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/workspace_panel.rs',
 ]
 const definedCommands = new Set()
+const commandHeaders = new Map()
 for (const file of nativeCommandFiles) {
   const source = readFileSync(resolve(root, file), 'utf8')
+  if (!file.endsWith('/runtime/mod.rs') && !file.endsWith('/runtime/profiles.rs') && /\.selected_profile\b|\bstate\.gateway\s*\(/.test(source)) {
+    failures.push(`${file}: profile operations must use resolve_profile instead of global selection`)
+  }
   for (const marker of source.matchAll(/#\[tauri::command\]/g)) {
     const header = source.slice(marker.index, source.indexOf('{', marker.index))
     const name = header.match(/\bpub\s+(?:async\s+)?fn\s+(\w+)/)?.[1]
@@ -97,6 +117,7 @@ for (const file of nativeCommandFiles) {
       continue
     }
     definedCommands.add(name)
+    commandHeaders.set(name, header)
     const returnType = header.split('->')[1]?.trim()
     if (returnType?.startsWith('Result<') && !returnType.endsWith('DesktopFailure>')) {
       failures.push(`${file}: ${name} must return DesktopFailure`)
@@ -104,6 +125,41 @@ for (const file of nativeCommandFiles) {
   }
 }
 for (const name of registered) if (!definedCommands.has(name)) failures.push(`registered command definition not found: ${name}`)
+
+const scopedCommands = new Map()
+for (const [scope, names] of Object.entries(commandScopes)) {
+  for (const name of names.trim().split(/\s+/)) {
+    if (scopedCommands.has(name)) failures.push(`native command has duplicate scope: ${name}`)
+    scopedCommands.set(name, scope)
+  }
+}
+for (const name of registered) if (!scopedCommands.has(name)) failures.push(`native command has no scope declaration: ${name}`)
+for (const name of scopedCommands.keys()) if (!registered.has(name)) failures.push(`scope declaration has no native command: ${name}`)
+for (const [name, scope] of scopedCommands) {
+  if (['profile', 'session', 'profile-or-session'].includes(scope) && !/\bprofile\s*:\s*String\b/.test(commandHeaders.get(name) || '')) {
+    failures.push(`profile-bound native command lacks explicit profile argument: ${name}`)
+  }
+  if (scope === 'workspace' && !/\bscope\s*:\s*WorkspaceScope\b/.test(commandHeaders.get(name) || '')) {
+    failures.push(`workspace-bound native command lacks explicit WorkspaceScope argument: ${name}`)
+  }
+}
+const extensionSource = readFileSync(resolve(runtimeDir, 'extensions.rs'), 'utf8')
+const jobsSource = readFileSync(resolve(runtimeDir, 'jobs.rs'), 'utf8')
+const declaredOperations = new Set(extensionOperations.trim().split(/\s+/))
+const handledOperations = new Set([...(extensionSource + '\n' + jobsSource).matchAll(/^\s*((?:"[a-z]+(?:\.[a-z]+)+"\s*(?:\|\s*)?)+)=>/gm)]
+  .flatMap(match => [...match[1].matchAll(/"([a-z]+(?:\.[a-z]+)+)"/g)].map(value => value[1])))
+for (const operation of declaredOperations) {
+  if (!handledOperations.has(operation)) failures.push(`extension operation has no handler: ${operation}`)
+}
+for (const operation of handledOperations) if (!declaredOperations.has(operation)) failures.push(`extension handler has no scope declaration: ${operation}`)
+if (!extensionSource.includes('_ => return Err(DesktopFailure::invalid_input())')) failures.push('extension operation must reject unknown values')
+const frontendSources = readdirSync(resolve(root, 'apps/frontend/src'), { recursive: true, withFileTypes: true })
+for (const entry of frontendSources) {
+  if (entry.isFile() && /\.[jt]sx?$/.test(entry.name)) {
+    const file = join(entry.parentPath, entry.name)
+    if (/\bprofiles\.select\s*\(/.test(readFileSync(file, 'utf8'))) failures.push(`${relative(root, file)}: normal profile navigation must not select the backend profile`)
+  }
+}
 
 const updates = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/updates.rs'), 'utf8')
 const nativeEventSources = [gateway, updates, ...nativeCommandFiles.map(file => readFileSync(resolve(root, file), 'utf8'))].join('\n')

@@ -6,7 +6,7 @@ React 界面代码位于 `src/`。桌面客户端通过 `mountApp(root, api)` �
 
 - `src/public.tsx`：公开装配入口。
 - `src/App.tsx`：页面装配、导航及跨页面协调。
-- `src/features/`：五个 View 各自落位。聊天的会话、事件补发、审批、附件状态在 `chat/useChatController.ts`；模型配置与选择在 `models/useModelController.ts`；运行时启动与存储状态在 `runtime/useRuntimeController.ts`；工具目录和本机探测状态在 `tools/useToolsController.ts`；Agent 配置读写、草稿与保存状态在 `agent-settings/useAgentSettingsController.ts`。各功能组件留在所属目录。
+- `src/features/`：各 View 的控制器在所属功能目录。聊天的会话、事件补发、审批、附件状态在 `chat/useChatController.ts`；模型配置与选择在 `models/useModelController.ts`；运行时启动与存储状态在 `runtime/useRuntimeController.ts`；客户端集成工具的应用级清单、安装和本机探测状态在 `tools/useToolsController.ts`；Agent 配置读写、草稿与保存状态在 `agent-settings/useAgentSettingsController.ts`。各功能组件留在所属目录。
 - `src/app/DesktopContext.tsx`：宿主能力注入。
 - `src/features/models/components/ProviderCard.tsx`：提供方模型清单和本地编辑状态。
 - `src/features/agent-settings/components/`：配置字段、分组树、辅助模型任务卡片与完整 YAML 编辑器；View 组合组件并呈现控制器状态。

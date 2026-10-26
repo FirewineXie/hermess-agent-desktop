@@ -1,25 +1,30 @@
 import React from 'react'
-import type { HubPreview, HubScan, HubSkill } from './model'
+import type { ProfilesSnapshot } from '@hermess/contracts'
+import type { HubScan, HubSkill } from './model'
 import type { labels } from './labels'
+import TargetProfilesDialog from './TargetProfilesDialog'
+import { marketLink } from './marketLink'
 
 type T = ReturnType<typeof labels>
+type TargetStatus = { installed: string[]; unavailable: string[] }
 type Props = {
   official: HubSkill[]; featured: HubSkill[]; sources: Array<{ id: string; label: string }>;
-  installed: Record<string, unknown>; results: HubSkill[] | null; resultsSource: string | null; busy: boolean; loading: boolean; t: T;
+  results: HubSkill[] | null; resultsSource: string | null; busy: boolean; loading: boolean; t: T;
+  profiles: ProfilesSnapshot | null;
   search: (query: string, source: string) => Promise<void>
   request: <R>(operation: string, payload?: Record<string, unknown>) => Promise<R>
-  run: (operation: string, payload?: Record<string, unknown>, after?: 'skillHub') => Promise<boolean>
+  installedTargets: (kind: 'skill', targets: string[], identifier: string) => Promise<TargetStatus>
+  runForProfiles: (operation: string, profiles: string[], payload: Record<string, unknown>, after: 'skillHub') => Promise<boolean>
   onMessage: (message: string) => void
 }
 
-export default function SkillHub({ official, featured, sources, installed, results, resultsSource, busy, loading, t, search, request, run, onMessage }: Props) {
+export default function SkillHub({ official, featured, sources, results, resultsSource, profiles, busy, loading, t, search, request, installedTargets, runForProfiles, onMessage }: Props) {
   const [query, setQuery] = React.useState('')
   const [source, setSource] = React.useState('all')
-  const [selected, setSelected] = React.useState<HubPreview | null>(null)
-  const [scan, setScan] = React.useState<HubScan | null>(null)
+  const [selected, setSelected] = React.useState<HubSkill | null>(null)
+  const [targetStatus, setTargetStatus] = React.useState<TargetStatus>({ installed: [], unavailable: [] })
   const [openingId, setOpeningId] = React.useState('')
-  const [detailError, setDetailError] = React.useState('')
-  const [errorId, setErrorId] = React.useState('')
+  const [preparing, setPreparing] = React.useState(false)
   const initialEntries = [...official, ...featured.filter(item => !official.some(other => other.identifier === item.identifier))]
   const visibleResults = resultsSource === source || (source !== 'hermes-index' && resultsSource === 'all') ? results : null
   const entries = (visibleResults || (source === 'hermes-index' ? featured : initialEntries))
@@ -27,32 +32,45 @@ export default function SkillHub({ official, featured, sources, installed, resul
 
   function changeSource(nextSource: string) {
     setSource(nextSource)
-    setSelected(null); setScan(null); setErrorId('')
     void search(query, nextSource)
   }
 
-  async function preview(item: HubSkill) {
-    setOpeningId(item.identifier); setSelected(null); setScan(null); setDetailError(''); setErrorId('')
+  async function openInstall(item: HubSkill) {
+    if (!profiles || openingId || busy) return
+    setOpeningId(item.identifier)
     try {
-      const [detail, verdict] = await Promise.all([
-        request<HubPreview>('skills.preview', { identifier: item.identifier }),
-        request<HubScan>('skills.scan', { identifier: item.identifier }),
-      ])
-      if (detail.digest && detail.digest !== verdict.digest) throw new Error('ModelScope archive changed during preview')
-      setSelected(detail); setScan(verdict)
-    } catch { setErrorId(item.identifier); setDetailError(t('failed')); onMessage(t('failed')) }
-    finally { setOpeningId('') }
+      const served = new Set(profiles.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]))
+      const names = profiles.profiles.map(profile => profile.name).filter(name => served.has(name))
+      const status = await installedTargets('skill', names, item.identifier)
+      setTargetStatus(status)
+      setSelected(item)
+    } catch {
+      onMessage(t('failed'))
+    } finally {
+      setOpeningId('')
+    }
   }
 
-  async function install() {
-    if (!selected || !scan) return
-    if (scan.policy === 'block') { onMessage(t('scanBlocked', scan.policy_reason || scan.summary || '')); return }
-    if (scan.policy === 'ask' && !window.confirm(t('scanAsk', scan.policy_reason || scan.summary || ''))) return
-    const isModelScope = selected.source === 'modelscope'
-    if (isModelScope && (!scan.digest || scan.digest !== selected.digest)) { onMessage(t('failed')); return }
-    if (await run(isModelScope ? 'modelscope.install' : 'skills.install', {
-      identifier: selected.identifier, ...(isModelScope ? { digest: scan.digest, confirmed: true } : {}),
-    }, 'skillHub')) setSelected(null)
+  async function installToTargets(targets: string[]) {
+    if (!selected || preparing) return
+    setPreparing(true)
+    try {
+      const isModelScope = selected.identifier.startsWith('modelscope:')
+      let payload: Record<string, unknown> = { identifier: selected.identifier }
+      if (isModelScope) {
+        // The guarded installer requires a digest. Keep this check within the install action.
+        const check = await request<HubScan>('skills.scan', payload)
+        if (check.policy === 'block' || !check.digest) throw new Error(t('scanBlocked', check.policy_reason || check.summary || ''))
+        payload = { ...payload, digest: check.digest, confirmed: true }
+      }
+      await runForProfiles(isModelScope ? 'modelscope.install' : 'skills.install', targets, payload, 'skillHub')
+      setSelected(null)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : t('failed'))
+      setSelected(null)
+    } finally {
+      setPreparing(false)
+    }
   }
 
   return <>
@@ -66,21 +84,17 @@ export default function SkillHub({ official, featured, sources, installed, resul
       <button disabled={loading}>{t('search')}</button>
     </form>
     {!entries.length && <p>{visibleResults ? t('noResults') : !query.trim() && source !== 'all' ? t('sourceSearchHint') : t('empty')}</p>}
-    <div className="extension-list">{entries.map(item => <article className="extension-card" key={item.identifier}>
-      <div className="row"><strong>{item.name}</strong><small>{installed[item.identifier] || item.installed ? t('installed') : item.source}</small></div>
-      <p>{item.description}</p>
-      <small>{t('source')}: {item.source} · {item.identifier}</small>
-      <div className="extension-actions"><button disabled={Boolean(openingId)} onClick={() => void preview(item)}>{t('preview')}</button></div>
-      {openingId === item.identifier && <p role="status">{t('loading')}</p>}
-      {errorId === item.identifier && detailError && <p role="alert">{detailError}</p>}
-      {selected?.identifier === item.identifier && <section className="extension-detail">
-        <div className="row"><h3>{selected.name}</h3><button onClick={() => setSelected(null)}>{t('close')}</button></div>
-        <small>{t('source')}: {selected.source} · {selected.identifier}</small>
-        <p>{t('scan')}: {scan?.policy || t('loading')} {scan?.summary}</p>
-        <label>{t('content')}<pre className="extension-preview">{selected.skill_md || ''}</pre></label>
-        <small>{t('files')}: {(selected.files || []).join(', ')}</small>
-        <div className="extension-actions"><button disabled={busy || !scan || scan.policy === 'block' || Boolean(installed[selected.identifier])} onClick={() => void install()}>{t('install')}</button></div>
-      </section>}
-    </article>)}</div>
+    <div className="extension-list">{entries.map(item => {
+      const link = marketLink(item.repo)
+      return <article className="extension-card market-card" key={item.identifier}>
+        <div className="market-card-header">
+          <h3 className="market-card-title">{link ? <a href={link} target="_blank" rel="noopener noreferrer" title={link}>{item.name}</a> : item.name}</h3>
+          <span className="market-card-source">{item.source}</span>
+        </div>
+        <p className="market-card-description">{item.description}</p>
+        <div className="market-card-footer"><button disabled={busy || !!openingId || !profiles} onClick={() => void openInstall(item)}>{openingId === item.identifier ? t('loading') : t('install')}</button></div>
+      </article>
+    })}</div>
+    {selected && profiles && <TargetProfilesDialog itemName={selected.name} profiles={profiles} alreadyInstalled={targetStatus.installed} unavailable={targetStatus.unavailable} busy={busy || preparing} onClose={() => setSelected(null)} onConfirm={installToTargets} />}
   </>
 }

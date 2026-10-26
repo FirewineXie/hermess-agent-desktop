@@ -1,12 +1,12 @@
 import React from 'react'
-import type { DesktopApi } from '@hermess/contracts'
+import type { DesktopApi, WorkspaceScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useLanguage } from '../../i18n'
 
 type Directory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
 type Entry = Directory['entries'][number]
 
-function TreeEntry({ entry, onFile, depth }: { entry: Entry; onFile: (path: string) => void; depth: number }) {
+function TreeEntry({ scope, entry, onFile, depth }: { scope: WorkspaceScope; entry: Entry; onFile: (path: string) => void; depth: number }) {
   const api = useDesktop().workspacePanel
   const zh = useLanguage() === 'zh-CN'
   const [expanded, setExpanded] = React.useState(false)
@@ -19,7 +19,7 @@ function TreeEntry({ entry, onFile, depth }: { entry: Entry; onFile: (path: stri
     setExpanded(true)
     if (children) return
     try {
-      const result = await api.listDirectory(entry.path)
+      const result = await api.listDirectory(scope, entry.path)
       setChildren(result.entries)
       setError(false)
     } catch { setError(true) }
@@ -33,14 +33,14 @@ function TreeEntry({ entry, onFile, depth }: { entry: Entry; onFile: (path: stri
     {entry.directory && expanded && <>
       {error && <div className="panel-tree-note" style={{ paddingLeft: 28 + depth * 16 }}>{zh ? '无法读取目录，点击目录重试' : 'Could not read folder; click to retry'}</div>}
       {children?.length === 0 && <div className="panel-tree-note" style={{ paddingLeft: 28 + depth * 16 }}>{zh ? '空目录' : 'Empty folder'}</div>}
-      {children?.map(child => <TreeEntry key={child.path} entry={child} onFile={onFile} depth={depth + 1} />)}
+      {children?.map(child => <TreeEntry key={child.path} scope={scope} entry={child} onFile={onFile} depth={depth + 1} />)}
     </>}
   </>
 }
 
-export default function DirectoryTree({ directory, onFile }: { directory: Directory; onFile: (path: string) => void }) {
+export default function DirectoryTree({ scope, directory, onFile }: { scope: WorkspaceScope; directory: Directory; onFile: (path: string) => void }) {
   return <div className="panel-tree" aria-label={directory.path}>
     <div className="panel-file-path" title={directory.path}>{directory.path}</div>
-    <div className="panel-tree-list">{directory.entries.map(entry => <TreeEntry key={entry.path} entry={entry} onFile={onFile} depth={0} />)}</div>
+    <div className="panel-tree-list">{directory.entries.map(entry => <TreeEntry key={entry.path} scope={scope} entry={entry} onFile={onFile} depth={0} />)}</div>
   </div>
 }

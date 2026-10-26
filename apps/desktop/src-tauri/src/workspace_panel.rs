@@ -1,6 +1,6 @@
 use crate::errors::DesktopFailure;
 use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -20,15 +20,80 @@ pub struct PanelEntry {
     directory: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceOwner {
+    kind: String,
+    profile: String,
+    session_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct WorkspaceScope {
+    kind: String,
+    path: String,
+    owner: Option<WorkspaceOwner>,
+}
+
+impl WorkspaceScope {
+    pub fn root(&self) -> Result<PathBuf, DesktopFailure> {
+        if self.kind != "workspace"
+            || self.owner.as_ref().is_some_and(|owner| {
+                owner.kind != "session"
+                    || owner.profile.is_empty()
+                    || owner.profile.len() > 64
+                    || !owner.profile.bytes().all(|byte| {
+                        byte.is_ascii_lowercase()
+                            || byte.is_ascii_digit()
+                            || byte == b'-'
+                            || byte == b'_'
+                    })
+                    || owner.session_id.is_empty()
+                    || owner.session_id.len() > 256
+            })
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let root = if self.path.is_empty() {
+            std::env::current_dir().map_err(|_| DesktopFailure::operation_failed())?
+        } else {
+            PathBuf::from(&self.path)
+        };
+        if !root.is_absolute() || !root.is_dir() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        Ok(root)
+    }
+
+    pub fn checked_path(&self, path: Option<&str>) -> Result<PathBuf, DesktopFailure> {
+        let root = self
+            .root()?
+            .canonicalize()
+            .map_err(|_| DesktopFailure::invalid_input())?;
+        let target = path
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.clone());
+        if !target.is_absolute() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let target = target
+            .canonicalize()
+            .map_err(|_| DesktopFailure::invalid_input())?;
+        if !target.starts_with(root) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        Ok(target)
+    }
+}
+
 #[tauri::command]
 pub fn list_workspace_panel_directory(
+    scope: WorkspaceScope,
     path: Option<String>,
 ) -> Result<PanelDirectory, DesktopFailure> {
-    let directory = match path.filter(|value| !value.trim().is_empty()) {
-        Some(path) => PathBuf::from(path),
-        None => std::env::current_dir().map_err(|_| DesktopFailure::operation_failed())?,
-    };
-    if !directory.is_absolute() || !directory.is_dir() {
+    let directory = scope.checked_path(path.as_deref())?;
+    if !directory.is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
     let mut entries = fs::read_dir(&directory)
@@ -73,9 +138,13 @@ pub struct PanelFile {
 }
 
 #[tauri::command]
-pub fn read_workspace_panel_file(path: String) -> Result<PanelFile, DesktopFailure> {
-    let source = Path::new(&path);
-    if !source.is_absolute() || !source.is_file() {
+pub fn read_workspace_panel_file(
+    scope: WorkspaceScope,
+    path: String,
+) -> Result<PanelFile, DesktopFailure> {
+    let checked = scope.checked_path(Some(&path))?;
+    let source = Path::new(&checked);
+    if !source.is_file() {
         return Err(DesktopFailure::invalid_input());
     }
     let size = fs::metadata(source)

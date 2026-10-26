@@ -187,6 +187,9 @@
   "ui.describe.a.task.to.hermess.or.add.files.to.work.on.together": "Describe a task to Hermess, or add files to work on together.",
   "ui.detects.python.node.git.ffmpeg.ffprobe.ripgrep.uv.and.github.cli.in.path.py": "Detects Python, Node, Git, FFmpeg, FFprobe, ripgrep, uv, and GitHub CLI in PATH (Python also checks for the native uv interpreter). System tools and resources that come with the current runtime are listed separately.",
   "ui.developer.diagnostics": "Developer diagnostics",
+  "ui.debug": "Debug",
+  "ui.debug.mode.enabled": "Debug mode enabled",
+  "ui.frontend.console.open.failed.arg": "Failed to switch debug mode: {0}",
   "ui.directory.provided.by.the.current.hermes.runtime.expand.the.tool.group.to.v": "Directory provided by the current Hermes runtime. Expand the tool group to view all tools; \"This session has been exposed\" means that it has been provided to the Agent, but does not mean that the tool has completed actual operation testing.",
   "ui.disabled": "Disabled",
   "ui.displays.built.in.reference.candidates.the.actual.available.models.are.subj": "Displays built-in reference candidates; the actual available models are subject to provider account and backend verification.",
@@ -226,6 +229,7 @@
   "ui.loading.model.options": "Loading model options…",
   "ui.loading.runtime.model.settings": "Loading runtime model settings…",
   "ui.local.tools": "Local tools",
+  "ui.local.tools.scope.hint": "Local tools are shared by all profiles; each profile's Agent tool settings are on its management page.",
   "ui.local.tools.hint": "Each tool appears once. Expand it to inspect bundled resources, optional installs, and system PATH separately. Restart the managed runtime after downloading a pinned version. GPU inference tools require matching hardware.",
   "ui.local.tools.bundled": "Bundled with runtime",
   "ui.local.tools.bundled.detail": "Runtime resource: {0} · {1}",
@@ -421,5 +425,7 @@
   "ui.desktop.error.connection_lost": "The connection was lost. Reconnect and try again.",
   "ui.desktop.error.timeout": "The operation timed out. A write may have succeeded; check the current state first.",
   "ui.desktop.error.conflict": "The state changed. Refresh and try again.",
-  "ui.desktop.error.invalid_input": "The input is invalid. Check it and try again."
+  "ui.desktop.error.invalid_input": "The input is invalid. Check it and try again.",
+  "ui.desktop.error.session_owner_unknown": "This session's Profile has not been confirmed. Reopen it in its Profile and try again.",
+  "ui.desktop.error.session_profile_mismatch": "This session belongs to another Profile. Switch to its Profile and try again."
 }

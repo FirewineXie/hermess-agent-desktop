@@ -171,6 +171,8 @@ pub async fn install_downloadable_tool(
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(stderr))
         .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
     let status = timeout(Duration::from_secs(1800), command.status())
         .await
         .map_err(|_| DesktopFailure::timeout())?

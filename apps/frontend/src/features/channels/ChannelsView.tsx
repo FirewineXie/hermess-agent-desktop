@@ -2,6 +2,7 @@ import React from 'react'
 import QRCode from 'qrcode'
 import type { ChannelQrStart, ChannelStatus } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
 
@@ -29,43 +30,41 @@ function channelStatusText(row: ChannelStatus | undefined, connected: boolean, r
   return state ? `${configured} · ${state}` : configured
 }
 
-export default function ChannelsView({ connected, onRestart, onForceRestart }: { connected: boolean; onRestart: () => Promise<boolean>; onForceRestart: () => Promise<boolean> }) {
+export default function ChannelsView({ connected, profile, epoch, onRestart, onForceRestart }: { connected: boolean; profile: string | null; epoch: string | null; onRestart: () => Promise<boolean>; onForceRestart: () => Promise<boolean> }) {
   const { channels } = useDesktop()
   const language = useLanguage()
   const t = (key: string, ...args: unknown[]) => translateApp(language, key, ...args)
-  const [rows, setRows] = React.useState<ChannelStatus[]>([])
-  const [rowsState, setRowsState] = React.useState<RowsState>('loading')
-  const [active, setActive] = React.useState<{ platform: Platform; qr: ChannelQrStart; image: string } | null>(null)
-  const [status, setStatus] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
-  const [pendingRestart, setPendingRestart] = React.useState(false)
-  const [tick, setTick] = React.useState(0)
-  const activeRef = React.useRef(active)
-  activeRef.current = active
+  const workspace = workspaceKey(epoch, profile)
+  const [rows, setRows] = useProfileState<ChannelStatus[]>(workspace, [], 'channels:rows')
+  const [rowsState, setRowsState] = useProfileState<RowsState>(workspace, 'loading', 'channels:rows-state')
+  const [active, setActive] = useProfileState<{ profile: string; platform: Platform; qr: ChannelQrStart; image: string } | null>(workspace, null, 'channels:active-qr')
+  const [status, setStatus] = useProfileState(workspace, '', 'channels:status')
+  const [busy, setBusy] = useProfileState(workspace, false, 'channels:busy')
+  const [pendingRestart, setPendingRestart] = useProfileState(workspace, false, 'channels:pending-restart')
+  const [tick, setTick] = useProfileState(workspace, 0, 'channels:poll-tick')
+  const scope = (owner: string) => ({ kind: 'profile' as const, profile: owner })
 
   const refresh = React.useCallback(async () => {
-    if (!connected) return
-    setRowsState('loading')
+    if (!connected || !profile) return
+    setRowsState(current => current === 'ready' ? current : 'loading')
     try {
-      const result = await channels.status()
+      const result = await channels.status(scope(profile))
       setRows(result.platforms)
       setRowsState('ready')
     } catch (cause) {
       setRowsState('error')
       throw cause
     }
-  }, [channels, connected])
+  }, [channels, connected, profile, epoch])
 
   React.useEffect(() => { void refresh().catch(() => setStatus(t('ui.channels.status.failed'))) }, [refresh])
-  React.useEffect(() => () => { if (activeRef.current) void channels.cancel(activeRef.current.qr.id) }, [channels])
-
   React.useEffect(() => {
     if (!active) return
     let cancelled = false
     let completing = false
     const timer = window.setTimeout(async () => {
       try {
-        const result = await channels.poll(active.qr.id)
+        const result = await channels.poll(scope(active.profile), active.qr.id)
         if (cancelled) return
         if (result.status === 'connected') {
           completing = true
@@ -101,19 +100,20 @@ export default function ChannelsView({ connected, onRestart, onForceRestart }: {
     setBusy(true)
     setStatus('')
     try {
-      if (active) await channels.cancel(active.qr.id)
-      const qr = await channels.start(platform)
+      if (active) void channels.cancel(scope(active.profile), active.qr.id).catch(() => {})
+      if (!profile) throw new Error('No active Profile')
+      const qr = await channels.start(scope(profile), platform)
       const image = await QRCode.toDataURL(qr.url, { width: 260, margin: 2 })
-      setActive({ platform, qr, image })
+      setActive({ profile, platform, qr, image })
       setStatus(t('ui.channels.waiting'))
     } catch (cause) { setStatus(t('ui.channels.failed.arg', describeError(cause, language))) }
     finally { setBusy(false) }
   }
 
   async function cancel() {
-    if (active) await channels.cancel(active.qr.id)
     setActive(null)
     setStatus('')
+    if (active) await channels.cancel(scope(active.profile), active.qr.id).catch(() => {})
   }
 
   async function retryRestart(force: boolean) {

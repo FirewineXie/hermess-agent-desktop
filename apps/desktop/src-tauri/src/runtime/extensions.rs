@@ -1,5 +1,6 @@
 use super::{
-    config::config_request_to_profile, mcp_registry, modelscope, modelscope_mcp, BackendState,
+    config::config_request_for_scope, jobs, mcp_registry, modelscope, modelscope_mcp,
+    profile_scope::ResolvedProfileScope, BackendState,
 };
 use crate::errors::DesktopFailure;
 use reqwest::{Method, Url};
@@ -18,32 +19,24 @@ fn field<'a>(body: &'a Value, key: &str, max: usize) -> Result<&'a str, DesktopF
 #[tauri::command]
 pub async fn extension_request(
     state: State<'_, BackendState>,
+    profile: String,
     operation: String,
     payload: Value,
 ) -> Result<Value, DesktopFailure> {
-    if matches!(
-        operation.as_str(),
-        "modelscope.installed" | "modelscope.install" | "modelscope.uninstall"
-    ) && !state.is_default_profile().await?
-    {
-        return Err(DesktopFailure::conflict());
-    }
+    let scope = state.resolve_profile(&profile).await?;
     if operation.starts_with("jobs.") {
-        return jobs_request(&state, &operation, &payload).await;
+        return jobs::request(&state, &scope, &operation, &payload).await;
     }
     match operation.as_str() {
-        "mcp.update" => return update_mcp_server(&state, &payload).await,
+        "mcp.update" => return update_mcp_server(&state, &scope, &payload).await,
         "mcp.modelscope.search" => {
-            state.storage().await?;
             let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
             return modelscope_mcp::search(query).await;
         }
         "mcp.modelscope.preview" => {
-            state.storage().await?;
             return modelscope_mcp::preview(field(&payload, "identifier", 220)?).await;
         }
         "mcp.modelscope.install" => {
-            state.storage().await?;
             let identifier = field(&payload, "identifier", 220)?;
             let expected_url = field(&payload, "url", 2048)?;
             let auth = payload
@@ -63,22 +56,20 @@ pub async fn extension_request(
                 .ok_or_else(DesktopFailure::operation_failed)?;
             return upstream_request(
                 &state,
+                &scope,
                 "mcp.add",
                 &serde_json::json!({"name": name, "url": expected_url, "auth": auth}),
             )
             .await;
         }
         "mcp.registry.search" => {
-            state.storage().await?;
             let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
             return mcp_registry::search(query).await;
         }
         "mcp.registry.preview" => {
-            state.storage().await?;
             return mcp_registry::preview(field(&payload, "identifier", 200)?).await;
         }
         "mcp.registry.install" => {
-            state.storage().await?;
             let name = field(&payload, "identifier", 200)?;
             let version = field(&payload, "version", 100)?;
             let expected_url = field(&payload, "url", 2048)?;
@@ -101,23 +92,27 @@ pub async fn extension_request(
                 .ok_or_else(DesktopFailure::invalid_input)?;
             return upstream_request(
                 &state,
+                &scope,
                 "mcp.add",
                 &serde_json::json!({"name": name, "url": address, "auth": auth}),
             )
             .await;
         }
-        "modelscope.installed" => return modelscope::installed(&state.storage().await?),
+        "modelscope.installed" => return modelscope::installed(&scope.storage, &scope.home),
         "modelscope.install" => {
-            let storage = state.storage().await?;
-            let existing = upstream_request(&state, "skills.list", &serde_json::json!({})).await?;
+            let storage = scope.storage.clone();
+            let existing =
+                upstream_request(&state, &scope, "skills.list", &serde_json::json!({})).await?;
             let names: Vec<String> = existing
                 .as_array()
                 .ok_or_else(DesktopFailure::operation_failed)?
                 .iter()
                 .filter_map(|skill| skill.get("name").and_then(Value::as_str).map(str::to_owned))
                 .collect();
+            scope.ensure_current(&state).await?;
             return modelscope::install(
                 &storage,
+                &scope.home,
                 field(&payload, "identifier", 220)?,
                 field(&payload, "digest", 64)?,
                 payload.get("confirmed").and_then(Value::as_bool) == Some(true),
@@ -126,10 +121,12 @@ pub async fn extension_request(
             .await;
         }
         "modelscope.uninstall" => {
-            let storage = state.storage().await?;
+            let storage = scope.storage.clone();
+            let home = scope.home.clone();
             let name = field(&payload, "name", 200)?.to_owned();
+            scope.ensure_current(&state).await?;
             return tauri::async_runtime::spawn_blocking(move || {
-                modelscope::uninstall(&storage, &name)
+                modelscope::uninstall(&storage, &home, &name)
             })
             .await
             .map_err(|_| DesktopFailure::operation_failed())?;
@@ -137,7 +134,6 @@ pub async fn extension_request(
         "skills.preview" | "skills.scan" => {
             let identifier = field(&payload, "identifier", 220)?;
             if identifier.starts_with("modelscope:") {
-                state.storage().await?;
                 return if operation == "skills.preview" {
                     modelscope::preview(identifier).await
                 } else {
@@ -152,13 +148,12 @@ pub async fn extension_request(
                 .unwrap_or("all");
             if source == "modelscope" {
                 let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
-                state.storage().await?;
                 return modelscope::search(query).await;
             }
             let query = field(&payload, "q", 500)?;
             if source == "all" {
                 let (upstream, external) = tokio::join!(
-                    upstream_request(&state, &operation, &payload),
+                    upstream_request(&state, &scope, &operation, &payload),
                     modelscope::search(query),
                 );
                 match (upstream, external) {
@@ -184,7 +179,7 @@ pub async fn extension_request(
             }
         }
         "skills.sources" => {
-            let mut response = upstream_request(&state, &operation, &payload).await?;
+            let mut response = upstream_request(&state, &scope, &operation, &payload).await?;
             if let Some(sources) = response.get_mut("sources").and_then(Value::as_array_mut) {
                 sources.push(serde_json::json!({"id": "modelscope", "label": "ModelScope"}));
             }
@@ -192,84 +187,18 @@ pub async fn extension_request(
         }
         _ => {}
     }
-    upstream_request(&state, &operation, &payload).await
-}
-
-async fn jobs_request(
-    state: &State<'_, BackendState>,
-    operation: &str,
-    payload: &Value,
-) -> Result<Value, DesktopFailure> {
-    let profile = field(payload, "profile", 64)?;
-    if !profile.bytes().all(|byte| {
-        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
-    }) {
-        return Err(DesktopFailure::invalid_input());
-    }
-    let path = if operation == "jobs.list" || operation == "jobs.create" {
-        "/api/jobs".to_owned()
-    } else {
-        let id = field(payload, "id", 12)?;
-        if id.len() != 12 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err(DesktopFailure::invalid_input());
-        }
-        format!("/api/jobs/{id}")
-    };
-    let (method, path, body) = match operation {
-        "jobs.list" => (Method::GET, format!("{path}?include_disabled=true"), None),
-        "jobs.detail" => (Method::GET, path, None),
-        "jobs.create" => {
-            let name = field(payload, "name", 100)?;
-            let schedule = field(payload, "schedule", 200)?;
-            let prompt = job_prompt(payload)?;
-            (
-                Method::POST,
-                path,
-                Some(
-                    serde_json::json!({"name": name, "schedule": schedule, "prompt": prompt, "deliver": "local"}),
-                ),
-            )
-        }
-        "jobs.update" => {
-            let name = field(payload, "name", 100)?;
-            let schedule = field(payload, "schedule", 200)?;
-            let prompt = job_prompt(payload)?;
-            (
-                Method::PATCH,
-                path,
-                Some(serde_json::json!({"name": name, "schedule": schedule, "prompt": prompt})),
-            )
-        }
-        "jobs.pause" => (Method::POST, format!("{path}/pause"), None),
-        "jobs.resume" => (Method::POST, format!("{path}/resume"), None),
-        "jobs.run" => (Method::POST, format!("{path}/run"), None),
-        _ => return Err(DesktopFailure::invalid_input()),
-    };
-    config_request_to_profile(state, profile, method, &path, body).await
-}
-
-fn job_prompt(payload: &Value) -> Result<&str, DesktopFailure> {
-    let prompt = payload
-        .get("prompt")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    if prompt.is_empty() || prompt.len() > 20_000 || prompt.chars().any(|c| c == '\0') {
-        return Err(DesktopFailure::invalid_input());
-    }
-    Ok(prompt)
+    upstream_request(&state, &scope, &operation, &payload).await
 }
 
 async fn update_mcp_server(
     state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
     payload: &Value,
 ) -> Result<Value, DesktopFailure> {
     // Keep the profile fixed across both requests. The upstream API only offers a
     // whole-map replace, so read the raw map here rather than rebuilding it from
     // the redacted summaries exposed to the UI.
-    let profile = state.selected_profile().await?;
-    let raw =
-        config_request_to_profile(state, &profile, Method::GET, "/api/config/raw", None).await?;
+    let raw = config_request_for_scope(state, scope, Method::GET, "/api/config/raw", None).await?;
     let yaml = raw
         .get("yaml")
         .and_then(Value::as_str)
@@ -277,9 +206,9 @@ async fn update_mcp_server(
     let config: Value =
         serde_yaml::from_str(yaml).map_err(|_| DesktopFailure::operation_failed())?;
     let servers = prepare_mcp_update(&config, payload)?;
-    config_request_to_profile(
+    config_request_for_scope(
         state,
-        &profile,
+        scope,
         Method::PUT,
         "/api/mcp/servers",
         Some(serde_json::json!({ "servers": servers })),
@@ -347,6 +276,7 @@ mod tests;
 
 async fn upstream_request(
     state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
     operation: &str,
     payload: &Value,
 ) -> Result<Value, DesktopFailure> {
@@ -386,7 +316,9 @@ async fn upstream_request(
         "actions.status" => (Method::GET, "/api/actions", Some("name"), None),
         _ => return Err(DesktopFailure::invalid_input()),
     };
-    let (port, auth_header, token) = state.profile_http_auth().await?;
+    scope.ensure_current(state).await?;
+    let (port, auth_header, token) = scope.http_auth().await?;
+    scope.ensure_current(state).await?;
     let mut url = Url::parse(&format!("http://127.0.0.1:{port}{route}"))
         .map_err(|_| DesktopFailure::operation_failed())?;
     if let Some(key) = path_key {
@@ -476,5 +408,6 @@ async fn upstream_request(
             object.remove("lines");
         }
     }
+    scope.ensure_current(state).await?;
     Ok(value)
 }
