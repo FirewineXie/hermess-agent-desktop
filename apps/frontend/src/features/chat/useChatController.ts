@@ -266,7 +266,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
       setSessionCurrentDirectory(created.info?.cwd || workspacePath)
       setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : activeModel)
-      await loadSessions(true)
+      void loadSessions(true)
       return id
     })()
     sessionCreationRef.current = creation
@@ -513,6 +513,19 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setNavigationBusy(true)
     setTurnBusy(true)
     setChatStatus(t("ui.submitting"))
+    // Show the prompt before model lookup and session creation finish.
+    const optimisticStartedAt = !isCommand ? Date.now() : null
+    if (optimisticStartedAt != null) {
+      turnStartedAtRef.current = optimisticStartedAt
+      setConversation(rows => appendMessage(rows, 'user', typed || text, optimisticStartedAt))
+      setDraft('')
+    }
+    const restoreUnsentPrompt = () => {
+      if (optimisticStartedAt == null) return
+      setConversation(rows => rows.filter(row => row.kind !== 'message' || row.role !== 'user' || row.startedAt !== optimisticStartedAt))
+      setDraft(draft)
+      turnStartedAtRef.current = null
+    }
     try {
       if (commandName === '/new' && isCommand) {
         submittingRef.current = false
@@ -536,7 +549,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       }
       const id = await ensureChatSession()
       idForSubmission = id
-      if (stopRequestedRef.current) return
+      if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
       if (attachments.some(item => !item.path && !item.ref_text)) {
         const prepared: PendingAttachment[] = []
         for (const attachment of attachments) {
@@ -570,13 +583,15 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
       }
-      if (stopRequestedRef.current) return
-      const startedAt = Date.now()
+      if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
+      const startedAt = optimisticStartedAt ?? Date.now()
       turnStartedAtRef.current = startedAt
       assistantRef.current = ''
       setAssistant('')
-      setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
-      setDraft('')
+      if (optimisticStartedAt == null) {
+        setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
+        setDraft('')
+      }
       promptDispatchStartedRef.current = true
       const result = await chat.submitPrompt(sessionScope(id), text)
       if (!stopRequestedRef.current) {
@@ -595,6 +610,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       }
     } catch (cause) {
       if (!stopRequestedRef.current && (!sessionRef.current || sessionRef.current === idForSubmission)) {
+        if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
+          restoreUnsentPrompt()
+        }
         setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
         finishCurrentTurn('failed')
         setTurnBusy(false)
@@ -645,6 +663,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setConversation([])
     assistantRef.current = ''
     setAssistant('')
+    setTurnBusy(false)
     setServerRequests([])
     setClarifyDraft({ requestId: '', answers: {} })
     setDraft('')

@@ -456,6 +456,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel li { display: grid; grid-template-columns: minmax(100px, 1fr) auto; gap: 6px; padding: 12px 0; border-top: 1px solid #edf0f3; }
 .settings-panel li small, .settings-panel li code { grid-column: 1 / -1; overflow-wrap: anywhere; }
 .tools-panel { width: min(900px, calc(100% - 64px)); }
+.tool-install-success button { margin-left: 10px; vertical-align: middle; }
 .tools-scope-note { display: block; margin: 4px 0 18px; color: #66758c; font-size: 12px; line-height: 1.5; }
 .extensions-panel { width: min(980px, calc(100% - 64px)); }
 .about-panel { width: min(860px, calc(100% - 64px)); }
