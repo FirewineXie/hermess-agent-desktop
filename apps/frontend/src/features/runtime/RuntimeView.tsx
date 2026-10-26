@@ -9,6 +9,7 @@ type Props = {
   onStoragePathChange: (value: string) => void
   storageLocked: boolean
   debugMode: boolean
+  debugButtonVisible: boolean
   onDebugModeChange: (value: boolean) => Promise<void>
   pythonPath: string
   onPythonPathChange: (value: string) => void
@@ -22,7 +23,7 @@ type Props = {
   onStop: () => Promise<void>
 }
 
-export default function RuntimeView({ storagePath, onStoragePathChange: setStoragePath, storageLocked, debugMode, onDebugModeChange, pythonPath, onPythonPathChange: setPythonPath, backend, backendStatus, busy, onChooseStoragePath: chooseStoragePath, onStart: startBackend, onPing: pingBackend, onReconnect: reconnectBackend, onStop: stopBackend }: Props) {
+export default function RuntimeView({ storagePath, onStoragePathChange: setStoragePath, storageLocked, debugMode, debugButtonVisible, onDebugModeChange, pythonPath, onPythonPathChange: setPythonPath, backend, backendStatus, busy, onChooseStoragePath: chooseStoragePath, onStart: startBackend, onPing: pingBackend, onReconnect: reconnectBackend, onStop: stopBackend }: Props) {
   const { diagnostics } = useDesktop()
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
@@ -65,7 +66,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
       <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
       {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
       {storageLocked && <small>{t("ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i")}</small>}
-      <button type="button" className="runtime-debug-toggle" aria-pressed={debugMode} disabled={debugOpening} onClick={() => void toggleDebugMode()}>{t('ui.debug')}</button>
+      {debugButtonVisible && <button type="button" className="runtime-debug-toggle" aria-pressed={debugMode} disabled={debugOpening} onClick={() => void toggleDebugMode()}>{t('ui.debug')}</button>}
       {debugError && <p role="alert">{t('ui.frontend.console.open.failed.arg', debugError)}</p>}
       {debugMode && <>
         <small role="status">{t('ui.debug.mode.enabled')}</small>

@@ -17,6 +17,22 @@ export function useRuntimeController({ t, onReset }: Options) {
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
   const [debugMode, setDebugMode] = React.useState(false)
+  const [debugButtonVisible, setDebugButtonVisible] = React.useState(false)
+  React.useEffect(() => {
+    if (debugButtonVisible) return
+    let typed = ''
+    const revealDebugButton = (event: KeyboardEvent) => {
+      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey ||
+        (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]'))) {
+        typed = ''
+        return
+      }
+      typed = event.key.length === 1 ? (typed + event.key.toLowerCase()).slice(-5) : ''
+      if (typed === 'debug') setDebugButtonVisible(true)
+    }
+    document.addEventListener('keydown', revealDebugButton)
+    return () => document.removeEventListener('keydown', revealDebugButton)
+  }, [debugButtonVisible])
   const changeDebugMode = async (enabled: boolean) => {
     await windowChrome.setFrontendDebugEnabled(enabled)
     setDebugMode(enabled)
@@ -157,7 +173,7 @@ export function useRuntimeController({ t, onReset }: Options) {
 
 
   return {
-    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, debugMode, changeDebugMode,
+    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, debugMode, debugButtonVisible, changeDebugMode,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend, forceRestartBackend,
   }
