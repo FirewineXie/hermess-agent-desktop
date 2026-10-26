@@ -52,7 +52,7 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 ## 版本构建
 
-推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
+推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。先用 `.github/workflows/warm-release-cache.yml` 在 `main` 预热对应平台的原生依赖缓存；缓存缺失时发布构建会失败，不在发布任务中下载 Python/uv 依赖。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
 
 ## 许可
 

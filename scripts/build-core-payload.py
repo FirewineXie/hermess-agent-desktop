@@ -16,13 +16,22 @@ def main() -> None:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--source-payload", type=Path,
                         help="optional verified full payload supplying pinned tools and offline wheels")
+    parser.add_argument("--cache-root", type=Path,
+                        help="build-only reusable tool and uv dependency cache under .cache")
+    parser.add_argument("--require-cache", action="store_true",
+                        help="fail instead of downloading when the prewarmed cache is incomplete")
     args = parser.parse_args()
     product = Path(__file__).resolve().parents[1]
     build = product / ".build"
     out = args.out.resolve()
     full = args.source_payload.resolve(strict=True) if args.source_payload else None
+    cache_root = args.cache_root.resolve() if args.cache_root else None
     if not out.is_relative_to(build) or (full and not full.is_relative_to(build)) or out.exists():
         parser.error("output must be fresh and paths must remain under the product .build directory")
+    if cache_root and (not cache_root.is_relative_to(product / ".cache") or full):
+        parser.error("--cache-root must be under .cache and cannot be combined with --source-payload")
+    if args.require_cache and not cache_root:
+        parser.error("--require-cache needs --cache-root")
     upstream = product / "upstream" / "hermes-agent"
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
     bootstrap = build / "pm-bootstrap"
@@ -63,6 +72,11 @@ def main() -> None:
     names = ["python", "uv"]
     if full:
         pm.stage_tools(names, source_store=full / "tools", out=store, target=target)
+    elif cache_root:
+        cached_tools = cache_root / "tools"
+        if not args.require_cache:
+            pm.prepare_tools(names, out=cached_tools, target=target)
+        pm.stage_tools(names, source_store=cached_tools, out=store, target=target)
     else:
         pm.prepare_tools(names, out=store, target=target)
     facts = Facts(store / "facts.json", strict=True)
@@ -76,16 +90,20 @@ def main() -> None:
     cache = out / "uv-cache"
     if full:
         shutil.copytree(full / "uv-cache", cache)
+    elif cache_root and (cache_root / "uv-cache").is_dir():
+        shutil.copytree(cache_root / "uv-cache", cache)
+    elif args.require_cache:
+        parser.error("prewarmed uv cache is missing")
     else:
         cache.mkdir()
-    stage_pm_runtime(out, python_bin, repo, offline=False, cache=cache)
+    stage_pm_runtime(out, python_bin, repo, offline=args.require_cache, cache=cache)
     venv = out / "venv"
     if target.startswith("darwin-"):
         # The staged PBS interpreter retains an AR path from its deleted build tree.
         os.environ["AR"] = "/usr/bin/ar"
     pm.build_environment(source=repo, out=venv, python=python_bin, cache=cache,
                          extras=["messaging", "feishu"], all_extras=False,
-                         sealed=True, offline=False, explicit=True)
+                         sealed=True, offline=args.require_cache, explicit=True)
     features = installed_extras(repo, venv, python_exe=python_bin)
     write_features(features, out)
     facts.record_state("venv", Venv(repo).expected_stamp(features, plugin_dirs=[]), features)
@@ -107,6 +125,8 @@ def main() -> None:
     prepared = publish_prepared(out, upstream, commit, inputs)
     finish_native(prepared, {})
     subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(out)], check=True)
+    if cache_root and not (cache_root / "uv-cache").exists():
+        shutil.copytree(cache, cache_root / "uv-cache")
     print(f"core payload ready: {out}; extras={len(features)}, tools={names}")
 
 

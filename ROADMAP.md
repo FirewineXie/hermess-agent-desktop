@@ -4,6 +4,8 @@
 
 ## v0.1.5（开发中，准备 v0.1.5-rc.2 候选版本）
 
+2026-10-26 CI 依赖预热与并发补充：所有 PR 共用一个 Windows CI 并发名额，同一 PR 有新提交时仍取消旧检查，不增加 10 分钟等待。新增 `main` 上按平台预热 pnpm、Cargo 及固定上游 Python/uv 依赖的工作流；发布任务仅恢复预热缓存，缺失时失败，pnpm、Cargo 和载荷构建离线使用缓存并保留上游及 payload 校验。Windows 本地使用当前锁定 fork 的已有工具与 uv 缓存，以 Python 3.14 完整离线构建并验证 `win32-x64` payload 通过；工作流静态检查通过，PR 作业 `queue: max` 语法依 GitHub 官方文档核对，当前 actionlint 版本尚未识别该字段。GitHub 跨工作流缓存命中、macOS/Linux 离线构建及实际提速仍待云端验证。未创建新 tag 或 Release。
+
 2026-10-26 CI 与发版资源优化：同一 PR 的新检查会取消旧运行，`main` 推送检查独立保留；PR 与发版构建缓存 pnpm 下载仓库和按系统、架构、锁文件隔离的 Cargo 下载依赖。新 tag 默认只构建 Windows x64 和 macOS Apple Silicon，已有 Release 可按需补发 macOS Intel 或 Linux x64，校验清单覆盖实际附件。Windows 本地完成工作流静态检查及双平台、补发、缺包和未知附件的清单脚本测试；GitHub 原生 runner、缓存命中效果、手动补发及安装包仍待新提交与后续发布验证。本次仅调整工作流和发布脚本，未创建新 tag 或 Release。
 
 授权说明调整：当前版本产品原创代码采用 PolyForm Strict 1.0.0，允许非商业使用；修改、制作衍生作品、分发或商业使用均须事先取得 Firewine 的书面授权。根目录 `COPYRIGHT.md` 说明授权边界，「关于」页随包展示产品协议，并继续展示上游 Hermes Agent 的 MIT 许可证。此前版本已授出的权利不因本次调整撤销。Windows 本地 `pnpm build`、对应 Rust 单元测试和 `pnpm check:legal` 通过；原生窗口与安装包中的展示待验收。

@@ -18,6 +18,9 @@ jobs:
     name: Build and test (Windows)
     runs-on: windows-2025
     timeout-minutes: 45
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && 'all-pr-windows-ci' || format('main-windows-ci-{0}', github.ref) }}
+      queue: max
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
