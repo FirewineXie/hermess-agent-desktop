@@ -99,7 +99,7 @@ function App() {
   const [otherProfileSessions, setOtherProfileSessions] = useProfileState<Record<string, SessionRow[]>>(workspaceKey(backend?.replay_epoch, 'sidebar-other'), {}, 'app:other-profile-sessions')
   const otherSessionsVersion = React.useRef(0)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
-  const servedProfileNames = profileController.snapshot?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]).filter(name => name !== profileController.snapshot?.selected).join('|') || ''
+  const servedProfileNames = profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]).filter(name => name !== profileController.snapshot?.selected).join('|') || ''
   const refreshOtherProfileSessions = async () => {
     const version = ++otherSessionsVersion.current
     const names = [...new Set(servedProfileNames.split('|').filter(Boolean))]

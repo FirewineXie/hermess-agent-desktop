@@ -17,7 +17,7 @@ type Props = {
 
 export default function TargetProfilesDialog({ itemName, profiles, alreadyInstalled = [], unavailable = [], busy, confirmDisabled = false, onClose, onConfirm, children }: Props) {
   const zh = useLanguage() === 'zh-CN'
-  const served = new Set(profiles.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]))
+  const served = new Set(profiles.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
   const available = profiles.profiles.filter(profile => served.has(profile.name) && !alreadyInstalled.includes(profile.name) && !unavailable.includes(profile.name))
   const [selected, setSelected] = React.useState<string[]>(available.some(profile => profile.name === profiles.selected) ? [profiles.selected] : [])
   const firstRef = React.useRef<HTMLInputElement>(null)

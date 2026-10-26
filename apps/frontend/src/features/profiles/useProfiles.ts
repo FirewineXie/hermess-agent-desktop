@@ -27,7 +27,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     if (request === generation.current) {
       setRoster(latest)
       setViewed(current => {
-        const served = new Set(latest.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]))
+        const served = new Set(latest.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
         if (current && served.has(current)) return current
         let stored = ''
         try { stored = localStorage.getItem('hermess:viewed-profile') || '' } catch { /* optional preference */ }
@@ -48,7 +48,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     }
     let active = true
     void refresh().then(latest => {
-      if (active && pendingName && latest.gateways.some(gateway => gateway.served_profiles?.includes(pendingName))) setPendingName(null)
+      if (active && pendingName && latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) setPendingName(null)
     }).catch(cause => { if (active) setError(describeError(cause, language)) })
     return () => { active = false }
   }, [connected, backendEpoch])
@@ -56,7 +56,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
   const select = async (name: string) => {
     if (snapshot?.selected === name) return
     setError('')
-    const served = roster?.gateways.some(gateway => (gateway.served_profiles || [gateway.profile]).includes(name))
+    const served = roster?.gateways.some(gateway => gateway.profile === name || gateway.served_profiles?.includes(name))
     if (!served) {
       const cause = new Error('Profile is not served by this Gateway')
       setError(describeError(cause, language))
@@ -86,7 +86,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
           : `Profile created, but some settings need attention: ${details.join(', ')}`)
       }
       let latest = await refresh()
-      let served = latest.gateways.some(gateway => gateway.served_profiles?.includes(created.name))
+      let served = latest.gateways.some(gateway => gateway.profile === created.name || gateway.served_profiles?.includes(created.name))
       if (!served) {
         const restarted = await restart()
         if (!restarted) {
@@ -94,7 +94,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
           return { ...created, served: false }
         }
         latest = await refresh()
-        served = latest.gateways.some(gateway => gateway.served_profiles?.includes(created.name))
+        served = latest.gateways.some(gateway => gateway.profile === created.name || gateway.served_profiles?.includes(created.name))
       }
       if (!served) {
         setPendingName(created.name)
@@ -118,12 +118,12 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     setError('')
     try {
       let latest = await refresh()
-      if (!latest.gateways.some(gateway => gateway.served_profiles?.includes(pendingName))) {
+      if (!latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
         const restarted = await restart()
         if (!restarted) return
         latest = await refresh()
       }
-      if (!latest.gateways.some(gateway => gateway.served_profiles?.includes(pendingName))) {
+      if (!latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
         setError(describeError(new Error('Profile is not served by this Gateway'), language))
         return
       }

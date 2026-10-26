@@ -43,7 +43,7 @@ export default function ScheduledTasksView({ connected, epoch, profiles }: { con
     document.addEventListener('keydown', onEscape)
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onEscape) }
   }, [Boolean(editor), busy])
-  const served = React.useMemo(() => new Set(profiles?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]) || []), [profiles])
+  const served = React.useMemo(() => new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || []), [profiles])
   const available = React.useMemo(() => profiles?.profiles.filter(profile => served.has(profile.name)) || [], [profiles, served])
   const profileKey = available.map(profile => profile.name).join('|')
 

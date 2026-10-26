@@ -82,7 +82,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   }, [conversation, assistant, serverRequest, sessionId, userCount])
 
   const empty = conversation.length === 0 && !assistant && !sessionId
-  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]) || [])
+  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件与终端' : 'Files & terminal')
   const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
   return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`}>

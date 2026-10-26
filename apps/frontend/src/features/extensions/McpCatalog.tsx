@@ -43,7 +43,7 @@ export default function McpCatalog({ entries, results, resultsSource, profiles, 
     if (!profiles || openingId || busy || (item.identifier && !item.installable)) return
     setOpeningId(key(item))
     try {
-      const served = new Set(profiles.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]))
+      const served = new Set(profiles.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
       const names = profiles.profiles.map(profile => profile.name).filter(name => served.has(name))
       const status = await installedTargets('mcp', names, item.install_name || item.identifier || item.name)
       setTargetStatus(status)

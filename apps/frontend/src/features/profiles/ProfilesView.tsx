@@ -27,7 +27,7 @@ export default function ProfilesView(props: Props) {
   const zh = language === 'zh-CN'
   const [query, setQuery] = React.useState('')
   const [selectionError, setSelectionError] = React.useState('')
-  const servedProfiles = new Set(props.profiles?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]) || [])
+  const servedProfiles = new Set(props.profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const matchingProfiles = (props.profiles?.profiles || []).filter(profile =>
     `${profile.display_name || ''} ${profile.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
 

@@ -4,6 +4,8 @@
 
 ## v0.1.6（页面重构开发中）
 
+2026-10-27 单 Profile 服务状态修复：锁定 Hermes 在单 Profile 模式下可发布空的 `served_profiles`，客户端现同时将 Gateway 自身的 `profile` 视为已服务；模型配置、模型候选和会话读取不再因 `default` 被误判而返回状态冲突。前端的 Profile 选择、侧栏、聊天、扩展与定时任务入口同步使用该规则，未服务的 Profile 仍被拒绝。Windows 本地前端类型检查、桌面 UI 构建、Rust 格式检查、离线编译、Profile 服务状态定向单测及差异检查通过；当前运行中的旧窗口与安装包尚未重新构建并实操验收。
+
 2026-10-27 本地命令入口：新增 `pnpm deps`、`pnpm start`、`pnpm pack:win`、`pnpm pack:mac`、`pnpm pack:linux`，封装锁定上游获取、依赖与离线载荷准备、开发窗口及按本机平台生成安装包；已有载荷仅校验不覆盖。Windows 本地 `pnpm start` 已进入 Tauri 开发流程并运行调试程序，错误平台与缺少载荷时的打包提示已核对；完整依赖下载、三平台安装包及原生窗口操作仍待实测。
 
 2026-10-27 Windows NSIS 默认安装目录调整：基于当前锁定的 Tauri CLI v2.12.4 模板，将新安装的目录名从 `Hermess Agent Desktop` 改为 `HermessAgentDesktop`，保留产品显示名与已有安装位置恢复逻辑。模板按仓库单文件行数限制分成两份，构建脚本在忽略的 `.build` 中合并。Windows 前端与 Rust release 编译通过；首次两次 NSIS 打包被同时运行的打包进程占用目录（OS error 32），该进程结束后重跑成功，产出 177.59 MiB 的 `0.1.6` NSIS 安装包，生成脚本中的当前用户默认目录为 `$LOCALAPPDATA\HermessAgentDesktop`。尚未在安装向导界面验收实际显示及执行安装。

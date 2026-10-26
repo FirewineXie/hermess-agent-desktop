@@ -32,7 +32,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
   const [collapsedProfiles, setCollapsedProfiles] = React.useState<Set<string>>(() => new Set())
   const [visibleSessionCounts, setVisibleSessionCounts] = React.useState<Record<string, number>>({})
   const zh = language === 'zh-CN'
-  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]) || [])
+  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const hasAnySession = sessions.length > 0 || Object.values(otherProfileSessions).some(rows => rows.length > 0)
   React.useEffect(() => {
     if (!connected) {

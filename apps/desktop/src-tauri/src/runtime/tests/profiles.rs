@@ -55,6 +55,15 @@ fn selection_requires_a_roster_entry_and_live_service() {
     assert!(!roster_contains(&roster, "unknown"));
     assert!(!is_served(&status, "unknown"));
     assert!(!is_served(&json!({"gateway_mode": "single"}), "writer"));
+    let standalone =
+        json!({"gateways": [{"profile": "default", "ports": [], "served_profiles": []}]});
+    assert!(is_served(&standalone, "default"));
+    assert!(!is_served(&standalone, "writer"));
+    assert!(is_served(
+        &json!({"gateways": [{"profile": "default"}]}),
+        "default"
+    ));
+    assert!(!is_served(&json!({"gateways": []}), "default"));
 }
 
 #[test]

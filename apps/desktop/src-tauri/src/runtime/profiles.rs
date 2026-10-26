@@ -254,12 +254,13 @@ pub(super) fn is_served(status: &Value, name: &str) -> bool {
         .and_then(Value::as_array)
         .is_some_and(|gateways| {
             gateways.iter().any(|gateway| {
-                gateway
-                    .get("served_profiles")
-                    .and_then(Value::as_array)
-                    .is_some_and(|served| {
-                        served.iter().any(|profile| profile.as_str() == Some(name))
-                    })
+                gateway.get("profile").and_then(Value::as_str) == Some(name)
+                    || gateway
+                        .get("served_profiles")
+                        .and_then(Value::as_array)
+                        .is_some_and(|served| {
+                            served.iter().any(|profile| profile.as_str() == Some(name))
+                        })
             })
         })
 }

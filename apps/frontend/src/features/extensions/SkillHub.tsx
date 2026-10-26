@@ -39,7 +39,7 @@ export default function SkillHub({ official, featured, sources, results, results
     if (!profiles || openingId || busy) return
     setOpeningId(item.identifier)
     try {
-      const served = new Set(profiles.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]))
+      const served = new Set(profiles.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
       const names = profiles.profiles.map(profile => profile.name).filter(name => served.has(name))
       const status = await installedTargets('skill', names, item.identifier)
       setTargetStatus(status)
