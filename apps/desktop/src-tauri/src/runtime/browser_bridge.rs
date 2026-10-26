@@ -1,6 +1,7 @@
 use super::BackendState;
 use crate::diagnostics::capture_browser_output;
 use crate::errors::DesktopFailure;
+use crate::process_manager::{self, ProcessRegistration};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -23,61 +24,7 @@ struct BrowserInstance {
     child: Child,
     port: u16,
     connected_epoch: Option<String>,
-    #[cfg(windows)]
-    _job: BrowserJob,
-}
-
-#[cfg(windows)]
-struct BrowserJob(std::os::windows::io::OwnedHandle);
-
-#[cfg(windows)]
-impl BrowserJob {
-    fn new() -> std::io::Result<Self> {
-        use std::os::windows::io::FromRawHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        };
-
-        let raw = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
-        if raw.is_null() {
-            return Err(std::io::Error::last_os_error());
-        }
-        let handle = unsafe { std::os::windows::io::OwnedHandle::from_raw_handle(raw) };
-        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        let result = unsafe {
-            SetInformationJobObject(
-                raw,
-                JobObjectExtendedLimitInformation,
-                &limits as *const _ as *const _,
-                std::mem::size_of_val(&limits) as u32,
-            )
-        };
-        if result == 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(Self(handle))
-    }
-
-    fn assign(&self, pid: u32) -> std::io::Result<()> {
-        use std::os::windows::io::{AsRawHandle, FromRawHandle};
-        use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
-        use windows_sys::Win32::System::Threading::{
-            OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-        };
-
-        let raw = unsafe { OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid) };
-        if raw.is_null() {
-            return Err(std::io::Error::last_os_error());
-        }
-        let process = unsafe { std::os::windows::io::OwnedHandle::from_raw_handle(raw) };
-        if unsafe { AssignProcessToJobObject(self.0.as_raw_handle(), process.as_raw_handle()) } == 0
-        {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(())
-    }
+    _process: ProcessRegistration,
 }
 
 impl Drop for BrowserInstance {
@@ -123,8 +70,6 @@ async fn start_chromium(
 ) -> Result<BrowserInstance, DesktopFailure> {
     fs::create_dir_all(profile_dir).map_err(|_| DesktopFailure::operation_failed())?;
     let _ = fs::remove_file(profile_dir.join("DevToolsActivePort"));
-    #[cfg(windows)]
-    let job = BrowserJob::new().map_err(|_| DesktopFailure::operation_failed())?;
     let mut command = Command::new(chrome);
     command
         .args([
@@ -140,14 +85,8 @@ async fn start_chromium(
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    let mut child = command
-        .spawn()
+    let (mut child, registration) = process_manager::spawn(&mut command, "browser_cdp")
         .map_err(|_| DesktopFailure::operation_failed())?;
-    #[cfg(windows)]
-    if child.id().is_none_or(|pid| job.assign(pid).is_err()) {
-        let _ = child.start_kill();
-        return Err(DesktopFailure::operation_failed());
-    }
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(capture_browser_output(
             storage.to_path_buf(),
@@ -174,8 +113,7 @@ async fn start_chromium(
                     child,
                     port,
                     connected_epoch: None,
-                    #[cfg(windows)]
-                    _job: job,
+                    _process: registration,
                 });
             }
         }

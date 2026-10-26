@@ -125,7 +125,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
-      <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
+      <CommandSuggestions visible={Boolean(trigger && sessionId)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
       <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
@@ -152,7 +152,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
       </div>
       {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
-        activeModel={activeModel} turnBusy={turnBusy} t={t} onRefresh={() => void openModelPicker(true)} onClose={() => setModelPickerOpen(false)}
+        activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); openView('model') }} />}
       </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}

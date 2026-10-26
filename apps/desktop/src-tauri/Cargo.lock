@@ -1569,6 +1569,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures-util",
+ "libc",
  "portable-pty",
  "reqwest",
  "serde",

@@ -4,6 +4,7 @@ mod diagnostics;
 mod errors;
 mod gateway;
 mod panel_terminal;
+mod process_manager;
 mod runtime;
 mod storage;
 mod tray;
@@ -11,6 +12,10 @@ mod updates;
 mod workspace_panel;
 
 fn main() {
+    #[cfg(target_os = "macos")]
+    if process_manager::maybe_run_watchdog() {
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app);
@@ -21,7 +26,10 @@ fn main() {
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
         .manage(panel_terminal::TerminalState::default())
-        .setup(tray::setup)
+        .setup(|app| {
+            process_manager::ProcessManager::init()?;
+            tray::setup(app)
+        })
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
@@ -64,6 +72,7 @@ fn main() {
             runtime::chat::execute_composer_command,
             runtime::chat::dispatch_composer_skill,
             runtime::chat::attach_chat_file,
+            runtime::chat::inspect_chat_file,
             runtime::chat::detach_chat_image,
             runtime::chat::answer_gateway_request,
             runtime::chat::list_chat_sessions,

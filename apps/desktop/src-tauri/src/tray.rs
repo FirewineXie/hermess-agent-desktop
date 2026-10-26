@@ -43,13 +43,30 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             "quit" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
+                    let Ok(processes) = crate::process_manager::ProcessManager::current() else {
+                        app.exit(1);
+                        return;
+                    };
+                    if !processes.begin_shutdown() {
+                        return;
+                    }
+                    crate::panel_terminal::close_all_panel_terminals(
+                        app.state::<crate::panel_terminal::TerminalState>(),
+                    );
                     let state = app.state::<crate::runtime::BackendState>();
                     let bridge = app.state::<crate::runtime::browser_bridge::BrowserBridgeState>();
-                    if crate::runtime::stop_backend(state, bridge).await.is_ok() {
-                        app.exit(0);
-                    } else {
-                        show_main_window(&app);
+                    bridge.stop_all().await;
+                    let _ = processes.kill_temporary();
+                    let stopped = tokio::time::timeout(
+                        std::time::Duration::from_secs(25),
+                        crate::runtime::stop_backend(state, bridge),
+                    )
+                    .await;
+                    let remaining = processes.kill_remaining();
+                    if !remaining.is_empty() {
+                        eprintln!("Force-closed remaining desktop processes: {remaining:?}");
                     }
+                    app.exit(if matches!(stopped, Ok(Ok(()))) { 0 } else { 1 });
                 });
             }
             _ => {}

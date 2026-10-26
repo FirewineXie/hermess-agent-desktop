@@ -14,6 +14,16 @@ use std::{
 use tauri::State;
 use uuid::Uuid;
 
+pub(super) fn custom_endpoint_delete_path(endpoint_id: &str) -> Result<String, DesktopFailure> {
+    let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    url.path_segments_mut()
+        .map_err(|_| DesktopFailure::operation_failed())?
+        .pop_if_empty()
+        .push(endpoint_id);
+    Ok(url.path().to_owned())
+}
+
 async fn model_lists_file(
     state: &State<'_, BackendState>,
     profile: &str,
@@ -289,6 +299,7 @@ pub async fn add_custom_endpoint(
     base_url: String,
     model: String,
     api_key: String,
+    make_default: bool,
 ) -> Result<Value, DesktopFailure> {
     let name = name.trim();
     let base_url = base_url.trim();
@@ -312,7 +323,7 @@ pub async fn add_custom_endpoint(
         return Err(DesktopFailure::invalid_input());
     }
     let mut body = json!({"id": format!("desktop-{}", Uuid::new_v4().simple()),
-        "name": name, "base_url": base_url, "model": model, "make_default": false});
+        "name": name, "base_url": base_url, "model": model, "make_default": make_default});
     if !api_key.is_empty() {
         body["api_key"] = json!(api_key);
     }
@@ -347,24 +358,38 @@ pub async fn delete_custom_endpoint(
         None,
     )
     .await?;
-    let removable = listed
+    let source = listed
         .get("endpoints")
         .and_then(Value::as_array)
-        .is_some_and(|endpoints| {
-            endpoints.iter().any(|endpoint| {
-                endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str())
-                    && endpoint.get("source").and_then(Value::as_str) != Some("direct-config")
+        .and_then(|endpoints| {
+            endpoints.iter().find_map(|endpoint| {
+                (endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str()))
+                    .then(|| endpoint.get("source").and_then(Value::as_str))
+                    .flatten()
             })
         });
-    if !removable {
+    let Some(source) = source else {
         return Err(DesktopFailure::conflict());
+    };
+    if source == "direct-config" {
+        return config_request_for_scope(
+            &state,
+            &scope,
+            reqwest::Method::PUT,
+            "/api/config",
+            Some(json!({
+                "profile": profile,
+                "config": {"model": {
+                    "default": "", "model": "", "name": "", "provider": "",
+                    "base_url": "", "api_base": "", "api": "", "api_key": "",
+                    "key_env": "", "api_key_env": "", "api_mode": ""
+                }}
+            })),
+        )
+        .await;
     }
-    let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
-        .map_err(|_| "无法构建提供商地址".to_string())?;
-    url.path_segments_mut()
-        .map_err(|_| "无法构建提供商地址".to_string())?
-        .push(&endpoint_id);
-    config_request_for_scope(&state, &scope, reqwest::Method::DELETE, url.path(), None).await
+    let path = custom_endpoint_delete_path(&endpoint_id)?;
+    config_request_for_scope(&state, &scope, reqwest::Method::DELETE, &path, None).await
 }
 
 #[tauri::command]

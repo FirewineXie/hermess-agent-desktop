@@ -14,7 +14,6 @@ type Props = {
   activeModel: { provider: string; model: string } | null
   turnBusy: boolean
   t: (key: string, ...values: unknown[]) => string
-  onRefresh: () => void
   onClose: () => void
   onProviderChange: (provider: string) => void
   onModelInputChange: (model: string) => void
@@ -22,9 +21,9 @@ type Props = {
   onOpenSettings: () => void
 }
 
-export default function ModelPicker({ pickerRef, position, busy, error, confirmation, providers, provider, models, modelInput, activeModel, turnBusy, t, onRefresh, onClose, onProviderChange, onModelInputChange, onPick, onOpenSettings }: Props) {
+export default function ModelPicker({ pickerRef, position, busy, error, confirmation, providers, provider, models, modelInput, activeModel, turnBusy, t, onClose, onProviderChange, onModelInputChange, onPick, onOpenSettings }: Props) {
   return <div ref={pickerRef} className="model-picker" role="dialog" aria-label={t('ui.select.model')} style={position}>
-    <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.refresh.models')} disabled={busy} onClick={onRefresh}>↻</button><button type="button" title={t('ui.close')} onClick={onClose}>×</button></span></div>
+    <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.close')} onClick={onClose}>×</button></span></div>
     {error && <p className="model-picker-message" role="alert">{error}</p>}
     {confirmation && <div className="model-picker-confirm" role="alert"><p>{confirmation.message}</p><button disabled={busy} onClick={() => onPick(confirmation.provider, confirmation.model, confirmation.remember, confirmation.token)}>{t('ui.confirm.this.model')}</button></div>}
     {busy && <p className="model-picker-message" role="status">{t('ui.loading.model.options')}</p>}

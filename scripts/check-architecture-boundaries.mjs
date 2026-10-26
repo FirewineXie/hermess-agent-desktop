@@ -67,6 +67,37 @@ const checkTestSeparation = directory => {
 for (const source of typescriptSources) checkTestSeparation(source)
 checkTestSeparation(rustSource)
 
+// Product-owned native processes must go through the shared lifecycle owner.
+// PTY creation is wrapped by ProcessManager::launch in panel_terminal.rs;
+// profile_data.rs only asks the OS to open a user-facing file manager.
+const managedProcessExceptions = new Set(['process_manager.rs', 'panel_terminal.rs', 'profile_data.rs'])
+const managedPlatformFiles = new Set([
+  resolve(rustSource, 'process_manager/windows.rs'),
+  resolve(rustSource, 'process_manager/macos.rs'),
+])
+const checkProcessSpawns = directory => {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === 'tests') continue
+    const file = join(directory, entry.name)
+    if (entry.isDirectory()) checkProcessSpawns(file)
+    else if (entry.name.endsWith('.rs') && !managedProcessExceptions.has(entry.name) && !managedPlatformFiles.has(file)) {
+      const source = readFileSync(file, 'utf8')
+      if (/\.spawn\s*\(|\.spawn_command\s*\(|\bcommand\.(?:output|status)\s*\(/.test(source)) {
+        failures.push(`${relative(root, file)}: start product processes through process_manager`)
+      }
+    }
+  }
+}
+checkProcessSpawns(rustSource)
+const panelTerminalSource = readFileSync(resolve(rustSource, 'panel_terminal.rs'), 'utf8')
+if ([...panelTerminalSource.matchAll(/\.spawn_command\s*\(/g)].length !== 1 || !panelTerminalSource.includes('manager.launch(')) {
+  failures.push('panel_terminal.rs: PTY process must be launched inside ProcessManager::launch')
+}
+const profileDataSource = readFileSync(resolve(rustSource, 'runtime/profile_data.rs'), 'utf8')
+if ([...profileDataSource.matchAll(/\.spawn\s*\(/g)].length !== 1 || !profileDataSource.includes('let program = "explorer.exe"')) {
+  failures.push('profile_data.rs: only the external system file manager may bypass process_manager')
+}
+
 const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
 const adapter = readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8')
 const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')

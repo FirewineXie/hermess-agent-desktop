@@ -1,5 +1,6 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use crate::process_manager;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -173,10 +174,13 @@ pub async fn install_downloadable_tool(
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    let status = timeout(Duration::from_secs(1800), command.status())
-        .await
-        .map_err(|_| DesktopFailure::timeout())?
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    let status = timeout(
+        Duration::from_secs(1800),
+        process_manager::status(&mut command, "tool_install"),
+    )
+    .await
+    .map_err(|_| DesktopFailure::timeout())?
+    .map_err(|_| DesktopFailure::operation_failed())?;
     if !status.success() {
         return Err(DesktopFailure::operation_failed());
     }

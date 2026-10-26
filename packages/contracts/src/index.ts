@@ -236,7 +236,7 @@ export interface DesktopApi {
     endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
     loadLists(scope: ProfileScope, storagePath: string): Promise<Record<string, string[]> | null>
     saveLists(scope: ProfileScope, storagePath: string, lists: Record<string, string[]>): Promise<void>
-    addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string }): Promise<void>
+    addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string; makeDefault: boolean }): Promise<void>
     deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
@@ -246,7 +246,7 @@ export interface DesktopApi {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
   }
   chat: {
-    createSession(scope: ProfileScope, cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
+    createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
     submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
@@ -259,6 +259,7 @@ export interface DesktopApi {
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
+    inspectFile(path: string): Promise<PendingAttachment>
     detachImage(scope: SessionScope, path: string): Promise<void>
     answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
   }

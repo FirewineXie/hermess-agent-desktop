@@ -68,10 +68,10 @@ function App() {
   })
   const {
     sessionId, sessionRef, sessionProfileRef, storedSessionRef, setChatStatus, turnBusy, navigationBusy, sessionCreating, reasoningBusy, sessions, sessionsState,
-    attachmentBusy, ensureChatSession, loadSessions, newChat, resumeSession,
+    attachmentBusy, loadSessions, newChat, resumeSession,
     reconnectBackend, resetChat,
   } = chatController
-  const modelController = useModelController({ backend, profile: viewedProfile, storagePath, t, sessionRef, sessionProfileRef, turnBusy, ensureChatSession, setChatStatus, setActiveModel })
+  const modelController = useModelController({ backend, profile: viewedProfile, storagePath, t, sessionRef, sessionProfileRef, turnBusy, setChatStatus, setActiveModel })
   const {
     savedModel, modelPickerOpen, setModelPickerOpen, modelButtonRef, modelPickerRef,
     pickerPosition, pickerProviders, pickerProvider, setPickerProvider, pickerModelInput,
@@ -81,7 +81,7 @@ function App() {
   React.useEffect(() => {
     if (!backend || !viewedProfile) return
     if (sessionsState !== 'ready') void loadSessions(true, viewedProfile)
-    if (!modelOptionsLoaded) void loadModelOptions(true)
+    if (!modelOptionsLoaded) void loadModelOptions()
   }, [backend, viewedProfile])
   const openView = (next: View): boolean => {
     if (next === view) { setSidebarOpen(false); return true }

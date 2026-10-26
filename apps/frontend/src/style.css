@@ -530,6 +530,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .provider-add-form { width: min(480px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: 22px; border: 1px solid #dfe5ec; border-radius: 13px; background: #fff; box-shadow: 0 20px 60px rgba(20, 32, 50, .2); }
 .provider-add-form h3 { margin: 0; font-size: 16px; }
 .provider-add-form .actions { justify-content: flex-end; margin-bottom: 0; }
+.settings-panel .provider-make-default { display: flex; align-items: center; gap: 9px; }
+.settings-panel .provider-make-default input { flex: none; width: 16px; height: 16px; margin: 0; padding: 0; }
 .provider-model-combobox { position: relative; margin-top: 8px; }
 .settings-panel .provider-model-combobox input { margin-top: 0; padding-right: 38px; }
 .settings-panel .provider-model-toggle { position: absolute; top: 1px; right: 1px; height: calc(100% - 2px); padding: 0 12px; color: #38465a; background: transparent; }
@@ -660,14 +662,16 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .context-indicator:hover .context-tooltip, .context-indicator:focus-visible .context-tooltip { visibility: visible; opacity: 1; }
 .reasoning-picker { display: flex; align-items: center; color: #68717d; font-size: 12px; white-space: nowrap; }
 .reasoning-picker select { max-width: 160px; padding: 8px 5px; border: 0; border-radius: 9px; color: #4b5768; background: #f2f4f7; }
-.model-picker { position: fixed; z-index: 30; display: flex; flex-direction: column; width: min(340px, calc(100vw - 24px)); min-height: 0; padding: 8px; border: 1px solid #dce3ec; border-radius: 12px; background: #fff; box-shadow: 0 14px 38px #192b4530; font-size: 13px; }
+.model-picker { position: fixed; z-index: 30; display: flex; flex-direction: column; width: min(340px, calc(100vw - 24px)); min-height: 0; padding: 8px; border: 1px solid #dce3ec; border-radius: 12px; background: #fff; box-shadow: 0 14px 38px #192b4530; font-size: 13px; animation: model-picker-enter .16s ease-out both; }
+@keyframes model-picker-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .model-picker { animation: none; } }
 .model-picker-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 8px; color: #20242d; }
 .model-picker-header span { display: flex; gap: 2px; }
 .chat-panel .model-picker-header button { padding: 2px 7px; color: #596779; background: transparent; font-size: 20px; line-height: 1; }
 .chat-panel .model-picker-header button:hover { background: #eef2f7; }
 .model-picker-provider { display: grid; gap: 5px; padding: 0 4px 8px; color: #657080; font-size: 11px; }
 .model-picker-provider select, .model-picker-add input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid #d4dce6; border-radius: 7px; outline-color: #315c91; background: #fff; color: #20242d; font-size: 13px; }
-.model-picker-list { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid #eef1f5; border-bottom: 1px solid #eef1f5; }
+.model-picker-list { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid #eef1f5; border-bottom: 1px solid #eef1f5; }
 .chat-panel .model-picker-list button { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 35px; padding: 7px 9px; border: 0; border-radius: 6px; color: #273242; background: #fff; text-align: left; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
 .chat-panel .model-picker-list button:hover { background: #eef4fc; }
 .model-picker-list small { flex: none; color: #315c91; font-size: 13px; }

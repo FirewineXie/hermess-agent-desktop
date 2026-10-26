@@ -1,5 +1,6 @@
 use super::{python_for_hermes, BackendState};
 use crate::errors::DesktopFailure;
+use crate::process_manager;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
@@ -63,10 +64,13 @@ async fn run(
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(15), command.output())
-        .await
-        .map_err(|_| DesktopFailure::timeout())?
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    let output = timeout(
+        Duration::from_secs(15),
+        process_manager::output(&mut command, "personality_helper"),
+    )
+    .await
+    .map_err(|_| DesktopFailure::timeout())?
+    .map_err(|_| DesktopFailure::operation_failed())?;
     scope.ensure_current(state).await?;
     if !output.status.success() {
         return Err(if output.status.code() == Some(3) {

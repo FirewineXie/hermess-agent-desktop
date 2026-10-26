@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::process_manager;
 use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
@@ -94,7 +95,12 @@ async fn inspect(tool: &'static str, names: &[&str], script: &str, prefix: &str)
         #[cfg(windows)]
         command.creation_flags(0x0800_0000);
         command.kill_on_drop(true);
-        match timeout(Duration::from_secs(4), command.output()).await {
+        match timeout(
+            Duration::from_secs(4),
+            process_manager::output(&mut command, "runtime_probe"),
+        )
+        .await
+        {
             Ok(Ok(output)) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
                 let expected_arch = match (tool, std::env::consts::ARCH) {
@@ -148,7 +154,12 @@ async fn inspect_version_command(
         command.args(version_args).kill_on_drop(true);
         #[cfg(windows)]
         command.creation_flags(0x0800_0000);
-        match timeout(Duration::from_secs(4), command.output()).await {
+        match timeout(
+            Duration::from_secs(4),
+            process_manager::output(&mut command, "tool_probe"),
+        )
+        .await
+        {
             Ok(Ok(output)) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout)
                     .lines()

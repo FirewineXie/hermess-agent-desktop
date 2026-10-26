@@ -1,5 +1,8 @@
 use super::location::{read_storage_location, write_storage_location};
-use super::models::{parse_saved_model_config, read_model_lists_file, write_model_lists_file};
+use super::models::{
+    custom_endpoint_delete_path, parse_saved_model_config, read_model_lists_file,
+    write_model_lists_file,
+};
 use super::payload::validate_payload;
 use super::{acquire_storage_lock, install_packed_payload, running_storage_matches};
 use super::{
@@ -112,6 +115,14 @@ fn model_lists_survive_a_second_read() {
     write_model_lists_file(&file, &lists).unwrap();
     assert_eq!(read_model_lists_file(&file).unwrap(), Some(lists));
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn custom_endpoint_delete_path_has_one_separator_before_id() {
+    assert_eq!(
+        custom_endpoint_delete_path("desktop-example").unwrap(),
+        "/api/providers/custom-endpoints/desktop-example"
+    );
 }
 
 #[test]

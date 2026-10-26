@@ -33,11 +33,31 @@ pub async fn create_chat_session(
     state: State<'_, BackendState>,
     profile: String,
     cwd: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    reasoning: Option<String>,
 ) -> Result<Value, DesktopFailure> {
     let cwd = validate_workspace_path(cwd)?;
+    if provider.as_deref().is_some_and(|value| {
+        value.is_empty() || value.len() > 128 || value.chars().any(char::is_whitespace)
+    }) || model.as_deref().is_some_and(|value| {
+        value.is_empty() || value.len() > 256 || value.chars().any(char::is_whitespace)
+    }) || provider.is_some() != model.is_some()
+        || reasoning.as_deref().is_some_and(|value| {
+            !matches!(
+                value,
+                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+            )
+        })
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
     let gateway = state.resolve_profile(&profile).await?.gateway;
     let result = gateway
-        .request("session.create", session_create_params(cwd))
+        .request(
+            "session.create",
+            session_create_params(cwd, provider, model, reasoning),
+        )
         .await?;
     if result.get("session_id").and_then(Value::as_str).is_none()
         || result
@@ -50,13 +70,25 @@ pub async fn create_chat_session(
     Ok(result)
 }
 
-fn session_create_params(cwd: Option<String>) -> Value {
+fn session_create_params(
+    cwd: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    reasoning: Option<String>,
+) -> Value {
     let mut params = json!({
         "source": "gui", "request_id": Uuid::new_v4().to_string()
     });
     if let Some(cwd) = cwd {
         params["cwd"] = json!(cwd);
         params["cwd_explicit"] = json!(true);
+    }
+    if let (Some(provider), Some(model)) = (provider, model) {
+        params["provider"] = json!(provider);
+        params["model"] = json!(model);
+    }
+    if let Some(reasoning) = reasoning {
+        params["reasoning"] = json!(reasoning);
     }
     params
 }
@@ -165,15 +197,16 @@ pub async fn dispatch_composer_skill(
 }
 
 #[tauri::command]
-pub async fn attach_chat_file(
-    state: State<'_, BackendState>,
-    profile: String,
-    session_id: String,
+pub fn inspect_chat_file(path: String) -> Result<Value, DesktopFailure> {
+    let (source, name, bytes, is_image, preview) = inspect_attachment_path(path)?;
+    Ok(json!({"kind": if is_image { "image" } else { "file" },
+        "name": name, "source_path": source.to_string_lossy(), "bytes": bytes,
+        "preview": preview}))
+}
+
+fn inspect_attachment_path(
     path: String,
-) -> Result<Value, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
-        return Err(DesktopFailure::invalid_input());
-    }
+) -> Result<(PathBuf, String, u64, bool, Option<String>), DesktopFailure> {
     if path.len() > 4096 {
         return Err(DesktopFailure::invalid_input());
     }
@@ -191,21 +224,18 @@ pub async fn attach_chat_file(
     let name = source
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("附件");
+        .unwrap_or("附件")
+        .to_owned();
+    let extension = source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase);
     let is_image = matches!(
-        source
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref(),
+        extension.as_deref(),
         Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tiff" | "tif" | "svg" | "ico")
     );
     let is_text = matches!(
-        source
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref(),
+        extension.as_deref(),
         Some("txt" | "md" | "json" | "yaml" | "yml" | "csv" | "tsv" | "py" | "js" | "ts" | "rs")
     );
     let preview = if is_text && metadata.len() <= 128 * 1024 {
@@ -215,6 +245,20 @@ pub async fn attach_chat_file(
     } else {
         None
     };
+    Ok((source, name, metadata.len(), is_image, preview))
+}
+
+#[tauri::command]
+pub async fn attach_chat_file(
+    state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
+    path: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let (source, name, bytes, is_image, preview) = inspect_attachment_path(path)?;
     let method = if is_image {
         "image.attach"
     } else {
@@ -224,9 +268,7 @@ pub async fn attach_chat_file(
     let result = gateway
         .request(
             method,
-            json!({
-                "session_id": session_id, "path": source.to_string_lossy(), "name": name
-            }),
+            json!({"session_id": session_id, "path": source.to_string_lossy(), "name": name}),
         )
         .await?;
     if result.get("attached").and_then(Value::as_bool) != Some(true) {
@@ -239,7 +281,7 @@ pub async fn attach_chat_file(
     }
     Ok(
         json!({"kind": if is_image { "image" } else { "file" }, "name": name,
-        "source_path": source.to_string_lossy(), "bytes": metadata.len(), "preview": preview,
+        "source_path": source.to_string_lossy(), "bytes": bytes, "preview": preview,
         "ref_text": result.get("ref_text"),
         "path": result.get("path")}),
     )

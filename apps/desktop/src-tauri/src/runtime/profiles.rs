@@ -1,6 +1,7 @@
 use super::{profile_scope::SessionOwners, python_for_hermes, BackendState};
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
+use crate::process_manager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::Path, sync::Arc, time::Duration};
@@ -411,10 +412,13 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(90), command.output())
-        .await
-        .map_err(|_| DesktopFailure::timeout())?
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    let output = timeout(
+        Duration::from_secs(90),
+        process_manager::output(&mut command, "profile_setup"),
+    )
+    .await
+    .map_err(|_| DesktopFailure::timeout())?
+    .map_err(|_| DesktopFailure::operation_failed())?;
     if !output.status.success() {
         return Err(DesktopFailure::operation_failed());
     }
@@ -499,10 +503,13 @@ print(_session_ticket(home, endpoint, purpose='native-http'))
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(8), command.output())
-        .await
-        .map_err(|_| DesktopFailure::timeout())?
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    let output = timeout(
+        Duration::from_secs(8),
+        process_manager::output(&mut command, "profile_ticket"),
+    )
+    .await
+    .map_err(|_| DesktopFailure::timeout())?
+    .map_err(|_| DesktopFailure::operation_failed())?;
     if !output.status.success() {
         return Err(DesktopFailure::conflict());
     }

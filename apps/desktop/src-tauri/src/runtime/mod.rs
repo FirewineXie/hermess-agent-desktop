@@ -25,6 +25,7 @@ pub mod usage;
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;
 use crate::gateway::GatewayClient;
+use crate::process_manager::{self, ProcessRegistration};
 use futures_util::{SinkExt, StreamExt};
 use location::{acquire_storage_lock, save_storage_path, saved_storage_path};
 use payload::install_packed_payload;
@@ -61,6 +62,7 @@ struct OwnedBackend {
     _storage_lock: fs::File,
     storage: PathBuf,
     child: Child,
+    _process: ProcessRegistration,
     port: u16,
     token: String,
     hermes: PathBuf,
@@ -276,10 +278,13 @@ print(json.dumps({'profile_id':e.profile_id,'instance_id':e.instance_id,
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(5), command.output())
-        .await
-        .ok()?
-        .ok()?;
+    let output = timeout(
+        Duration::from_secs(5),
+        process_manager::output(&mut command, "gateway_discovery"),
+    )
+    .await
+    .ok()?
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -333,10 +338,13 @@ print(ticket)
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(8), command.output())
-        .await
-        .map_err(|_| "获取网关票据超时".to_string())?
-        .map_err(|_| "无法获取网关票据".to_string())?;
+    let output = timeout(
+        Duration::from_secs(8),
+        process_manager::output(&mut command, "gateway_ticket"),
+    )
+    .await
+    .map_err(|_| "获取网关票据超时".to_string())?
+    .map_err(|_| "无法获取网关票据".to_string())?;
     if !output.status.success() {
         return Err("网关拒绝桌面票据".into());
     }
@@ -509,7 +517,8 @@ async fn launch_backend(
     }
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    let mut child = command.spawn().map_err(|_| "后端启动失败".to_string())?;
+    let (mut child, registration) =
+        process_manager::spawn(&mut command, "gateway").map_err(|_| "后端启动失败".to_string())?;
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(capture_backend_output(storage.clone(), stdout, "stdout"));
     }
@@ -555,6 +564,7 @@ async fn launch_backend(
         _storage_lock: storage_lock,
         storage,
         child,
+        _process: registration,
         port,
         token,
         hermes,
@@ -786,8 +796,7 @@ pub async fn restart_backend_gracefully(
         .kill_on_drop(true);
     #[cfg(windows)]
     stop.creation_flags(0x08000000);
-    let mut helper = stop
-        .spawn()
+    let (mut helper, _stop_registration) = process_manager::spawn(&mut stop, "gateway_stop")
         .map_err(|_| "无法启动网关停止命令".to_string())?;
     let exit = timeout(Duration::from_secs(60), helper.wait())
         .await
@@ -821,6 +830,8 @@ pub async fn stop_backend(
     state: State<'_, BackendState>,
     browser_bridge: State<'_, browser_bridge::BrowserBridgeState>,
 ) -> Result<(), DesktopFailure> {
+    // The browser's detach request needs the gateway, so end CDP first.
+    browser_bridge.stop_all().await;
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
@@ -843,7 +854,9 @@ pub async fn stop_backend(
                 .kill_on_drop(true);
             #[cfg(windows)]
             stop.creation_flags(0x08000000);
-            if let Ok(mut helper) = stop.spawn() {
+            if let Ok((mut helper, _stop_registration)) =
+                process_manager::spawn_shutdown(&mut stop, "gateway_stop")
+            {
                 let _ = timeout(Duration::from_secs(8), helper.wait()).await;
             }
             if timeout(Duration::from_secs(5), backend.child.wait())
@@ -866,7 +879,6 @@ pub async fn stop_backend(
         backend.gateway.close();
     }
     drop(owned);
-    browser_bridge.stop_all().await;
     Ok(())
 }
 

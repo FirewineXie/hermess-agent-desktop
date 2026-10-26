@@ -159,7 +159,7 @@ export const tauriDesktopApi: DesktopApi = {
     statistics: (scope, days) => invoke('get_usage_statistics', { profile: scope.profile, days }),
   },
   chat: {
-    createSession: (scope, cwd) => invoke('create_chat_session', { profile: scope.profile, cwd }),
+    createSession: (scope, args) => invoke('create_chat_session', { profile: scope.profile, ...args }),
     resumeSession: async scope => {
       const result = await invoke<ResumeResult>('resume_chat_session', { profile: scope.profile, sessionId: scope.sessionId })
       return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }
@@ -178,6 +178,7 @@ export const tauriDesktopApi: DesktopApi = {
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
     dispatchSkill: (scope, name, arg) => invoke('dispatch_composer_skill', { profile: scope.profile, sessionId: scope.sessionId, name, arg }),
     attachFile: (scope, path) => invoke('attach_chat_file', { profile: scope.profile, sessionId: scope.sessionId, path }),
+    inspectFile: path => invoke('inspect_chat_file', { path }),
     detachImage: (scope, path) => invoke('detach_chat_image', { profile: scope.profile, sessionId: scope.sessionId, path }),
     answerRequest: (scope, args) => invoke('answer_gateway_request', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
   },

@@ -31,7 +31,7 @@ function selectedWorkspacePath(info?: ResumeResult['info']): string {
 }
 
 export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
-  const { events, nativeFiles, chat, runtime, diagnostics } = useDesktop()
+  const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
   const workspace = workspaceKey(backend?.replay_epoch, profile)
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `chat:${stateSlot++}`)
@@ -57,6 +57,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const [reasoningEffort, setReasoningEffort] = useState('')
   const [reasoningLoadFailed, setReasoningLoadFailed] = useState(false)
   const [reasoningBusy, setReasoningBusy] = useState(false)
+  const draftReasoningRef = useRef('')
   const reasoningChangeInFlightRef = useRef(false)
   const reasoningSessionRef = useRef<string | null>(null)
   const [chatUsage, setChatUsage] = useState<ChatUsage | null>(null)
@@ -242,7 +243,16 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     const generation = sessionGenerationRef.current
     const creation = (async () => {
       const owner = profileScope()
-      const created = await chat.createSession(owner, workspacePath || undefined)
+      if (!activeModel) {
+        const options = await models.options(owner, { refresh: false, includeUnconfigured: false })
+        if (!options.model) throw new Error(t('ui.select.model.before.sending'))
+      }
+      const created = await chat.createSession(owner, {
+        cwd: workspacePath || undefined,
+        provider: activeModel?.provider,
+        model: activeModel?.model,
+        reasoning: draftReasoningRef.current || undefined,
+      })
       if (generation !== sessionGenerationRef.current) throw new Error('Session creation was cancelled')
       const id = created.session_id
       sessionProfileRef.current = owner.profile
@@ -252,9 +262,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       storedSessionRef.current = created.stored_session_id
       lastSessionByProfile.current[owner.profile] = created.stored_session_id
       setSessionId(id)
+      reasoningSessionRef.current = id
       setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
       setSessionCurrentDirectory(created.info?.cwd || workspacePath)
-      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
+      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : activeModel)
       await loadSessions(true)
       return id
     })()
@@ -278,7 +289,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     let active = true
     if (reasoningSessionRef.current !== sessionId) {
       reasoningSessionRef.current = sessionId
-      if (!reasoningChangeInFlightRef.current) setReasoningEffort('')
+      if (!reasoningChangeInFlightRef.current && (sessionId || !draftReasoningRef.current)) setReasoningEffort('')
     }
     setReasoningLoadFailed(false)
     if (!sessionId) setChatUsage(null)
@@ -288,8 +299,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     ]).then(([reasoning, usage]) => {
       if (!active || sessionRef.current !== sessionId) return
       if (!reasoningChangeInFlightRef.current) {
-        if (reasoning.status === 'fulfilled') setReasoningEffort(reasoning.value.value || '')
-        else setReasoningLoadFailed(true)
+        if (reasoning.status === 'fulfilled') {
+          if (sessionId || !draftReasoningRef.current) setReasoningEffort(reasoning.value.value || '')
+        } else if (!draftReasoningRef.current) setReasoningLoadFailed(true)
       }
       if (usage.status === 'fulfilled' && usage.value) setChatUsage(usage.value)
     })
@@ -309,10 +321,16 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
 
   async function changeReasoning(value: string) {
     if (reasoningChangeInFlightRef.current || !backend || !value) return
+    if (!sessionRef.current) {
+      draftReasoningRef.current = value
+      setReasoningEffort(value)
+      setReasoningLoadFailed(false)
+      return
+    }
     reasoningChangeInFlightRef.current = true
     setReasoningBusy(true)
     try {
-      const id = await ensureChatSession()
+      const id = sessionRef.current
       const saved = await chat.setReasoning(sessionScope(id), value)
       if (saved.value !== value) throw new Error(language === 'zh-CN' ? '后端未确认思考强度修改' : 'The backend did not confirm the reasoning change')
       const current = await chat.reasoning(sessionScope(id))
@@ -351,10 +369,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }
 
   React.useEffect(() => {
-    if (backend && composerTrigger(draft, draftCaret) && !commandCatalog) {
+    if (backend && sessionRef.current && composerTrigger(draft, draftCaret) && !commandCatalog) {
       void loadCommandCatalog().catch(() => {})
     }
-  }, [backend, draft, draftCaret, commandCatalog])
+  }, [backend, sessionId, draft, draftCaret, commandCatalog])
 
   const trigger = composerTrigger(draft, draftCaret)
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []
@@ -377,11 +395,12 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     if (paths.length + attachments.length > 10) { setChatStatus(t("ui.up.to.10.attachments.can.be.temporarily.saved.per.round")); return }
     setAttachmentBusy(true)
     try {
-      const id = await ensureChatSession()
       const existing = new Set(attachments.map(item => item.source_path))
       for (const path of paths) {
         if (existing.has(path)) continue
-        const attached = await chat.attachFile(sessionScope(id), path)
+        const attached = sessionRef.current
+          ? await chat.attachFile(sessionScope(sessionRef.current), path)
+          : await chat.inspectFile(path)
         setAttachments(current => [...current, attached])
         existing.add(attached.source_path)
       }
@@ -428,11 +447,27 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }
 
   async function sendMessage(overrideText?: string) {
-    const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
+    let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = draft.trim() || overrideText?.trim() || ''
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
+    if (slash && ['/new', '/sessions', '/model'].includes(`/${slash[1]}`)) {
+      if (attachments.length) {
+        setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command'))
+        return
+      }
+      if (slash[2]?.trim()) {
+        setChatStatus(t(slash[1] === 'new' ? 'ui.the.desktop.new.command.does.not.accept.a.title.yet.create.a.session.then.u'
+          : slash[1] === 'sessions' ? 'ui.the.desktop.sessions.command.does.not.accept.arguments'
+            : 'ui.choose.a.model.in.model.settings.arguments.after.model.do.not.change.the.cu'))
+        return
+      }
+      if (slash[1] === 'new') await newChat(false)
+      else if (slash[1] === 'sessions') { await loadSessions(true); openView('chat'); setSidebarOpen(true); setDraft('') }
+      else { openView('model'); setDraft('') }
+      return
+    }
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
     let catalog: CommandCatalog | null = null
     if (slash || mentions.length) {
@@ -502,6 +537,17 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       const id = await ensureChatSession()
       idForSubmission = id
       if (stopRequestedRef.current) return
+      if (attachments.some(item => !item.path && !item.ref_text)) {
+        const prepared: PendingAttachment[] = []
+        for (const attachment of attachments) {
+          prepared.push(attachment.path || attachment.ref_text
+            ? attachment
+            : await chat.attachFile(sessionScope(id), attachment.source_path))
+          setAttachments([...prepared, ...attachments.slice(prepared.length)])
+        }
+        refs = prepared.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text!)
+        text = [typed, ...refs].filter(Boolean).join('\n') || t('ui.please.see.attachment')
+      }
       if (isCommand) {
         const result = isSkill
           ? await chat.dispatchSkill(sessionScope(id), commandName.slice(1), commandArg)
@@ -592,6 +638,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setSessionWorkspacePath('')
     setSessionCurrentDirectory('')
     setReasoningEffort('')
+    draftReasoningRef.current = ''
+    reasoningSessionRef.current = null
     setActiveModel(null)
     setModelPickerOpen(false)
     setConversation([])
@@ -768,6 +816,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
 
 
   function resetChat(clearDraft = false) {
+    draftReasoningRef.current = ''
     lastSessionByProfile.current = {}
     attemptedEpochResume.current.clear()
     if (clearDraft) setDraft('')
@@ -807,7 +856,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
-    attachmentBusy, draggingFiles, trigger, choices, answerRequest, ensureChatSession,
+    attachmentBusy, draggingFiles, trigger, choices, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,
   }

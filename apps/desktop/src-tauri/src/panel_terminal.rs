@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::process_manager::{ProcessManager, ProcessRegistration};
 use crate::workspace_panel::WorkspaceScope;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
@@ -18,6 +19,7 @@ struct TerminalSession {
     reader: Mutex<Option<Box<dyn Read + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
+    _process: ProcessRegistration,
 }
 
 impl Drop for TerminalSession {
@@ -77,9 +79,27 @@ pub fn start_panel_terminal(
         .map_err(|_| DesktopFailure::operation_failed())?;
     let mut command = CommandBuilder::new(default_shell());
     command.cwd(&directory);
-    let child = pair
-        .slave
-        .spawn_command(command)
+    let (child, registration) = ProcessManager::current()
+        .and_then(|manager| {
+            manager.launch(
+                "panel_terminal",
+                false,
+                || {
+                    let mut child = pair
+                        .slave
+                        .spawn_command(command)
+                        .map_err(std::io::Error::other)?;
+                    let Some(pid) = child.process_id() else {
+                        let _ = child.kill();
+                        return Err(std::io::Error::other("终端没有 PID"));
+                    };
+                    Ok((child, pid))
+                },
+                |child| {
+                    let _ = child.kill();
+                },
+            )
+        })
         .map_err(|_| DesktopFailure::operation_failed())?;
     drop(pair.slave);
     let reader = pair
@@ -97,6 +117,7 @@ pub fn start_panel_terminal(
         reader: Mutex::new(Some(reader)),
         writer: Mutex::new(writer),
         child: Mutex::new(child),
+        _process: registration,
     });
     state
         .0
@@ -230,6 +251,17 @@ pub fn close_panel_terminal(
     }
     sessions.remove(&id);
     Ok(())
+}
+
+pub fn close_all_panel_terminals(state: State<'_, TerminalState>) {
+    if let Ok(mut sessions) = state.0.lock() {
+        for session in sessions.values() {
+            if let Ok(mut child) = session.child.lock() {
+                let _ = child.kill();
+            }
+        }
+        sessions.clear();
+    }
 }
 
 #[cfg(test)]

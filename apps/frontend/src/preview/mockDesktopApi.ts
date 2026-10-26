@@ -110,6 +110,7 @@ export const previewDesktopApi: DesktopApi = {
     async executeCommand() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },
     async attachFile() { throw previewOnly() },
+    async inspectFile() { throw previewOnly() },
     async detachImage() { throw previewOnly() },
     async answerRequest() { throw previewOnly() },
   },
