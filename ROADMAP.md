@@ -4,7 +4,7 @@
 
 ## v0.1.6（页面重构开发中）
 
-2026-10-27 顶栏 GitHub 链接：顶部 GitHub 图标改由桌面宿主调用系统默认浏览器打开 `https://github.com/FirewineXie/hermess-agent-desktop`，Tauri URL 权限只允许此地址；浏览器预览保持新标签页模拟。Windows 本地前端类型检查、桌面 UI 构建、架构检查、Rust 格式与编译检查通过；原生点击尚未实操，提交后重新打包并另行记录结果。
+2026-10-27 顶栏 GitHub 链接：顶部 GitHub 图标改由桌面宿主调用系统默认浏览器打开 `https://github.com/FirewineXie/hermess-agent-desktop`，Tauri URL 权限只允许此地址；浏览器预览保持新标签页模拟。Windows 本地前端类型检查、桌面 UI 构建、架构检查、Rust 格式与编译检查通过。提交 `a6108aa` 后使用已校验的 `win32-x64` 离线载荷重新打包成功，NSIS 安装包 186,185,481 字节，SHA-256 为 `453A8FA84DB71007CD5834D6BE4DD1A0DB3CFB650004A85097C7497B6148F7B1`；尚未在原生窗口点击链接或安装该包实操验收。
 
 2026-10-27 单 Profile 服务状态修复：锁定 Hermes 在单 Profile 模式下可发布空的 `served_profiles`，客户端现同时将 Gateway 自身的 `profile` 视为已服务；模型配置、模型候选和会话读取不再因 `default` 被误判而返回状态冲突。前端的 Profile 选择、侧栏、聊天、扩展与定时任务入口同步使用该规则，未服务的 Profile 仍被拒绝。Windows 本地前端类型检查、桌面 UI 构建、Rust 格式检查、离线编译、Profile 服务状态定向单测及差异检查通过；当前运行中的旧窗口与安装包尚未重新构建并实操验收。
 
