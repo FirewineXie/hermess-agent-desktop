@@ -91,6 +91,47 @@ impl BackendState {
         ))
     }
 
+    async fn gateway_for_profile(
+        &self,
+        profile: Option<String>,
+    ) -> Result<profiles::ProfiledGateway, DesktopFailure> {
+        let Some(profile) = profile else {
+            return self.gateway().await;
+        };
+        if profile.is_empty()
+            || profile.len() > 64
+            || !profile.bytes().all(|byte| {
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
+            })
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let client = {
+            let owned = self.0.lock().await;
+            let backend = owned
+                .as_ref()
+                .ok_or_else(DesktopFailure::runtime_unavailable)?;
+            Arc::clone(&backend.gateway)
+        };
+        let roster = client
+            .request(
+                "profiles.list",
+                serde_json::json!({"include_sessions": false}),
+            )
+            .await?;
+        if !roster
+            .get("profiles")
+            .and_then(Value::as_array)
+            .is_some_and(|rows| {
+                rows.iter()
+                    .any(|row| row.get("name").and_then(Value::as_str) == Some(profile.as_str()))
+            })
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
+        Ok(profiles::ProfiledGateway::new(client, profile))
+    }
+
     async fn profile_home(&self) -> Result<PathBuf, DesktopFailure> {
         let owned = self.0.lock().await;
         let backend = owned

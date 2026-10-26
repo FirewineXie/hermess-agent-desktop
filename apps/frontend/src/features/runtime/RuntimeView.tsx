@@ -1,7 +1,7 @@
 import React from 'react'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
-import { useLanguage, translateApp, localizeAppMessage } from '../../i18n'
+import { useLanguage, changeLanguage, translateApp, localizeAppMessage, type Language } from '../../i18n'
 import { displayPath } from '../../shared/displayPath'
 
 type Props = {
@@ -44,6 +44,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
 
   return <section className="settings-panel flat-settings-panel">
       <h2>{t("ui.runtime.connection")}</h2>
+      <label className="system-language-setting">{t('ui.language')}<select value={language} onChange={event => changeLanguage(event.target.value as Language)}><option value="zh-CN">{t('ui.simplified.chinese')}</option><option value="en-US">{t('ui.english')}</option></select></label>
       <p>{import.meta.env.DEV ? t("ui.only.use.the.isolation.environment.prepared.in.this.product.s.build") : t("ui.using.the.bundled.pinned.runtime")}{t("ui.the.storage.directory.creates.product.specific.subdirectories")}</p>
       <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
       {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}

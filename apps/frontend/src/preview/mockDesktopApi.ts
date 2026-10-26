@@ -3,6 +3,12 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  windowChrome: {
+    customTitlebar: true,
+    async minimize() {},
+    async toggleMaximize() {},
+    async close() {},
+  },
   workspacePanel: {
     async listDirectory() { throw previewOnly() },
     async readFile() { throw previewOnly() },

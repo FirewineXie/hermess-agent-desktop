@@ -10,7 +10,7 @@ type ModelScopeInstalled = { identifiers: Record<string, boolean>; names: Record
 export function useExtensions(connected: boolean) {
   const { extensions } = useDesktop()
   const language = useLanguage()
-  const [tab, setTab] = React.useState<ExtensionTab>('skills')
+  const [tab, setTab] = React.useState<ExtensionTab>('skillHub')
   const [skills, setSkills] = React.useState<LocalSkill[]>([])
   const [servers, setServers] = React.useState<McpServer[]>([])
   const [official, setOfficial] = React.useState<HubSkill[]>([])

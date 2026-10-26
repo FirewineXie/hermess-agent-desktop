@@ -11,6 +11,7 @@ import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
 import PersonalFilesView from './features/personal-files/PersonalFilesView'
 import AboutView from './features/about/AboutView'
+import { useUpdateStatus } from './features/about/useUpdateStatus'
 import ChannelsView from './features/channels/ChannelsView'
 import UsageView from './features/usage/UsageView'
 import WorkspacesView from './features/workspaces/WorkspacesView'
@@ -21,10 +22,14 @@ import ProfilesView from './features/profiles/ProfilesView'
 import Sidebar from './app/Sidebar'
 import WorkspaceHeader from './app/WorkspaceHeader'
 import WorkspacePanel from './features/workspace-panel/WorkspacePanel'
+import ScheduledTasksView from './features/scheduled-tasks/ScheduledTasksView'
 import type { View } from './app/types'
 import type { ModelPick } from './features/models/model'
+import type { SessionRow } from '@hermess/contracts'
+import { useDesktop } from './app/DesktopContext'
 
 function App() {
+  const { chat, windowChrome } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -34,6 +39,9 @@ function App() {
   const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
+  const [aboutInitialTab, setAboutInitialTab] = React.useState<'license' | 'update'>('license')
+  const [updateTabRequest, setUpdateTabRequest] = React.useState(0)
+  const updateStatus = useUpdateStatus()
   const [activeModel, setActiveModel] = React.useState<ModelPick | null>(null)
   const workspaces = useWorkspaces()
   const {
@@ -80,11 +88,36 @@ function App() {
     if (view === 'memory' && next !== 'memory' && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return false
     if (next !== 'agent') setAgentConfigDirty(false)
     if (next !== 'memory') setPersonalFilesDirty(false)
+    if (next === 'about') setAboutInitialTab('license')
     setView(next)
     setSidebarOpen(false)
     return true
   }
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
+  const [otherProfileSessions, setOtherProfileSessions] = React.useState<Record<string, SessionRow[]>>({})
+  const servedProfileNames = profileController.snapshot?.gateways.flatMap(gateway => gateway.served_profiles || [gateway.profile]).filter(name => name !== profileController.snapshot?.selected).join('|') || ''
+  const refreshOtherProfileSessions = async () => {
+    const names = [...new Set(servedProfileNames.split('|').filter(Boolean))]
+    const results = await Promise.allSettled(names.map(name => chat.listSessions(name)))
+    setOtherProfileSessions(Object.fromEntries(results.map((result, index) => [names[index], result.status === 'fulfilled' ? result.value.sessions : []])))
+  }
+  React.useEffect(() => {
+    if (!backend || !servedProfileNames) { setOtherProfileSessions({}); return }
+    let cancelled = false
+    const names = [...new Set(servedProfileNames.split('|'))]
+    void Promise.allSettled(names.map(name => chat.listSessions(name))).then(results => {
+      if (cancelled) return
+      setOtherProfileSessions(Object.fromEntries(results.map((result, index) => [names[index], result.status === 'fulfilled' ? result.value.sessions : []])))
+    })
+    return () => { cancelled = true }
+  }, [backend?.replay_epoch, servedProfileNames, chat])
+  const openProfileSession = async (profile: string, id: string) => {
+    if (!openView('chat')) return
+    try {
+      if (profileController.snapshot?.selected !== profile) await profileController.select(profile)
+      await resumeSession(id)
+    } catch { /* useProfiles reports selection errors in the sidebar */ }
+  }
   const restartForChannel = async (force = false) => {
     const selectedSession = storedSessionRef.current
     const restarted = force ? await forceRestartBackend() : await restartBackend()
@@ -92,31 +125,36 @@ function App() {
     if (selectedSession) await resumeSession(selectedSession, true, restarted.replay_epoch)
     return true
   }
-  return <div className="app-shell">
-    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => void loadSessions()} onResumeSession={id => { if (openView('chat')) void resumeSession(id) }}
+  return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''}`}>
+    <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={openView} onOpenUpdate={() => { if (openView('about')) { setAboutInitialTab('update'); setUpdateTabRequest(value => value + 1) } }} />
+    <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onRefreshSessions={() => { void loadSessions(); void refreshOtherProfileSessions() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onSelectProfile={name => { if (openView('chat')) void profileController.select(name).catch(() => {}) }}
-      onCreateProfile={name => { if (openView('chat')) void profileController.create(name).catch(() => {}) }} onRetryProfile={() => void profileController.retryPending()} />
+      onCreateProfile={name => { if (openView('chat')) void profileController.create(name).catch(() => {}) }} onRetryProfile={() => void profileController.retryPending()}
+      onOpenProfile={name => { if (openView('profiles') && profileController.snapshot?.selected !== name) void profileController.select(name).catch(() => {}) }} />
     <main className="workspace">
-      <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} onOpenNavigation={() => setSidebarOpen(true)} panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)} />
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
       onNewChat={path => { if (openView('chat')) { workspaces.select(path); void newChat() } }} />}
+    {view === 'scheduled' && <ScheduledTasksView connected={Boolean(backend)} profiles={profileController.snapshot} />}
     {view === 'tools' && <ToolsView connected={Boolean(backend)} sessionId={sessionId} />}
     {view === 'usage' && <UsageView connected={Boolean(backend)} />}
-    {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} />}
-    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} profiles={profileController.snapshot} profileBusy={profileController.busy}
+    {view === 'extensions' && <ExtensionsView key={profileController.snapshot?.selected} connected={Boolean(backend)} profiles={profileController.snapshot} profileBusy={profileController.busy} onSelectProfile={profileController.select} onOpenProfiles={() => { openView('profiles') }} />}
+    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} profiles={profileController.snapshot} sessions={sessions} sessionsState={sessionsState} profileBusy={profileController.busy}
       profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onSelect={profileController.select} onCreate={profileController.create} onRetry={profileController.retryPending}
-      onOpenExtensions={() => { openView('extensions') }} />}
+      onOpenExtensions={() => { openView('extensions') }} onOpenMemory={() => { openView('memory') }}
+      onOpenData={() => { openView('chat') }} onNewChat={() => { if (openView('chat')) void newChat() }} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
-    {view === 'about' && <AboutView />}
+    {view === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
     {view === 'model' && <ModelSettingsView connected={Boolean(backend)} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}
     {view === 'chat' && <div className="chat-workspace-layout"><ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
-      controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
+      controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
+      panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)}
+      profiles={profileController.snapshot} profileBusy={profileController.busy} onSelectProfile={name => { void profileController.select(name).catch(() => {}) }} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
       onOpenRuntime={() => openView('runtime')} onOpenModelSettings={() => openView('model')} />

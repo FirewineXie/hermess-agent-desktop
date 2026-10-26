@@ -141,6 +141,12 @@ export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } |
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  windowChrome: {
+    customTitlebar: boolean
+    minimize(): Promise<void>
+    toggleMaximize(): Promise<void>
+    close(): Promise<void>
+  }
   workspacePanel: {
     listDirectory(path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
     readFile(path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
@@ -225,7 +231,7 @@ export interface DesktopApi {
   chat: {
     createSession(cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(sessionId: string): Promise<ResumeResult>
-    listSessions(): Promise<{ sessions: SessionRow[] }>
+    listSessions(profile?: string): Promise<{ sessions: SessionRow[] }>
     submitPrompt(sessionId: string, text: string): Promise<{ status?: string }>
     interruptSession(sessionId: string): Promise<{ status: string }>
     replayEvents(sessionId: string, lastSeen: number, replayEpoch: string): Promise<ReplayResult>

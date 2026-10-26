@@ -28,6 +28,9 @@ pub async fn extension_request(
     {
         return Err(DesktopFailure::conflict());
     }
+    if operation.starts_with("jobs.") {
+        return jobs_request(&state, &operation, &payload).await;
+    }
     match operation.as_str() {
         "mcp.update" => return update_mcp_server(&state, &payload).await,
         "mcp.modelscope.search" => {
@@ -190,6 +193,71 @@ pub async fn extension_request(
         _ => {}
     }
     upstream_request(&state, &operation, &payload).await
+}
+
+async fn jobs_request(
+    state: &State<'_, BackendState>,
+    operation: &str,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    let profile = field(payload, "profile", 64)?;
+    if !profile.bytes().all(|byte| {
+        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
+    }) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let path = if operation == "jobs.list" || operation == "jobs.create" {
+        "/api/jobs".to_owned()
+    } else {
+        let id = field(payload, "id", 12)?;
+        if id.len() != 12 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        format!("/api/jobs/{id}")
+    };
+    let (method, path, body) = match operation {
+        "jobs.list" => (Method::GET, format!("{path}?include_disabled=true"), None),
+        "jobs.detail" => (Method::GET, path, None),
+        "jobs.create" => {
+            let name = field(payload, "name", 100)?;
+            let schedule = field(payload, "schedule", 200)?;
+            let prompt = job_prompt(payload)?;
+            (
+                Method::POST,
+                path,
+                Some(
+                    serde_json::json!({"name": name, "schedule": schedule, "prompt": prompt, "deliver": "local"}),
+                ),
+            )
+        }
+        "jobs.update" => {
+            let name = field(payload, "name", 100)?;
+            let schedule = field(payload, "schedule", 200)?;
+            let prompt = job_prompt(payload)?;
+            (
+                Method::PATCH,
+                path,
+                Some(serde_json::json!({"name": name, "schedule": schedule, "prompt": prompt})),
+            )
+        }
+        "jobs.pause" => (Method::POST, format!("{path}/pause"), None),
+        "jobs.resume" => (Method::POST, format!("{path}/resume"), None),
+        "jobs.run" => (Method::POST, format!("{path}/run"), None),
+        _ => return Err(DesktopFailure::invalid_input()),
+    };
+    config_request_to_profile(state, profile, method, &path, body).await
+}
+
+fn job_prompt(payload: &Value) -> Result<&str, DesktopFailure> {
+    let prompt = payload
+        .get("prompt")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if prompt.is_empty() || prompt.len() > 20_000 || prompt.chars().any(|c| c == '\0') {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(prompt)
 }
 
 async fn update_mcp_server(

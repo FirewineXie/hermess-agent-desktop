@@ -1,6 +1,7 @@
 import { invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
 
@@ -61,6 +62,12 @@ function supportedRequests(value: unknown): GatewayRequest[] {
 }
 
 export const tauriDesktopApi: DesktopApi = {
+  windowChrome: {
+    customTitlebar: navigator.platform.startsWith('Win'),
+    minimize: () => nativeCall(() => getCurrentWindow().minimize()),
+    toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
+    close: () => nativeCall(() => getCurrentWindow().close()),
+  },
   workspacePanel: {
     listDirectory: path => invoke('list_workspace_panel_directory', { path }),
     readFile: path => invoke('read_workspace_panel_file', { path }),
@@ -148,7 +155,7 @@ export const tauriDesktopApi: DesktopApi = {
       const result = await invoke<ResumeResult>('resume_chat_session', { sessionId })
       return { ...result, open_requests: supportedRequests(result.open_requests) }
     },
-    listSessions: () => invoke('list_chat_sessions'),
+    listSessions: profile => invoke('list_chat_sessions', { profile }),
     submitPrompt: (sessionId, text) => invoke('submit_chat_prompt', { sessionId, text }),
     interruptSession: sessionId => invoke('interrupt_chat_session', { sessionId }),
     replayEvents: async (sessionId, lastSeen, replayEpoch) => {

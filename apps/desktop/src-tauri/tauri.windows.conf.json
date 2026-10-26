@@ -1,0 +1,12 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Hermess Agent Desktop",
+        "width": 1080,
+        "height": 760,
+        "decorations": false
+      }
+    ]
+  }
+}

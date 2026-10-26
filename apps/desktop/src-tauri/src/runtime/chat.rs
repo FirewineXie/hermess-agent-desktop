@@ -304,8 +304,11 @@ pub async fn answer_gateway_request(
 }
 
 #[tauri::command]
-pub async fn list_chat_sessions(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let gateway = state.gateway().await?;
+pub async fn list_chat_sessions(
+    state: State<'_, BackendState>,
+    profile: Option<String>,
+) -> Result<Value, DesktopFailure> {
+    let gateway = state.gateway_for_profile(profile).await?;
     let live = gateway.request("session.list", json!({"limit":50})).await?;
     let stored = gateway
         .request("session.list", json!({"limit":50,"scope":"stored"}))

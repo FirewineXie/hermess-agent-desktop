@@ -1,13 +1,16 @@
 import React from 'react'
-import type { PersonalitiesSnapshot, ProfilesSnapshot, ProfilePresetSelection } from '@hermess/contracts'
+import type { PersonalitiesSnapshot, ProfilesSnapshot, ProfilePresetSelection, SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { clientProfilePresets, type ClientProfilePreset } from './presets'
+import ProfileOverview from './ProfileOverview'
 
 type Props = {
   connected: boolean
   profiles: ProfilesSnapshot | null
+  sessions: SessionRow[]
+  sessionsState: 'loading' | 'ready' | 'error'
   profileBusy: boolean
   profileError: string
   profilePendingRestart: boolean
@@ -15,9 +18,12 @@ type Props = {
   onCreate: (name: string, preset: ProfilePresetSelection) => Promise<void>
   onRetry: () => Promise<void>
   onOpenExtensions: () => void
+  onOpenMemory: () => void
+  onOpenData: () => void
+  onNewChat: () => void
 }
 
-export default function ProfilesView({ connected, profiles, profileBusy, profileError, profilePendingRestart, onSelect, onCreate, onRetry, onOpenExtensions }: Props) {
+export default function ProfilesView({ connected, profiles, sessions, sessionsState, profileBusy, profileError, profilePendingRestart, onSelect, onCreate, onRetry, onOpenExtensions, onOpenMemory, onOpenData, onNewChat }: Props) {
   const { profiles: api } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -85,10 +91,12 @@ export default function ProfilesView({ connected, profiles, profileBusy, profile
     finally { setSaving(false) }
   }
 
-  if (!connected) return <section className="settings-panel flat-settings-panel profile-management"><h2>{zh ? '角色与 Profile' : 'Roles and profiles'}</h2><p>{zh ? '启动运行时后可查看性格和创建角色。' : 'Start the runtime to view personalities and create roles.'}</p></section>
+  if (!connected) return <section className="settings-panel flat-settings-panel profile-management"><ProfileOverview connected={connected} profiles={profiles} sessions={sessions} sessionsState={sessionsState} onNewChat={onNewChat} onOpenSkills={onOpenExtensions} onOpenMemory={onOpenMemory} onOpenData={onOpenData} /><p>{zh ? '启动运行时后可查看性格和创建角色。' : 'Start the runtime to view personalities and create roles.'}</p></section>
 
   const runtimeEntries = personalities?.entries || []
   return <section className="settings-panel flat-settings-panel profile-management">
+    <ProfileOverview connected={connected} profiles={profiles} sessions={sessions} sessionsState={sessionsState} onNewChat={onNewChat} onOpenSkills={onOpenExtensions} onOpenMemory={onOpenMemory} onOpenData={onOpenData} />
+    <details className="profile-legacy-settings"><summary>{zh ? '角色、性格与 Profile 设置' : 'Roles, personalities and profile settings'}</summary>
     <div className="row"><h2>{zh ? '角色与 Profile' : 'Roles and profiles'}</h2></div>
     <p>{zh ? '性格改变回答风格；角色模板可在独立 Profile 中启用指定 Skill。每个 Profile 的会话和配置分开保存。' : 'Personalities change response style. Role templates can enable selected skills in a separate profile.'}</p>
     {profilePendingRestart && <p role="status">{zh ? '新 Profile 已创建，等待 Gateway 空闲后启用。' : 'Profile created; enable it when the Gateway is idle.'} <button type="button" disabled={profileBusy} onClick={() => void onRetry()}>{zh ? '重试启用' : 'Retry'}</button></p>}
@@ -125,5 +133,6 @@ export default function ProfilesView({ connected, profiles, profileBusy, profile
     {personalities?.active !== 'none' && <button disabled={saving || profileBusy} onClick={() => void apply('none')}>{zh ? '清除当前性格' : 'Clear personality'}</button>}
     {notice && <p role="status">{notice}</p>}
     {(error || profileError) && <p role="alert">{error || profileError}</p>}
+    </details>
   </section>
 }
