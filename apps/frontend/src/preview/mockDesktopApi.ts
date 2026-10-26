@@ -1,0 +1,113 @@
+import type { DesktopApi } from '@hermess/contracts'
+
+const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
+
+export const previewDesktopApi: DesktopApi = {
+  workspacePanel: {
+    async listDirectory() { throw previewOnly() },
+    async readFile() { throw previewOnly() },
+    async startTerminal() { throw previewOnly() },
+    async activateTerminal() { throw previewOnly() },
+    async writeTerminal() { throw previewOnly() },
+    async resizeTerminal() { throw previewOnly() },
+    async closeTerminal() {},
+    async onTerminalOutput() { return () => {} },
+  },
+  profiles: {
+    async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
+    async create() { throw previewOnly() },
+    async select() { throw previewOnly() },
+    async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
+    async applyPersonality() { throw previewOnly() },
+  },
+  channels: {
+    async status() { return { platforms: [] } },
+    async start() { throw previewOnly() },
+    async poll() { throw previewOnly() },
+    async cancel() {},
+  },
+  about: {
+    async productInfo() { return { version: '0.1.5-rc.1', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
+    async checkUpdates() { return { status: 'unavailable', releases: [] } },
+    async downloadUpdate() { throw previewOnly() },
+    async onDownloadProgress() { return () => {} },
+  },
+  extensions: {
+    async request() { throw previewOnly() },
+  },
+  runtime: {
+    async devDefaults() { return { python_path: '', storage_path: '' } },
+    async packedDefaults() { return { storage_path: '', initialized: false } },
+    async startDev() { throw previewOnly() },
+    async startPacked() { throw previewOnly() },
+    async ping() { throw previewOnly() },
+    async reconnect() { throw previewOnly() },
+    async restartGracefully() { throw previewOnly() },
+    async stop() { throw previewOnly() },
+    async probeLocalTools() { return [] },
+  },
+  tools: {
+    async listAgentToolsets() { return { toolsets: [] } },
+    async listActiveAgentTools() { return { sections: [], total: 0 } },
+    async listBundledTools() { return { has_manifest: false, tools: [] } },
+    async listDownloadableTools() { return [] },
+    async installDownloadableTool() { throw previewOnly() },
+  },
+  diagnostics: {
+    async readLogs() { return '' },
+    async recordEvent() {},
+  },
+  agentSettings: {
+    async schema() { throw previewOnly() },
+    async config() { throw previewOnly() },
+    async raw() { throw previewOnly() },
+    async saveField() { throw previewOnly() },
+    async saveRaw() { throw previewOnly() },
+    async saveAuxiliary() { throw previewOnly() },
+  },
+  personalFiles: {
+    async read() { throw previewOnly() },
+    async save() { throw previewOnly() },
+  },
+  models: {
+    async options() { throw previewOnly() },
+    async savedConfig() { throw previewOnly() },
+    async endpoints() { throw previewOnly() },
+    async loadLists() { return null },
+    async saveLists() { throw previewOnly() },
+    async addEndpoint() { throw previewOnly() },
+    async deleteEndpoint() { throw previewOnly() },
+    async setDefault() { throw previewOnly() },
+    async checkRuntime() { throw previewOnly() },
+    async selectChat() { throw previewOnly() },
+  },
+  usage: {
+    async statistics() { throw previewOnly() },
+  },
+  chat: {
+    async createSession() { throw previewOnly() },
+    async resumeSession() { throw previewOnly() },
+    async listSessions() { return { sessions: [] } },
+    async submitPrompt() { throw previewOnly() },
+    async interruptSession() { throw previewOnly() },
+    async replayEvents() { throw previewOnly() },
+    async usage() { throw previewOnly() },
+    async reasoning() { throw previewOnly() },
+    async setReasoning() { throw previewOnly() },
+    async commands() { throw previewOnly() },
+    async executeCommand() { throw previewOnly() },
+    async dispatchSkill() { throw previewOnly() },
+    async attachFile() { throw previewOnly() },
+    async detachImage() { throw previewOnly() },
+    async answerRequest() { throw previewOnly() },
+  },
+  events: {
+    async onGatewayEvent() { return () => {} },
+    async onGatewayRequest() { return () => {} },
+    async onDisconnect() { return () => {} },
+  },
+  nativeFiles: {
+    async choose() { return null },
+    async onDrop() { return () => {} },
+  },
+}

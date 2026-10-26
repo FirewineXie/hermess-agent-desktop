@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
           node-version: '24'
           check-latest: true
       - run: node scripts/fetch-upstream.mjs
+      - run: node scripts/check-legal.mjs
 
   build:
     needs: validate
@@ -37,38 +38,52 @@ jobs:
             runner: windows-2025
           - target: darwin-arm64
             runner: macos-15
-          - target: darwin-x64
-            runner: macos-15-intel
-          - target: linux-x64
-            runner: ubuntu-22.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
+    env:
+      CARGO_NET_OFFLINE: 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          check-latest: true
       - uses: pnpm/action-setup@v4
         with:
           version: 10.25.0
           run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Install Linux Tauri prerequisites
-        if: matrix.target == 'linux-x64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Restore prewarmed pnpm packages
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/pnpm-store
+          key: pnpm-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+      - name: Restore prewarmed Cargo packages
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
+          fail-on-cache-miss: true
+      - name: Restore prewarmed native dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/ci-release
+          key: native-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/upstream.lock.json', 'scripts/build-core-payload.py') }}
+          fail-on-cache-miss: true
       - name: Verify source and install frontend dependencies
         run: |
           node scripts/fetch-upstream.mjs
           node scripts/verify-upstream.mjs
-          pnpm install --frozen-lockfile
+          node scripts/check-legal.mjs
+          pnpm install --frozen-lockfile --offline --store-dir .cache/pnpm-store
           cargo --version
       - name: Build sealed native Hermes runtime
-        run: python scripts/build-core-payload.py --out .build/payload
+        run: python scripts/build-core-payload.py --out .build/payload --cache-root .cache/ci-release --require-cache
       - name: Build native offline installer
         env:
           APPLE_SIGNING_IDENTITY: '-'
@@ -93,22 +108,37 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: bundle-*
-          path: release-assets
-          merge-multiple: true
-      - run: python scripts/write-release-checksums.py release-assets
-      - name: Create or update draft release with version notes
+      - name: Restore existing release assets on rerun
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         shell: bash
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/* --clobber
-            gh release edit "$TAG" --notes-file "releases/$TAG.md"
+            gh release download "$TAG" --dir release-assets
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: release-assets
+          merge-multiple: true
+      - run: python scripts/write-release-checksums.py release-assets
+      - name: Create or update release with version notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=true
           else
-            gh release create "$TAG" release-assets/* --verify-tag --prerelease \
-              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md"
+            prerelease=false
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+            gh release edit "$TAG" --notes-file "releases/$TAG.md" --prerelease="$prerelease" --draft=false
+          else
+            gh release create "$TAG" release-assets/* --verify-tag \
+              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md" \
+              --prerelease="$prerelease"
           fi

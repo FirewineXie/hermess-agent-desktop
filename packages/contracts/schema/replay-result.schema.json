@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/replay-result.schema.json",
+  "title": "ReplayResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events", "latest_seq", "epoch", "truncated", "count", "open_requests"],
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string" },
+          "session_id": { "type": "string" },
+          "seq": { "type": "integer", "minimum": 0 },
+          "payload": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "latest_seq": { "type": "integer", "minimum": 0 },
+    "count": { "type": "integer", "minimum": 0 },
+    "epoch": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "open_requests": { "type": "array", "items": { "$ref": "gateway-request.schema.json" } }
+  }
+}

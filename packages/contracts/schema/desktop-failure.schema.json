@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/desktop-failure.schema.json",
+  "title": "DesktopFailure",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "code", "category"],
+  "properties": {
+    "kind": { "enum": ["desktop_failure"] },
+    "code": { "enum": ["operation_failed", "runtime_unavailable", "connection_lost", "timeout", "conflict", "invalid_input"] },
+    "category": { "enum": ["operation", "runtime", "connection", "validation"] }
+  }
+}

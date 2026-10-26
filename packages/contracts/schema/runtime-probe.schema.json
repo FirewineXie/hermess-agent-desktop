@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/runtime-probe.schema.json",
+  "title": "RuntimeProbe",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "kind", "path", "version", "usable", "reason"],
+  "properties": {
+    "tool": { "type": "string" },
+    "kind": { "enum": ["runtime", "command"] },
+    "path": { "type": ["string", "null"] },
+    "version": { "type": ["string", "null"] },
+    "usable": { "type": "boolean" },
+    "reason": { "type": "string" }
+  }
+}

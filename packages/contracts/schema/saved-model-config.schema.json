@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/saved-model-config.schema.json",
+  "title": "SavedModelConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "model", "base_url"],
+  "properties": {
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "base_url": { "type": "string" }
+  }
+}

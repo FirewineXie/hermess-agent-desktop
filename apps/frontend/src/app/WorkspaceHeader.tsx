@@ -1,0 +1,33 @@
+import { useLanguage, changeLanguage, translateApp, type Language } from '../i18n'
+import type { View } from './types'
+import { sessionSourceLabel } from '../features/chat/sessionSource'
+
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, onOpenNavigation, panelOpen, onTogglePanel }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; onOpenNavigation: () => void; panelOpen: boolean; onTogglePanel: () => void }) {
+  const language = useLanguage()
+  const t = (key: string) => translateApp(language, key)
+  const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
+    usage: t('ui.usage.title'),
+    workspaces: t('ui.workspace.title'),
+    model: t('ui.model.settings'),
+    agent: t('ui.agent.settings'),
+    profiles: language === 'zh-CN' ? '角色与 Profile' : 'Roles and profiles',
+    memory: t('ui.persona.and.memory'),
+    runtime: t('ui.runtime.and.storage'),
+    tools: t('ui.tools.and.capabilities'),
+    extensions: t('ui.extensions'),
+    channels: t('ui.channels'),
+    about: t('ui.about'),
+  })[view]
+  return <header className="workspace-header">
+    <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>
+    <div><span className="workspace-kicker">Hermess Agent Desktop</span><h1>{title}{view === 'chat' && sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</h1></div>
+    {view === 'chat' && <button type="button" className="panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开右侧工作区' : 'Open side workspace')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelOpen ? (language === 'zh-CN' ? '收起工作区' : 'Collapse workspace') : (language === 'zh-CN' ? '打开工作区' : 'Open workspace')}</button>}
+    <label className="language-switch">
+      <span>{t('ui.language')}</span>
+      <select aria-label={t('ui.language')} value={language} onChange={event => changeLanguage(event.target.value as Language)}>
+        <option value="zh-CN">{t('ui.simplified.chinese')}</option><option value="en-US">{t('ui.english')}</option>
+      </select>
+    </label>
+    <span className={`connection-badge ${connected ? 'connected' : ''}`}>{connected ? t('ui.connected') : t('ui.not.started')}</span>
+  </header>
+}

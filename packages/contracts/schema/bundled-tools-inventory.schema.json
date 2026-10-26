@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/bundled-tools-inventory.schema.json",
+  "title": "BundledToolsInventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["has_manifest", "tools"],
+  "properties": {
+    "has_manifest": { "type": "boolean" },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "path", "present"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "path": { "type": "string" },
+          "present": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

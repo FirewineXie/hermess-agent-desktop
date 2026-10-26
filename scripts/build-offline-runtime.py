@@ -25,8 +25,8 @@ def main() -> None:
         parser.error("payload must be prepared under the product .build directory")
     lock = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))
     manifest = json.loads((payload / "manifest.json").read_text(encoding="utf-8"))
-    vendor = product / "vendor" / "hermes-agent"
-    sys.path.insert(0, str(vendor))
+    upstream = product / "upstream" / "hermes-agent"
+    sys.path.insert(0, str(upstream))
     import pm
     target = pm.current_target()
     bundles = {"win32-x64": ["nsis"], "darwin-x64": ["dmg"],

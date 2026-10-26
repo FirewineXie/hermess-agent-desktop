@@ -1,10 +1,10 @@
 # 参与 Hermess Agent Desktop 开发
 
-本项目仍在内测。提交代码或文档前，请先阅读 [README.md](README.md)、[能力矩阵](docs/capability-matrix.md) 和与改动相关的 [运行时决策记录](docs/ADR-0001-runtime-and-process.md)。阶段计划见 [桌面端迭代方案](桌面端迭代方案.md)；计划中的能力不能写成已经验收的能力。
+本项目仍在内测。提交代码或文档前，请先阅读 [README.md](README.md)、[能力矩阵](docs/capability-matrix.md) 和与改动相关的 [运行时决策记录](docs/ADR-0001-runtime-and-process.md)。版本计划见 [产品路线图](ROADMAP.md)；计划中的能力不能写成已经验收的能力。
 
 ## 分支与提交
 
-- `main` 作为长期主干，合入的变更应保持可构建。所有人（包括自动化代理）从最新 `main` 建立短期分支，例如 `feature/...`、`fix/...`、`docs/...`；不要直接向 `main` 提交或推送。仅在确需维护旧版本时建立 `release/vX.Y` 分支。
+- `main` 作为长期主干，合入的变更应保持可构建。按 [README 的按版本开发流程](README.md#按版本开发) 检查并复用 `feature/vX.Y.Z`；只有该版本分支在本地和远端都不存在时，才从最新 `origin/main` 创建。紧急修复使用从最新 `origin/main` 创建的 `fix/...` 分支；不要直接向 `main` 提交或推送。仅在确需维护旧版本时建立 `release/vX.Y` 分支。
 - 提交信息采用 Conventional Commits，例如 `feat: add attachment preview`、`fix: preserve runtime location`、`docs: update capability matrix`。标题使用简短英文祈使句；必要时在正文解释原因和兼容影响。
 - 保持改动聚焦。涉及架构、运行时契约、平台验收或发布状态时，同步更新对应文档与证据，避免只修改结论。
 
@@ -12,16 +12,16 @@
 
 ## 合并流程
 
-1. 在任务分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
+1. 在版本分支或修复分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
 2. 等待 [PR checks](.github/workflows/ci.yml) 的 `Build and test (Windows)` 作业成功，并处理代码审查意见。该作业验证锁定上游、前端构建、Rust 格式、编译和测试。
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
-4. CI 全部通过后，维护者检查 PR 差异并手动合并，再删除任务分支。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
+4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。发布 tag 只能从已合入且通过 CI 的 `main` 提交创建；tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建，无需先合入 `main`；正式版 tag `vX.Y.Z` 只能从已合入且通过 CI 的 `main` 创建。tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 
 ## 项目边界
 
-- `vendor/hermes-agent` 是按 `runtime/upstream.lock.json` 中正式 Release tag 和完整提交 SHA 单独克隆的忽略目录，不是 submodule。运行 `pnpm fetch:upstream` 获取源码；不要修改该目录，也不要让产品运行时自动追踪上游主干。升级上游时先确认 GitHub 最新正式 Release，审查新 tag 与提交，更新锁文件，再重新核对受影响的协议、封装与能力验收。日常构建只使用锁定版本。
+- `upstream/hermes-agent` 是按 `runtime/upstream.lock.json` 中 fork 维护分支及完整提交 SHA 单独检出的忽略目录，不是 submodule。`pnpm fetch:upstream` 获取锁定的 fork 源码，不在产品构建中应用补丁或修改检出目录；`pnpm verify:upstream` 校验来源、分支历史、官方正式 Release tag/基线及干净工作区。fork 的桌面改动只经开发分支 PR 合入 `hermess-desktop`；产品升级须审查新官方 tag 和 fork 提交，日常构建只使用锁定 SHA。
 
 - 本产品自行实现桌面层。参考项目 `cankao/Hermes-CN-Desktop` 用于研究，不直接复制其源码、图标或素材；需要复用具体文件时，先核对该文件的许可。
 - 产品只管理自己创建的后端进程、数据根和凭据。修改连接、重连、安装、升级或卸载逻辑时，验证不会误连、重启、覆盖或停止用户已有的 Hermes 实例，也不会误删所选目录的父目录。
@@ -60,4 +60,4 @@ PR 描述请包含：
 
 ## 发布约束
 
-发布前遵循 [发行流程](docs/release-process.md)。`vX.Y.Z` tag 会触发四个原生 runner 的构建；先确认四处产品版本、`releases/<tag>.md`、上游锁定提交及安装包输入一致。预发布 Release 表示构建产物已汇总，不代表各平台安装、签名、升级或真实模型已验收；正式发布须依据 [桌面端迭代方案](桌面端迭代方案.md) 的门槛逐项确认。
+发布前遵循 [发行流程](docs/release-process.md)，先在 `main` 预热所需平台的原生依赖缓存并确认 job 成功。`vX.Y.Z` 生成正式 Release，`vX.Y.Z-rc.1` 等预发布 tag 生成预发布 Release；默认等待 Windows x64 与 macOS Apple Silicon 构建成功，macOS Intel 和 Linux x64 按需补发。推送 tag 前须确认四处产品版本、`releases/<tag>.md`、上游锁定提交及安装包输入一致。正式发布还须逐项确认安装、签名、升级和真实模型验收。Release 工作流成功只证明构建产物已汇总。

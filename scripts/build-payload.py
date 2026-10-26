@@ -21,7 +21,7 @@ def main() -> None:
         parser.error("--python and --out must remain under this product's .build directory")
     if out.exists():
         parser.error("output already exists; choose a new generation")
-    vendor = product / "vendor" / "hermes-agent"
+    upstream = product / "upstream" / "hermes-agent"
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
     bootstrap = build / "pm-bootstrap"
     env = os.environ.copy()
@@ -31,7 +31,7 @@ def main() -> None:
     })
     env.pop("HERMES_INSTALL_ROOT", None)
     subprocess.run([str(python), "-m", "pm.cli", "bundle", "--out", str(out)],
-                   cwd=vendor, env=env, check=True)
+                   cwd=upstream, env=env, check=True)
     subprocess.run([str(python), str(product / "scripts" / "verify-payload.py"), "--payload", str(out)],
                    check=True)
 

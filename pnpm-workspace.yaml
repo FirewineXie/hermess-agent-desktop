@@ -1,2 +1,4 @@
 packages:
   - apps/desktop
+  - apps/frontend
+  - packages/contracts

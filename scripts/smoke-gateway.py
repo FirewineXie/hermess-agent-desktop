@@ -26,7 +26,7 @@ def main() -> None:
     if not hermes.is_file():
         parser.error(f"Hermes launcher is missing beside the selected Python: {hermes}")
     product = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(product / "vendor" / "hermes-agent"))
+    sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     if not python.is_relative_to(product / ".build"):
         parser.error("I0 smoke only accepts a prepared environment under the product .build directory")
     if args.hermes:
@@ -45,9 +45,17 @@ def main() -> None:
         home = root / "hermes-home"
         fixture = root / "notes.txt"
         fixture.write_text("Hermess file tool canary\n", encoding="utf-8")
-        model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4)])
+        model = FakeLLMServer([Text("Hermess I0 local model reply", chunk_chars=4,
+                                    reasoning="Hermess reasoning canary")])
         model.start()
         write_hermes_home(home, model.base_url)
+        skill_dir = home / "skills" / "composer-canary"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: composer-canary\ndescription: Verify the desktop skill picker.\n"
+            "platforms: [windows, linux, macos]\n---\n\n# Composer Canary\n\nAnswer the user's request.\n",
+            encoding="utf-8",
+        )
         config_file = home / "config.yaml"
         config_file.write_text(config_file.read_text(encoding="utf-8").replace(
             f"  default: {MODEL_ID}\n", "  default: before-config-canary\n"), encoding="utf-8")
@@ -58,6 +66,7 @@ def main() -> None:
             "HERMES_GATEWAY_LOCK_DIR": str(root / "gateway-locks"),
             "HERMES_DESKTOP_READY_FILE": str(ready),
             "HERMES_DESKTOP": "1",
+            "HERMESS_DESKTOP_PRIVATE_API": "1",
             "HERMES_DASHBOARD_SESSION_TOKEN": secrets.token_urlsafe(32),
             "HERMES_PARENT_PID": str(os.getpid()),
             "HERMES_DISABLE_LAZY_INSTALLS": "1",
@@ -84,6 +93,26 @@ def main() -> None:
                     if not ready.exists() or child.poll() is not None:
                         raise RuntimeError(f"backend did not become ready; exit={child.poll()}")
                     port = json.loads(ready.read_text(encoding="utf-8"))["port"]
+                    opener = build_opener(ProxyHandler({}))
+                    try:
+                        opener.open(f"http://127.0.0.1:{port}/", timeout=5)
+                    except HTTPError as error:
+                        if error.code != 404:
+                            raise RuntimeError(f"private root returned HTTP {error.code}") from error
+                    else:
+                        raise RuntimeError("private root exposed a dashboard token page")
+
+                    async def reject_browser_origin() -> None:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        try:
+                            async with connect(url, origin=f"http://127.0.0.1:{port}",
+                                               open_timeout=5, proxy=None):
+                                pass
+                        except InvalidStatus:
+                            return
+                        raise RuntimeError("browser-origin WebSocket was accepted")
+
+                    asyncio.run(reject_browser_origin())
                     async def ping() -> object:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
@@ -97,6 +126,28 @@ def main() -> None:
                     if answer != {"pong": True}:
                         raise RuntimeError(f"unexpected ping reply: {answer!r}")
 
+                    async def tool_catalog(method: str) -> dict:
+                        url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
+                        async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
+                            await ws.send(json.dumps({"jsonrpc": "2.0", "id": 2, "method": method,
+                                                      "params": {"session_id": None}}))
+                            while True:
+                                frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
+                                if frame.get("id") == 2:
+                                    if "error" in frame:
+                                        raise RuntimeError(f"{method} failed: {frame['error']}")
+                                    return frame.get("result") or {}
+
+                    catalog = asyncio.run(tool_catalog("tools.list"))
+                    groups = {row["name"]: row for row in catalog.get("toolsets", [])}
+                    if "terminal" not in groups or "terminal" not in groups["terminal"].get("tools", []):
+                        raise RuntimeError("tools.list omitted the terminal tool")
+                    if "browser" not in groups or "browser_navigate" not in groups["browser"].get("tools", []):
+                        raise RuntimeError("tools.list omitted browser navigation")
+                    active_tools = asyncio.run(tool_catalog("tools.show"))
+                    if not isinstance(active_tools.get("sections"), list):
+                        raise RuntimeError("tools.show did not return active tool sections")
+
                     async def reject_wrong_token() -> None:
                         url = f"ws://127.0.0.1:{port}/api/ws?token=invalid-i0-probe"
                         try:
@@ -108,7 +159,6 @@ def main() -> None:
 
                     asyncio.run(reject_wrong_token())
 
-                    opener = build_opener(ProxyHandler({}))
                     assignment = json.dumps({"scope": "main", "provider": "custom", "model": MODEL_ID,
                                              "base_url": model.base_url, "api_key": "sk-fake-e2e"}).encode()
                     endpoint = f"http://127.0.0.1:{port}/api/model/set"
@@ -129,7 +179,8 @@ def main() -> None:
                     if f"default: {MODEL_ID}" not in config_file.read_text(encoding="utf-8"):
                         raise RuntimeError("model assignment did not persist the selected model")
 
-                    async def chat(prompt: str, expected: str, request_method: str = "") -> tuple[str, int, int, int]:
+                    async def chat(prompt: str, expected: str, request_method: str = "",
+                                   expected_reasoning: str = "") -> tuple[str, int, int, int]:
                         url = f"ws://127.0.0.1:{port}/api/ws?token={env['HERMES_DASHBOARD_SESSION_TOKEN']}"
                         async with connect(url, open_timeout=5, proxy=None, max_size=8 * 1024 * 1024) as ws:
                             while True:
@@ -157,6 +208,7 @@ def main() -> None:
                             await ws.send(json.dumps({"jsonrpc":"2.0","id":3,"method":"prompt.submit",
                                                       "params":{"session_id":session_id,"text":prompt}}))
                             deltas = 0
+                            reasoning_parts = []
                             tool_completions = 0
                             requests = 0
                             admitted = False
@@ -186,16 +238,21 @@ def main() -> None:
                                     continue
                                 if params.get("type") == "message.delta" and isinstance(params.get("payload", {}).get("text"), str):
                                     deltas += 1
+                                if params.get("type") == "reasoning.delta" and isinstance(params.get("payload", {}).get("text"), str):
+                                    reasoning_parts.append(params["payload"]["text"])
                                 if params.get("type") == "tool.complete":
                                     tool_completions += 1
                                 if params.get("type") == "message.complete":
                                     result = params.get("payload", {})
                                     if not admitted or result.get("text") != expected:
                                         raise RuntimeError(f"unexpected completed turn: {result}")
+                                    if expected_reasoning and "".join(reasoning_parts) != expected_reasoning:
+                                        raise RuntimeError(f"reasoning stream mismatch: {reasoning_parts!r}")
                                     return session_id, deltas, tool_completions, requests
                             raise RuntimeError("message.complete was not received")
 
-                    session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply"))
+                    session_id, deltas, _, _ = asyncio.run(chat("Say hello", "Hermess I0 local model reply",
+                                                             expected_reasoning="Hermess reasoning canary"))
                     if deltas < 1 or not model.main_requests():
                         raise RuntimeError("chat did not stream through the local fake model")
                     async def verify_history() -> None:
@@ -216,6 +273,9 @@ def main() -> None:
                             resumed = await rpc(11, "session.resume", {"session_id":stored,"source":"desktop"})
                             if not resumed.get("session_id") or not any(message.get("text") == "Hermess I0 local model reply" for message in resumed.get("messages", [])):
                                 raise RuntimeError("session.resume did not restore transcript")
+                            if not any(message.get("reasoning_content") == "Hermess reasoning canary"
+                                       for message in resumed.get("messages", [])):
+                                raise RuntimeError("session.resume did not restore reasoning content")
                             interrupted = await rpc(12, "session.interrupt", {"session_id":resumed["session_id"]})
                             if interrupted.get("status") not in {"interrupted", "not_interrupted"}:
                                 raise RuntimeError(f"session.interrupt returned unexpected status: {interrupted}")
@@ -240,6 +300,20 @@ def main() -> None:
                                                                          "cwd_explicit": True,
                                                                          "idempotency_key": secrets.token_hex(16)})
                             sid = created["session_id"]
+                            catalog = await rpc(35, "commands.catalog", {"session_id": sid})
+                            if not any(pair[0] == "/help" for pair in catalog.get("pairs", [])):
+                                raise RuntimeError("command catalog did not include /help")
+                            if not any(pair[0] == "/model" for pair in catalog.get("pairs", [])):
+                                raise RuntimeError("command catalog did not include /model")
+                            if "/composer-canary" not in catalog.get("skills", {}):
+                                raise RuntimeError("command catalog did not include the installed skill")
+                            help_result = await rpc(36, "slash.exec", {"session_id": sid, "command": "/help"})
+                            if not help_result.get("output"):
+                                raise RuntimeError(f"/help returned no output: {help_result}")
+                            skill_result = await rpc(37, "command.dispatch", {
+                                "session_id": sid, "name": "composer-canary", "arg": "check the picker"})
+                            if skill_result.get("type") != "skill" or not skill_result.get("message"):
+                                raise RuntimeError(f"skill command did not resolve: {skill_result}")
                             file_result = await rpc(31, "file.attach", {"session_id": sid, "path": str(fixture)})
                             if not file_result.get("attached") or not file_result.get("ref_text", "").startswith("@file:"):
                                 raise RuntimeError(f"file attachment failed: {file_result}")
@@ -371,7 +445,7 @@ def main() -> None:
                         raise RuntimeError("approval denial did not prevent the terminal command")
                     if child.poll() is not None:
                         raise RuntimeError("backend exited during WebSocket ping")
-                    print(f"owned serve, auth rejection, streamed chat, file/image attachment, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
+                    print(f"owned serve, auth rejection, command catalog, /help, skill dispatch, streamed chat, file/image attachment, live reconnect, running interrupt, history resume, file tool, clarify and approval denial passed: sessions={session_id},{tool_session},{clarify_session},{approval_session}, deltas={deltas}, tool_events={tools}, server_requests={requests + approval_requests}")
                 finally:
                     if child.poll() is None:
                         child.terminate()

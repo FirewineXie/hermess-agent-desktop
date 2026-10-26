@@ -1,0 +1,2762 @@
+{
+  "model": {
+    "label": "模型",
+    "description": "默认模型，例如 anthropic/claude-sonnet-4.6。"
+  },
+  "fallback_providers": {
+    "label": "备用提供方"
+  },
+  "fallback.min_switch_reset_seconds": {
+    "label": "故障转移 / 最短切换重置时间（秒）"
+  },
+  "toolsets": {
+    "label": "工具集"
+  },
+  "database.journal_mode": {
+    "label": "数据库 / SQLite 日志模式"
+  },
+  "database.wal_autocheckpoint": {
+    "label": "数据库 / WAL 自动检查点"
+  },
+  "database.journal_size_limit": {
+    "label": "数据库 / SQLite 日志大小限制"
+  },
+  "runtime.nofile_soft_limit": {
+    "label": "运行时 /文件描述符数量软限制"
+  },
+  "max_concurrent_sessions": {
+    "label": "最大并发会话数"
+  },
+  "max_live_sessions": {
+    "label": "最大活跃会话数"
+  },
+  "session.terminal_continue": {
+    "label": "会话 / 终端继续"
+  },
+  "attachments.storage": {
+    "label": "附件 / 存储"
+  },
+  "agent.max_turns": {
+    "label": "Agent / 最大轮数"
+  },
+  "agent.budget_warning_ratio": {
+    "label": "Agent / 预算预警比率"
+  },
+  "agent.run_budget_seconds": {
+    "label": "Agent / 运行预算秒数"
+  },
+  "agent.gateway_timeout": {
+    "label": "Agent / 网关超时"
+  },
+  "agent.gateway_turn_lease_timeout": {
+    "label": "Agent / 网关轮次租约超时"
+  },
+  "agent.agent_cache.max_size": {
+    "label": "Agent / Agent 缓存 / 最大大小"
+  },
+  "agent.agent_cache.idle_ttl_secs": {
+    "label": "Agent / Agent 缓存 / 空闲 TTL 秒"
+  },
+  "agent.agent_cache.memory_high_mb": {
+    "label": "Agent / 缓存 / 内存高水位（MB）"
+  },
+  "agent.agent_cache.max_evictions_per_pass": {
+    "label": "Agent / 缓存 / 每轮最多淘汰数"
+  },
+  "agent.agent_cache.protect_recent": {
+    "label": "Agent / 缓存 / 近期会话保护数"
+  },
+  "agent.restart_drain_timeout": {
+    "label": "Agent / 重启排空超时"
+  },
+  "agent.cron_drain_timeout": {
+    "label": "Agent / 定时任务排空超时（秒）"
+  },
+  "agent.restart_after_turn_timeout": {
+    "label": "Agent / 轮次超时后重新启动"
+  },
+  "agent.build_wait_timeout": {
+    "label": "Agent / 构建等待超时"
+  },
+  "agent.api_max_retries": {
+    "label": "Agent / API 最大重试次数"
+  },
+  "agent.auto_recovery_cycles": {
+    "label": "Agent / 自动恢复周期"
+  },
+  "agent.stream_drain_timeout": {
+    "label": "Agent / 流排空超时"
+  },
+  "agent.empty_response_guard.enabled": {
+    "label": "Agent / 空响应守卫 / 已启用"
+  },
+  "agent.empty_response_guard.cost_threshold_usd": {
+    "label": "Agent / 空响应守卫 / 成本阈值美元"
+  },
+  "agent.service_tier": {
+    "label": "Agent / 服务档位",
+    "description": "快速模式：fast 始终启用；auto 在每轮开始的前 N 秒启用；cold 仅首轮启用。"
+  },
+  "agent.fast_auto_seconds": {
+    "label": "Agent / 自动快速模式持续时间（秒）"
+  },
+  "agent.text_verbosity": {
+    "label": "Agent / 文本详略程度"
+  },
+  "agent.tool_use_enforcement": {
+    "label": "Agent / 工具使用约束"
+  },
+  "agent.execution_guidance": {
+    "label": "Agent / 执行指导"
+  },
+  "agent.intent_ack_continuation": {
+    "label": "Agent / 意图确认继续"
+  },
+  "agent.stall_guards": {
+    "label": "Agent / 停滞检测保护"
+  },
+  "agent.task_completion_guidance": {
+    "label": "Agent / 任务完成指导"
+  },
+  "agent.parallel_tool_call_guidance": {
+    "label": "Agent / 并行工具调用指导"
+  },
+  "agent.environment_probe": {
+    "label": "Agent / 环境探测器"
+  },
+  "agent.bot_mode_protocol": {
+    "label": "Agent / 机器人模式协议"
+  },
+  "agent.environment_hint": {
+    "label": "Agent / 环境提示"
+  },
+  "agent.coding_context": {
+    "label": "Agent / 编码上下文"
+  },
+  "agent.coding_instructions": {
+    "label": "Agent / 编码说明"
+  },
+  "agent.verify_guidance": {
+    "label": "Agent / 验证指导"
+  },
+  "agent.max_verify_nudges": {
+    "label": "Agent / 最多提醒验证次数"
+  },
+  "agent.verify_on_stop": {
+    "label": "Agent / 停止验证"
+  },
+  "agent.gateway_timeout_warning": {
+    "label": "Agent / 网关超时警告"
+  },
+  "agent.clarify_timeout": {
+    "label": "Agent / 澄清超时"
+  },
+  "agent.gateway_notify_interval": {
+    "label": "Agent / 网关通知间隔"
+  },
+  "agent.session_stall_timeout": {
+    "label": "Agent / 会话停顿超时"
+  },
+  "agent.sanitizer_heal_escalation_threshold": {
+    "label": "Agent / 参数清理修复升级阈值"
+  },
+  "agent.reconnect_attention_after": {
+    "label": "Agent / 重连后提醒等待时间（秒）"
+  },
+  "agent.gateway_auto_continue_freshness": {
+    "label": "Agent / 网关自动续接有效期（秒）"
+  },
+  "agent.gateway_startup_restore_drain_timeout": {
+    "label": "Agent / 网关启动恢复排空超时（秒）"
+  },
+  "agent.gateway_startup_warmup_timeout": {
+    "label": "Agent / 网关启动预热超时"
+  },
+  "agent.local_stream_stale_timeout": {
+    "label": "Agent / 本地流停滞超时（秒）"
+  },
+  "agent.image_input_mode": {
+    "label": "Agent / 图像输入模式"
+  },
+  "agent.disabled_toolsets": {
+    "label": "Agent / 禁用工具集"
+  },
+  "agent.reasoning_echo": {
+    "label": "Agent / 推理回显"
+  },
+  "agent.turn_liveness.timeout_s": {
+    "label": "Agent / 轮次活跃度 / 超时（秒）"
+  },
+  "agent.turn_liveness.poll_s": {
+    "label": "Agent / 轮次活跃度 / 轮询间隔（秒）"
+  },
+  "terminal.backend": {
+    "label": "终端 / 执行后端",
+    "description": "终端命令的执行后端。"
+  },
+  "terminal.modal_mode": {
+    "label": "终端 / 模态模式",
+    "description": "Modal 沙盒模式。"
+  },
+  "terminal.degraded_mode": {
+    "label": "终端 / 降级模式"
+  },
+  "terminal.cwd": {
+    "label": "终端 / cwd"
+  },
+  "terminal.temp_dir": {
+    "label": "终端 / 临时目录"
+  },
+  "terminal.font_family": {
+    "label": "终端 / 字体系列"
+  },
+  "terminal.timeout": {
+    "label": "终端 / 超时"
+  },
+  "terminal.daemon_term_grace_seconds": {
+    "label": "终端 / 守护进程期限宽限秒"
+  },
+  "terminal.oneshot_completion_wait_seconds": {
+    "label": "终端 / 一次性完成等待秒"
+  },
+  "terminal.process_wait_auto_notify": {
+    "label": "终端 / 进程等待自动通知"
+  },
+  "terminal.env_passthrough": {
+    "label": "终端 / 环境直通"
+  },
+  "terminal.client_env_passthrough": {
+    "label": "终端 / 客户端环境直通"
+  },
+  "terminal.sync_back_max_bytes": {
+    "label": "终端 / 同步回最大字节"
+  },
+  "terminal.home_mode": {
+    "label": "终端 / 家庭模式"
+  },
+  "terminal.shell_init_files": {
+    "label": "终端 / 外壳初始化文件"
+  },
+  "terminal.auto_source_bashrc": {
+    "label": "终端 / 自动源 bashrc"
+  },
+  "terminal.docker_image": {
+    "label": "终端 / 泊坞窗图像"
+  },
+  "terminal.docker_forward_env": {
+    "label": "终端 / docker转发环境"
+  },
+  "terminal.modal_image": {
+    "label": "终端 / 模态图像"
+  },
+  "terminal.daytona_image": {
+    "label": "终端 / 代托纳图像"
+  },
+  "terminal.vercel_image": {
+    "label": "终端 / vercel 图像",
+    "description": "Vercel Sandbox 镜像：可使用 Vercel 托管镜像（vercel/sandbox/universal:latest），或 VCR 仓库及可选标签。"
+  },
+  "terminal.vercel_runtime": {
+    "label": "终端 / vercel运行时",
+    "description": "旧版 Vercel Sandbox 运行时（Vercel 已弃用）。指定运行时会覆盖镜像；清空此项则使用镜像。"
+  },
+  "terminal.container_cpu": {
+    "label": "终端 / 容器CPU"
+  },
+  "terminal.container_memory": {
+    "label": "终端 / 容器内存"
+  },
+  "terminal.container_disk": {
+    "label": "终端 / 容器磁盘"
+  },
+  "terminal.container_persistent": {
+    "label": "终端 / 容器持久化"
+  },
+  "terminal.docker_volumes": {
+    "label": "终端 / 码头卷"
+  },
+  "terminal.docker_mount_cwd_to_workspace": {
+    "label": "终端 / docker挂载cwd到工作区"
+  },
+  "terminal.docker_network": {
+    "label": "终端 / 码头网络"
+  },
+  "terminal.docker_extra_args": {
+    "label": "终端 / docker额外参数"
+  },
+  "terminal.docker_shm_size": {
+    "label": "终端 / docker shm大小"
+  },
+  "terminal.docker_run_as_host_user": {
+    "label": "终端 / docker 以主机用户身份运行"
+  },
+  "terminal.docker_snap_compat": {
+    "label": "终端 / docker snap 兼容"
+  },
+  "terminal.docker_shared_container_key": {
+    "label": "终端 / docker共享容器密钥"
+  },
+  "terminal.persistent_shell": {
+    "label": "终端 / 持久外壳"
+  },
+  "web.backend": {
+    "label": "网页访问 / 后端"
+  },
+  "web.search_backend": {
+    "label": "网页访问 / 搜索后端"
+  },
+  "web.extract_backend": {
+    "label": "网页访问 / 提取后端"
+  },
+  "web.extract_char_limit": {
+    "label": "网页访问 / 提取字符限制"
+  },
+  "web.keyless_fallback": {
+    "label": "网页访问 / 无密钥回退"
+  },
+  "web.keyless_rescue": {
+    "label": "网页访问 / 无密钥救援"
+  },
+  "web.cache_enabled": {
+    "label": "网页访问 / 缓存"
+  },
+  "web.cache_ttl_minutes": {
+    "label": "网页访问 / 缓存 TTL 分钟"
+  },
+  "web.cache_exempt_hosts": {
+    "label": "网页访问 / 缓存豁免主机"
+  },
+  "browser.backend": {
+    "label": "浏览器 / 后端"
+  },
+  "browser.inactivity_timeout": {
+    "label": "浏览器 / 不活动超时"
+  },
+  "browser.command_timeout": {
+    "label": "浏览器 / 命令超时"
+  },
+  "browser.snapshot_threshold": {
+    "label": "浏览器 / 快照阈值"
+  },
+  "browser.record_sessions": {
+    "label": "浏览器 / 记录会话"
+  },
+  "browser.headed": {
+    "label": "浏览器 / 显示窗口",
+    "description": "在可见窗口中运行本地浏览器，并在轮次之间保持窗口打开；空闲会话仍按 browser.inactivity_timeout 回收。"
+  },
+  "browser.allow_private_urls": {
+    "label": "浏览器 / 允许私有网络 URL"
+  },
+  "browser.engine": {
+    "label": "浏览器 / 引擎"
+  },
+  "browser.auto_local_for_private_urls": {
+    "label": "浏览器 / 访问私有网络 URL 时自动使用本地浏览器"
+  },
+  "browser.cdp_url": {
+    "label": "浏览器 / CDP URL"
+  },
+  "browser.use_real_profile": {
+    "label": "浏览器 / 使用真实浏览器配置"
+  },
+  "browser.real_profile_autoclose": {
+    "label": "浏览器 / 真实浏览器配置自动关闭"
+  },
+  "browser.real_profile_pin": {
+    "label": "浏览器 / 固定真实浏览器配置"
+  },
+  "browser.allow_unsafe_evaluate": {
+    "label": "浏览器 / 允许不安全评估"
+  },
+  "browser.restrict_evaluate": {
+    "label": "浏览器 / 限制评估"
+  },
+  "browser.dialog_policy": {
+    "label": "浏览器 / 对话框策略"
+  },
+  "browser.dialog_timeout_s": {
+    "label": "浏览器 / 对话框超时 s"
+  },
+  "browser.camofox.managed_persistence": {
+    "label": "浏览器 / camofox / 托管持久性"
+  },
+  "browser.camofox.user_id": {
+    "label": "浏览器 / camofox / 用户 ID"
+  },
+  "browser.camofox.session_key": {
+    "label": "浏览器 / camofox / 会话密钥"
+  },
+  "browser.camofox.adopt_existing_tab": {
+    "label": "浏览器 / camofox / 采用现有选项卡"
+  },
+  "browser.camofox.rewrite_loopback_urls": {
+    "label": "浏览器 / camofox / 重写环回URL"
+  },
+  "browser.camofox.loopback_host_alias": {
+    "label": "浏览器 / camofox / 环回主机别名"
+  },
+  "browser.extension_control.enabled": {
+    "label": "浏览器 / 扩展控制 / 启用"
+  },
+  "browser.extension_control.developer_mode": {
+    "label": "浏览器 / 扩展控制 / 开发者模式"
+  },
+  "worktrees.archive_dirty": {
+    "label": "工作树 / 脏存档"
+  },
+  "worktrees.archive_max_file_mb": {
+    "label": "工作树 / 存档最大文件 MB"
+  },
+  "worktrees.archive_retention_days": {
+    "label": "工作树 / 档案保留天数"
+  },
+  "worktrees.max_total_gb": {
+    "label": "工作树 / 最大总 GB"
+  },
+  "checkpoints.enabled": {
+    "label": "检查点 / 已启用"
+  },
+  "checkpoints.max_snapshots": {
+    "label": "检查点 / 最大快照"
+  },
+  "checkpoints.max_total_size_mb": {
+    "label": "检查点 / 最大总大小 MB"
+  },
+  "checkpoints.max_file_size_mb": {
+    "label": "检查点 / 最大文件大小 MB"
+  },
+  "checkpoints.auto_prune": {
+    "label": "检查点 / 自动修剪"
+  },
+  "checkpoints.retention_days": {
+    "label": "检查点 / 保留天数"
+  },
+  "checkpoints.min_interval_hours": {
+    "label": "检查点 / 最小间隔（小时）"
+  },
+  "context_file_max_chars": {
+    "label": "上下文文件最大字符数"
+  },
+  "context_file_read_timeout": {
+    "label": "上下文文件读取超时"
+  },
+  "file_read_max_chars": {
+    "label": "文件读取最大字符数"
+  },
+  "mcp_discovery_timeout": {
+    "label": "MCP 发现超时"
+  },
+  "mcp_single_query_discovery_timeout": {
+    "label": "MCP单查询发现超时"
+  },
+  "mcp.auto_reload_on_config_change": {
+    "label": "MCP / 配置更改时自动重新加载"
+  },
+  "mcp.discovery_concurrency": {
+    "label": "MCP / 发现并发"
+  },
+  "tool_output.max_bytes": {
+    "label": "工具输出 / 最大字节"
+  },
+  "tool_output.max_lines": {
+    "label": "工具输出 / 最大行数"
+  },
+  "tool_output.max_line_length": {
+    "label": "工具输出 / 最大线长度"
+  },
+  "tool_loop_guardrails.warnings_enabled": {
+    "label": "工具循环保护 / 警告已启用"
+  },
+  "tool_loop_guardrails.hard_stop_enabled": {
+    "label": "工具循环保护 / 启用硬停止"
+  },
+  "tool_loop_guardrails.non_interactive_hard_stop_enabled": {
+    "label": "工具循环保护 / 启用非交互式硬停止"
+  },
+  "tool_loop_guardrails.warn_after.exact_failure": {
+    "label": "工具循环保护 / 在 / 确切失败后发出警告"
+  },
+  "tool_loop_guardrails.warn_after.same_tool_failure": {
+    "label": "工具循环保护 / 在 / 相同工具故障后发出警告"
+  },
+  "tool_loop_guardrails.warn_after.idempotent_no_progress": {
+    "label": "工具循环保护 / 警告后 / 幂等没有进展"
+  },
+  "tool_loop_guardrails.hard_stop_after.exact_failure": {
+    "label": "工具循环保护 / 发生故障后硬停止"
+  },
+  "tool_loop_guardrails.hard_stop_after.same_tool_failure": {
+    "label": "工具循环保护 / 相同刀具故障后硬停止"
+  },
+  "tool_loop_guardrails.hard_stop_after.idempotent_no_progress": {
+    "label": "工具循环保护 / 之后硬停止 / 幂等没有进展"
+  },
+  "tool_loop_guardrails.loop_caps.max_web_searches": {
+    "label": "工具循环保护 / 环帽 / 最大网络搜索量"
+  },
+  "tool_loop_guardrails.loop_caps.max_subagents": {
+    "label": "工具循环保护 / 循环帽 / 最大子代理"
+  },
+  "compression.enabled": {
+    "label": "上下文压缩 / 启用"
+  },
+  "compression.checkpoint_required": {
+    "label": "上下文压缩 / 检查点"
+  },
+  "compression.progress_notices": {
+    "label": "上下文压缩 / 进度通知"
+  },
+  "compression.threshold": {
+    "label": "上下文压缩 / 阈值"
+  },
+  "compression.threshold_tokens": {
+    "label": "上下文压缩 / 触发阈值（Token）"
+  },
+  "compression.target_ratio": {
+    "label": "上下文压缩 / 目标比例"
+  },
+  "compression.tail_mode": {
+    "label": "上下文压缩 / 尾部模式"
+  },
+  "compression.protect_last_n": {
+    "label": "上下文压缩 / 保护最近 N 条消息"
+  },
+  "compression.min_tail_user_messages": {
+    "label": "上下文压缩 / 尾部最少保留用户消息数"
+  },
+  "compression.max_attempts": {
+    "label": "上下文压缩 / 最大尝试次数"
+  },
+  "compression.proactive_prune_tokens": {
+    "label": "上下文压缩 / 主动裁剪 Token 数"
+  },
+  "compression.proactive_prune_min_result_chars": {
+    "label": "上下文压缩 / 主动修剪最小结果字符"
+  },
+  "compression.proactive_prune_min_reclaim_tokens": {
+    "label": "上下文压缩 / 主动裁剪最低回收 Token 数"
+  },
+  "compression.micro_compact": {
+    "label": "上下文压缩 / 微压缩"
+  },
+  "compression.micro_compact_every_n_turns": {
+    "label": "上下文压缩 / 每 N 轮微压缩"
+  },
+  "compression.micro_compact_defrag_threshold_tokens": {
+    "label": "上下文压缩 / 微型压缩碎片整理阈值Token"
+  },
+  "compression.hygiene_hard_message_limit": {
+    "label": "上下文压缩 / 清理消息硬上限"
+  },
+  "compression.hygiene_timeout_seconds": {
+    "label": "上下文压缩 / 上下文清理超时秒"
+  },
+  "compression.hygiene_total_ceiling_seconds": {
+    "label": "上下文压缩 / 上下文清理总上限秒"
+  },
+  "compression.hygiene_failure_cooldown_seconds": {
+    "label": "上下文压缩 / 清理失败冷却时间（秒）"
+  },
+  "compression.hygiene_max_turn_hold_seconds": {
+    "label": "上下文压缩 / 清理最多占用轮次时间（秒）"
+  },
+  "compression.context_timeout_seconds": {
+    "label": "上下文压缩 / 上下文超时秒"
+  },
+  "compression.context_total_ceiling_seconds": {
+    "label": "上下文压缩 / 上下文总上限秒"
+  },
+  "compression.protect_first_n": {
+    "label": "上下文压缩 / 保护最早 N 条消息"
+  },
+  "compression.abort_on_summary_failure": {
+    "label": "上下文压缩 / 中止"
+  },
+  "compression.codex_gpt55_autoraise": {
+    "label": "上下文压缩 / Codex GPT-5.5 自动提升"
+  },
+  "compression.codex_gpt55_autoraise_notice": {
+    "label": "上下文压缩 / Codex GPT-5.5 自动提升提示"
+  },
+  "compression.codex_app_server_auto": {
+    "label": "上下文压缩 / Codex App Server 自动模式"
+  },
+  "compression.codex_responses_native": {
+    "label": "上下文压缩 / Codex Responses 原生压缩"
+  },
+  "compression.codex_responses_compact_threshold": {
+    "label": "上下文压缩 / Codex Responses 压缩阈值"
+  },
+  "compression.in_place": {
+    "label": "上下文压缩 / 就地压缩"
+  },
+  "compression.idle_compact_after_seconds": {
+    "label": "上下文压缩 / 空闲后压缩等待时间（秒）"
+  },
+  "prompt_caching.cache_ttl": {
+    "label": "提示词缓存 / 缓存 TTL"
+  },
+  "openrouter.response_cache": {
+    "label": "OpenRouter / 响应缓存"
+  },
+  "openrouter.response_cache_ttl": {
+    "label": "OpenRouter / 响应缓存 TTL"
+  },
+  "openrouter.min_coding_score": {
+    "label": "OpenRouter / 最低编码分数"
+  },
+  "bedrock.region": {
+    "label": "Amazon Bedrock / 区域"
+  },
+  "bedrock.discovery.enabled": {
+    "label": "Amazon Bedrock / 模型发现 / 启用"
+  },
+  "bedrock.discovery.provider_filter": {
+    "label": "Amazon Bedrock / 模型发现 / 提供方过滤"
+  },
+  "bedrock.discovery.refresh_interval": {
+    "label": "Amazon Bedrock / 模型发现 / 刷新间隔（秒）"
+  },
+  "bedrock.guardrail.guardrail_identifier": {
+    "label": "Amazon Bedrock / 防护规则 ID"
+  },
+  "bedrock.guardrail.guardrail_version": {
+    "label": "Amazon Bedrock / 防护规则版本"
+  },
+  "bedrock.guardrail.stream_processing_mode": {
+    "label": "Amazon Bedrock / 防护规则 / 流处理模式"
+  },
+  "bedrock.guardrail.trace": {
+    "label": "Amazon Bedrock / 防护规则 / 跟踪"
+  },
+  "auxiliary.transient_retries": {
+    "label": "辅助模型 / 瞬时重试"
+  },
+  "auxiliary.free_only": {
+    "label": "辅助模型 / 仅免费"
+  },
+  "auxiliary.openrouter_model": {
+    "label": "辅助模型 / OpenRouter模型"
+  },
+  "auxiliary.stream_only_base_urls": {
+    "label": "辅助模型 / 仅支持流式输出的基础 URL 列表"
+  },
+  "auxiliary.vision.provider": {
+    "label": "辅助模型 / 视觉 / 提供方"
+  },
+  "auxiliary.vision.model": {
+    "label": "辅助模型 / 视觉 / 模型"
+  },
+  "auxiliary.vision.base_url": {
+    "label": "辅助模型 / 视觉 / 基础 URL"
+  },
+  "auxiliary.vision.api_key": {
+    "label": "辅助模型 / 视觉 / API 密钥"
+  },
+  "auxiliary.vision.timeout": {
+    "label": "辅助模型 / 视觉 / 超时"
+  },
+  "auxiliary.vision.reasoning_effort": {
+    "label": "辅助模型 / 视觉 / 推理强度"
+  },
+  "auxiliary.vision.download_timeout": {
+    "label": "辅助模型 / 视觉 / 下载超时"
+  },
+  "auxiliary.compression.provider": {
+    "label": "辅助模型 / 压缩 / 提供方"
+  },
+  "auxiliary.compression.model": {
+    "label": "辅助模型 / 压缩 / 模型"
+  },
+  "auxiliary.compression.base_url": {
+    "label": "辅助模型 / 压缩 / 基础 URL"
+  },
+  "auxiliary.compression.api_key": {
+    "label": "辅助模型 / 压缩 / API 密钥"
+  },
+  "auxiliary.compression.timeout": {
+    "label": "辅助模型 / 压缩 / 超时"
+  },
+  "auxiliary.compression.reasoning_effort": {
+    "label": "辅助模型 / 压缩 / 推理强度"
+  },
+  "auxiliary.compression.no_progress_timeout": {
+    "label": "辅助模型 / 压缩 / 无进度超时"
+  },
+  "auxiliary.skills_hub.provider": {
+    "label": "辅助模型 / 技能中心 / 提供方"
+  },
+  "auxiliary.skills_hub.model": {
+    "label": "辅助模型 / 技能中心 / 模型"
+  },
+  "auxiliary.skills_hub.base_url": {
+    "label": "辅助模型 / 技能中心 / 基本URL"
+  },
+  "auxiliary.skills_hub.api_key": {
+    "label": "辅助模型 / 技能中心 / API 密钥"
+  },
+  "auxiliary.skills_hub.timeout": {
+    "label": "辅助模型 / 技能中心 / 超时"
+  },
+  "auxiliary.skills_hub.reasoning_effort": {
+    "label": "辅助模型 / 技能中心 / 推理强度"
+  },
+  "auxiliary.approval.provider": {
+    "label": "辅助模型 / 审批 / 提供方"
+  },
+  "auxiliary.approval.model": {
+    "label": "辅助模型 / 审批 / 模型"
+  },
+  "auxiliary.approval.base_url": {
+    "label": "辅助模型 / 审批 / 基本URL"
+  },
+  "auxiliary.approval.api_key": {
+    "label": "辅助模型 / 审批 / API 密钥"
+  },
+  "auxiliary.approval.timeout": {
+    "label": "辅助模型 / 审批 / 超时"
+  },
+  "auxiliary.approval.reasoning_effort": {
+    "label": "辅助模型 / 审批 / 推理强度"
+  },
+  "auxiliary.review.provider": {
+    "label": "辅助模型 / 审查 / 提供方"
+  },
+  "auxiliary.review.model": {
+    "label": "辅助模型 / 评论 / 模型"
+  },
+  "auxiliary.review.base_url": {
+    "label": "辅助模型 / 评论 / 基本URL"
+  },
+  "auxiliary.review.api_key": {
+    "label": "辅助模型 / 审查 / API 密钥"
+  },
+  "auxiliary.review.api_mode": {
+    "label": "辅助模型 / 审查 / API模式"
+  },
+  "auxiliary.mcp.provider": {
+    "label": "辅助模型 / MCP / 提供商"
+  },
+  "auxiliary.mcp.model": {
+    "label": "辅助模型 / MCP / 模型"
+  },
+  "auxiliary.mcp.base_url": {
+    "label": "辅助模型 / MCP / 基础 URL"
+  },
+  "auxiliary.mcp.api_key": {
+    "label": "辅助模型 / MCP / API 密钥"
+  },
+  "auxiliary.mcp.timeout": {
+    "label": "辅助模型 / MCP / 超时"
+  },
+  "auxiliary.mcp.reasoning_effort": {
+    "label": "辅助模型 / MCP / 推理强度"
+  },
+  "auxiliary.title_generation.enabled": {
+    "label": "辅助模型 / 标题生成 / 启用"
+  },
+  "auxiliary.title_generation.model_upgrade_enabled": {
+    "label": "辅助模型 / 标题生成 / 模型升级已启用"
+  },
+  "auxiliary.title_generation.provider": {
+    "label": "辅助模型 / 标题生成 / 提供方"
+  },
+  "auxiliary.title_generation.model": {
+    "label": "辅助模型 / 标题生成 / 模型"
+  },
+  "auxiliary.title_generation.prefer_fast_model": {
+    "label": "辅助模型 / 标题生成 / 更喜欢快速模型"
+  },
+  "auxiliary.title_generation.base_url": {
+    "label": "辅助模型 / 标题生成 / 基础 URL"
+  },
+  "auxiliary.title_generation.api_key": {
+    "label": "辅助模型 / 标题生成 / API 密钥"
+  },
+  "auxiliary.title_generation.timeout": {
+    "label": "辅助模型 / 标题生成 / 超时"
+  },
+  "auxiliary.title_generation.reasoning_effort": {
+    "label": "辅助模型 / 标题生成 / 推理工作"
+  },
+  "auxiliary.title_generation.language": {
+    "label": "辅助模型 / 标题生成 / 语言"
+  },
+  "auxiliary.memory_query_rewrite.provider": {
+    "label": "辅助模型 / 内存查询重写 / 提供方"
+  },
+  "auxiliary.memory_query_rewrite.model": {
+    "label": "辅助模型 / 内存查询重写 / 模型"
+  },
+  "auxiliary.memory_query_rewrite.base_url": {
+    "label": "辅助模型 / 内存查询重写 / 基本URL"
+  },
+  "auxiliary.memory_query_rewrite.api_key": {
+    "label": "辅助模型 / 内存查询重写 / API 密钥"
+  },
+  "auxiliary.memory_query_rewrite.timeout": {
+    "label": "辅助模型 / 内存查询重写 / 超时"
+  },
+  "auxiliary.tts_audio_tags.provider": {
+    "label": "辅助模型 / 语音合成 音频标签 / 提供商"
+  },
+  "auxiliary.tts_audio_tags.model": {
+    "label": "辅助模型 / 语音合成音频标签 / 模型"
+  },
+  "auxiliary.tts_audio_tags.base_url": {
+    "label": "辅助模型 / 语音合成 音频标签 / 基础 URL"
+  },
+  "auxiliary.tts_audio_tags.api_key": {
+    "label": "辅助模型 / 语音合成 音频标签 / API 密钥"
+  },
+  "auxiliary.tts_audio_tags.timeout": {
+    "label": "辅助模型 / 语音合成音频标签 / 超时"
+  },
+  "auxiliary.tts_audio_tags.reasoning_effort": {
+    "label": "辅助模型 / 语音合成 音频标签 / 推理工作"
+  },
+  "auxiliary.voice_chat.provider": {
+    "label": "辅助模型 / 语音聊天 / 提供商"
+  },
+  "auxiliary.voice_chat.model": {
+    "label": "辅助模型 / 语音聊天 / 模型"
+  },
+  "auxiliary.voice_chat.base_url": {
+    "label": "辅助模型 / 语音聊天 / 基本URL"
+  },
+  "auxiliary.voice_chat.api_key": {
+    "label": "辅助模型 / 语音聊天 / API 密钥"
+  },
+  "auxiliary.voice_chat.timeout": {
+    "label": "辅助模型 / 语音聊天 / 超时"
+  },
+  "auxiliary.voice_chat.reasoning_effort": {
+    "label": "辅助模型 / 语音聊天 / 推理强度"
+  },
+  "auxiliary.triage_specifier.provider": {
+    "label": "辅助模型 / 分类指定者 / 提供方"
+  },
+  "auxiliary.triage_specifier.model": {
+    "label": "辅助模型 / 分类说明符 / 模型"
+  },
+  "auxiliary.triage_specifier.base_url": {
+    "label": "辅助模型 / 分类说明符 / 基础 URL"
+  },
+  "auxiliary.triage_specifier.api_key": {
+    "label": "辅助模型 / 分类说明符 / API 密钥"
+  },
+  "auxiliary.triage_specifier.timeout": {
+    "label": "辅助模型 / 分类说明符 / 超时"
+  },
+  "auxiliary.triage_specifier.reasoning_effort": {
+    "label": "辅助模型 / 分类说明符 / 推理工作"
+  },
+  "auxiliary.kanban_decomposer.provider": {
+    "label": "辅助模型 / 看板分解器 / 提供方"
+  },
+  "auxiliary.kanban_decomposer.model": {
+    "label": "辅助模型 / 看板分解器 / 模型"
+  },
+  "auxiliary.kanban_decomposer.base_url": {
+    "label": "辅助模型 / 看板分解器 / 基础 URL"
+  },
+  "auxiliary.kanban_decomposer.api_key": {
+    "label": "辅助模型 / 看板分解器 / API 密钥"
+  },
+  "auxiliary.kanban_decomposer.timeout": {
+    "label": "辅助模型 / 看板分解器 / 超时"
+  },
+  "auxiliary.kanban_decomposer.reasoning_effort": {
+    "label": "辅助模型 / 看板分解器 / 推理工作"
+  },
+  "auxiliary.profile_describer.provider": {
+    "label": "辅助模型 / 配置文件描述者 / 提供方"
+  },
+  "auxiliary.profile_describer.model": {
+    "label": "辅助模型 / 轮廓描述 / 模型"
+  },
+  "auxiliary.profile_describer.base_url": {
+    "label": "辅助模型 / 配置文件描述 / 基础 URL"
+  },
+  "auxiliary.profile_describer.api_key": {
+    "label": "辅助模型 / 配置文件描述 / API 密钥"
+  },
+  "auxiliary.profile_describer.timeout": {
+    "label": "辅助模型 / 配置文件描述器 / 超时"
+  },
+  "auxiliary.profile_describer.reasoning_effort": {
+    "label": "辅助模型 / 概要描述 / 推理工作"
+  },
+  "auxiliary.goal_judge.provider": {
+    "label": "辅助模型 / 进球裁判 / 提供方"
+  },
+  "auxiliary.goal_judge.model": {
+    "label": "辅助模型 / 进球裁判 / 模型"
+  },
+  "auxiliary.goal_judge.base_url": {
+    "label": "辅助模型 / 目标判断 / 基本URL"
+  },
+  "auxiliary.goal_judge.api_key": {
+    "label": "辅助模型 / 目标判断 / API key"
+  },
+  "auxiliary.goal_judge.timeout": {
+    "label": "辅助模型 / 进球裁判 / 暂停"
+  },
+  "auxiliary.goal_judge.reasoning_effort": {
+    "label": "辅助模型 / 目标判断 / 推理强度"
+  },
+  "auxiliary.curator.provider": {
+    "label": "辅助模型 / 记忆整理器 / 提供方"
+  },
+  "auxiliary.curator.model": {
+    "label": "辅助模型 / 记忆整理器 / 模型"
+  },
+  "auxiliary.curator.base_url": {
+    "label": "辅助模型 / 记忆整理器 / 基本URL"
+  },
+  "auxiliary.curator.api_key": {
+    "label": "辅助模型 / 记忆整理器 / API 密钥"
+  },
+  "auxiliary.curator.timeout": {
+    "label": "辅助模型 / 记忆整理器 / 超时"
+  },
+  "auxiliary.curator.reasoning_effort": {
+    "label": "辅助模型 / 记忆整理器 / 推理强度"
+  },
+  "auxiliary.monitor.provider": {
+    "label": "辅助模型 / 监控 / 提供方"
+  },
+  "auxiliary.monitor.model": {
+    "label": "辅助模型 / 监控 / 模型"
+  },
+  "auxiliary.monitor.base_url": {
+    "label": "辅助模型 / 监控 / 基础 URL"
+  },
+  "auxiliary.monitor.api_key": {
+    "label": "辅助模型 / 监控 / API 密钥"
+  },
+  "auxiliary.monitor.timeout": {
+    "label": "辅助模型 / 监控 / 超时"
+  },
+  "auxiliary.monitor.reasoning_effort": {
+    "label": "辅助模型 / 监控 / 推理强度"
+  },
+  "auxiliary.background_review.enabled": {
+    "label": "辅助模型 / 后台审核 / 已启用"
+  },
+  "auxiliary.background_review.provider": {
+    "label": "辅助模型 / 背景审查 / 提供方"
+  },
+  "auxiliary.background_review.model": {
+    "label": "辅助模型 / 背景审查 / 模型"
+  },
+  "auxiliary.background_review.base_url": {
+    "label": "辅助模型 / 背景审查 / 基本URL"
+  },
+  "auxiliary.background_review.api_key": {
+    "label": "辅助模型 / 后台审核 / API key"
+  },
+  "auxiliary.background_review.timeout": {
+    "label": "辅助模型 / 后台审核 / 超时"
+  },
+  "auxiliary.background_review.reasoning_effort": {
+    "label": "辅助模型 / 背景审查 / 推理强度"
+  },
+  "auxiliary.moa_reference.provider": {
+    "label": "辅助模型 / 多模型聚合参考 / 提供方"
+  },
+  "auxiliary.moa_reference.model": {
+    "label": "辅助模型 / 多模型聚合参考 / 模型"
+  },
+  "auxiliary.moa_reference.base_url": {
+    "label": "辅助模型 / 多模型聚合参考 / 基本URL"
+  },
+  "auxiliary.moa_reference.api_key": {
+    "label": "辅助模型 / moa 参考 / API 密钥"
+  },
+  "auxiliary.moa_reference.timeout": {
+    "label": "辅助模型 / 多模型聚合参考 / 超时"
+  },
+  "auxiliary.moa_aggregator.provider": {
+    "label": "辅助模型 / MOA 聚合器 / 提供商"
+  },
+  "auxiliary.moa_aggregator.model": {
+    "label": "辅助模型 / 多模型聚合聚合器 / 模型"
+  },
+  "auxiliary.moa_aggregator.base_url": {
+    "label": "辅助模型 / moa 聚合器 / 基础 URL"
+  },
+  "auxiliary.moa_aggregator.api_key": {
+    "label": "辅助模型 / moa 聚合器 / API 密钥"
+  },
+  "auxiliary.moa_aggregator.timeout": {
+    "label": "辅助模型 / 多模型聚合聚合器 / 超时"
+  },
+  "display.compact": {
+    "label": "显示 / 紧凑布局"
+  },
+  "display.personality": {
+    "label": "显示 / 个性"
+  },
+  "display.resume_display": {
+    "label": "显示 / 恢复显示",
+    "description": "恢复会话时，历史记录的显示方式。"
+  },
+  "display.resume_exchanges": {
+    "label": "显示 / 恢复时显示的消息轮次数"
+  },
+  "display.resume_max_user_chars": {
+    "label": "显示 / 恢复最大用户字符数"
+  },
+  "display.resume_max_assistant_chars": {
+    "label": "显示 / 恢复最大助手字符数"
+  },
+  "display.resume_max_assistant_lines": {
+    "label": "显示 / 恢复时助手消息最多行数"
+  },
+  "display.resume_skip_tool_only": {
+    "label": "显示 / 恢复时跳过仅含工具调用的轮次"
+  },
+  "display.busy_input_mode": {
+    "label": "显示 / 忙输入模式",
+    "description": "Agent 运行时，新输入的处理方式。"
+  },
+  "display.busy_steer_ack_enabled": {
+    "label": "显示 / 忙碌时引导输入确认"
+  },
+  "display.cli_multiline_shortcuts": {
+    "label": "显示 / CLI 多行快捷方式"
+  },
+  "display.interface": {
+    "label": "显示 / 界面"
+  },
+  "display.cli_layout": {
+    "label": "显示 / CLI 布局"
+  },
+  "display.tui_native": {
+    "label": "显示 / TUI 本机"
+  },
+  "display.tui_auto_resume_recent": {
+    "label": "显示 / TUI 自动恢复最近"
+  },
+  "display.resume_last_session": {
+    "label": "显示 / 恢复上次会话"
+  },
+  "display.tui_agents_nudge": {
+    "label": "显示 / TUI 代理轻推"
+  },
+  "display.bell_on_complete": {
+    "label": "显示 / 响铃完成"
+  },
+  "display.bell_on_prompt": {
+    "label": "显示 / 响铃提示"
+  },
+  "display.show_reasoning": {
+    "label": "显示 / 展示推理"
+  },
+  "display.reasoning_full": {
+    "label": "显示 / 推理全面"
+  },
+  "display.memory_notifications": {
+    "label": "显示 / 内存通知"
+  },
+  "display.background_process_notifications": {
+    "label": "显示 / 后台进程通知"
+  },
+  "display.streaming": {
+    "label": "显示 / 流式处理"
+  },
+  "display.timestamps": {
+    "label": "显示 / 时间戳"
+  },
+  "display.timestamp_format": {
+    "label": "显示 / 时间戳格式"
+  },
+  "display.final_response_markdown": {
+    "label": "显示 / 最终响应降价"
+  },
+  "display.persistent_output": {
+    "label": "显示 / 持续输出"
+  },
+  "display.persistent_output_max_lines": {
+    "label": "显示 / 持续输出最大行数"
+  },
+  "display.cli_rebuild_scrollback_on_redraw": {
+    "label": "显示 / CLI 重建重绘时滚动"
+  },
+  "display.persist_prompts": {
+    "label": "显示 / 保留提示"
+  },
+  "display.inline_diffs": {
+    "label": "显示 / 内联差异"
+  },
+  "display.file_mutation_verifier": {
+    "label": "显示 / 文件突变验证器"
+  },
+  "display.credits_notices": {
+    "label": "显示 / 制作人员通知"
+  },
+  "display.turn_completion_explainer": {
+    "label": "显示 / 轮次完成解释器"
+  },
+  "display.show_cost": {
+    "label": "显示 / 展示费用"
+  },
+  "display.battery": {
+    "label": "显示 / 电池"
+  },
+  "display.focus_view": {
+    "label": "显示 / 焦点视图"
+  },
+  "display.focus_saved_tool_progress": {
+    "label": "显示 / 聚焦保存的工具进度"
+  },
+  "display.skin": {
+    "label": "显示 / 皮肤",
+    "description": "命令行界面的视觉主题。"
+  },
+  "display.language": {
+    "label": "显示 / 语言"
+  },
+  "display.tui_status_indicator": {
+    "label": "显示 / TUI状态指示灯"
+  },
+  "display.cli_refresh_interval": {
+    "label": "显示 / CLI刷新间隔"
+  },
+  "display.vim_mode": {
+    "label": "显示 / vim模式"
+  },
+  "display.user_message_preview.first_lines": {
+    "label": "显示 / 用户消息预览 / 第一行"
+  },
+  "display.user_message_preview.last_lines": {
+    "label": "显示 / 用户消息预览 / 最后几行"
+  },
+  "display.interim_assistant_messages": {
+    "label": "显示 / 临时助理消息"
+  },
+  "display.suppress_warning_notifications": {
+    "label": "显示 / 抑制警告通知"
+  },
+  "display.show_commentary": {
+    "label": "显示 / 显示评论"
+  },
+  "display.tool_progress_command": {
+    "label": "显示 / 工具进度命令"
+  },
+  "display.tool_preview_length": {
+    "label": "显示 / 工具预览长度"
+  },
+  "display.friendly_tool_labels": {
+    "label": "显示 / 友好的工具标签"
+  },
+  "display.turn_summary": {
+    "label": "显示 / 轮次摘要"
+  },
+  "display.spinner_token_flow": {
+    "label": "显示 / 微调器Token流"
+  },
+  "display.tool_progress_grouping": {
+    "label": "显示 / 工具进度分组"
+  },
+  "display.reasoning_style": {
+    "label": "显示 / 推理风格"
+  },
+  "display.ephemeral_system_ttl": {
+    "label": "显示 / 临时系统 TTL"
+  },
+  "display.platforms.telegram.streaming": {
+    "label": "显示 / 平台 / 电报 / 流式处理"
+  },
+  "display.platforms.discord.streaming": {
+    "label": "显示 / 平台 / Discord / 流式处理"
+  },
+  "display.platforms.slack.streaming": {
+    "label": "显示 / 平台 / Slack / 流式处理"
+  },
+  "display.platforms.wecom.streaming": {
+    "label": "显示 / 平台 / wecom / 流式处理"
+  },
+  "display.runtime_footer.enabled": {
+    "label": "显示 / 运行时页脚 / 启用"
+  },
+  "display.runtime_footer.fields": {
+    "label": "显示 / 运行时页脚 / 字段"
+  },
+  "display.status_bar.fields": {
+    "label": "显示 / 状态栏 / 字段"
+  },
+  "display.copy_shortcut": {
+    "label": "显示 / 复制快捷方式"
+  },
+  "display.pet.enabled": {
+    "label": "显示 / 宠物 / 启用"
+  },
+  "display.pet.slug": {
+    "label": "显示 / 宠物 / 蛞蝓"
+  },
+  "display.pet.render_mode": {
+    "label": "显示 / 宠物 / 渲染模式"
+  },
+  "display.pet.scale": {
+    "label": "显示 / 宠物 / 秤"
+  },
+  "display.pet.unicode_cols": {
+    "label": "显示 / pet / unicode cols"
+  },
+  "dashboard.theme": {
+    "label": "仪表板 / 主题",
+    "description": "Web 控制台的视觉主题。"
+  },
+  "dashboard.turn_isolation": {
+    "label": "仪表板 / 转向隔离"
+  },
+  "dashboard.compute_host_heartbeat_secs": {
+    "label": "仪表板 / 计算主机心跳秒"
+  },
+  "dashboard.compute_host_respawn_max": {
+    "label": "仪表板 / 计算主机重生最大"
+  },
+  "dashboard.show_token_analytics": {
+    "label": "仪表板 / 显示代币分析"
+  },
+  "dashboard.trusted_proxies": {
+    "label": "仪表板 / 可信代理"
+  },
+  "dashboard.ws_ping_interval": {
+    "label": "仪表板 / ws ping 间隔"
+  },
+  "dashboard.ws_ping_timeout": {
+    "label": "仪表板 / ws ping 超时"
+  },
+  "dashboard.ws_orphan_reap_grace_s": {
+    "label": "仪表板 / ws 孤儿收获恩典"
+  },
+  "dashboard.ws_orphan_activity_stale_s": {
+    "label": "仪表板 / ws 孤立活动陈旧"
+  },
+  "dashboard.startup_orphan_sweep": {
+    "label": "仪表板 / 启动孤儿扫描"
+  },
+  "dashboard.oauth.client_id": {
+    "label": "仪表板 / oauth / 客户端 ID"
+  },
+  "dashboard.oauth.portal_url": {
+    "label": "仪表板 / oauth / 门户 URL"
+  },
+  "dashboard.basic_auth.username": {
+    "label": "仪表板 / 基本身份验证 / 用户名"
+  },
+  "dashboard.basic_auth.password_hash": {
+    "label": "仪表板 / 基本身份验证 / 密码哈希"
+  },
+  "dashboard.basic_auth.password": {
+    "label": "仪表板 / 基本身份验证 / 密码"
+  },
+  "dashboard.basic_auth.secret": {
+    "label": "仪表板 / 基本身份验证 / 秘密"
+  },
+  "dashboard.basic_auth.session_ttl_seconds": {
+    "label": "仪表板 / 基本身份验证 / 会话 TTL 秒"
+  },
+  "dashboard.drain_auth.scope": {
+    "label": "仪表板 / 排水授权 / 范围"
+  },
+  "dashboard.drain_auth.min_secret_chars": {
+    "label": "仪表板 / 排出身份验证 / 最小秘密字符"
+  },
+  "dashboard.public_url": {
+    "label": "仪表板 / 公共URL"
+  },
+  "privacy.redact_pii": {
+    "label": "隐私 / 编辑 pii"
+  },
+  "tts.provider": {
+    "label": "语音合成 / 提供商",
+    "description": "文字转语音的提供方。"
+  },
+  "tts.keep_warm_seconds": {
+    "label": "语音合成 / 预热保持时间（秒）"
+  },
+  "tts.streaming.min_len": {
+    "label": "语音合成 / 流式输出最短文本长度"
+  },
+  "tts.edge.voice": {
+    "label": "语音合成 / 边缘 / 语音"
+  },
+  "tts.elevenlabs.voice_id": {
+    "label": "语音合成 / ElevenLabs / 语音 ID"
+  },
+  "tts.elevenlabs.model_id": {
+    "label": "语音合成 / ElevenLabs / 模型 id"
+  },
+  "tts.openai.model": {
+    "label": "语音合成 / OpenAI / 模型"
+  },
+  "tts.openai.voice": {
+    "label": "语音合成 / OpenAI / 语音"
+  },
+  "tts.openai.consent_attestation": {
+    "label": "语音合成 / OpenAI / 同意证明"
+  },
+  "tts.openai.pcm_sample_rate": {
+    "label": "语音合成 / OpenAI / pcm 采样率"
+  },
+  "tts.gemini.model": {
+    "label": "语音合成 / Gemini / 模型"
+  },
+  "tts.gemini.voice": {
+    "label": "语音合成 / Gemini / 声音"
+  },
+  "tts.gemini.audio_tags": {
+    "label": "语音合成 / Gemini / 音频标签"
+  },
+  "tts.gemini.persona_prompt_file": {
+    "label": "语音合成 / Gemini / persona 提示文件"
+  },
+  "tts.xai.voice_id": {
+    "label": "语音合成 / xAI / 语音 ID"
+  },
+  "tts.xai.language": {
+    "label": "语音合成 / xAI / 语言"
+  },
+  "tts.xai.speed": {
+    "label": "语音合成 / xAI / 速度"
+  },
+  "tts.xai.auto_speech_tags": {
+    "label": "语音合成 / xAI / 自动语音标签"
+  },
+  "tts.xai.optimize_streaming_latency": {
+    "label": "语音合成 / xAI / 优化流式处理延迟"
+  },
+  "tts.xai.sample_rate": {
+    "label": "语音合成 / xAI / 采样率"
+  },
+  "tts.xai.bit_rate": {
+    "label": "语音合成 / xAI / 比特率"
+  },
+  "tts.mistral.model": {
+    "label": "语音合成 / 密斯塔拉尔 / 模型"
+  },
+  "tts.mistral.voice_id": {
+    "label": "语音合成 / 密斯塔拉尔 / 语音 ID"
+  },
+  "tts.minimax.model": {
+    "label": "语音合成 / 最小最大 / 模型"
+  },
+  "tts.minimax.voice_id": {
+    "label": "语音合成 / 极小极大 / 语音 ID"
+  },
+  "tts.kittentts.model": {
+    "label": "语音合成 / 小猫 / 模型"
+  },
+  "tts.kittentts.voice": {
+    "label": "语音合成 / 小猫 / 语音"
+  },
+  "tts.neutts.ref_audio": {
+    "label": "语音合成 / neu语音合成 / 参考音频"
+  },
+  "tts.neutts.ref_text": {
+    "label": "语音合成 / neu语音合成 / 参考文本"
+  },
+  "tts.neutts.model": {
+    "label": "语音合成 / neu语音合成 / 模型"
+  },
+  "tts.neutts.device": {
+    "label": "语音合成 / neu语音合成 / 设备"
+  },
+  "tts.piper.voice": {
+    "label": "语音合成 / 吹笛者 / 语音"
+  },
+  "tts.deepinfra.model": {
+    "label": "语音合成 / deepinfra / 模型"
+  },
+  "tts.deepinfra.voice": {
+    "label": "语音合成 / deepinfra / 语音"
+  },
+  "stt.enabled": {
+    "label": "语音识别 / 已启用"
+  },
+  "stt.echo_transcripts": {
+    "label": "语音识别 / 回显转录文本"
+  },
+  "stt.language": {
+    "label": "语音识别 / 语言"
+  },
+  "stt.streaming": {
+    "label": "语音识别 / 流式识别"
+  },
+  "stt.cloud_trim_silence": {
+    "label": "语音识别 / 云端静音裁剪"
+  },
+  "stt.cloud_trim_threshold_db": {
+    "label": "语音识别 / 云端静音裁剪阈值（dB）"
+  },
+  "stt.cloud_trim_keep_ms": {
+    "label": "语音识别 / 云端静音裁剪保留时长（毫秒）"
+  },
+  "stt.local.model": {
+    "label": "语音识别 / 本地 / 模型",
+    "description": "本地 faster-whisper 模型大小。"
+  },
+  "stt.local.language": {
+    "label": "语音识别 / 本地 / 语言"
+  },
+  "stt.local.initial_prompt": {
+    "label": "语音识别 / 本地 / 初始提示"
+  },
+  "stt.local.vad": {
+    "label": "语音识别 / 本地 / vad"
+  },
+  "stt.local.vad_min_silence_ms": {
+    "label": "语音识别 / 本地 / VAD 最短静音时长（毫秒）"
+  },
+  "stt.local.no_speech_prob_threshold": {
+    "label": "语音识别 / 本地 / 无语音概率阈值"
+  },
+  "stt.local.logprob_threshold": {
+    "label": "语音识别 / 本地 / logprob阈值"
+  },
+  "stt.local.unload_after_idle_seconds": {
+    "label": "语音识别 / 本地 / 空闲秒后卸载"
+  },
+  "stt.groq.model": {
+    "label": "语音识别 / Groq / 模型",
+    "description": "Groq Whisper 语音识别模型。"
+  },
+  "stt.groq.language": {
+    "label": "语音识别 / Groq / 语言"
+  },
+  "stt.openai.model": {
+    "label": "语音识别 / OpenAI / 模型",
+    "description": "OpenAI 语音转录模型。"
+  },
+  "stt.openai.streaming_model": {
+    "label": "语音识别 / OpenAI / 流模型",
+    "description": "OpenAI 实时转录模型（用于 stt.streaming）。"
+  },
+  "stt.openai.language": {
+    "label": "语音识别 / OpenAI / 语言"
+  },
+  "stt.openai.timeout": {
+    "label": "语音识别 / OpenAI / 超时"
+  },
+  "stt.openai.max_retries": {
+    "label": "语音识别 / OpenAI / 最大重试次数"
+  },
+  "stt.mistral.model": {
+    "label": "语音识别 / 米斯特拉尔 / 模型",
+    "description": "Mistral Voxtral 语音转录模型。"
+  },
+  "stt.mistral.language": {
+    "label": "语音识别 / 米斯特拉尔 / 语言"
+  },
+  "stt.xai.model": {
+    "label": "语音识别 / xAI / 模型",
+    "description": "xAI 语音转录模型。"
+  },
+  "stt.xai.language": {
+    "label": "语音识别 / xAI / 语言"
+  },
+  "stt.elevenlabs.model_id": {
+    "label": "语音识别 / ElevenLabs / 模型 id",
+    "description": "ElevenLabs Scribe 语音识别模型。"
+  },
+  "stt.elevenlabs.language_code": {
+    "label": "语音识别 / ElevenLabs / 语言代码"
+  },
+  "stt.elevenlabs.tag_audio_events": {
+    "label": "语音识别 / ElevenLabs / Token音频事件"
+  },
+  "stt.elevenlabs.diarize": {
+    "label": "语音识别 / ElevenLabs / 区分说话人"
+  },
+  "stt.deepinfra.model": {
+    "label": "语音识别 / deepinfra / 模型"
+  },
+  "voice.voice_chat_mode": {
+    "label": "语音 / 语音聊天模式"
+  },
+  "voice.gpt_live.model": {
+    "label": "语音 / GPT Live / 模型"
+  },
+  "voice.gpt_live.voice": {
+    "label": "语音 / GPT Live / 语音"
+  },
+  "voice.gpt_live.instructions": {
+    "label": "语音 / GPT Live / 说明"
+  },
+  "voice.record_key": {
+    "label": "语音 / 录音键"
+  },
+  "voice.submit_mode": {
+    "label": "语音 / 提交模式"
+  },
+  "voice.max_recording_seconds": {
+    "label": "语音 / 最大录音秒数"
+  },
+  "voice.auto_tts": {
+    "label": "语音 / 自动语音合成"
+  },
+  "voice.client_direct": {
+    "label": "语音 / 客户端直连"
+  },
+  "voice.beep_enabled": {
+    "label": "语音 / 蜂鸣声"
+  },
+  "voice.beep_volume": {
+    "label": "语音 / 蜂鸣声音量"
+  },
+  "voice.thinking_sound": {
+    "label": "语音 / 思考声"
+  },
+  "voice.silence_threshold": {
+    "label": "语音 / 静音阈值"
+  },
+  "voice.silence_duration": {
+    "label": "语音 / 静音持续时间"
+  },
+  "voice.barge_in": {
+    "label": "语音 / 打断播放"
+  },
+  "voice.barge_in_grace_seconds": {
+    "label": "语音 / 在宽限秒内插入"
+  },
+  "voice.barge_in_threshold_multiplier": {
+    "label": "语音 / 插入阈值乘数"
+  },
+  "voice.stop_phrases": {
+    "label": "语音 / 停止短语"
+  },
+  "vision.embed_target_bytes": {
+    "label": "图像处理 / 嵌入目标字节"
+  },
+  "vision.max_calls_per_image": {
+    "label": "图像处理 / 每张图像的最大调用次数"
+  },
+  "vision.replay_recent_images": {
+    "label": "图像处理 / 重播最近的图像"
+  },
+  "wake_word.enabled": {
+    "label": "唤醒词 / 启用"
+  },
+  "wake_word.surface": {
+    "label": "唤醒词 / 生效界面"
+  },
+  "wake_word.input_device": {
+    "label": "唤醒词 / 输入设备"
+  },
+  "wake_word.capture": {
+    "label": "唤醒词 / 录音采集模式"
+  },
+  "wake_word.provider": {
+    "label": "唤醒词 / 提供方",
+    "description": "唤醒词识别引擎。auto 会选择当前平台支持的引擎；Porcupine 需要 PORCUPINE_ACCESS_KEY。"
+  },
+  "wake_word.phrase": {
+    "label": "唤醒词 / 短语"
+  },
+  "wake_word.sensitivity": {
+    "label": "唤醒词 / 灵敏度"
+  },
+  "wake_word.confirmation_frames": {
+    "label": "唤醒词 / 确认帧"
+  },
+  "wake_word.start_new_session": {
+    "label": "唤醒词 / 开始新会话"
+  },
+  "wake_word.profile_routing": {
+    "label": "唤醒词 / 配置文件路由"
+  },
+  "wake_word.openwakeword.model": {
+    "label": "唤醒词 / openwakeword / 模型"
+  },
+  "wake_word.sherpa.model_dir": {
+    "label": "唤醒词 / Sherpa 模型目录"
+  },
+  "wake_word.porcupine.keyword": {
+    "label": "唤醒词 / Porcupine 关键词"
+  },
+  "human_delay.mode": {
+    "label": "输入延迟 / 模式",
+    "description": "模拟打字延迟的模式。"
+  },
+  "human_delay.min_ms": {
+    "label": "输入延迟 / 分钟毫秒"
+  },
+  "human_delay.max_ms": {
+    "label": "输入延迟 / 最大毫秒"
+  },
+  "context.engine": {
+    "label": "上下文 / 引擎",
+    "description": "上下文管理引擎。"
+  },
+  "context.memory_trim.enabled": {
+    "label": "上下文 / 内存修剪 / 启用"
+  },
+  "context.memory_trim.cooldown_seconds": {
+    "label": "上下文 / 内存调整 / 冷却秒数"
+  },
+  "context.memory_trim.log_every_n": {
+    "label": "上下文 / 内存修剪 / 每 N 次记录日志"
+  },
+  "context.memory_trim.info_log_min_delta_mb": {
+    "label": "上下文 / 内存修剪 / 信息日志最小增量 MB"
+  },
+  "memory.memory_enabled": {
+    "label": "记忆 / 内存启用"
+  },
+  "memory.user_profile_enabled": {
+    "label": "记忆 / 用户配置文件"
+  },
+  "memory.prefetch_spill_enabled": {
+    "label": "记忆 / 预取溢出"
+  },
+  "memory.write_approval": {
+    "label": "记忆 / 写入审批"
+  },
+  "memory.memory_char_limit": {
+    "label": "记忆 / 内存字符限制"
+  },
+  "memory.user_char_limit": {
+    "label": "记忆 / 用户字符限制"
+  },
+  "memory.nudge_interval": {
+    "label": "记忆 / 微移间隔"
+  },
+  "memory.provider": {
+    "label": "记忆 / 提供方",
+    "description": "记忆提供方插件。"
+  },
+  "delegation.backend": {
+    "label": "任务委派 / 后端"
+  },
+  "delegation.model": {
+    "label": "任务委派 / 模特"
+  },
+  "delegation.provider": {
+    "label": "任务委派 / 提供方"
+  },
+  "delegation.fallback_providers": {
+    "label": "任务委派 / 备用提供方"
+  },
+  "delegation.base_url": {
+    "label": "任务委派 / API 基础地址"
+  },
+  "delegation.api_key": {
+    "label": "任务委派 / API 密钥"
+  },
+  "delegation.api_mode": {
+    "label": "任务委派 / API 模式"
+  },
+  "delegation.compression_threshold_tokens": {
+    "label": "任务委派 / 压缩阈值Token"
+  },
+  "delegation.inherit_mcp_toolsets": {
+    "label": "任务委派 / 继承 MCP 工具集"
+  },
+  "delegation.max_iterations": {
+    "label": "任务委派 / 最大迭代次数"
+  },
+  "delegation.max_summary_chars": {
+    "label": "任务委派 / 最大摘要字符"
+  },
+  "delegation.child_timeout_seconds": {
+    "label": "任务委派 / 子超时秒数"
+  },
+  "delegation.reasoning_effort": {
+    "label": "任务委派 / 推理强度",
+    "description": "委派给子 Agent 时使用的推理强度。"
+  },
+  "delegation.max_concurrent_children": {
+    "label": "任务委派 / 最大并发子进程"
+  },
+  "delegation.independent_completions": {
+    "label": "任务委派 / 独立完成"
+  },
+  "delegation.max_spawn_depth": {
+    "label": "任务委派 / 最大生成深度"
+  },
+  "delegation.orchestrator_enabled": {
+    "label": "任务委派 / 协调器"
+  },
+  "delegation.oneshot_max_children": {
+    "label": "任务委派 / 一次性最大子项"
+  },
+  "delegation.subagent_auto_approve": {
+    "label": "任务委派 / 子代理自动审批"
+  },
+  "delegation.surface_child_process_notifications": {
+    "label": "任务委派 / 表面子进程通知"
+  },
+  "prefill_messages_file": {
+    "label": "预填消息文件"
+  },
+  "goals.max_turns": {
+    "label": "目标 / 最大轮数"
+  },
+  "loops.min_interval_seconds": {
+    "label": "循环任务 / 分钟间隔秒"
+  },
+  "loops.max_ticks": {
+    "label": "循环任务 / 最大执行次数"
+  },
+  "loops.self_paced_floor_seconds": {
+    "label": "循环任务 / 自定进度楼层秒数"
+  },
+  "loops.self_paced_ceiling_seconds": {
+    "label": "循环任务 / 自定进度上限秒数"
+  },
+  "moa.default_preset": {
+    "label": "多模型聚合 / 默认预设"
+  },
+  "moa.active_preset": {
+    "label": "多模型聚合 / 当前预设"
+  },
+  "moa.save_traces": {
+    "label": "多模型聚合 / 保存执行轨迹"
+  },
+  "moa.trace_dir": {
+    "label": "多模型聚合 / 跟踪目录"
+  },
+  "moa.privacy_filter": {
+    "label": "多模型聚合 / 隐私过滤"
+  },
+  "moa.presets.default.reference_models": {
+    "label": "多模型聚合 / 预设 / 默认 / 参考模型"
+  },
+  "moa.presets.default.aggregator.provider": {
+    "label": "多模型聚合 / 预设 / 默认 / 聚合器 / 提供方"
+  },
+  "moa.presets.default.aggregator.model": {
+    "label": "多模型聚合 / 预设 / 默认 / 聚合器 / 模型"
+  },
+  "moa.presets.default.enabled": {
+    "label": "多模型聚合 / 预设 / 默认 / 启用"
+  },
+  "skills.external_dirs": {
+    "label": "技能 / 外部目录"
+  },
+  "skills.create_dir": {
+    "label": "技能 / 创建目录"
+  },
+  "skills.project_discovery": {
+    "label": "技能 / 项目目录发现"
+  },
+  "skills.trusted_project_dirs": {
+    "label": "技能 / 值得信赖的项目目录"
+  },
+  "skills.auto_load": {
+    "label": "技能 / 自动加载"
+  },
+  "skills.template_vars": {
+    "label": "技能 / 模板变量"
+  },
+  "skills.inline_shell": {
+    "label": "技能 / 内联 Shell"
+  },
+  "skills.inline_shell_timeout": {
+    "label": "技能 / 内联 shell 超时"
+  },
+  "skills.guard_agent_created": {
+    "label": "技能 / 保护 Agent 创建的技能"
+  },
+  "skills.tier1_advisory": {
+    "label": "技能 / 一级提示"
+  },
+  "skills.write_approval": {
+    "label": "技能 / 写入审批"
+  },
+  "skills.ledger": {
+    "label": "技能 / 分类账"
+  },
+  "skills.ledger_max_bytes": {
+    "label": "技能 / 账本最大字节数"
+  },
+  "curator.enabled": {
+    "label": "记忆整理 / 已启用"
+  },
+  "curator.interval_hours": {
+    "label": "记忆整理 / 间隔时间"
+  },
+  "curator.min_idle_hours": {
+    "label": "记忆整理 / 最小空闲时间"
+  },
+  "curator.stale_after_days": {
+    "label": "记忆整理 / 过期天数"
+  },
+  "curator.archive_after_days": {
+    "label": "记忆整理 / 归档等待天数"
+  },
+  "curator.consolidate": {
+    "label": "记忆整理 / 巩固"
+  },
+  "curator.prune_builtins": {
+    "label": "记忆整理 / 修剪内置函数"
+  },
+  "curator.archive_ttl_days": {
+    "label": "记忆整理 / 归档保留天数"
+  },
+  "curator.backup.enabled": {
+    "label": "记忆整理 / 备份 / 已启用"
+  },
+  "curator.backup.keep": {
+    "label": "记忆整理 / 备份 / 保留"
+  },
+  "timezone": {
+    "label": "时区",
+    "description": "IANA 时区，例如 America/New_York；留空使用系统时区。"
+  },
+  "slack.require_mention": {
+    "label": "Slack / 需要提及"
+  },
+  "slack.free_response_channels": {
+    "label": "Slack / 自由响应渠道"
+  },
+  "slack.allowed_channels": {
+    "label": "Slack / 允许的通道"
+  },
+  "slack.require_mention_channels": {
+    "label": "Slack / 需要提及渠道"
+  },
+  "slack.ignore_other_user_mentions": {
+    "label": "Slack / 忽略其他用户提及"
+  },
+  "slack.thread_require_mention": {
+    "label": "Slack / 线程需要提及"
+  },
+  "discord.require_mention": {
+    "label": "Discord / 需要提及"
+  },
+  "discord.free_response_channels": {
+    "label": "Discord / 自由回复渠道"
+  },
+  "discord.allowed_channels": {
+    "label": "Discord / 允许的频道"
+  },
+  "discord.auto_thread": {
+    "label": "Discord / 自动线程"
+  },
+  "discord.free_response_auto_thread": {
+    "label": "Discord / 自由响应自动线程"
+  },
+  "discord.thread_require_mention": {
+    "label": "Discord / 线程需要提及"
+  },
+  "discord.bots_require_inline_mention": {
+    "label": "Discord / 机器人需要内联提及"
+  },
+  "discord.history_backfill": {
+    "label": "Discord / 历史回填"
+  },
+  "discord.history_backfill_limit": {
+    "label": "Discord / 历史回填限制"
+  },
+  "discord.missed_message_backfill.enabled": {
+    "label": "Discord / 错过的消息回填 / 已启用"
+  },
+  "discord.missed_message_backfill.channels": {
+    "label": "Discord / 错过的消息回填 / 频道"
+  },
+  "discord.missed_message_backfill.window_seconds": {
+    "label": "Discord / 错过的消息回填 / 窗口秒"
+  },
+  "discord.missed_message_backfill.limit": {
+    "label": "Discord / 错过的消息回填 / 限制"
+  },
+  "discord.missed_message_backfill.max_dispatches": {
+    "label": "Discord / 错过的消息回填 / 最大调度"
+  },
+  "discord.missed_message_backfill.max_attempts": {
+    "label": "Discord / 错过的消息回填 / 最大尝试次数"
+  },
+  "discord.reactions": {
+    "label": "Discord / 反应"
+  },
+  "discord.websocket_liveness_interval_seconds": {
+    "label": "Discord / websocket 活跃间隔秒"
+  },
+  "discord.websocket_liveness_failure_threshold": {
+    "label": "Discord / websocket 活跃失败阈值"
+  },
+  "discord.websocket_heartbeat_ack_max_age_seconds": {
+    "label": "Discord / websocket 心跳确认最大年龄秒"
+  },
+  "discord.websocket_max_latency_seconds": {
+    "label": "Discord / websocket 最大延迟秒数"
+  },
+  "discord.websocket_event_max_silence_seconds": {
+    "label": "Discord / websocket 事件最大沉默秒数"
+  },
+  "discord.dm_role_auth_guild": {
+    "label": "Discord / DM 角色授权公会"
+  },
+  "discord.server_actions": {
+    "label": "Discord / 服务器操作"
+  },
+  "discord.allow_any_attachment": {
+    "label": "Discord / 允许任何附件"
+  },
+  "discord.max_attachment_bytes": {
+    "label": "Discord / 最大附件字节"
+  },
+  "discord.approval_mentions": {
+    "label": "Discord / 审批提及"
+  },
+  "discord.voice_channel_inactivity_timeout_seconds": {
+    "label": "Discord / 语音通道不活动超时秒数"
+  },
+  "discord.voice_playback_timeout_seconds": {
+    "label": "Discord / 语音播放超时秒数"
+  },
+  "discord.voice_fx.enabled": {
+    "label": "Discord / 语音效果 / 已启用"
+  },
+  "discord.voice_fx.ambient_enabled": {
+    "label": "Discord / 语音效果 / 环境启用"
+  },
+  "discord.voice_fx.ambient_path": {
+    "label": "Discord / 语音效果 / 环境路径"
+  },
+  "discord.voice_fx.ambient_gain": {
+    "label": "Discord / 语音效果 / 环境增益"
+  },
+  "discord.voice_fx.duck_gain": {
+    "label": "Discord / 语音效果 / 鸭子增益"
+  },
+  "discord.voice_fx.speech_gain": {
+    "label": "Discord / 语音效果 / 语音增益"
+  },
+  "discord.voice_fx.ack_enabled": {
+    "label": "Discord / 语音效果 / 确认"
+  },
+  "discord.voice_fx.ack_phrases": {
+    "label": "Discord / 语音效果 / 确认短语"
+  },
+  "telegram.reactions": {
+    "label": "电报 / 反应"
+  },
+  "telegram.allowed_chats": {
+    "label": "电报 / 允许聊天"
+  },
+  "telegram.extra.rich_messages": {
+    "label": "电报 / 额外 / 丰富的消息"
+  },
+  "telegram.extra.rich_drafts": {
+    "label": "电报 / 额外 / 丰富的草稿"
+  },
+  "telegram.extra.allow_cjk_rich_messages": {
+    "label": "电报 / 额外 / 允许中日韩丰富消息"
+  },
+  "telegram.extra.dm_topic_auto_transfer": {
+    "label": "telegram / extra / dm 主题自动传输"
+  },
+  "mattermost.require_mention": {
+    "label": "Mattermost / 需要提及"
+  },
+  "mattermost.free_response_channels": {
+    "label": "Mattermost / 自由回复渠道"
+  },
+  "mattermost.allowed_channels": {
+    "label": "Mattermost / 允许的渠道"
+  },
+  "matrix.require_mention": {
+    "label": "Matrix / 需要提及"
+  },
+  "matrix.free_response_rooms": {
+    "label": "Matrix / 自由回复室"
+  },
+  "matrix.allowed_rooms": {
+    "label": "Matrix / 允许的房间"
+  },
+  "approvals.mode": {
+    "label": "审批 / 模式",
+    "description": "危险命令的审批模式。"
+  },
+  "approvals.timeout": {
+    "label": "审批 / 超时"
+  },
+  "approvals.cron_mode": {
+    "label": "审批 /定时任务 模式"
+  },
+  "approvals.single_query_mode": {
+    "label": "审批 / 单一查询模式"
+  },
+  "approvals.unattended_mode": {
+    "label": "审批 / 无人值守模式"
+  },
+  "approvals.smart_policy": {
+    "label": "审批 / 智能政策"
+  },
+  "approvals.denial_breaker_threshold": {
+    "label": "审批 / 拒绝断路器阈值"
+  },
+  "approvals.deny": {
+    "label": "审批 / 拒绝"
+  },
+  "approvals.mcp_reload_confirm": {
+    "label": "审批 / MCP 重新加载确认"
+  },
+  "approvals.destructive_slash_confirm": {
+    "label": "审批 / 破坏性斜线确认"
+  },
+  "command_allowlist": {
+    "label": "命令白名单"
+  },
+  "plugins.clone_timeout_seconds": {
+    "label": "插件 / 克隆超时秒"
+  },
+  "plugins.hook_callback_timeout": {
+    "label": "插件 / 钩子回调超时",
+    "description": "进程内 Python 插件钩子回调的最长运行时间（秒），适用于热路径观察者与 pre_tool_call。pre_tool_call 超时会拒绝调用。0 表示不限时，超过 600 秒会截断为 600 秒；subagent_stop 等调用者线程钩子不转移到超时工作线程。"
+  },
+  "plugins.load_timeout_seconds": {
+    "label": "插件 / 加载超时秒",
+    "description": "单个插件导入与 register() 的加载期限（秒）。超时插件会被跳过，其余插件继续加载。0 表示不限时，超过 600 秒会截断为 600 秒。"
+  },
+  "plugins.auto_update_check_hours": {
+    "label": "插件 / 自动更新检查时间"
+  },
+  "plugins.auto_apply": {
+    "label": "插件 / 自动应用"
+  },
+  "plugins.isolation": {
+    "label": "插件 / 隔离"
+  },
+  "plugins.host.launcher": {
+    "label": "插件 / 主机 / 启动器"
+  },
+  "hooks_auto_accept": {
+    "label": "钩子自动接受"
+  },
+  "auth.adopt_external_logins": {
+    "label": "身份认证 / 采用外部登录",
+    "description": "Hermes 没有可用的自身登录时，可借用并刷新 Codex CLI 或 Claude Code 的登录。关闭后只使用 Hermes 自己的登录（hermes auth add <provider>）。"
+  },
+  "auth.codex_login_flow": {
+    "label": "身份认证 / Codex 登录流程"
+  },
+  "security.allow_private_urls": {
+    "label": "安全 / 允许私有网络 URL"
+  },
+  "security.fake_ip_ranges": {
+    "label": "安全 / 伪造 IP 地址范围"
+  },
+  "security.redact_secrets": {
+    "label": "安全 / 密钥脱敏"
+  },
+  "security.allow_data_training_tiers_noninteractive": {
+    "label": "安全 / 非交互模式允许数据训练档位"
+  },
+  "security.approval.transport": {
+    "label": "安全 / 审批传输方式"
+  },
+  "security.approval.transport_fallback": {
+    "label": "安全 / 审批传输回退方式"
+  },
+  "security.protected_instruction_files": {
+    "label": "安全与审批 / 受保护的指令文件"
+  },
+  "security.protected_instruction_extra_patterns": {
+    "label": "安全与审批 / 受保护的指令额外模式"
+  },
+  "security.website_blocklist.enabled": {
+    "label": "安全与审批 / 网站阻止列表 / 已启用"
+  },
+  "security.website_blocklist.domains": {
+    "label": "安全与审批 / 网站黑名单 / 域名"
+  },
+  "security.website_blocklist.shared_files": {
+    "label": "安全与审批 / 网站阻止列表 / 共享文件"
+  },
+  "security.acked_advisories": {
+    "label": "安全与审批 / 确认建议"
+  },
+  "security.allow_lazy_installs": {
+    "label": "安全与审批 / 允许延迟安装"
+  },
+  "cron.catch_up_missed": {
+    "label": "定时任务 / 补跑错过的任务"
+  },
+  "cron.allow_agent_scheduling": {
+    "label": "定时任务 / 允许代理调度"
+  },
+  "cron.preflight": {
+    "label": "定时任务 / 预检"
+  },
+  "cron.model": {
+    "label": "定时任务 / 模型"
+  },
+  "cron.model_provider": {
+    "label": "定时任务 / 模型提供方"
+  },
+  "cron.provider": {
+    "label": "定时任务 / 提供方"
+  },
+  "cron.chronos.portal_url": {
+    "label": "定时任务 / chronos / 门户URL"
+  },
+  "cron.chronos.callback_url": {
+    "label": "定时任务 / chronos / 回调 URL"
+  },
+  "cron.chronos.expected_audience": {
+    "label": "定时任务 / Chronos / 预期受众"
+  },
+  "cron.chronos.nas_jwks_url": {
+    "label": "定时任务 / Chronos / NAS JWKS 地址"
+  },
+  "cron.wrap_response": {
+    "label": "定时任务 / 包装响应"
+  },
+  "cron.delivery.notify": {
+    "label": "定时任务 / 交付 / 通知"
+  },
+  "cron.mirror_delivery": {
+    "label": "定时任务 / 镜像投递"
+  },
+  "cron.max_parallel_jobs": {
+    "label": "定时任务 / 最大并行作业"
+  },
+  "cron.output_retention": {
+    "label": "定时任务 / 输出保留"
+  },
+  "cron.script_timeout_seconds": {
+    "label": "定时任务 / 脚本超时秒数"
+  },
+  "cron.session_db_timeout_seconds": {
+    "label": "定时任务 / 会话数据库超时秒数"
+  },
+  "cron.media_send_timeout_seconds": {
+    "label": "定时任务 / 媒体发送超时秒数"
+  },
+  "cron.require_restart_safe_scope": {
+    "label": "定时任务 / 要求重启安全作用域"
+  },
+  "cron.failure_repeat_alert_hours": {
+    "label": "定时任务 / 失败重复告警间隔（小时）"
+  },
+  "kanban.auto_subscribe_on_create": {
+    "label": "看板任务 / 创建时自动订阅"
+  },
+  "kanban.notify_in_gateway": {
+    "label": "看板任务 / 在网关中通知"
+  },
+  "kanban.dispatch_in_gateway": {
+    "label": "看板任务 / 调度"
+  },
+  "kanban.review_dispatch": {
+    "label": "看板任务 / 审核调度"
+  },
+  "kanban.dispatch_interval_seconds": {
+    "label": "看板任务 / 调度间隔秒"
+  },
+  "kanban.failure_limit": {
+    "label": "看板任务 / 失败限制"
+  },
+  "kanban.worker_log_rotate_bytes": {
+    "label": "看板任务 / 工作日志旋转字节"
+  },
+  "kanban.worker_log_backup_count": {
+    "label": "看板任务 / 工作日志备份计数"
+  },
+  "kanban.orchestrator_profile": {
+    "label": "看板任务 / 协调器配置文件"
+  },
+  "kanban.default_assignee": {
+    "label": "看板任务 / 默认执行人"
+  },
+  "kanban.max_in_progress": {
+    "label": "看板任务 / 最大进行中任务数"
+  },
+  "kanban.max_in_progress_per_profile": {
+    "label": "看板任务 / 每个配置档案最大进行中任务数"
+  },
+  "kanban.dispatch_profiles": {
+    "label": "看板任务 / 调度配置文件"
+  },
+  "kanban.auto_decompose": {
+    "label": "看板任务 / 自动拆分"
+  },
+  "kanban.auto_decompose_per_tick": {
+    "label": "看板任务 / 每个调度周期自动拆分数"
+  },
+  "kanban.dispatch_stale_timeout_seconds": {
+    "label": "看板任务 / 调度陈旧超时秒"
+  },
+  "kanban.reconcile_orphans": {
+    "label": "看板任务 / 协调孤儿"
+  },
+  "kanban.done_sub_retention_days": {
+    "label": "看板任务 / 完成子保留天数"
+  },
+  "bot_mode.envelope_ttl_seconds": {
+    "label": "机器人模式 / 消息封装有效期（秒）"
+  },
+  "bot_mode.turn_wait_seconds": {
+    "label": "机器人模式 / 轮次等待时间（秒）"
+  },
+  "code_execution.mode": {
+    "label": "代码执行 / 模式"
+  },
+  "code_execution.kernel_idle_timeout": {
+    "label": "代码执行 / 内核空闲超时"
+  },
+  "code_execution.max_session_kernels": {
+    "label": "代码执行 / 最大会话内核"
+  },
+  "tools.tool_search.enabled": {
+    "label": "工具 / 工具搜索 / 已启用"
+  },
+  "tools.tool_search.threshold_pct": {
+    "label": "工具 / 工具搜索 / 阈值pct"
+  },
+  "tools.tool_search.search_default_limit": {
+    "label": "工具 / 工具搜索 / 搜索默认限制"
+  },
+  "tools.tool_search.max_search_limit": {
+    "label": "工具 / 工具搜索 / 最大搜索限制"
+  },
+  "tools.tool_search.listing": {
+    "label": "工具 / 工具搜索 / 列表"
+  },
+  "tools.tool_search.listing_max_tokens": {
+    "label": "工具 / 工具搜索 / 列出最大Token"
+  },
+  "tools.tool_search.defer": {
+    "label": "工具 / 工具搜索 / 延迟"
+  },
+  "tools.connectors.enabled": {
+    "label": "工具 / 连接器 / 已启用"
+  },
+  "logging.level": {
+    "label": "日志 / 级别",
+    "description": "agent.log 的日志级别。"
+  },
+  "logging.max_size_mb": {
+    "label": "日志 / 最大大小 MB"
+  },
+  "logging.backup_count": {
+    "label": "日志 / 备份计数"
+  },
+  "model_catalog.enabled": {
+    "label": "模型目录 / 启用"
+  },
+  "model_catalog.url": {
+    "label": "模型目录 / URL"
+  },
+  "model_catalog.ttl_minutes": {
+    "label": "模型目录 / 缓存有效期（分钟）"
+  },
+  "models_dev.url": {
+    "label": "模型开发 / URL"
+  },
+  "network.force_ipv4": {
+    "label": "网络 / 强制 IPv4"
+  },
+  "monitoring.install_id": {
+    "label": "监控 / 安装 ID"
+  },
+  "monitoring.gateway_health_export.enabled": {
+    "label": "监控 / 网关运行状况导出 / 已启用"
+  },
+  "monitoring.gateway_health_export.metrics_enabled": {
+    "label": "监控 / 网关运行状况导出 / 启用指标"
+  },
+  "monitoring.gateway_health_export.diagnostic_events_enabled": {
+    "label": "监控 / 网关运行状况导出 / 诊断事件"
+  },
+  "monitoring.gateway_health_export.warning_error_events_enabled": {
+    "label": "监控 / 网关运行状况导出 / 警告错误事件"
+  },
+  "monitoring.gateway_health_export.export_interval_seconds": {
+    "label": "监控 / 网关健康状况导出 / 导出间隔秒数"
+  },
+  "monitoring.gateway_health_export.logs_export_interval_seconds": {
+    "label": "监控 / 网关健康导出 / 日志导出间隔秒"
+  },
+  "monitoring.gateway_health_export.resource_attributes.service.name": {
+    "label": "监控 / 网关健康导出 / 资源属性 / 服务 / 名称"
+  },
+  "monitoring.gateway_health_export.resource_attributes.deployment.environment.name": {
+    "label": "监控 / 网关健康导出 / 资源属性 / 部署 / 环境 / 名称"
+  },
+  "monitoring.export.otlp.enabled": {
+    "label": "监控 / 导出 / otlp / 启用"
+  },
+  "monitoring.export.otlp.endpoint": {
+    "label": "监控 / 导出 / otlp / 端点"
+  },
+  "gateway.unmanaged_idle_exit_seconds": {
+    "label": "网关 / 非托管空闲退出秒数"
+  },
+  "gateway.signal_interrupt_grace_timeout": {
+    "label": "网关 / 信号中断宽限超时"
+  },
+  "gateway.service_install_choice": {
+    "label": "网关 / 服务安装选择"
+  },
+  "gateway.delivery_ledger": {
+    "label": "网关 / 交付分类账"
+  },
+  "gateway.platform_connect_timeout": {
+    "label": "网关 / 平台连接超时"
+  },
+  "gateway.loop_watchdog": {
+    "label": "网关 / 环路看门狗"
+  },
+  "gateway.loop_watchdog_probe_interval_s": {
+    "label": "网关 / 环路看门狗探测间隔 s"
+  },
+  "gateway.loop_watchdog_probe_timeout_s": {
+    "label": "网关 / 环路看门狗探测超时 s"
+  },
+  "gateway.loop_watchdog_max_strikes": {
+    "label": "网关 / 循环看门狗最大连续失败次数"
+  },
+  "gateway.allow_all_users": {
+    "label": "网关 / 允许所有用户"
+  },
+  "gateway.bot_loop_guard.enabled": {
+    "label": "网关 / 机器人环路防护 / 已启用"
+  },
+  "gateway.bot_loop_guard.max_events": {
+    "label": "网关 / 机器人循环防护 / 最大事件"
+  },
+  "gateway.bot_loop_guard.window_seconds": {
+    "label": "网关 / 机器人循环防护 / 窗口秒"
+  },
+  "gateway.bot_loop_guard.cooldown_seconds": {
+    "label": "网关 / 机器人循环防护 / 冷却秒数"
+  },
+  "gateway.startup_watchdog": {
+    "label": "网关 / 启动看门狗"
+  },
+  "gateway.startup_watchdog_timeout_seconds": {
+    "label": "网关 / 启动看门狗超时秒数"
+  },
+  "gateway.write_sessions_json": {
+    "label": "网关 / 写入会话 JSON"
+  },
+  "gateway.multiplex_profiles": {
+    "label": "网关 / 多路配置文件"
+  },
+  "gateway.auto_multiplex_migration": {
+    "label": "网关 / 自动多路复用迁移"
+  },
+  "gateway.profile_routes": {
+    "label": "网关 / 配置文件路由"
+  },
+  "gateway.scale_to_zero.idle_timeout_minutes": {
+    "label": "网关 / 缩容至零的空闲时间（分钟）"
+  },
+  "gateway.restart_loop_guard.max_restarts": {
+    "label": "网关 / 重启环路防护 / 最大重启次数"
+  },
+  "gateway.restart_loop_guard.window_seconds": {
+    "label": "网关 / 重启环路防护 / 窗口秒"
+  },
+  "gateway.restart_loop_guard.max_gap_seconds": {
+    "label": "网关 / 重启环路防护 / 最大间隙秒"
+  },
+  "gateway.respawn_storm.max_starts": {
+    "label": "网关 / 频繁重启保护 / 最大启动"
+  },
+  "gateway.respawn_storm.window_seconds": {
+    "label": "网关 / 频繁重启保护 / 窗口秒"
+  },
+  "gateway.message_timestamps.enabled": {
+    "label": "网关 / 消息时间戳 / 已启用"
+  },
+  "gateway.max_inbound_media_bytes": {
+    "label": "网关 / 最大入站媒体字节"
+  },
+  "gateway.trust_env": {
+    "label": "网关 / 信任环境"
+  },
+  "gateway.strict": {
+    "label": "网关 / 严格"
+  },
+  "gateway.media_delivery_allow_dirs": {
+    "label": "网关 / 媒体传送允许目录"
+  },
+  "gateway.trust_recent_files": {
+    "label": "网关 / 信任最近的文件"
+  },
+  "gateway.trust_recent_files_seconds": {
+    "label": "网关 / 信任最近的文件秒"
+  },
+  "gateway.api_server.max_concurrent_runs": {
+    "label": "网关 / API服务器 / 最大并发运行数"
+  },
+  "gateway.api_server.history_tool_output_max_chars": {
+    "label": "网关 / API服务器 / 历史工具输出最大字符数"
+  },
+  "streaming.enabled": {
+    "label": "流式输出 / 已启用"
+  },
+  "streaming.transport": {
+    "label": "流式输出 / 传输"
+  },
+  "streaming.edit_interval": {
+    "label": "流式输出 / 编辑间隔"
+  },
+  "streaming.buffer_threshold": {
+    "label": "流式输出 / 缓冲阈值"
+  },
+  "streaming.cursor": {
+    "label": "流式输出 / 光标"
+  },
+  "streaming.fresh_final_after_seconds": {
+    "label": "流式输出 / 几秒后新鲜的决赛"
+  },
+  "sessions.auto_prune": {
+    "label": "会话 / 自动修剪"
+  },
+  "sessions.retention_days": {
+    "label": "会话 / 保留天数"
+  },
+  "sessions.auto_archive": {
+    "label": "会话 / 自动存档"
+  },
+  "sessions.auto_archive_days": {
+    "label": "会话 / 自动存档天数"
+  },
+  "sessions.show_subagents": {
+    "label": "会话 / 显示子代理"
+  },
+  "sessions.vacuum_after_prune": {
+    "label": "会话 / 裁剪后清理数据库"
+  },
+  "sessions.min_vacuum_interval_days": {
+    "label": "会话 / 数据库清理最小间隔（天）"
+  },
+  "sessions.min_interval_hours": {
+    "label": "会话 / 最小检查间隔（小时）"
+  },
+  "sessions.fts_optimize_notice": {
+    "label": "会话 / 全文检索优化提示"
+  },
+  "sessions.cjk_fts": {
+    "label": "会话 / 中日韩全文检索"
+  },
+  "sessions.search_slow_ms": {
+    "label": "会话 / 搜索慢毫秒"
+  },
+  "sessions.max_resume_messages": {
+    "label": "会话 / 最大恢复消息数"
+  },
+  "sessions.max_export_messages": {
+    "label": "会话 / 最大导出消息数"
+  },
+  "onboarding.profile_build": {
+    "label": "初次引导 / 构建用户资料"
+  },
+  "onboarding.run": {
+    "label": "初次引导 / 运行"
+  },
+  "telemetry.shared_metrics.enabled": {
+    "label": "遥测 / 共享指标 / 启用"
+  },
+  "telemetry.shared_metrics.send": {
+    "label": "遥测 / 共享指标 / 发送"
+  },
+  "telemetry.shared_metrics.endpoint": {
+    "label": "遥测 / 共享指标 / 端点"
+  },
+  "doctor.live_probe_timeout": {
+    "label": "诊断 / 实时探测超时"
+  },
+  "updates.check": {
+    "label": "更新 / 检查"
+  },
+  "updates.pre_update_backup": {
+    "label": "更新 / 更新前备份"
+  },
+  "updates.backup_keep": {
+    "label": "更新 / 备份保留"
+  },
+  "updates.non_interactive_local_changes": {
+    "label": "更新 / 非交互式本地更改",
+    "description": "聊天应用或网关无终端提示地更新 Hermes 时，如何处理尚未提交的本地源码改动。stash 会暂存并在更新后重新应用；discard 会丢弃。终端更新始终会询问。"
+  },
+  "updates.auto_switch_parked_branch": {
+    "label": "更新 / 自动切换停放分支"
+  },
+  "updates.parked_branch_strategy": {
+    "label": "更新 / 暂存分支策略"
+  },
+  "updates.refresh_cua_driver": {
+    "label": "更新 / 刷新 CUA 驱动程序",
+    "description": "更新 Hermes 时刷新已安装的 cua-driver。非管理员 macOS 账户无法写入 /Applications 时应关闭。"
+  },
+  "lsp.enabled": {
+    "label": "语言服务器 / 启用"
+  },
+  "lsp.wait_mode": {
+    "label": "语言服务器 / 等待模式"
+  },
+  "lsp.wait_timeout": {
+    "label": "语言服务器 / 等待超时"
+  },
+  "lsp.warmup_timeout": {
+    "label": "语言服务器 / 预热超时"
+  },
+  "lsp.broken_retry_seconds": {
+    "label": "语言服务器 / 中断重试秒数"
+  },
+  "lsp.exclude_roots": {
+    "label": "语言服务器 / 排除根"
+  },
+  "lsp.trusted_workspaces": {
+    "label": "语言服务器 / 可信工作区"
+  },
+  "lsp.install_strategy": {
+    "label": "语言服务器 / 安装策略"
+  },
+  "lsp.package_manager": {
+    "label": "语言服务器 / 包管理器"
+  },
+  "lsp.idle_timeout": {
+    "label": "语言服务器 / 空闲超时"
+  },
+  "x_search.model": {
+    "label": "X 搜索 / 模型"
+  },
+  "x_search.reasoning_effort": {
+    "label": "X 搜索 / 推理工作"
+  },
+  "x_search.timeout_seconds": {
+    "label": "X 搜索 / 超时秒数"
+  },
+  "x_search.retries": {
+    "label": "X 搜索 / 重试"
+  },
+  "vault.onepassword.enabled": {
+    "label": "凭据库 / onepassword / 已启用"
+  },
+  "vault.onepassword.account": {
+    "label": "凭据库 / onepassword / 帐户"
+  },
+  "vault.onepassword.binary_path": {
+    "label": "凭据库 / onepassword / 二进制路径"
+  },
+  "vault.onepassword.service_account_token_env": {
+    "label": "凭据库 / onepassword / 服务帐户Token环境"
+  },
+  "vault.bitwarden.enabled": {
+    "label": "凭据库 / bitwarden / 启用"
+  },
+  "vault.bitwarden.binary_path": {
+    "label": "凭据库 / bitwarden / 二进制路径"
+  },
+  "secrets.bitwarden.enabled": {
+    "label": "密钥来源 / bitwarden / 启用"
+  },
+  "secrets.bitwarden.access_token_env": {
+    "label": "密钥来源 / bitwarden / 访问Token环境"
+  },
+  "secrets.bitwarden.project_id": {
+    "label": "密钥来源 / bitwarden / 项目 ID"
+  },
+  "secrets.bitwarden.cache_ttl_seconds": {
+    "label": "密钥来源 / bitwarden / 缓存 TTL 秒"
+  },
+  "secrets.bitwarden.encrypted_cache.enabled": {
+    "label": "密钥来源 / bitwarden / 加密缓存 / 启用"
+  },
+  "secrets.bitwarden.encrypted_cache.max_stale_seconds": {
+    "label": "密钥来源 / bitwarden / 加密缓存 / 最大陈旧秒数"
+  },
+  "secrets.bitwarden.override_existing": {
+    "label": "密钥来源 / bitwarden / 覆盖现有的"
+  },
+  "secrets.bitwarden.auto_install": {
+    "label": "密钥来源 / bitwarden / 自动安装"
+  },
+  "secrets.bitwarden.server_url": {
+    "label": "密钥来源 / bitwarden / 服务器 URL"
+  },
+  "secrets.onepassword.enabled": {
+    "label": "密钥来源 / onepassword / 已启用"
+  },
+  "secrets.onepassword.account": {
+    "label": "密钥来源 / onepassword / 帐户"
+  },
+  "secrets.onepassword.service_account_token_env": {
+    "label": "密钥来源 / onepassword / 服务帐户Token环境"
+  },
+  "secrets.onepassword.binary_path": {
+    "label": "密钥来源 / onepassword / 二进制路径"
+  },
+  "secrets.onepassword.cache_ttl_seconds": {
+    "label": "密钥来源 / onepassword / 缓存 TTL 秒"
+  },
+  "secrets.onepassword.override_existing": {
+    "label": "密钥来源 / onepassword / 覆盖现有"
+  },
+  "paste_collapse_threshold": {
+    "label": "粘贴折叠阈值"
+  },
+  "paste_collapse_threshold_fallback": {
+    "label": "粘贴折叠阈值回退"
+  },
+  "paste_collapse_char_threshold": {
+    "label": "粘贴折叠字符阈值"
+  },
+  "bot_desktop.geometry": {
+    "label": "桌面助手 / 几何"
+  },
+  "bot_desktop.auto_start": {
+    "label": "桌面助手 / 自动启动"
+  },
+  "bot_desktop.min_free_memory_mb": {
+    "label": "桌面助手 / 最小可用内存 MB"
+  },
+  "bot_desktop.idle_stop_minutes": {
+    "label": "桌面助手 / 空闲停止分钟"
+  },
+  "bot_desktop.placement": {
+    "label": "桌面助手 / 放置"
+  },
+  "computer_use.cua_telemetry": {
+    "label": "计算机操作 / CUA遥测"
+  },
+  "computer_use.autostart": {
+    "label": "计算机操作 / 自动启动"
+  },
+  "computer_use.native_wayland": {
+    "label": "计算机操作 / 本地 Wayland"
+  },
+  "computer_use.max_image_dimension": {
+    "label": "计算机操作 / 最大图像尺寸"
+  },
+  "computer_use.capture_after_mode": {
+    "label": "计算机操作 / 操作后截图模式"
+  },
+  "computer_use.ax_max_elements": {
+    "label": "计算机操作 / 最大无障碍元素数"
+  },
+  "computer_use.no_overlay": {
+    "label": "计算机操作 / 无覆盖"
+  },
+  "computer_use.permission_mode": {
+    "label": "计算机操作 / 权限模式"
+  },
+  "computer_use.capability_manifest": {
+    "label": "计算机操作 / 能力清单"
+  },
+  "computer_use.allow_unsigned_driver": {
+    "label": "计算机操作 / 允许未签名的驱动程序"
+  },
+  "proxy.enabled": {
+    "label": "网络代理 / 已启用",
+    "description": "仅用于 Docker 的出站凭据防火墙。需要先运行 hermes egress setup 和 hermes egress start；Modal、SSH、Daytona 暂未接入。"
+  },
+  "proxy.tunnel_port": {
+    "label": "网络代理 / 隧道端口"
+  },
+  "proxy.auto_install": {
+    "label": "网络代理 / 自动安装"
+  },
+  "proxy.credential_source": {
+    "label": "网络代理 / 凭证来源",
+    "description": "iron-proxy 启动时从何处读取真实的上游密钥。"
+  },
+  "proxy.enforce_on_docker": {
+    "label": "网络代理 / 强制执行",
+    "description": "已启用出站代理但未配置或未运行时，拒绝启动 Docker 沙盒。"
+  },
+  "proxy.allow_env_fallback": {
+    "label": "网络代理 / 允许环境回退"
+  },
+  "proxy.upstream_deny_cidrs": {
+    "label": "网络代理 / 上游拒绝 cidrs"
+  },
+  "proxy.extra_allowed_hosts": {
+    "label": "网络代理 / 额外允许的主机"
+  },
+  "desktop.font_family": {
+    "label": "桌面端 / 字体系列"
+  },
+  "desktop.repo_scan_enabled": {
+    "label": "桌面端 / 存储库扫描"
+  },
+  "desktop.repo_scan_roots": {
+    "label": "桌面端 / 存储库扫描根"
+  },
+  "desktop.repo_scan_exclude_paths": {
+    "label": "桌面端 / 存储库扫描排除路径"
+  },
+  "desktop.electron_flags": {
+    "label": "桌面端 / 电子旗帜"
+  },
+  "desktop.renderer_max_old_space_mb": {
+    "label": "桌面端 / 渲染器最大旧空间 MB"
+  },
+  "desktop.ozone_platform_hint": {
+    "label": "桌面端 / 臭氧平台提示"
+  },
+  "desktop.disable_gpu": {
+    "label": "桌面端 / 禁用 GPU"
+  },
+  "desktop.password_store": {
+    "label": "桌面端 / 密码存储"
+  },
+  "desktop.renderer_accessibility": {
+    "label": "桌面端 / 渲染器可访问性"
+  },
+  "desktop.manage_launcher_entry": {
+    "label": "桌面端 / 管理启动器条目"
+  },
+  "desktop.macos_signing_identity": {
+    "label": "桌面端 / macOS 签名身份"
+  },
+  "desktop.ssh_path": {
+    "label": "桌面端 / ssh 路径"
+  },
+  "desktop.auto_continue.enabled": {
+    "label": "桌面端 / 自动继续 / 已启用"
+  },
+  "desktop.auto_continue.freshness_minutes": {
+    "label": "桌面端 / 自动继续 / 新鲜度分钟"
+  },
+  "desktop.auto_continue.max_attempts": {
+    "label": "桌面端 / 自动继续 / 最大尝试次数"
+  },
+  "nous.keepalive_interval_seconds": {
+    "label": "Nous / keepalive 间隔秒"
+  },
+  "nous.anthropic_wire": {
+    "label": "Nous / Anthropic 协议"
+  },
+  "nous.guest": {
+    "label": "Nous / 访客模式"
+  },
+  "vertex.project_id": {
+    "label": "Google Vertex AI / 项目 ID"
+  },
+  "vertex.region": {
+    "label": "Google Vertex AI / 区域"
+  },
+  "local_runtime.enabled": {
+    "label": "本地运行时 / 启用"
+  },
+  "local_runtime.backend": {
+    "label": "本地运行时 / 后端"
+  },
+  "local_runtime.models_max": {
+    "label": "本地运行时 / 模型最大"
+  },
+  "local_runtime.port": {
+    "label": "本地运行时 / 端口"
+  },
+  "local_runtime.detect_ports": {
+    "label": "本地运行时 / 检测端口"
+  },
+  "model_context_length": {
+    "label": "模型上下文窗口长度",
+    "description": "上下文窗口长度覆盖值。0 表示根据模型元数据自动检测。"
+  }
+}

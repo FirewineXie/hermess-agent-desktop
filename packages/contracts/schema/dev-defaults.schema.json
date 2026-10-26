@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermess.local/contracts/dev-defaults.schema.json",
+  "title": "DevDefaults",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["python_path", "storage_path"],
+  "properties": {
+    "python_path": { "type": "string", "minLength": 1 },
+    "storage_path": { "type": "string", "minLength": 1 }
+  }
+}

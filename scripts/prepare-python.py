@@ -15,12 +15,12 @@ def main() -> None:
     args = parser.parse_args()
 
     product = Path(__file__).resolve().parents[1]
-    vendor = product / "vendor" / "hermes-agent"
+    upstream = product / "upstream" / "hermes-agent"
     python = args.python.resolve(strict=True)
     out = args.out.resolve()
     if not args.python.is_absolute() or not args.out.is_absolute():
         parser.error("--python and --out must be absolute paths")
-    if out.is_relative_to(vendor) or out == vendor:
+    if out.is_relative_to(upstream) or out == upstream:
         parser.error("output must stay outside the upstream source checkout")
     if out.exists():
         parser.error("output already exists; choose a new generation")
@@ -33,12 +33,12 @@ def main() -> None:
     if version != "(3, 14) CPython":
         parser.error(f"unsupported interpreter: {version}")
 
-    sys.path.insert(0, str(vendor))
+    sys.path.insert(0, str(upstream))
     from pm.operations import build_environment
 
     executable = build_environment(
-        source=vendor, out=out, python=python, no_install_project=False,
-        frozen=True, explicit=True,
+        source=upstream, out=out, python=python, no_install_project=False,
+        extras=["messaging", "feishu"], frozen=True, explicit=True,
     )
     print(f"Isolated upstream environment: {executable}")
 

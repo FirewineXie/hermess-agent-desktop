@@ -3,7 +3,14 @@ target/
 dist/
 .build/
 .cache/
-vendor/hermes-agent/
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.toml
+*.local.yaml
+*.local.yml
+upstream/hermes-agent/
 *.log
 __pycache__/
 apps/desktop/src-tauri/gen/schemas/
