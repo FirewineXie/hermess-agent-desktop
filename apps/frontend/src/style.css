@@ -782,7 +782,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .header-link, .header-settings, .header-model { flex: none; border: 0; background: transparent; color: #44536b; text-decoration: none; font-size: 13px; }
 .header-link:hover, .header-settings:hover, .header-model:hover { color: #1b6ffd; }
 .header-model { min-width: 58px; min-height: 40px; margin-left: auto; padding: 0 10px; }
-.header-github { display: grid; place-items: center; flex: none; width: 40px; height: 40px; color: #44536b; }
+.header-github { display: grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; color: #44536b; cursor: pointer; }
 .header-github:hover { color: #1b6ffd; }
 .header-github svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .header-update-badge { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; color: #fff; background: #1b6ffd; font-size: 12px; font-weight: 700; line-height: 1; }

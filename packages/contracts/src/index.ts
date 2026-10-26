@@ -152,6 +152,9 @@ export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } |
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  links: {
+    openRepository(): Promise<void>
+  }
   windowChrome: {
     customTitlebar: boolean
     minimize(): Promise<void>

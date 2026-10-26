@@ -6,7 +6,7 @@ import { useDesktop } from './DesktopContext'
 import windowIcon from '../assets/hermess-window-icon.png'
 
 export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void }) {
-  const { windowChrome } = useDesktop()
+  const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const settingsRef = React.useRef<HTMLDetailsElement>(null)
@@ -50,9 +50,9 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
     </>}
     <button className="header-model" type="button" aria-label={t('ui.model.settings')} title={t('ui.model.settings')} onClick={() => onOpenView('model')}>{language === 'zh-CN' ? '模型' : 'Models'}</button>
-    <a className="header-github" href="https://github.com/FirewineXie/hermess-agent-desktop" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+    <button className="header-github" type="button" onClick={() => void links.openRepository()} aria-label="GitHub" title="GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.94-2.64 3.14 3.14 0 0 0-.08-2.64S19.73 3.3 17.09 5a13.38 13.38 0 0 0-10.18 0C4.27 3.3 4.02 3.82 4.02 3.82a3.14 3.14 0 0 0-.08 2.64A3.4 3.4 0 0 0 3 9.1V13a6 6 0 0 0 6 6v3" /></svg>
-    </a>
+    </button>
     <button className={`header-link ${updateVersion ? 'has-update' : ''}`} type="button" aria-label={updateVersion ? (language === 'zh-CN' ? `发现新版本 ${updateVersion}，查看更新` : `Version ${updateVersion} available, view update`) : undefined} title={updateVersion ? (language === 'zh-CN' ? `发现新版本 ${updateVersion}` : `Version ${updateVersion} available`) : undefined} onClick={onOpenUpdate}>
       {language === 'zh-CN' ? '更新' : 'Updates'}{updateVersion && <span className="header-update-badge" aria-hidden="true">↓</span>}
     </button>
