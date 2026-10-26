@@ -2,7 +2,7 @@
 
 基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；Windows、macOS 和 Linux 的安装包已在 GitHub Actions 构建成功，macOS 与 Linux 仍需实机安装和运行验收。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
 
-**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前准备发布 `v0.1.5-rc.2` 候选版本，正式版 `v0.1.5` 尚未发布。
+**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看正在开发的功能、验证状态和后续计划。当前在 `feature/v0.1.6` 分支开发，产品文件版本为 `0.1.6`；`v0.1.6` 尚未发布。
 
 **[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
 
@@ -47,6 +47,18 @@ pnpm build
 ```
 
 原生构建需 Node 24、pnpm 10.25、Rust 1.94、CPython 3.14 及对应系统的 Tauri 依赖。开发态启动可运行 `pnpm tauri:dev`；完整离线候选包需先按 [发行流程](docs/release-process.md) 准备固定上游运行时。
+
+日常操作可在仓库根目录使用下面五个命令；先在目标系统执行一次 `pnpm deps`，后续可直接运行或打包。`pnpm deps` 获取锁定上游、安装前端与 Rust 依赖，并准备开发环境及完整离线载荷；已有载荷会重新校验，不会被覆盖。原生工具链及 Linux Tauri 系统库仍需按系统安装。
+
+| 命令 | 作用 |
+| --- | --- |
+| `pnpm deps` | 下载并准备当前系统的依赖与离线载荷 |
+| `pnpm start` | 在 Windows 或 macOS 启动桌面开发版 |
+| `pnpm pack:win` | 在 Windows x64 生成 NSIS `.exe` |
+| `pnpm pack:mac` | 在 macOS Apple Silicon 或 Intel 生成 `.dmg` |
+| `pnpm pack:linux` | 在 Linux x64 生成 `.AppImage` 和 `.deb` |
+
+安装包输出到 `apps/desktop/src-tauri/target/release/bundle/` 下对应格式的目录。打包命令按当前操作系统检查目标平台，不执行跨平台交叉编译；macOS 本地包使用临时签名，正式发布仍须遵循发行流程。若机器上的 CPython 3.14 没有常用命令名，可通过 `HERMESS_PYTHON` 指定其绝对路径。`pnpm start` 是开发窗口，不代表安装包验收。
 
 Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码流程](docs/upstream-source.md)。
 

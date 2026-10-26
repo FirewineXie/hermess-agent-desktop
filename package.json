@@ -1,6 +1,6 @@
 {
   "name": "hermess-agent-desktop",
-  "version": "0.1.5-rc.2",
+  "version": "0.1.6",
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "scripts": {
@@ -14,6 +14,11 @@
     "check:generated-contracts": "node scripts/generate-contracts.mjs --check",
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",
     "tauri:build": "pnpm --dir apps/desktop tauri build",
+    "deps": "node scripts/local-commands.mjs deps",
+    "start": "node scripts/local-commands.mjs start",
+    "pack:win": "node scripts/local-commands.mjs pack-win",
+    "pack:mac": "node scripts/local-commands.mjs pack-mac",
+    "pack:linux": "node scripts/local-commands.mjs pack-linux",
     "setup:hooks": "git config --local core.hooksPath .githooks",
     "fetch:upstream": "node scripts/fetch-upstream.mjs",
     "verify:upstream": "node scripts/verify-upstream.mjs"

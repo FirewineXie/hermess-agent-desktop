@@ -4,6 +4,12 @@
 
 ## v0.1.6（页面重构开发中）
 
+2026-10-27 本地命令入口：新增 `pnpm deps`、`pnpm start`、`pnpm pack:win`、`pnpm pack:mac`、`pnpm pack:linux`，封装锁定上游获取、依赖与离线载荷准备、开发窗口及按本机平台生成安装包；已有载荷仅校验不覆盖。Windows 本地 `pnpm start` 已进入 Tauri 开发流程并运行调试程序，错误平台与缺少载荷时的打包提示已核对；完整依赖下载、三平台安装包及原生窗口操作仍待实测。
+
+2026-10-27 Windows NSIS 默认安装目录调整：基于当前锁定的 Tauri CLI v2.12.4 模板，将新安装的目录名从 `Hermess Agent Desktop` 改为 `HermessAgentDesktop`，保留产品显示名与已有安装位置恢复逻辑。模板按仓库单文件行数限制分成两份，构建脚本在忽略的 `.build` 中合并。Windows 前端与 Rust release 编译通过；首次两次 NSIS 打包被同时运行的打包进程占用目录（OS error 32），该进程结束后重跑成功，产出 177.59 MiB 的 `0.1.6` NSIS 安装包，生成脚本中的当前用户默认目录为 `$LOCALAPPDATA\HermessAgentDesktop`。尚未在安装向导界面验收实际显示及执行安装。
+
+2026-10-27 当前产品文件版本统一为 `0.1.6`（已纳入 feature/v0.1.6 分支）：根包、桌面包、Cargo、Tauri 配置、Cargo 锁文件和浏览器预览版本同步；README 改为标明本分支开发状态。Windows 本地前端类型检查、桌面 UI 构建、`cargo check --locked --offline` 和 `git diff --check` 通过；当前尚无 `v0.1.6` tag 或安装包发布。
+
 2026-10-27 Debug 入口隐藏修正（已纳入 feature/v0.1.6 分支）：运行时与存储页默认不显示 Debug 按钮；在页面非输入区域连续键入 `debug` 后，本次应用会话中显示按钮，再由按钮切换调试模式。文本输入控件、输入法组合输入和带 Ctrl/Alt/Meta 的组合键不触发。Windows 本地前端类型检查、桌面 UI 构建与 `git diff --check` 通过；原生窗口键盘交互及安装包尚未验收。
 
 2026-10-26 Profile MCP 管理位置修正（已纳入 feature/v0.1.6 分支）：已配置 MCP 的列表和测试、授权、编辑、启停、删除、手动添加操作直接放入「专家管理 → MCP」标签；专家概览中的「管理 MCP」进入该标签。「扩展中心 → MCP」保留发现与安装目录。Windows 前端类型检查、Profile 状态测试 3 项、桌面 UI 构建与差异检查通过；原生开发窗口已确认 default 的 MCP 标签显示 context7 及管理按钮，实际写操作和安装包仍待验收。

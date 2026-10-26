@@ -88,7 +88,16 @@ def main() -> None:
         "resources": {str(archive): "runtime/payload.tar", str(receipt): "runtime/receipt.json"},
     }
     if target == "win32-x64":
-        bundle["windows"] = {"nsis": {"installMode": "currentUser"}}
+        nsis_source = product / "apps" / "desktop" / "src-tauri" / "nsis"
+        nsis_template = build / "installer.nsi"
+        nsis_template.write_text("".join(
+            (nsis_source / part).read_text(encoding="utf-8")
+            for part in ("installer.nsi", "installer-shortcuts.nsi")
+        ), encoding="utf-8")
+        bundle["windows"] = {"nsis": {
+            "installMode": "currentUser",
+            "template": str(nsis_template),
+        }}
     config.write_text(json.dumps({"bundle": bundle}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"validated payload, archived {archive.stat().st_size} bytes, prepared Tauri bundle config: {config}")
     if args.build:

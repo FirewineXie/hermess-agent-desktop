@@ -38,7 +38,7 @@ export const previewDesktopApi: DesktopApi = {
     async cancel() {},
   },
   about: {
-    async productInfo() { return { version: '0.1.5-rc.1', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
+    async productInfo() { return { version: '0.1.6', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
     async checkUpdates() { return { status: 'unavailable', releases: [] } },
     async downloadUpdate() { throw previewOnly() },
     async onDownloadProgress() { return () => {} },
