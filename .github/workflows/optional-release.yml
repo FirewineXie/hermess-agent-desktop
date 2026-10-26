@@ -1,0 +1,138 @@
+name: Optional desktop release target
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example v0.1.5-rc.2)
+        required: true
+        type: string
+      target:
+        description: Additional native target
+        required: true
+        type: choice
+        options:
+          - darwin-x64
+          - linux-x64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Validate release tag and existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          python scripts/check-release.py --tag "$TAG"
+          gh release view "$TAG" >/dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
+      - run: node scripts/fetch-upstream.mjs
+      - run: node scripts/check-legal.mjs
+
+  build:
+    needs: validate
+    runs-on: ${{ inputs.target == 'darwin-x64' && 'macos-15-intel' || 'ubuntu-22.04' }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Install Linux Tauri prerequisites
+        if: inputs.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Verify source and install frontend dependencies
+        run: |
+          node scripts/fetch-upstream.mjs
+          node scripts/verify-upstream.mjs
+          node scripts/check-legal.mjs
+          pnpm install --frozen-lockfile
+          cargo --version
+      - name: Build sealed native Hermes runtime
+        run: python scripts/build-core-payload.py --out .build/payload
+      - name: Build native offline installer
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+        run: python scripts/build-offline-runtime.py --payload .build/payload --build
+      - name: Stage expected installers
+        env:
+          TARGET: ${{ inputs.target }}
+        run: python scripts/stage-release-assets.py --target "$TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ inputs.target }}
+          path: .build/release-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Download existing release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download "$TAG" --dir release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle-${{ inputs.target }}
+          path: optional-assets
+      - name: Update complete checksums
+        env:
+          TARGET: ${{ inputs.target }}
+        shell: bash
+        run: |
+          cp optional-assets/* release-assets/
+          python scripts/write-release-checksums.py release-assets --require-target "$TARGET"
+      - name: Upload additional installers and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: gh release upload "$TAG" optional-assets/* release-assets/SHA256SUMS.txt --clobber

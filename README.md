@@ -14,7 +14,7 @@
 - 工作区页可保存本地文件夹快捷入口，并在选定目录中新建 Hermes 会话；已有会话恢复时沿用原工作目录。
 - 本地文件和图片附件，含原生选择、拖入及短文本预览。
 - 独立数据根、固定上游提交、运行时归档校验与首次解包。
-- 按正式或预发布版本 tag 触发 GitHub Actions 构建 Windows x64、macOS Intel/Apple Silicon、Linux x64 安装包；全部成功后汇总到对应类型的 Release。
+- 按正式或预发布版本 tag 默认构建 Windows x64 与 macOS Apple Silicon 安装包并汇总到 Release；macOS Intel 与 Linux x64 可按需为同一 tag 补发。
 - 「关于」页展示产品与锁定上游版本、两份离线许可证、工具来源说明和反馈准备状态；软件更新页可保存正式版或 RC 渠道偏好。可信发行源、在线检查、安装与恢复尚未接入，页面明确显示不可检查。
 - 「渠道接入」页提供飞书和微信二维码授权；桌面使用一个自有 Hermes 网关进程承载聊天与消息渠道。关闭窗口时收起到系统托盘，托盘菜单可恢复窗口或退出。
 
@@ -52,7 +52,7 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 ## 版本构建
 
-推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。四个平台全部构建成功后，才会建立带五个安装包和 SHA-256 文件的对应类型 Release。具体步骤见 [发行流程](docs/release-process.md)。
+推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
 
 ## 许可
 

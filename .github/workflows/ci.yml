@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     name: Build and test (Windows)
@@ -16,13 +20,21 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
       - uses: pnpm/action-setup@v4
         with:
           version: 10.25.0
           run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
       - name: Verify locked upstream source
         run: node scripts/fetch-upstream.mjs
       - name: Check bundled upstream license

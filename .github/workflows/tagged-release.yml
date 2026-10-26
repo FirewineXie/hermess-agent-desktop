@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -38,30 +38,29 @@ jobs:
             runner: windows-2025
           - target: darwin-arm64
             runner: macos-15
-          - target: darwin-x64
-            runner: macos-15-intel
-          - target: linux-x64
-            runner: ubuntu-22.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          check-latest: true
       - uses: pnpm/action-setup@v4
         with:
           version: 10.25.0
           run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Install Linux Tauri prerequisites
-        if: matrix.target == 'linux-x64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
       - name: Verify source and install frontend dependencies
         run: |
           node scripts/fetch-upstream.mjs
@@ -95,6 +94,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
+      - name: Restore existing release assets on rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release download "$TAG" --dir release-assets
+          fi
       - uses: actions/download-artifact@v4
         with:
           pattern: bundle-*
