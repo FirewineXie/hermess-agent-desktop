@@ -42,10 +42,12 @@ def main() -> None:
 
     import pm
     from pm.features import installed_extras, write_features
+    from pm.environments import install_state_dir
     from pm.lock import Facts
     from pm.packages import Venv
     from pm.paths import lockfile_path
     from pm.registry import get_package
+    from pm.runtime import prepare_runtime
     from scripts.build.inputs import AgentInputs, RESOURCE_ENV, dependency_site
     from scripts.bundles.bytecode import bake_bytecode
     from scripts.bundles.native import stage_pm_runtime
@@ -75,7 +77,25 @@ def main() -> None:
     elif cache_root:
         cached_tools = cache_root / "tools"
         if not args.require_cache:
-            pm.prepare_tools(names, out=cached_tools, target=target)
+            pm.prepare_tools(names, out=cached_tools, target=target,
+                             cache=cache_root / "uv-cache")
+        else:
+            cached_facts = Facts(cached_tools / "facts.json", strict=True)
+            binaries = {}
+            for name in names:
+                fact = cached_facts.get(name)
+                binary = (get_package(name).binary(cached_tools / fact["entry"], target)
+                          if fact else None)
+                if binary is None or not binary.is_file():
+                    raise RuntimeError(f"prewarmed {name} tool is missing")
+                binaries[name] = binary
+            uv_cache = cache_root / "uv-cache"
+            if not uv_cache.is_dir():
+                raise RuntimeError("prewarmed uv cache is missing")
+            os.environ["HERMES_RUNTIME_DIR"] = str(cached_tools)
+            prepare_runtime(binaries["uv"], binaries["python"],
+                            install_state_dir(upstream) / "pm-runtime",
+                            offline=True, cache=uv_cache)
         pm.stage_tools(names, source_store=cached_tools, out=store, target=target)
     else:
         pm.prepare_tools(names, out=store, target=target)
