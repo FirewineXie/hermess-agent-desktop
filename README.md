@@ -1,6 +1,16 @@
 # Hermess Agent Desktop
 
-基于固定提交的 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 开发的独立 Tauri 2 桌面客户端。当前是内测阶段，Windows x64 已完成部分脚本和安装包验收；Windows、macOS 和 Linux 的安装包已在 GitHub Actions 构建成功，macOS 与 Linux 仍需实机安装和运行验收。完整进度见 [I0 实施记录](docs/I0-implementation.md)。
+Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 的中文桌面 AI 助手。它把聊天、文件工作区、独立的专家 Profile、Skill/MCP 扩展、工具和定时任务放在一个窗口中；用户可连接自己的模型，客户端负责管理独立的本地 Hermes Gateway 和数据目录。
+
+首个正式版 **v0.1.6** 提供 [Windows x64 安装包](https://github.com/FirewineXie/hermess-agent-desktop/releases/tag/v0.1.6)。macOS 和 Linux 安装包暂未随本版发布；安装、升级与真实模型的验证范围见下方路线图。
+
+## 产品截图
+
+以下截图取自 Windows 0.1.6 客户端，展示新会话和内置专家预设界面。
+
+![新会话界面](docs/screenshots/v0.1.6-new-chat.jpg)
+
+![扩展中心的内置专家预设](docs/screenshots/v0.1.6-experts.jpg)
 
 **[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。首个正式版 `v0.1.6` 已发布 Windows x64 安装包；macOS、Linux 安装包及 0.1.5 → 0.1.6 覆盖安装仍待验收。
 
@@ -15,7 +25,7 @@
 - 本地文件和图片附件，含原生选择、拖入及短文本预览。
 - 独立数据根、固定上游提交、运行时归档校验与首次解包。
 - 按正式或预发布版本 tag 默认构建 Windows x64 与 macOS Apple Silicon 安装包并汇总到 Release；macOS Intel 与 Linux x64 可按需为同一 tag 补发。
-- 「关于」页展示产品与锁定上游版本、两份离线许可证、工具来源说明和反馈准备状态；软件更新页可保存正式版或 RC 渠道偏好。可信发行源、在线检查、安装与恢复尚未接入，页面明确显示不可检查。
+- 「关于」页展示产品与锁定上游版本、两份离线许可证及工具来源；软件更新页可保存正式版或 RC 渠道偏好，并从可访问的 GitHub Release 检查、校验和下载适用安装包。下载后仍需手动运行安装程序；仓库私有时，匿名客户端无法读取其 Release。
 - 「渠道接入」页提供飞书和微信二维码授权；桌面使用一个自有 Hermes 网关进程承载聊天与消息渠道。关闭窗口时收起到系统托盘，托盘菜单可恢复窗口或退出。
 
 这些能力在各平台的验证层次不同。当前的 Windows 假模型和静默安装结果不代表原生窗口或真实模型已通过验收，详见 [能力矩阵](docs/capability-matrix.md)。
