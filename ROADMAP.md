@@ -4,6 +4,8 @@
 
 ## v0.1.6（已发布 Windows x64，其他平台及升级验收待完成）
 
+2026-10-27 PR 检查按变更范围选择验证：仅改 Markdown 文档或 `docs/screenshots/` 的 PR 在 Linux 上运行轻量差异检查，保留必需状态检查的成功结果但不启动 Windows 编译；涉及其他文件的 PR 与 `main` 推送继续运行完整 Windows 检查。此项是 CI 资源优化，不代表桌面客户端验收。
+
 2026-10-27 仓库已公开可见，保留 PolyForm Strict 许可；`main` 已启用 PR 与 Windows 必需检查的分支保护，并禁止强推和删除。GitHub 已启用 secret scanning、推送保护和 Dependabot 安全更新。同步修正 README、贡献与发行文档中的私有仓库描述；通过 `.gitattributes` 统一文本文件检出为 LF，修复架构检查对 CRLF 换行的误报，并以锁定上游提交中的许可证原始内容校验随包许可证，避免平台检出换行影响逐字节比对。本地 `pnpm check:architecture` 在原始 LF 文件和临时改为 CRLF 的 Profile 路由文件下均通过，`pnpm check:legal` 通过。上述变更不代表安装包或真实模型验收。
 
 2026-10-27 README 增加面向使用者的产品简介、v0.1.6 下载入口和两张 Windows 0.1.6 实际客户端截图（新会话、扩展中心专家预设），以双列缩略图呈现；截图前收起已有会话列表，未展示聊天内容、密钥或本机路径。同步修正 README 中软件更新能力的旧描述。截图只证明所展示页面的当时外观，不代表安装、升级或各功能验收。
