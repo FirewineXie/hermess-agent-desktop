@@ -100,3 +100,7 @@ jobs:
         run: |
           node scripts/fetch-upstream.mjs
           python scripts/build-core-payload.py --out .build/payload --cache-root .cache/ci-release
+      - name: Verify prewarmed cache with an offline rebuild
+        run: |
+          node scripts/fetch-upstream.mjs
+          python scripts/build-core-payload.py --out .build/payload-offline-check --cache-root .cache/ci-release --require-cache
