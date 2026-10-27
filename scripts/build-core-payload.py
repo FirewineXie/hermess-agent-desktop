@@ -92,6 +92,7 @@ def main() -> None:
             uv_cache = cache_root / "uv-cache"
             if not uv_cache.is_dir():
                 raise RuntimeError("prewarmed uv cache is missing")
+            os.environ["HERMES_RUNTIME_DIR"] = str(cached_tools)
             prepare_runtime(binaries["uv"], binaries["python"],
                             install_state_dir(upstream) / "pm-runtime",
                             offline=True, cache=uv_cache)
