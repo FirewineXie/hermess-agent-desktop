@@ -8,9 +8,9 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 
 以下截图取自 Windows 0.1.6 客户端，展示新会话和内置专家预设界面。
 
-![新会话界面](docs/screenshots/v0.1.6-new-chat.jpg)
-
-![扩展中心的内置专家预设](docs/screenshots/v0.1.6-experts.jpg)
+| 新会话 | 扩展中心 · 专家预设 |
+| --- | --- |
+| <img src="docs/screenshots/v0.1.6-new-chat.jpg" alt="新会话界面" width="400"> | <img src="docs/screenshots/v0.1.6-experts.jpg" alt="扩展中心的内置专家预设" width="400"> |
 
 **[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。首个正式版 `v0.1.6` 已发布 Windows x64 安装包；macOS、Linux 安装包及 0.1.5 → 0.1.6 覆盖安装仍待验收。
 
