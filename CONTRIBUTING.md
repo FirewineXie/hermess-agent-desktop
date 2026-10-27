@@ -13,7 +13,7 @@
 ## 合并流程
 
 1. 在版本分支或修复分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
-2. 等待 [PR checks](.github/workflows/ci.yml) 的必需状态检查 `Build and test (Windows)` 成功，并处理代码审查意见。含代码、脚本、配置或许可证变更的 PR 在 Windows 验证锁定上游、前端构建、Rust 格式、编译和测试；仅改 Markdown 文档或 `docs/screenshots/` 的 PR 在 Linux 执行轻量差异检查，不启动 Windows 编译。`main` 推送始终执行完整 Windows 检查。
+2. 等待 [PR checks](.github/workflows/ci.yml) 的必需状态检查 `Build and test (Windows)` 成功，并处理代码审查意见。含代码、脚本、配置或许可证变更的 PR 与 `main` 推送在 Windows 验证锁定上游、前端构建、Rust 格式、编译和测试；仅改 Markdown 文档或 `docs/screenshots/` 的 PR 与 `main` 推送在 Linux 执行轻量差异检查，不启动 Windows 编译。
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
