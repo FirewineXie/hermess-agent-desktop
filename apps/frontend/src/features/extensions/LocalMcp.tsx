@@ -87,7 +87,7 @@ export default function LocalMcp({ servers, busy, t, request, run, onMessage }: 
   }
 
   return <>
-    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button onClick={() => { setEditing(null); setAdding(!adding) }}>{adding ? t('cancel') : t('add')}</button></div>
+    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button disabled={busy} onClick={() => { setEditing(null); setAdding(!adding) }}>{adding ? t('cancel') : t('add')}</button></div>
     {adding && <section className="extension-detail">
       <label>{t('name')}<input value={name} onChange={event => setName(event.target.value)} /></label>
       <label>{t('url')}<input value={url} onChange={event => setUrl(event.target.value)} /></label>
@@ -99,7 +99,7 @@ export default function LocalMcp({ servers, busy, t, request, run, onMessage }: 
       {command && <label>{t('args')}<textarea value={args} onChange={event => setArgs(event.target.value)} /></label>}
       <button disabled={busy || !name.trim() || (Boolean(url) && auth === 'header' && !token.trim())} onClick={() => void add()}>{t('save')}</button>
     </section>}
-    {!servers.length && <p>{t('empty')}</p>}
+    {!servers.length && <p>{t('mcpEmpty')}</p>}
     <div className="extension-list">{servers.map(server => <article className="extension-card" key={server.name}>
       <div className="row"><strong>{server.name}</strong><small>{server.enabled ? t('enabled') : t('disabled')}</small></div>
       <small>{t('source')}: {server.plugin || server.source} · {t('transport')}: {server.transport}</small>

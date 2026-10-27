@@ -9,6 +9,7 @@
       "required": ["id", "method", "params"],
       "properties": {
         "id": { "type": "string" },
+        "profile": { "type": "string" },
         "method": { "enum": ["approval"] },
         "params": {
           "type": "object",
@@ -35,6 +36,7 @@
       "required": ["id", "method", "params"],
       "properties": {
         "id": { "type": "string" },
+        "profile": { "type": "string" },
         "method": { "enum": ["clarify"] },
         "params": {
           "type": "object",

@@ -1,6 +1,6 @@
 {
   "name": "@hermess/desktop",
-  "version": "0.1.5-rc.2",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "@hermess/frontend": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "~2",
+    "@tauri-apps/plugin-opener": "~2.7.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

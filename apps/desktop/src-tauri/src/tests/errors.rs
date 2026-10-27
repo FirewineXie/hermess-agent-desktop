@@ -17,4 +17,14 @@ fn desktop_failure_serializes_contract_fields() {
         serde_json::to_value(DesktopFailure::connection_lost()).unwrap()["category"],
         "connection"
     );
+    assert_eq!(
+        serde_json::to_value(DesktopFailure::from("session_owner_unknown".to_owned())).unwrap()
+            ["code"],
+        "session_owner_unknown"
+    );
+    assert_eq!(
+        serde_json::to_value(DesktopFailure::from("session_profile_mismatch".to_owned())).unwrap()
+            ["code"],
+        "session_profile_mismatch"
+    );
 }

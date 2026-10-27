@@ -37,12 +37,21 @@ fn selected_workspace_must_be_an_existing_absolute_directory() {
 
 #[test]
 fn default_workspace_leaves_cwd_out_of_the_gateway_request() {
-    let default = session_create_params(None);
+    let default = session_create_params(None, None, None, None);
     assert!(default.get("cwd").is_none());
     assert!(default.get("cwd_explicit").is_none());
-    let selected = session_create_params(Some("C:\\work".into()));
+    let selected = session_create_params(Some("C:\\work".into()), None, None, None);
     assert_eq!(selected["cwd"], "C:\\work");
     assert_eq!(selected["cwd_explicit"], true);
+    let prepared = session_create_params(
+        None,
+        Some("custom:ark".into()),
+        Some("model-1".into()),
+        Some("high".into()),
+    );
+    assert_eq!(prepared["provider"], "custom:ark");
+    assert_eq!(prepared["model"], "model-1");
+    assert_eq!(prepared["reasoning"], "high");
 }
 
 #[test]

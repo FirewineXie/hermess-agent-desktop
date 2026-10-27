@@ -1,4 +1,7 @@
-use super::{prune_abandoned_rpc, validate_server_answer, GatewayClient, PendingRpc};
+use super::{
+    prune_abandoned_rpc, register_owner, result_session_owners, validate_server_answer,
+    GatewayClient, PendingRpc,
+};
 use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
@@ -22,24 +25,83 @@ fn timed_out_calls_release_pending_capacity() {
 }
 
 #[test]
+fn session_owner_is_recorded_from_successful_results_and_conflicts_fail_closed() {
+    let mut owners = HashMap::new();
+    result_session_owners(
+        &mut owners,
+        "session.create",
+        &json!({}),
+        &json!({"session_id":"live-a","stored_session_id":"stored-a"}),
+        "writer",
+    );
+    result_session_owners(
+        &mut owners,
+        "session.list",
+        &json!({}),
+        &json!({"sessions":[{"id":"stored-b"}]}),
+        "reviewer",
+    );
+    assert_eq!(
+        owners.get("live-a").and_then(Option::as_deref),
+        Some("writer")
+    );
+    assert_eq!(
+        owners.get("stored-a").and_then(Option::as_deref),
+        Some("writer")
+    );
+    assert_eq!(
+        owners.get("stored-b").and_then(Option::as_deref),
+        Some("reviewer")
+    );
+    register_owner(&mut owners, "live-a", "reviewer");
+    assert_eq!(owners.get("live-a").and_then(Option::as_deref), None);
+    register_owner(&mut owners, "live-a", "writer");
+    assert_eq!(owners.get("live-a").and_then(Option::as_deref), None);
+}
+
+#[test]
 fn answer_must_match_the_open_request_method_and_choices() {
     let requests = HashMap::from([(
         "srq-1".to_string(),
-        ("approval".to_string(), json!({"choices":["once","deny"]})),
+        (
+            "approval".to_string(),
+            json!({"session_id":"s1","choices":["once","deny"]}),
+        ),
     )]);
+    assert!(validate_server_answer(
+        &requests,
+        "srq-1",
+        "approval",
+        &json!({"choice":"once"}),
+        "s1"
+    )
+    .is_ok());
     assert!(
-        validate_server_answer(&requests, "srq-1", "approval", &json!({"choice":"once"})).is_ok()
-    );
-    assert!(validate_server_answer(&requests, "srq-1", "clarify", &json!({"answers":{}})).is_err());
-    assert!(
-        validate_server_answer(&requests, "srq-1", "approval", &json!({"choice":"always"}))
+        validate_server_answer(&requests, "srq-1", "clarify", &json!({"answers":{}}), "s1")
             .is_err()
     );
     assert!(validate_server_answer(
         &requests,
+        "srq-1",
+        "approval",
+        &json!({"choice":"once"}),
+        "s2"
+    )
+    .is_err());
+    assert!(validate_server_answer(
+        &requests,
+        "srq-1",
+        "approval",
+        &json!({"choice":"always"}),
+        "s1"
+    )
+    .is_err());
+    assert!(validate_server_answer(
+        &requests,
         "srq-missing",
         "approval",
-        &json!({"choice":"deny"})
+        &json!({"choice":"deny"}),
+        "s1"
     )
     .is_err());
 }
@@ -50,31 +112,34 @@ fn clarify_answer_must_use_questions_from_the_open_request() {
         "srq-2".to_string(),
         (
             "clarify".to_string(),
-            json!({"questions":[{"qid":"q1"},{"qid":"q2"}]}),
+            json!({"session_id":"s2","questions":[{"qid":"q1"},{"qid":"q2"}]}),
         ),
     )]);
     assert!(validate_server_answer(
         &requests,
         "srq-2",
         "clarify",
-        &json!({"answers":{"q1":"yes","q2":null},"outcome":"submitted"})
+        &json!({"answers":{"q1":"yes","q2":null},"outcome":"submitted"}),
+        "s2"
     )
     .is_ok());
     assert!(validate_server_answer(
         &requests,
         "srq-2",
         "clarify",
-        &json!({"answers":{"other":"yes"},"outcome":"submitted"})
+        &json!({"answers":{"other":"yes"},"outcome":"submitted"}),
+        "s2"
     )
     .is_err());
     assert!(validate_server_answer(
         &requests,
         "srq-2",
         "clarify",
-        &json!({"answers":{"q1":42},"outcome":"submitted"})
+        &json!({"answers":{"q1":42},"outcome":"submitted"}),
+        "s2"
     )
     .is_err());
-    assert!(validate_server_answer(&requests, "srq-2", "clarify", &json!({})).is_err());
+    assert!(validate_server_answer(&requests, "srq-2", "clarify", &json!({}), "s2").is_err());
 }
 
 #[tokio::test]
@@ -122,7 +187,13 @@ async fn closing_an_old_gateway_releases_an_inflight_answer() {
         let gateway = Arc::clone(&gateway);
         tokio::spawn(async move {
             gateway
-                .answer("srq-1".into(), "clarify".into(), json!({"answers":{}}))
+                .answer(
+                    "srq-1".into(),
+                    "clarify".into(),
+                    json!({"answers":{}}),
+                    "s1".into(),
+                    "default".into(),
+                )
                 .await
         })
     };

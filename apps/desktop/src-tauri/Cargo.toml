@@ -1,13 +1,13 @@
 [package]
 name = "hermess-agent-desktop"
-version = "0.1.5-rc.2"
+version = "0.1.6"
 edition = "2021"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "unstable"] }
+tauri = { version = "2", features = ["tray-icon", "unstable", "devtools"] }
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["process", "time", "macros", "sync", "rt", "io-util", "fs"] }
@@ -24,9 +24,18 @@ chrono = "0.4"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 base64 = "0.22"
 portable-pty = "0.9"
+tauri-plugin-opener = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows = "0.62.2"
+webview2-com = "0.39.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+block2 = "0.6.2"
+objc2-foundation = "0.3.2"
+objc2-web-kit = { version = "0.3.2", features = ["WKWebView", "WKWebViewConfiguration", "WKWebsiteDataRecord", "WKWebsiteDataStore", "block2"] }
 
 [profile.release]
 strip = "symbols"

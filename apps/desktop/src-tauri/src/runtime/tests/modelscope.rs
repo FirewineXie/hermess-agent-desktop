@@ -47,6 +47,28 @@ fn rejects_non_skill_identifiers() {
     assert!(skill_id("modelscope:https://example.com/skill").is_err());
 }
 
+#[test]
+fn named_profile_skill_manifests_and_directories_are_isolated() {
+    let storage =
+        std::env::temp_dir().join(format!("hermess-skill-scope-{}", uuid::Uuid::new_v4()));
+    let default_home = storage.join("hermes-home");
+    let a_home = default_home.join("profiles").join("a");
+    let b_home = default_home.join("profiles").join("b");
+    for path in [&storage.join("control"), &a_home, &b_home] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let a_manifest = super::manifest_path(&storage, &a_home).unwrap();
+    let b_manifest = super::manifest_path(&storage, &b_home).unwrap();
+    let default_manifest = super::manifest_path(&storage, &default_home).unwrap();
+    assert_ne!(a_manifest, b_manifest);
+    assert_ne!(a_manifest, default_manifest);
+    assert_ne!(
+        super::skills_root(&a_home).unwrap(),
+        super::skills_root(&b_home).unwrap()
+    );
+    std::fs::remove_dir_all(storage).unwrap();
+}
+
 #[tokio::test]
 #[ignore = "requires public ModelScope network"]
 async fn live_catalog_and_archive() {
@@ -62,8 +84,10 @@ async fn live_catalog_and_archive() {
     let storage =
         std::env::temp_dir().join(format!("hermess-modelscope-test-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(storage.join("control")).unwrap();
+    let home = storage.join("hermes-home");
     let name = super::install(
         &storage,
+        &home,
         identifier,
         scan["digest"].as_str().unwrap(),
         true,
@@ -75,7 +99,7 @@ async fn live_catalog_and_archive() {
         .unwrap()
         .to_owned();
     assert!(
-        super::installed(&storage).unwrap()["identifiers"][identifier]
+        super::installed(&storage, &home).unwrap()["identifiers"][identifier]
             .as_bool()
             .unwrap()
     );
@@ -85,7 +109,7 @@ async fn live_catalog_and_archive() {
         .join(super::local_name("@ModelScope/modelscope-oauth-skill"))
         .join("SKILL.md")
         .is_file());
-    super::uninstall(&storage, &name).unwrap();
-    assert!(super::installed(&storage).unwrap()["identifiers"][identifier].is_null());
+    super::uninstall(&storage, &home, &name).unwrap();
+    assert!(super::installed(&storage, &home).unwrap()["identifiers"][identifier].is_null());
     std::fs::remove_dir_all(storage).unwrap();
 }

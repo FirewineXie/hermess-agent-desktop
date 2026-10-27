@@ -1,6 +1,6 @@
-use super::{BackendState, BundledTool, BundledToolsInventory};
+use super::{config::config_request_to_profile, BackendState, BundledTool, BundledToolsInventory};
 use crate::errors::DesktopFailure;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     fs,
     path::{Component, Path},
@@ -66,31 +66,20 @@ pub async fn list_bundled_tools(
 }
 
 #[tauri::command]
-pub async fn list_agent_toolsets(
+pub async fn list_profile_toolsets(
     state: State<'_, BackendState>,
-    session_id: Option<String>,
+    profile: String,
 ) -> Result<Value, DesktopFailure> {
-    if session_id.is_none() && !state.is_default_profile().await? {
-        return Err(DesktopFailure::conflict());
+    let rows = config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/tools/toolsets",
+        None,
+    )
+    .await?;
+    if !rows.is_array() {
+        return Err(DesktopFailure::operation_failed());
     }
-    let gateway = state.gateway().await?;
-    gateway
-        .request("tools.list", json!({"session_id": session_id}))
-        .await
-        .map_err(Into::into)
-}
-
-#[tauri::command]
-pub async fn list_active_agent_tools(
-    state: State<'_, BackendState>,
-    session_id: Option<String>,
-) -> Result<Value, DesktopFailure> {
-    if session_id.is_none() && !state.is_default_profile().await? {
-        return Err(DesktopFailure::conflict());
-    }
-    let gateway = state.gateway().await?;
-    gateway
-        .request("tools.show", json!({"session_id": session_id}))
-        .await
-        .map_err(Into::into)
+    Ok(rows)
 }

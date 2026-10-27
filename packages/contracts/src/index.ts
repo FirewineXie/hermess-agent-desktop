@@ -1,5 +1,13 @@
 export type Unsubscribe = () => void
 
+/** Every profile-owned operation carries its owner explicitly. */
+export type ProfileScope = { kind: 'profile'; profile: string }
+export type SessionScope = { kind: 'session'; profile: string; sessionId: string }
+export type GatewayScope = { kind: 'gateway' }
+export type WebviewCacheSettings = { strategy: 'size' | 'time' | 'unsupported'; value: number }
+export type WorkspaceScope = { kind: 'workspace'; path: string; owner?: SessionScope }
+export type OperationScope = ProfileScope | SessionScope | GatewayScope | WorkspaceScope
+
 export type { DesktopFailure } from './generated/desktop-failure'
 import type { DesktopFailure } from './generated/desktop-failure'
 export type DesktopFailureCode = DesktopFailure['code']
@@ -12,6 +20,8 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   timeout: 'connection',
   conflict: 'validation',
   invalid_input: 'validation',
+  session_owner_unknown: 'validation',
+  session_profile_mismatch: 'validation',
 }
 
 export function isDesktopFailure(value: unknown): value is DesktopFailure {
@@ -39,10 +49,11 @@ export type { PackedDefaults } from './generated/packed-defaults'
 import type { PackedDefaults } from './generated/packed-defaults'
 export type { RuntimeProbe } from './generated/runtime-probe'
 import type { RuntimeProbe } from './generated/runtime-probe'
-export type AgentToolset = { name: string; description: string; tool_count: number; enabled: boolean; tools?: string[] }
-export type AgentToolCatalog = { toolsets: AgentToolset[] }
-export type ActiveAgentTools = { sections: Array<{ name: string; tools: Array<{ name: string; description: string }> }>; total: number }
 export type DownloadableTool = { name: string; version: string; installed: boolean; supported: boolean }
+export type ProfileToolset = {
+  name: string; label: string; description: string; platform: string
+  platform_label: string; enabled: boolean; configured: boolean; tools: string[]
+}
 export type AgentConfigField = { type: string; description?: string; category?: string; options?: unknown[] }
 export type AgentConfigSchema = { fields: Record<string, AgentConfigField>; category_order: string[] }
 export type AgentRawConfig = { yaml: string; path: string }
@@ -54,7 +65,7 @@ export type PersonalFile = {
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
-export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean }
+export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
 export type { SavedModelConfig } from './generated/saved-model-config'
@@ -62,6 +73,7 @@ import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 export type SessionRow = { id: string; title?: string; preview?: string; source?: string; message_count?: number }
 export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null }
+export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
   profiles: ProfileRow[]
   selected: string
@@ -141,21 +153,31 @@ export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } |
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  links: {
+    openRepository(): Promise<void>
+  }
+  windowChrome: {
+    customTitlebar: boolean
+    minimize(): Promise<void>
+    toggleMaximize(): Promise<void>
+    close(): Promise<void>
+    setFrontendDebugEnabled(enabled: boolean): Promise<void>
+  }
   workspacePanel: {
-    listDirectory(path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
-    readFile(path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
-    startTerminal(cwd?: string): Promise<{ id: string; cwd: string }>
-    activateTerminal(id: string): Promise<void>
-    writeTerminal(id: string, data: string): Promise<void>
-    resizeTerminal(id: string, cols: number, rows: number): Promise<void>
-    closeTerminal(id: string): Promise<void>
-    onTerminalOutput(handler: (event: { id: string; data: string; closed: boolean }) => void): Promise<Unsubscribe>
+    listDirectory(scope: WorkspaceScope, path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
+    readFile(scope: WorkspaceScope, path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
+    startTerminal(scope: WorkspaceScope): Promise<{ id: string; cwd: string }>
+    activateTerminal(scope: WorkspaceScope, id: string): Promise<void>
+    writeTerminal(scope: WorkspaceScope, id: string, data: string): Promise<void>
+    resizeTerminal(scope: WorkspaceScope, id: string, cols: number, rows: number): Promise<void>
+    closeTerminal(scope: WorkspaceScope, id: string): Promise<void>
+    onTerminalOutput(handler: (event: { id: string; scope: WorkspaceScope; data: string; closed: boolean }) => void): Promise<Unsubscribe>
   }
   channels: {
-    status(): Promise<{ platforms: ChannelStatus[] }>
-    start(platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
-    poll(id: string): Promise<ChannelQrPoll>
-    cancel(id: string): Promise<void>
+    status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
+    start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
+    poll(scope: ProfileScope, id: string): Promise<ChannelQrPoll>
+    cancel(scope: ProfileScope, id: string): Promise<void>
   }
   about: {
     productInfo(): Promise<ProductInfo>
@@ -164,7 +186,7 @@ export interface DesktopApi {
     onDownloadProgress(handler: (progress: UpdateDownloadProgress) => void): Promise<Unsubscribe>
   }
   extensions: {
-    request<T>(operation: string, payload?: Record<string, unknown>): Promise<T>
+    request<T>(scope: ProfileScope, operation: string, payload?: Record<string, unknown>): Promise<T>
   }
   runtime: {
     devDefaults(): Promise<DevDefaults>
@@ -179,14 +201,16 @@ export interface DesktopApi {
   }
   profiles: {
     list(): Promise<ProfilesSnapshot>
+    dataDirectory(scope: ProfileScope): Promise<{ path: string }>
+    listDataDirectory(scope: ProfileScope, relativePath?: string): Promise<ProfileDataListing>
+    openDataDirectory(scope: ProfileScope): Promise<void>
     create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
     select(name: string): Promise<void>
-    listPersonalities(): Promise<PersonalitiesSnapshot>
-    applyPersonality(name: string, prompt?: string): Promise<PersonalitiesSnapshot>
+    listPersonalities(scope: ProfileScope): Promise<PersonalitiesSnapshot>
+    listToolsets(scope: ProfileScope): Promise<ProfileToolset[]>
+    applyPersonality(scope: ProfileScope, name: string, prompt?: string): Promise<PersonalitiesSnapshot>
   }
   tools: {
-    listAgentToolsets(sessionId: string | null): Promise<AgentToolCatalog>
-    listActiveAgentTools(sessionId: string | null): Promise<ActiveAgentTools>
     listBundledTools(): Promise<BundledToolsInventory>
     listDownloadableTools(): Promise<DownloadableTool[]>
     installDownloadableTool(name: string): Promise<void>
@@ -194,50 +218,55 @@ export interface DesktopApi {
   diagnostics: {
     readLogs(storagePath: string, source: 'hermes' | 'client' | 'browser'): Promise<string>
     recordEvent(storagePath: string, event: string): Promise<void>
+    getWebviewCacheSettings(): Promise<WebviewCacheSettings>
+    setWebviewCacheSettings(value: number): Promise<void>
+    clearWebviewCacheNow(): Promise<void>
   }
   agentSettings: {
-    schema(): Promise<AgentConfigSchema>
-    config(): Promise<Record<string, unknown>>
-    raw(): Promise<AgentRawConfig>
-    saveField(key: string, value: unknown): Promise<void>
-    saveRaw(yamlText: string, expectedYaml: string): Promise<void>
-    saveAuxiliary(route: AuxiliaryRoute): Promise<void>
+    schema(scope: ProfileScope): Promise<AgentConfigSchema>
+    config(scope: ProfileScope): Promise<Record<string, unknown>>
+    raw(scope: ProfileScope): Promise<AgentRawConfig>
+    saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
+    saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<void>
+    saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<void>
   }
   personalFiles: {
-    read(kind: PersonalFileKind): Promise<PersonalFile>
-    save(args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
+    read(scope: ProfileScope, kind: PersonalFileKind): Promise<PersonalFile>
+    save(scope: ProfileScope, args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
   }
   models: {
-    options(args: { refresh: boolean; includeUnconfigured?: boolean; sessionId?: string }): Promise<ModelOptions>
-    savedConfig(): Promise<SavedModelConfig>
-    endpoints(): Promise<{ endpoints: CustomEndpoint[] }>
-    loadLists(storagePath: string): Promise<Record<string, string[]> | null>
-    saveLists(storagePath: string, lists: Record<string, string[]>): Promise<void>
-    addEndpoint(args: { name: string; baseUrl: string; model: string; apiKey: string }): Promise<void>
-    deleteEndpoint(endpointId: string): Promise<void>
-    setDefault(args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
-    checkRuntime(): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
-    selectChat(args: { sessionId: string; provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
+    options(scope: ProfileScope | SessionScope, args: { refresh: boolean; includeUnconfigured?: boolean }): Promise<ModelOptions>
+    savedConfig(scope: ProfileScope): Promise<SavedModelConfig>
+    endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
+    loadLists(scope: ProfileScope, storagePath: string): Promise<Record<string, string[]> | null>
+    saveLists(scope: ProfileScope, storagePath: string, lists: Record<string, string[]>): Promise<void>
+    addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string; makeDefault: boolean; discoverModels: boolean }): Promise<void>
+    setEndpointDiscovery(scope: ProfileScope, endpointId: string, discoverModels: boolean): Promise<void>
+    deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
+    setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
+    checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
+    selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
   }
   usage: {
-    statistics(days: UsagePeriodDays): Promise<UsageStatistics>
+    statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
   }
   chat: {
-    createSession(cwd?: string): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
-    resumeSession(sessionId: string): Promise<ResumeResult>
-    listSessions(): Promise<{ sessions: SessionRow[] }>
-    submitPrompt(sessionId: string, text: string): Promise<{ status?: string }>
-    interruptSession(sessionId: string): Promise<{ status: string }>
-    replayEvents(sessionId: string, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
-    usage(sessionId: string): Promise<ChatUsage>
-    reasoning(sessionId: string): Promise<{ value?: string }>
-    setReasoning(sessionId: string, value: string): Promise<{ value?: string }>
-    commands(sessionId: string): Promise<CommandCatalog>
-    executeCommand(sessionId: string, command: string): Promise<CommandResult>
-    dispatchSkill(sessionId: string, name: string, arg: string): Promise<CommandResult>
-    attachFile(sessionId: string, path: string): Promise<PendingAttachment>
-    detachImage(sessionId: string, path: string): Promise<void>
-    answerRequest(args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
+    createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
+    resumeSession(scope: SessionScope): Promise<ResumeResult>
+    listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
+    submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
+    interruptSession(scope: SessionScope): Promise<{ status: string }>
+    replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
+    usage(scope: SessionScope): Promise<ChatUsage>
+    reasoning(scope: ProfileScope | SessionScope): Promise<{ value?: string }>
+    setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
+    commands(scope: SessionScope): Promise<CommandCatalog>
+    executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
+    attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
+    inspectFile(path: string): Promise<PendingAttachment>
+    detachImage(scope: SessionScope, path: string): Promise<void>
+    answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
   }
   events: {
     onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>

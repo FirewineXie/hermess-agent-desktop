@@ -1,6 +1,7 @@
 import React from 'react'
 import type { PersonalFile, PersonalFileKind } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { displayPath } from '../../shared/displayPath'
@@ -19,20 +20,22 @@ const descriptions: Record<PersonalFileKind, [string, string]> = {
 
 function chars(value: string): number { return Array.from(value).length }
 
-export default function PersonalFilesView({ connected, onDirtyChange }: {
-  connected: boolean; onDirtyChange: (dirty: boolean) => void
+export default function PersonalFilesView({ connected, profile, epoch, onDirtyChange, onClose, initialTab }: {
+  connected: boolean; profile: string | null; epoch: string | null; onDirtyChange: (dirty: boolean) => void; onClose?: () => void; initialTab?: PersonalFileKind
 }) {
   const api = useDesktop().personalFiles
   const language = useLanguage()
   const index = language === 'zh-CN' ? 0 : 1
   const say = (zh: string, en: string) => language === 'zh-CN' ? zh : en
-  const [tab, setTab] = React.useState<PersonalFileKind>('soul')
-  const [file, setFile] = React.useState<PersonalFile | null>(null)
-  const [draft, setDraft] = React.useState('')
-  const [entries, setEntries] = React.useState<string[]>([])
-  const [busy, setBusy] = React.useState(false)
-  const [status, setStatus] = React.useState('')
-  const requestId = React.useRef(0)
+  const [tab, setTab] = useProfileState<PersonalFileKind>(workspaceKey(epoch, profile), initialTab || 'soul', 'personal-files:tab')
+  React.useEffect(() => { if (initialTab) setTab(initialTab) }, [initialTab])
+  const workspace = `${workspaceKey(epoch, profile)}\u0000${tab}`
+  const [file, setFile] = useProfileState<PersonalFile | null>(workspace, null, 'personal-files:file')
+  const [draft, setDraft] = useProfileState(workspace, '', 'personal-files:draft')
+  const [entries, setEntries] = useProfileState<string[]>(workspace, [], 'personal-files:entries')
+  const [busy, setBusy] = useProfileState(workspace, false, 'personal-files:busy')
+  const [status, setStatus] = useProfileState(workspace, '', 'personal-files:status')
+  const requestId = useProfileRef(workspace, 0)
 
   const dirty = tab === 'soul' ? Boolean(file && draft !== file.content)
       : Boolean(file && (entries.length !== file.entries.length || entries.some((entry, i) => entry !== file.entries[i])))
@@ -40,16 +43,16 @@ export default function PersonalFilesView({ connected, onDirtyChange }: {
   React.useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
   React.useEffect(() => () => { onDirtyChange(false) }, [onDirtyChange])
 
-  const load = React.useCallback(async (nextTab: PersonalFileKind) => {
+  async function load(nextTab: PersonalFileKind) {
     const request = ++requestId.current
     setStatus('')
     setBusy(true)
-    if (!connected) {
-      setFile(null); setBusy(false)
+    if (!connected || !profile) {
+      setBusy(false)
       return
     }
     try {
-      const loaded = await api.read(nextTab)
+      const loaded = await api.read({ kind: 'profile', profile }, nextTab)
       if (request !== requestId.current) return
       setFile(loaded)
       setDraft(loaded.content)
@@ -59,12 +62,12 @@ export default function PersonalFilesView({ connected, onDirtyChange }: {
     } finally {
       if (request === requestId.current) setBusy(false)
     }
-  }, [api, connected, language])
+  }
 
   React.useEffect(() => {
-    void load(tab)
+    if (!file) void load(tab)
     return () => { ++requestId.current }
-  }, [tab, connected])
+  }, [tab, connected, profile])
 
   function canDiscard(): boolean {
     return !dirty || window.confirm(say('有未保存的修改，确定放弃吗？', 'Discard unsaved changes?'))
@@ -72,7 +75,6 @@ export default function PersonalFilesView({ connected, onDirtyChange }: {
 
   function selectTab(next: PersonalFileKind) {
     if (next === tab || !canDiscard()) return
-    setFile(null); setDraft(''); setEntries([])
     setTab(next)
   }
 
@@ -82,7 +84,8 @@ export default function PersonalFilesView({ connected, onDirtyChange }: {
     setStatus('')
     try {
       if (!file) return
-      const saved = await api.save({ kind: tab, content: tab === 'soul' ? draft : undefined,
+      if (!profile) return
+      const saved = await api.save({ kind: 'profile', profile }, { kind: tab, content: tab === 'soul' ? draft : undefined,
         entries: tab === 'soul' ? undefined : entries.map(entry => entry.trim()), expectedVersion: file.version })
       setFile(saved); setDraft(saved.content); setEntries(saved.entries)
       setStatus(say('已保存到磁盘。建议新建会话以加载修改。', 'Saved to disk. Start a new session to load the change.'))
@@ -99,7 +102,9 @@ export default function PersonalFilesView({ connected, onDirtyChange }: {
 
   return <section className="settings-panel flat-settings-panel personal-files-panel">
     <div className="row"><h2>{say('人格与记忆', 'Persona and memory')}</h2>
-      <button disabled={!connected || busy} onClick={() => { if (canDiscard()) void load(tab) }}>{say('重新读取', 'Reload')}</button>
+      <div className="personal-files-heading-actions"><button disabled={!connected || busy} onClick={() => { if (canDiscard()) void load(tab) }}>{say('重新读取', 'Reload')}</button>
+        {onClose && <button type="button" className="personal-files-close" aria-label={say('关闭记忆编辑', 'Close memory editor')} title={say('关闭', 'Close')} onClick={onClose}>×</button>}
+      </div>
     </div>
     <p>{say('仅管理本桌面程序启动的 Hermes 实例。当前会话使用已缓存的提示内容；磁盘文件与会话实际内容可能不同。',
       'Manages only the Hermes instance started by this desktop app. A live session may still use a cached prompt.')} </p>

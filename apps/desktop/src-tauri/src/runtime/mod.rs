@@ -5,6 +5,7 @@ pub mod chat;
 pub mod config;
 pub mod downloadable_tools;
 pub mod extensions;
+mod jobs;
 mod location;
 mod mcp_registry;
 pub mod models;
@@ -15,6 +16,8 @@ pub mod personal_files;
 pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
+pub mod profile_data;
+mod profile_scope;
 pub mod profiles;
 pub mod tools;
 pub mod usage;
@@ -22,6 +25,7 @@ pub mod usage;
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;
 use crate::gateway::GatewayClient;
+use crate::process_manager::{self, ProcessRegistration};
 use futures_util::{SinkExt, StreamExt};
 use location::{acquire_storage_lock, save_storage_path, saved_storage_path};
 use payload::install_packed_payload;
@@ -48,12 +52,17 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 #[derive(Default)]
-pub struct BackendState(Mutex<Option<OwnedBackend>>, Mutex<()>);
+pub struct BackendState(
+    Mutex<Option<OwnedBackend>>,
+    Mutex<()>,
+    Mutex<Option<profile_scope::ProfileTopology>>,
+);
 
 struct OwnedBackend {
     _storage_lock: fs::File,
     storage: PathBuf,
     child: Child,
+    _process: ProcessRegistration,
     port: u16,
     token: String,
     hermes: PathBuf,
@@ -69,90 +78,6 @@ struct RestartDrainGuard(PathBuf);
 impl Drop for RestartDrainGuard {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
-    }
-}
-
-impl BackendState {
-    async fn storage(&self) -> Result<PathBuf, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.storage.clone())
-    }
-    async fn gateway(&self) -> Result<profiles::ProfiledGateway, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(profiles::ProfiledGateway::new(
-            Arc::clone(&backend.gateway),
-            backend.selected_profile.clone(),
-        ))
-    }
-
-    async fn profile_home(&self) -> Result<PathBuf, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        let root = backend.storage.join("hermes-home");
-        Ok(if backend.selected_profile == "default" {
-            root
-        } else {
-            root.join("profiles").join(&backend.selected_profile)
-        })
-    }
-
-    async fn is_default_profile(&self) -> Result<bool, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.selected_profile == "default")
-    }
-
-    async fn selected_profile(&self) -> Result<String, DesktopFailure> {
-        let owned = self.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        Ok(backend.selected_profile.clone())
-    }
-
-    async fn profile_http_auth(&self) -> Result<(u16, &'static str, String), DesktopFailure> {
-        let profile = self.selected_profile().await?;
-        self.profile_http_auth_for(&profile).await
-    }
-
-    async fn profile_http_auth_for(
-        &self,
-        profile: &str,
-    ) -> Result<(u16, &'static str, String), DesktopFailure> {
-        let (port, token, hermes, home, lock_dir) = {
-            let owned = self.0.lock().await;
-            let backend = owned
-                .as_ref()
-                .ok_or_else(DesktopFailure::runtime_unavailable)?;
-            (
-                backend.port,
-                backend.token.clone(),
-                backend.hermes.clone(),
-                backend.storage.join("hermes-home"),
-                backend.storage.join("control").join("gateway-locks"),
-            )
-        };
-        if profile == "default" {
-            return Ok((port, "X-Hermes-Session-Token", token));
-        }
-        let ticket = profiles::native_http_ticket(
-            &hermes,
-            &home.join("profiles").join(profile),
-            &lock_dir,
-            port,
-        )
-        .await?;
-        Ok((port, "X-Hermes-Gateway-Ticket", ticket))
     }
 }
 
@@ -353,10 +278,13 @@ print(json.dumps({'profile_id':e.profile_id,'instance_id':e.instance_id,
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(5), command.output())
-        .await
-        .ok()?
-        .ok()?;
+    let output = timeout(
+        Duration::from_secs(5),
+        process_manager::output(&mut command, "gateway_discovery"),
+    )
+    .await
+    .ok()?
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -410,10 +338,13 @@ print(ticket)
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(8), command.output())
-        .await
-        .map_err(|_| "获取网关票据超时".to_string())?
-        .map_err(|_| "无法获取网关票据".to_string())?;
+    let output = timeout(
+        Duration::from_secs(8),
+        process_manager::output(&mut command, "gateway_ticket"),
+    )
+    .await
+    .map_err(|_| "获取网关票据超时".to_string())?
+    .map_err(|_| "无法获取网关票据".to_string())?;
     if !output.status.success() {
         return Err("网关拒绝桌面票据".into());
     }
@@ -586,7 +517,8 @@ async fn launch_backend(
     }
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    let mut child = command.spawn().map_err(|_| "后端启动失败".to_string())?;
+    let (mut child, registration) =
+        process_manager::spawn(&mut command, "gateway").map_err(|_| "后端启动失败".to_string())?;
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(capture_backend_output(storage.clone(), stdout, "stdout"));
     }
@@ -632,6 +564,7 @@ async fn launch_backend(
         _storage_lock: storage_lock,
         storage,
         child,
+        _process: registration,
         port,
         token,
         hermes,
@@ -863,8 +796,7 @@ pub async fn restart_backend_gracefully(
         .kill_on_drop(true);
     #[cfg(windows)]
     stop.creation_flags(0x08000000);
-    let mut helper = stop
-        .spawn()
+    let (mut helper, _stop_registration) = process_manager::spawn(&mut stop, "gateway_stop")
         .map_err(|_| "无法启动网关停止命令".to_string())?;
     let exit = timeout(Duration::from_secs(60), helper.wait())
         .await
@@ -898,6 +830,8 @@ pub async fn stop_backend(
     state: State<'_, BackendState>,
     browser_bridge: State<'_, browser_bridge::BrowserBridgeState>,
 ) -> Result<(), DesktopFailure> {
+    // The browser's detach request needs the gateway, so end CDP first.
+    browser_bridge.stop_all().await;
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
@@ -920,7 +854,9 @@ pub async fn stop_backend(
                 .kill_on_drop(true);
             #[cfg(windows)]
             stop.creation_flags(0x08000000);
-            if let Ok(mut helper) = stop.spawn() {
+            if let Ok((mut helper, _stop_registration)) =
+                process_manager::spawn_shutdown(&mut stop, "gateway_stop")
+            {
                 let _ = timeout(Duration::from_secs(8), helper.wait()).await;
             }
             if timeout(Duration::from_secs(5), backend.child.wait())
@@ -943,7 +879,6 @@ pub async fn stop_backend(
         backend.gateway.close();
     }
     drop(owned);
-    browser_bridge.stop_all().await;
     Ok(())
 }
 

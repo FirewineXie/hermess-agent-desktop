@@ -1,5 +1,8 @@
 use serde::Serialize;
 
+pub const SESSION_OWNER_UNKNOWN: &str = "session_owner_unknown";
+pub const SESSION_PROFILE_MISMATCH: &str = "session_profile_mismatch";
+
 #[derive(Debug, Serialize)]
 pub struct DesktopFailure {
     kind: &'static str,
@@ -39,11 +42,23 @@ impl DesktopFailure {
     pub fn invalid_input() -> Self {
         Self::new("invalid_input", "validation")
     }
+
+    pub fn session_owner_unknown() -> Self {
+        Self::new(SESSION_OWNER_UNKNOWN, "validation")
+    }
+
+    pub fn session_profile_mismatch() -> Self {
+        Self::new(SESSION_PROFILE_MISMATCH, "validation")
+    }
 }
 
 impl From<String> for DesktopFailure {
-    fn from(_: String) -> Self {
-        Self::operation_failed()
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            SESSION_OWNER_UNKNOWN => Self::session_owner_unknown(),
+            SESSION_PROFILE_MISMATCH => Self::session_profile_mismatch(),
+            _ => Self::operation_failed(),
+        }
     }
 }
 

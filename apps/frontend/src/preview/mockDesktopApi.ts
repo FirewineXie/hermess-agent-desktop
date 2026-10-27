@@ -3,6 +3,16 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  links: {
+    async openRepository() { window.open('https://github.com/FirewineXie/hermess-agent-desktop', '_blank', 'noopener,noreferrer') },
+  },
+  windowChrome: {
+    customTitlebar: true,
+    async minimize() {},
+    async toggleMaximize() {},
+    async close() {},
+    async setFrontendDebugEnabled() {},
+  },
   workspacePanel: {
     async listDirectory() { throw previewOnly() },
     async readFile() { throw previewOnly() },
@@ -15,9 +25,13 @@ export const previewDesktopApi: DesktopApi = {
   },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
+    async dataDirectory() { throw previewOnly() },
+    async listDataDirectory() { throw previewOnly() },
+    async openDataDirectory() { throw previewOnly() },
     async create() { throw previewOnly() },
     async select() { throw previewOnly() },
     async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
+    async listToolsets() { return [] },
     async applyPersonality() { throw previewOnly() },
   },
   channels: {
@@ -27,7 +41,7 @@ export const previewDesktopApi: DesktopApi = {
     async cancel() {},
   },
   about: {
-    async productInfo() { return { version: '0.1.5-rc.1', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
+    async productInfo() { return { version: '0.1.6', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
     async checkUpdates() { return { status: 'unavailable', releases: [] } },
     async downloadUpdate() { throw previewOnly() },
     async onDownloadProgress() { return () => {} },
@@ -47,8 +61,6 @@ export const previewDesktopApi: DesktopApi = {
     async probeLocalTools() { return [] },
   },
   tools: {
-    async listAgentToolsets() { return { toolsets: [] } },
-    async listActiveAgentTools() { return { sections: [], total: 0 } },
     async listBundledTools() { return { has_manifest: false, tools: [] } },
     async listDownloadableTools() { return [] },
     async installDownloadableTool() { throw previewOnly() },
@@ -56,6 +68,9 @@ export const previewDesktopApi: DesktopApi = {
   diagnostics: {
     async readLogs() { return '' },
     async recordEvent() {},
+    async getWebviewCacheSettings() { return { strategy: 'size' as const, value: 512 } },
+    async setWebviewCacheSettings() {},
+    async clearWebviewCacheNow() {},
   },
   agentSettings: {
     async schema() { throw previewOnly() },
@@ -76,6 +91,7 @@ export const previewDesktopApi: DesktopApi = {
     async loadLists() { return null },
     async saveLists() { throw previewOnly() },
     async addEndpoint() { throw previewOnly() },
+    async setEndpointDiscovery() { throw previewOnly() },
     async deleteEndpoint() { throw previewOnly() },
     async setDefault() { throw previewOnly() },
     async checkRuntime() { throw previewOnly() },
@@ -98,6 +114,7 @@ export const previewDesktopApi: DesktopApi = {
     async executeCommand() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },
     async attachFile() { throw previewOnly() },
+    async inspectFile() { throw previewOnly() },
     async detachImage() { throw previewOnly() },
     async answerRequest() { throw previewOnly() },
   },

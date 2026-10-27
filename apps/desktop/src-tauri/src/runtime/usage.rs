@@ -1,4 +1,4 @@
-use super::{config::config_request, BackendState};
+use super::{config::config_request_for_scope, BackendState};
 use crate::errors::DesktopFailure;
 use reqwest::Method;
 use serde_json::{json, Value};
@@ -7,6 +7,7 @@ use tauri::State;
 #[tauri::command]
 pub async fn get_usage_statistics(
     state: State<'_, BackendState>,
+    profile: String,
     days: u16,
 ) -> Result<Value, DesktopFailure> {
     if !matches!(days, 7 | 30 | 90) {
@@ -14,17 +15,20 @@ pub async fn get_usage_statistics(
     }
 
     // Both endpoints read the current product-owned Hermes database. The token stays in Rust.
-    let usage = config_request(
+    let scope = state.resolve_profile(&profile).await?;
+    let usage = config_request_for_scope(
         &state,
+        &scope,
         Method::GET,
-        &format!("/api/analytics/usage?days={days}"),
+        &format!("/api/analytics/usage?days={days}&profile={profile}"),
         None,
     )
     .await?;
-    let models = config_request(
+    let models = config_request_for_scope(
         &state,
+        &scope,
         Method::GET,
-        &format!("/api/analytics/models?days={days}"),
+        &format!("/api/analytics/models?days={days}&profile={profile}"),
         None,
     )
     .await?;

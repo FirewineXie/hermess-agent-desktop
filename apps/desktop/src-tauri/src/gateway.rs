@@ -35,6 +35,8 @@ enum GatewayCommand {
         id: String,
         method: String,
         result: Value,
+        session_id: String,
+        profile: String,
         reply: oneshot::Sender<Result<(), String>>,
     },
 }
@@ -44,12 +46,16 @@ fn validate_server_answer(
     id: &str,
     method: &str,
     result: &Value,
+    session_id: &str,
 ) -> Result<(), String> {
     let Some((expected_method, params)) = requests.get(id) else {
         return Err("审批请求已失效".into());
     };
     if expected_method != method {
         return Err("请求类型与原请求不一致".into());
+    }
+    if params.get("session_id").and_then(Value::as_str) != Some(session_id) {
+        return Err("审批请求不属于当前会话".into());
     }
     if method == "approval" {
         let selected = result.get("choice").and_then(Value::as_str);
@@ -87,6 +93,8 @@ fn validate_server_answer(
 struct GatewayEvent {
     kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     seq: Option<u64>,
@@ -114,7 +122,54 @@ fn is_forwarded_event(kind: &str) -> bool {
 struct GatewayServerRequest {
     id: String,
     method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile: Option<String>,
     params: Value,
+}
+
+fn register_owner(owners: &mut HashMap<String, Option<String>>, id: &str, profile: &str) {
+    if id.is_empty() || profile.is_empty() {
+        return;
+    }
+    match owners.entry(id.to_owned()) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(Some(profile.to_owned()));
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if entry.get().as_deref() != Some(profile) {
+                entry.insert(None);
+            }
+        }
+    }
+}
+
+fn result_session_owners(
+    owners: &mut HashMap<String, Option<String>>,
+    method: &str,
+    params: &Value,
+    result: &Value,
+    profile: &str,
+) {
+    if matches!(method, "session.create" | "session.resume") {
+        for id in [
+            params.get("session_id"),
+            result.get("session_id"),
+            result.get("stored_session_id"),
+            result.get("session_key"),
+        ] {
+            if let Some(id) = id.and_then(Value::as_str) {
+                register_owner(owners, id, profile);
+            }
+        }
+    } else if method == "session.list" {
+        if let Some(rows) = result.get("sessions").and_then(Value::as_array) {
+            for row in rows.iter().take(200) {
+                if let Some(id) = row.get("id").and_then(Value::as_str) {
+                    register_owner(owners, id, profile);
+                }
+            }
+        }
+    }
 }
 
 pub struct GatewayClient {
@@ -152,7 +207,10 @@ impl GatewayClient {
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
             let mut pending = PendingRpc::new();
+            let mut rpc_scopes = HashMap::<u64, (String, Value)>::new();
+            let mut session_owners = HashMap::<String, Option<String>>::new();
             let mut server_requests = HashMap::<String, (String, Value)>::new();
+            let mut request_owners = HashMap::<String, Option<String>>::new();
             let mut ready_sender = Some(ready_sender);
             loop {
                 tokio::select! {
@@ -162,12 +220,17 @@ impl GatewayClient {
                             GatewayCommand::Rpc(request) => {
                                 if request.reply.is_closed() { continue; }
                                 prune_abandoned_rpc(&mut pending);
+                                rpc_scopes.retain(|id, _| pending.contains_key(id));
                                 if pending.len() >= 64 {
                                     let _ = request.reply.send(Err("待处理的网关请求过多".into()));
                                     continue;
                                 }
                                 let id = next_id;
                                 next_id += 1;
+                                let profile = request.params.get("profile").and_then(Value::as_str).unwrap_or("default").to_owned();
+                                if matches!(request.method, "session.create" | "session.list" | "session.resume" | "session.events.since") {
+                                    rpc_scopes.insert(id, (profile, request.params.clone()));
+                                }
                                 let frame = json!({"jsonrpc":"2.0","id":id,"method":request.method,"params":request.params});
                                 if writer.send(Message::Text(frame.to_string().into())).await.is_err() {
                                     let _ = request.reply.send(Err("网关连接已断开".into()));
@@ -175,13 +238,18 @@ impl GatewayClient {
                                 }
                                 pending.insert(id, (request.method, request.reply));
                             }
-                            GatewayCommand::Answer { id, method, result, reply } => {
+                            GatewayCommand::Answer { id, method, result, session_id, profile, reply } => {
                                 if reply.is_closed() { continue; }
-                                if let Err(error) = validate_server_answer(&server_requests, &id, &method, &result) {
+                                if request_owners.get(&id).and_then(Option::as_deref) != Some(profile.as_str()) {
+                                    let _ = reply.send(Err("审批请求不属于目标 Profile".into()));
+                                    continue;
+                                }
+                                if let Err(error) = validate_server_answer(&server_requests, &id, &method, &result, &session_id) {
                                     let _ = reply.send(Err(error));
                                     continue;
                                 }
                                 server_requests.remove(&id);
+                                request_owners.remove(&id);
                                 let frame = json!({"jsonrpc":"2.0","id":id,"result":result});
                                 if writer.send(Message::Text(frame.to_string().into())).await.is_err() {
                                     let _ = reply.send(Err("网关连接已断开".into()));
@@ -198,12 +266,16 @@ impl GatewayClient {
                         let Ok(value) = serde_json::from_str::<Value>(&text) else { continue };
                         if let Some(id) = value.get("id").and_then(Value::as_u64) {
                             if let Some((method, reply)) = pending.remove(&id) {
+                                let scope = rpc_scopes.remove(&id);
                                 let outcome = if let Some(error) = value.get("error") {
                                     let code = error.get("code").and_then(Value::as_i64).unwrap_or(0);
                                     let message = error.get("message").and_then(Value::as_str).unwrap_or("未知 RPC 错误");
                                     Err(format!("{message} ({code})"))
                                 } else {
                                     let result = value.get("result").cloned().unwrap_or(Value::Null);
+                                    if let Some((profile, params)) = scope.as_ref() {
+                                        result_session_owners(&mut session_owners, method, params, &result, profile);
+                                    }
                                     if matches!(method, "session.resume" | "session.events.since") {
                                         if let Some(requests) = result.get("open_requests").and_then(Value::as_array) {
                                             for request in requests.iter().take(64) {
@@ -214,6 +286,9 @@ impl GatewayClient {
                                                 ) {
                                                     if matches!(kind, "approval" | "clarify") && id.starts_with("srq-") && params.to_string().len() <= 32 * 1024 {
                                                         server_requests.insert(id.to_owned(), (kind.to_owned(), params.clone()));
+                                                        if let Some((profile, _)) = scope.as_ref() {
+                                                            register_owner(&mut request_owners, id, profile);
+                                                        }
                                                     }
                                                 }
                                             }
@@ -233,9 +308,16 @@ impl GatewayClient {
                             let params = value.get("params").cloned().unwrap_or(Value::Null);
                             if matches!(method, "approval" | "clarify") && params.to_string().len() <= 32 * 1024 && server_requests.len() < 64 {
                                 server_requests.insert(id_text.to_owned(), (method.to_owned(), params.clone()));
-                                let request = GatewayServerRequest { id: id_text.to_owned(), method: method.to_owned(), params };
-                                if app.emit("hermes-request", request).is_ok() { continue; }
+                                let profile = params.get("session_id").and_then(Value::as_str)
+                                    .and_then(|session| session_owners.get(session))
+                                    .and_then(Option::as_ref).cloned();
+                                if let Some(profile) = profile.as_deref() {
+                                    register_owner(&mut request_owners, id_text, profile);
+                                    let request = GatewayServerRequest { id: id_text.to_owned(), method: method.to_owned(), profile: Some(profile.to_owned()), params };
+                                    if app.emit("hermes-request", request).is_ok() { continue; }
+                                }
                                 server_requests.remove(id_text);
+                                request_owners.remove(id_text);
                             }
                             let refusal = json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"client method unavailable"}});
                             if writer.send(Message::Text(refusal.to_string().into())).await.is_err() { break; }
@@ -252,13 +334,16 @@ impl GatewayClient {
                             continue;
                         }
                         if kind == "request.cancel" {
-                            if let Some(id) = params.pointer("/payload/id").and_then(Value::as_str) { server_requests.remove(id); }
+                            if let Some(id) = params.pointer("/payload/id").and_then(Value::as_str) { server_requests.remove(id); request_owners.remove(id); }
                         }
                         if !is_forwarded_event(kind) { continue; }
                         let payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
                             kind: kind.into(),
+                            profile: params.get("session_id").and_then(Value::as_str)
+                                .and_then(|session| session_owners.get(session))
+                                .and_then(Option::as_ref).cloned(),
                             session_id: params.get("session_id").and_then(Value::as_str).map(str::to_owned),
                             seq: params.get("seq").and_then(Value::as_u64),
                             payload,
@@ -318,7 +403,14 @@ impl GatewayClient {
         .map_err(|_| "网关请求超时；写操作结果未知，请先恢复会话".to_string())?
     }
 
-    pub async fn answer(&self, id: String, method: String, result: Value) -> Result<(), String> {
+    pub async fn answer(
+        &self,
+        id: String,
+        method: String,
+        result: Value,
+        session_id: String,
+        profile: String,
+    ) -> Result<(), String> {
         let (reply, received) = oneshot::channel();
         timeout(Duration::from_secs(30), async {
             self.sender
@@ -326,6 +418,8 @@ impl GatewayClient {
                     id,
                     method,
                     result,
+                    session_id,
+                    profile,
                     reply,
                 })
                 .await

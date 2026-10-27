@@ -1,18 +1,63 @@
-use super::config::config_request;
+use super::config::{config_request_for_scope, config_request_to_profile};
+use super::profile_scope::ResolvedProfileScope;
 use super::BackendState;
 use crate::errors::DesktopFailure;
 use crate::storage::product_storage;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{collections::HashMap, fs, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tauri::State;
 use uuid::Uuid;
 
+pub(super) fn custom_endpoint_delete_path(endpoint_id: &str) -> Result<String, DesktopFailure> {
+    let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    url.path_segments_mut()
+        .map_err(|_| DesktopFailure::operation_failed())?
+        .pop_if_empty()
+        .push(endpoint_id);
+    Ok(url.path().to_owned())
+}
+
+async fn model_lists_file(
+    state: &State<'_, BackendState>,
+    profile: &str,
+    storage_path: String,
+) -> Result<(ResolvedProfileScope, PathBuf), DesktopFailure> {
+    let storage = product_storage(Path::new(&storage_path))?;
+    let scope = state.resolve_profile(profile).await?;
+    if storage != scope.storage {
+        return Err(DesktopFailure::conflict());
+    }
+    let path = if profile == "default" {
+        storage.join("model-candidates.json")
+    } else {
+        scope.home.join("model-candidates.json")
+    };
+    Ok((scope, path))
+}
+
 #[tauri::command]
-pub fn load_model_lists(
+pub async fn load_model_lists(
+    state: State<'_, BackendState>,
+    profile: String,
     storage_path: String,
 ) -> Result<Option<HashMap<String, Vec<String>>>, DesktopFailure> {
-    let file = product_storage(Path::new(&storage_path))?.join("model-candidates.json");
+    let (scope, file) = model_lists_file(&state, &profile, storage_path).await?;
+    scope.ensure_current(&state).await?;
+    let result = read_model_lists_file(&file)?;
+    scope.ensure_current(&state).await?;
+    Ok(result)
+}
+
+pub(super) fn read_model_lists_file(
+    file: &Path,
+) -> Result<Option<HashMap<String, Vec<String>>>, DesktopFailure> {
     if !file.exists() {
         return Ok(None);
     }
@@ -26,9 +71,21 @@ pub fn load_model_lists(
 }
 
 #[tauri::command]
-pub fn save_model_lists(
+pub async fn save_model_lists(
+    state: State<'_, BackendState>,
+    profile: String,
     storage_path: String,
     lists: HashMap<String, Vec<String>>,
+) -> Result<(), DesktopFailure> {
+    let (scope, file) = model_lists_file(&state, &profile, storage_path).await?;
+    scope.ensure_current(&state).await?;
+    write_model_lists_file(&file, &lists)?;
+    scope.ensure_current(&state).await
+}
+
+pub(super) fn write_model_lists_file(
+    file: &Path,
+    lists: &HashMap<String, Vec<String>>,
 ) -> Result<(), DesktopFailure> {
     if lists.len() > 256
         || lists.iter().any(|(provider, models)| {
@@ -48,13 +105,13 @@ pub fn save_model_lists(
     if bytes.len() > 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let file = product_storage(Path::new(&storage_path))?.join("model-candidates.json");
     fs::write(file, bytes).map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[tauri::command]
 pub async fn list_model_options(
     state: State<'_, BackendState>,
+    profile: String,
     refresh: bool,
     include_unconfigured: Option<bool>,
     session_id: Option<String>,
@@ -65,7 +122,7 @@ pub async fn list_model_options(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let mut params = json!({"include_unconfigured": include_unconfigured.unwrap_or(true),
                             "refresh": refresh});
     if let Some(id) = session_id {
@@ -80,6 +137,7 @@ pub async fn list_model_options(
 #[tauri::command]
 pub async fn select_chat_model(
     state: State<'_, BackendState>,
+    profile: String,
     session_id: String,
     provider: String,
     model: String,
@@ -98,7 +156,7 @@ pub async fn select_chat_model(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.gateway().await?;
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     let snapshot = gateway
         .request("session.resume", json!({"session_id": session_id}))
         .await?;
@@ -169,8 +227,12 @@ pub(super) fn parse_saved_model_config(yaml: &str) -> Result<SavedModelConfig, S
 #[tauri::command]
 pub async fn get_saved_model_config(
     state: State<'_, BackendState>,
+    profile: String,
 ) -> Result<SavedModelConfig, DesktopFailure> {
-    let (port, auth_header, token) = state.profile_http_auth().await?;
+    let scope = state.resolve_profile(&profile).await?;
+    scope.ensure_current(&state).await?;
+    let (port, auth_header, token) = scope.http_auth().await?;
+    scope.ensure_current(&state).await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -206,6 +268,7 @@ pub async fn get_saved_model_config(
     }
     let value: Value =
         serde_json::from_slice(&bytes).map_err(|_| "模型配置响应无效".to_string())?;
+    scope.ensure_current(&state).await?;
     let yaml = value
         .get("yaml")
         .and_then(Value::as_str)
@@ -216,9 +279,11 @@ pub async fn get_saved_model_config(
 #[tauri::command]
 pub async fn list_custom_endpoints(
     state: State<'_, BackendState>,
+    profile: String,
 ) -> Result<Value, DesktopFailure> {
-    config_request(
+    config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::GET,
         "/api/providers/custom-endpoints",
         None,
@@ -229,10 +294,13 @@ pub async fn list_custom_endpoints(
 #[tauri::command]
 pub async fn add_custom_endpoint(
     state: State<'_, BackendState>,
+    profile: String,
     name: String,
     base_url: String,
     model: String,
     api_key: String,
+    make_default: bool,
+    discover_models: bool,
 ) -> Result<Value, DesktopFailure> {
     let name = name.trim();
     let base_url = base_url.trim();
@@ -256,12 +324,14 @@ pub async fn add_custom_endpoint(
         return Err(DesktopFailure::invalid_input());
     }
     let mut body = json!({"id": format!("desktop-{}", Uuid::new_v4().simple()),
-        "name": name, "base_url": base_url, "model": model, "make_default": false});
+        "name": name, "base_url": base_url, "model": model, "make_default": make_default,
+        "discover_models": discover_models});
     if !api_key.is_empty() {
         body["api_key"] = json!(api_key);
     }
-    config_request(
+    config_request_to_profile(
         &state,
+        &profile,
         reqwest::Method::POST,
         "/api/providers/custom-endpoints",
         Some(body),
@@ -270,8 +340,68 @@ pub async fn add_custom_endpoint(
 }
 
 #[tauri::command]
+pub async fn set_custom_endpoint_discovery(
+    state: State<'_, BackendState>,
+    profile: String,
+    endpoint_id: String,
+    discover_models: bool,
+) -> Result<Value, DesktopFailure> {
+    if endpoint_id.is_empty()
+        || endpoint_id.len() > 128
+        || endpoint_id.chars().any(char::is_control)
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let scope = state.resolve_profile(&profile).await?;
+    let listed = config_request_for_scope(
+        &state,
+        &scope,
+        reqwest::Method::GET,
+        "/api/providers/custom-endpoints",
+        None,
+    )
+    .await?;
+    let endpoint = listed
+        .get("endpoints")
+        .and_then(Value::as_array)
+        .and_then(|endpoints| {
+            endpoints.iter().find(|endpoint| {
+                endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str())
+            })
+        })
+        .ok_or_else(DesktopFailure::conflict)?;
+    if endpoint.get("source").and_then(Value::as_str) == Some("direct-config") {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let field = |key| {
+        endpoint
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+    };
+    let name = field("name");
+    let base_url = field("base_url");
+    let model = field("model");
+    if name.is_empty() || base_url.is_empty() || model.is_empty() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    config_request_for_scope(
+        &state,
+        &scope,
+        reqwest::Method::POST,
+        "/api/providers/custom-endpoints",
+        Some(
+            json!({"id": endpoint_id, "name": name, "base_url": base_url,
+            "model": model, "discover_models": discover_models, "make_default": false}),
+        ),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn delete_custom_endpoint(
     state: State<'_, BackendState>,
+    profile: String,
     endpoint_id: String,
 ) -> Result<Value, DesktopFailure> {
     if endpoint_id.is_empty()
@@ -280,36 +410,55 @@ pub async fn delete_custom_endpoint(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let listed = config_request(
+    let scope = state.resolve_profile(&profile).await?;
+    let listed = config_request_for_scope(
         &state,
+        &scope,
         reqwest::Method::GET,
         "/api/providers/custom-endpoints",
         None,
     )
     .await?;
-    let removable = listed
+    let source = listed
         .get("endpoints")
         .and_then(Value::as_array)
-        .is_some_and(|endpoints| {
-            endpoints.iter().any(|endpoint| {
-                endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str())
-                    && endpoint.get("source").and_then(Value::as_str) != Some("direct-config")
+        .and_then(|endpoints| {
+            endpoints.iter().find_map(|endpoint| {
+                (endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str()))
+                    .then(|| endpoint.get("source").and_then(Value::as_str))
+                    .flatten()
             })
         });
-    if !removable {
+    let Some(source) = source else {
         return Err(DesktopFailure::conflict());
+    };
+    if source == "direct-config" {
+        return config_request_for_scope(
+            &state,
+            &scope,
+            reqwest::Method::PUT,
+            "/api/config",
+            Some(json!({
+                "profile": profile,
+                "config": {"model": {
+                    "default": "", "model": "", "name": "", "provider": "",
+                    "base_url": "", "api_base": "", "api": "", "api_key": "",
+                    "key_env": "", "api_key_env": "", "api_mode": ""
+                }}
+            })),
+        )
+        .await;
     }
-    let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
-        .map_err(|_| "无法构建提供商地址".to_string())?;
-    url.path_segments_mut()
-        .map_err(|_| "无法构建提供商地址".to_string())?
-        .push(&endpoint_id);
-    config_request(&state, reqwest::Method::DELETE, url.path(), None).await
+    let path = custom_endpoint_delete_path(&endpoint_id)?;
+    config_request_for_scope(&state, &scope, reqwest::Method::DELETE, &path, None).await
 }
 
 #[tauri::command]
-pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let gateway = state.gateway().await?;
+pub async fn check_model_runtime(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
         .request("setup.runtime_check", json!({}))
         .await
@@ -319,6 +468,7 @@ pub async fn check_model_runtime(state: State<'_, BackendState>) -> Result<Value
 #[tauri::command]
 pub async fn set_default_model(
     state: State<'_, BackendState>,
+    profile: String,
     provider: String,
     model: String,
     base_url: String,
@@ -348,7 +498,10 @@ pub async fn set_default_model(
             return Err(DesktopFailure::invalid_input());
         }
     }
-    let (port, auth_header, token) = state.profile_http_auth().await?;
+    let scope = state.resolve_profile(&profile).await?;
+    scope.ensure_current(&state).await?;
+    let (port, auth_header, token) = scope.http_auth().await?;
+    scope.ensure_current(&state).await?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
@@ -389,5 +542,6 @@ pub async fn set_default_model(
     if !status.is_success() {
         return Err(DesktopFailure::operation_failed());
     }
+    scope.ensure_current(&state).await?;
     Ok(value)
 }

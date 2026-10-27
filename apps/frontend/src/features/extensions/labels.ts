@@ -3,7 +3,7 @@ import type { Language } from '../../i18n'
 const zh = {
   skills: '本地 Skill', mcp: '本地 MCP', skillHub: 'Skill 发现', mcpCatalog: '精选 MCP',
   title: '扩展', needsRuntime: '启动当前 Hermes 运行时后，可查看和管理扩展。',
-  refresh: '刷新', loading: '正在读取…', empty: '暂无内容', search: '搜索',
+  loading: '正在读取…', empty: '暂无内容', search: '搜索',
   name: '名称', source: '来源', enabled: '已启用', disabled: '已停用',
   enable: '启用', disable: '停用', detail: '详情', close: '关闭',
   install: '安装', uninstall: '卸载', update: '更新已安装 Skill',
@@ -30,7 +30,7 @@ const zh = {
   removeConfirm: '删除这个 MCP 配置？', uninstallConfirm: '卸载这个市场 Skill？',
   scanBlocked: '上游扫描阻止安装：{0}', scanAsk: '上游扫描要求人工确认：{0}\n继续安装？',
   selectTransport: 'URL 与启动命令只填写一种。',
-  index: 'Skill 来源包括上游官方清单及外部索引；结果以来源字段为准。',
+  index: '先显示随 Hermes 提供的 Skill；选择全部来源后再加载外部索引。',
   catalog: '来源包括 Hermes 随包清单、公开 MCP Registry 和 ModelScope MCP 广场。每个在线来源显示前 20 条；可输入关键词缩小范围。',
   catalogBundled: '随包精选', catalogRegistry: 'MCP Registry', catalogModelScope: 'ModelScope MCP',
   catalogRepository: '项目或包页面',
@@ -39,13 +39,15 @@ const zh = {
   catalogRemoteHint: '此条目提供无需模板请求头的 HTTPS 远程地址。若服务商要求 OAuth，请选择 OAuth；安装后到本地 MCP 连接账号并测试。',
   catalogManualHint: '此条目需要额外包、请求头或其他配置，暂不支持一键安装；请查看项目仓库并在本地 MCP 手动添加。',
   catalogModelScopeManualHint: '公开详情未提供可直接使用的远程地址。若需托管服务，请在 ModelScope 登录并部署后取得专属地址；本地命令可按项目说明手动配置。',
+  catalogManualShort: '暂不支持一键安装，需手动配置。',
   installedHint: '安装成功后仍需连接测试；已配置不代表当前会话已加载。',
+  mcpEmpty: '此 Profile 暂无已安装的 MCP。可手动添加，或到「发现 MCP」安装。',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
   skills: 'Local Skills', mcp: 'Local MCP', skillHub: 'Discover Skills', mcpCatalog: 'Curated MCP',
   title: 'Extensions', needsRuntime: 'Start this Hermes runtime to manage extensions.',
-  refresh: 'Refresh', loading: 'Loading…', empty: 'Nothing here yet', search: 'Search',
+  loading: 'Loading…', empty: 'Nothing here yet', search: 'Search',
   name: 'Name', source: 'Source', enabled: 'Enabled', disabled: 'Disabled',
   enable: 'Enable', disable: 'Disable', detail: 'Details', close: 'Close',
   install: 'Install', uninstall: 'Uninstall', update: 'Update installed Skills',
@@ -72,7 +74,7 @@ const en: Record<keyof typeof zh, string> = {
   removeConfirm: 'Remove this MCP configuration?', uninstallConfirm: 'Uninstall this hub Skill?',
   scanBlocked: 'Upstream scan blocked installation: {0}', scanAsk: 'Upstream scan requires confirmation: {0}\nContinue?',
   selectTransport: 'Enter either a URL or a launch command.',
-  index: 'Skills come from the upstream official catalog and external indexes. Check each source.',
+  index: 'Bundled Hermes Skills appear first. Select all sources to load external indexes.',
   catalog: 'Sources include bundled entries, the public MCP Registry, and ModelScope MCP Plaza. Each online source shows its first 20 matches; narrow the results with a search.',
   catalogBundled: 'Bundled picks', catalogRegistry: 'MCP Registry', catalogModelScope: 'ModelScope MCP',
   catalogRepository: 'Project or package page',
@@ -81,7 +83,9 @@ const en: Record<keyof typeof zh, string> = {
   catalogRemoteHint: 'This entry has an HTTPS remote without templated headers. Select OAuth if the provider requires it, then connect your account and test in Local MCP.',
   catalogManualHint: 'This entry needs a package, headers, or other setup. Review its repository and add it manually in Local MCP.',
   catalogModelScopeManualHint: 'The public details have no ready-to-use remote URL. Sign in to ModelScope and deploy for an account-specific URL, or configure the local command manually.',
+  catalogManualShort: 'One-click installation is unavailable; manual setup is required.',
   installedHint: 'Test the connection after installation. Configured does not mean loaded in this session.',
+  mcpEmpty: 'No MCP servers are installed for this profile. Add one manually or use Discover MCP.',
 }
 
 export function labels(language: Language) {

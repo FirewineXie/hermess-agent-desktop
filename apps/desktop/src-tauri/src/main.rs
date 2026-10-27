@@ -4,26 +4,42 @@ mod diagnostics;
 mod errors;
 mod gateway;
 mod panel_terminal;
+mod process_manager;
 mod runtime;
 mod storage;
 mod tray;
 mod updates;
+mod webview_cache;
 mod workspace_panel;
 
 fn main() {
+    #[cfg(target_os = "macos")]
+    if process_manager::maybe_run_watchdog() {
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(runtime::BackendState::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
         .manage(panel_terminal::TerminalState::default())
-        .setup(tray::setup)
+        .setup(|app| {
+            process_manager::ProcessManager::init()?;
+            tray::setup(app)?;
+            webview_cache::start(app.handle().clone());
+            Ok(())
+        })
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
+            diagnostics::set_frontend_debug_enabled,
+            webview_cache::get_webview_cache_settings,
+            webview_cache::set_webview_cache_settings,
+            webview_cache::clear_webview_cache_now,
             workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
             panel_terminal::start_panel_terminal,
@@ -42,6 +58,9 @@ fn main() {
             runtime::profiles::list_profiles,
             runtime::profiles::create_profile,
             runtime::profiles::select_profile,
+            runtime::profile_data::get_profile_data_directory,
+            runtime::profile_data::list_profile_data_directory,
+            runtime::profile_data::open_profile_data_directory,
             runtime::personalities::list_personalities,
             runtime::personalities::apply_personality,
             diagnostics::read_diagnostic_logs,
@@ -59,14 +78,14 @@ fn main() {
             runtime::chat::execute_composer_command,
             runtime::chat::dispatch_composer_skill,
             runtime::chat::attach_chat_file,
+            runtime::chat::inspect_chat_file,
             runtime::chat::detach_chat_image,
             runtime::chat::answer_gateway_request,
             runtime::chat::list_chat_sessions,
             runtime::tools::list_bundled_tools,
+            runtime::tools::list_profile_toolsets,
             runtime::downloadable_tools::list_downloadable_tools,
             runtime::downloadable_tools::install_downloadable_tool,
-            runtime::tools::list_agent_toolsets,
-            runtime::tools::list_active_agent_tools,
             runtime::usage::get_usage_statistics,
             runtime::extensions::extension_request,
             runtime::models::list_model_options,
@@ -83,6 +102,7 @@ fn main() {
             runtime::models::load_model_lists,
             runtime::models::save_model_lists,
             runtime::models::add_custom_endpoint,
+            runtime::models::set_custom_endpoint_discovery,
             runtime::models::delete_custom_endpoint,
             runtime::config::save_agent_config_field,
             runtime::config::save_agent_config_raw,

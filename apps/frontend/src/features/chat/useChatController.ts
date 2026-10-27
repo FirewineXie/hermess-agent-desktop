@@ -1,14 +1,16 @@
 import React from 'react'
-import type { BackendInfo, GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
+import type { BackendInfo, GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow, ProfileScope, SessionScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
-import type { ModelPick } from '../models/model'
+import { savedModelFromOptions, type ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool, type TimelineItem } from './timeline'
 import { mergeRecoveredRequests } from './requestRecovery'
 
 type Options = {
   backend: BackendInfo | null
+  profile: string | null
   chatVisible: boolean
   activeModel: ModelPick | null
   language: 'zh-CN' | 'en-US'
@@ -19,7 +21,7 @@ type Options = {
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>
   setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
   setModelPickerOpen: React.Dispatch<React.SetStateAction<boolean>>
-  setBackend: React.Dispatch<React.SetStateAction<BackendInfo | null>>
+  setBackend: (next: BackendInfo | null) => void
   setBackendStatus: React.Dispatch<React.SetStateAction<string>>
   setBusy: React.Dispatch<React.SetStateAction<boolean>>
 }
@@ -28,46 +30,67 @@ function selectedWorkspacePath(info?: ResumeResult['info']): string {
   return info?.launch_request?.cwd_explicit === true ? info.cwd || info.launch_request.cwd || '' : ''
 }
 
-export function useChatController({ backend, chatVisible, activeModel, language, storagePath, workspacePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
-  const { events, nativeFiles, chat, runtime, diagnostics } = useDesktop()
-  const [sessionId, setSessionId] = React.useState('')
-  const [sessionWorkspacePath, setSessionWorkspacePath] = React.useState('')
-  const [sessionCurrentDirectory, setSessionCurrentDirectory] = React.useState('')
-  const [reasoningEffort, setReasoningEffort] = React.useState('')
-  const [reasoningLoadFailed, setReasoningLoadFailed] = React.useState(false)
-  const [reasoningBusy, setReasoningBusy] = React.useState(false)
-  const reasoningChangeInFlightRef = React.useRef(false)
-  const [chatUsage, setChatUsage] = React.useState<ChatUsage | null>(null)
-  const sessionRef = React.useRef('')
-  const storedSessionRef = React.useRef('')
-  const [draft, setDraft] = React.useState('')
-  const [commandCatalog, setCommandCatalog] = React.useState<CommandCatalog | null>(null)
-  const [commandCatalogError, setCommandCatalogError] = React.useState('')
-  const [activeChoice, setActiveChoice] = React.useState(0)
-  const [draftCaret, setDraftCaret] = React.useState(0)
-  const commandCatalogPromiseRef = React.useRef<Promise<CommandCatalog> | null>(null)
-  const draftInputRef = React.useRef<HTMLTextAreaElement>(null)
-  const [conversation, setConversation] = React.useState<TimelineItem[]>([])
-  const [assistant, setAssistant] = React.useState('')
-  const assistantRef = React.useRef('')
-  const [chatStatus, setChatStatus] = React.useState('')
-  const [turnBusy, setTurnBusy] = React.useState(false)
-  const [canContinue, setCanContinue] = React.useState(false)
-  const [navigationBusy, setNavigationBusy] = React.useState(false)
-  const [sessionCreating, setSessionCreating] = React.useState(false)
-  const navigationBusyRef = React.useRef(false)
-  const submittingRef = React.useRef(false)
-  const promptDispatchStartedRef = React.useRef(false)
-  const stopRequestedRef = React.useRef(false)
-  const retryInterruptAfterSubmitRef = React.useRef(false)
-  const sessionCreationRef = React.useRef<Promise<string> | null>(null)
-  const sessionGenerationRef = React.useRef(0)
-  const pendingBySessionRef = React.useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
-  const interruptedSessionsRef = React.useRef(new Set<string>())
-  const turnStartedAtRef = React.useRef<number | null>(null)
-  const [serverRequests, setServerRequests] = React.useState<GatewayRequest[]>([])
+export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
+  const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
+  const workspace = workspaceKey(backend?.replay_epoch, profile)
+  let stateSlot = 0
+  const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `chat:${stateSlot++}`)
+  const useRef = <T,>(initial: T) => useProfileRef(workspace, initial)
+  const viewedProfileRef = useRef(profile)
+  viewedProfileRef.current = profile
+  const sessionProfileRef = useRef('')
+  function profileScope(): ProfileScope {
+    const owner = viewedProfileRef.current
+    if (!owner) throw new Error('No active Profile')
+    return { kind: 'profile', profile: owner }
+  }
+  function sessionScope(id: string): SessionScope {
+    const owner = sessionProfileRef.current
+    if (!owner || !id) throw new Error('Session has no Profile owner')
+    return { kind: 'session', profile: owner, sessionId: id }
+  }
+  const [sessionId, setSessionId] = useState('')
+  const lastSessionByProfile = React.useRef<Record<string, string>>({})
+  const attemptedEpochResume = React.useRef(new Set<string>())
+  const [sessionWorkspacePath, setSessionWorkspacePath] = useState('')
+  const [sessionCurrentDirectory, setSessionCurrentDirectory] = useState('')
+  const [reasoningEffort, setReasoningEffort] = useState('')
+  const [reasoningLoadFailed, setReasoningLoadFailed] = useState(false)
+  const [reasoningBusy, setReasoningBusy] = useState(false)
+  const draftReasoningRef = useRef('')
+  const reasoningChangeInFlightRef = useRef(false)
+  const reasoningSessionRef = useRef<string | null>(null)
+  const [chatUsage, setChatUsage] = useState<ChatUsage | null>(null)
+  const sessionRef = useRef('')
+  const storedSessionRef = useRef('')
+  const [draft, setDraft] = useState('')
+  const [commandCatalog, setCommandCatalog] = useState<CommandCatalog | null>(null)
+  const [commandCatalogError, setCommandCatalogError] = useState('')
+  const [activeChoice, setActiveChoice] = useState(0)
+  const [draftCaret, setDraftCaret] = useState(0)
+  const commandCatalogPromiseRef = useRef<Promise<CommandCatalog> | null>(null)
+  const draftInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const [conversation, setConversation] = useState<TimelineItem[]>([])
+  const [assistant, setAssistant] = useState('')
+  const assistantRef = useRef('')
+  const [chatStatus, setChatStatus] = useState('')
+  const [turnBusy, setTurnBusy] = useState(false)
+  const [canContinue, setCanContinue] = useState(false)
+  const [navigationBusy, setNavigationBusy] = useState(false)
+  const [sessionCreating, setSessionCreating] = useState(false)
+  const navigationBusyRef = useRef(false)
+  const submittingRef = useRef(false)
+  const promptDispatchStartedRef = useRef(false)
+  const stopRequestedRef = useRef(false)
+  const retryInterruptAfterSubmitRef = useRef(false)
+  const sessionCreationRef = useRef<Promise<string> | null>(null)
+  const sessionGenerationRef = useRef(0)
+  const pendingBySessionRef = useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
+  const interruptedSessionsRef = useRef(new Set<string>())
+  const turnStartedAtRef = useRef<number | null>(null)
+  const [serverRequests, setServerRequests] = useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
-  const [clarifyDraft, setClarifyDraft] = React.useState<{ requestId: string; answers: Record<string, string> }>({ requestId: '', answers: {} })
+  const [clarifyDraft, setClarifyDraft] = useState<{ requestId: string; answers: Record<string, string> }>({ requestId: '', answers: {} })
   const clarifyAnswers = clarifyDraft.requestId === serverRequest?.id ? clarifyDraft.answers : {}
   function setClarifyAnswer(qid: string, value: string) {
     if (!serverRequest || serverRequest.method !== 'clarify') return
@@ -76,21 +99,27 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       answers: { ...(current.requestId === serverRequest.id ? current.answers : {}), [qid]: value },
     }))
   }
-  const [sessions, setSessions] = React.useState<SessionRow[]>([])
-  const [sessionsState, setSessionsState] = React.useState<'loading' | 'ready' | 'error'>('loading')
-  const sessionsRequestRef = React.useRef(0)
-  const [attachments, setAttachments] = React.useState<PendingAttachment[]>([])
-  const [attachmentBusy, setAttachmentBusy] = React.useState(false)
-  const [draggingFiles, setDraggingFiles] = React.useState(false)
-  const lastSeqRef = React.useRef<Record<string, number>>({})
-  const epochRef = React.useRef<Record<string, string>>({})
-  const recoveringRef = React.useRef(false)
-  const bufferedEventsRef = React.useRef<GatewayEvent[]>([])
-  const bufferedRequestsRef = React.useRef<GatewayRequest[]>([])
-  const eventProcessorRef = React.useRef<(data: GatewayEvent) => void>(() => {})
+  const [sessions, setSessions] = useState<SessionRow[]>([])
+  const [sessionsState, setSessionsState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const sessionsRequestRef = useRef(0)
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [attachmentBusy, setAttachmentBusy] = useState(false)
+  const [draggingFiles, setDraggingFiles] = useState(false)
+  const lastSeqRef = useRef<Record<string, number>>({})
+  const epochRef = useRef<Record<string, string>>({})
+  const recoveringRef = useRef(false)
+  const bufferedEventsRef = useRef<GatewayEvent[]>([])
+  const bufferedRequestsRef = useRef<GatewayRequest[]>([])
+  const eventProcessorRef = useRef<(data: GatewayEvent) => void>(() => {})
+  const currentEpochRef = React.useRef(backend?.replay_epoch)
+  if (backend?.replay_epoch) currentEpochRef.current = backend.replay_epoch
+  const eventProcessors = React.useRef<Record<string, (data: GatewayEvent) => void>>({})
+  const requestProcessors = React.useRef<Record<string, (request: GatewayRequest) => void>>({})
+  const disconnectProcessors = React.useRef<Record<string, () => void>>({})
 
   eventProcessorRef.current = data => {
     const id = data.session_id
+    if (!data.profile || data.profile !== sessionProfileRef.current) return
     if (!id || id !== sessionRef.current) {
       if (id && data.kind === 'message.complete') void loadSessions(true)
       return
@@ -110,7 +139,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       if (usage && typeof usage === 'object' && ('context_used' in usage || 'context_max' in usage)) {
         setChatUsage(usage as ChatUsage)
       }
-      void chat.usage(id).then(result => {
+      void chat.usage(sessionScope(id)).then(result => {
         if (sessionRef.current === id && (result.context_max ?? result.context_length)) setChatUsage(result)
       }).catch(() => {})
       const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
@@ -142,6 +171,23 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       setClarifyDraft(current => current.requestId === data.payload?.id ? { requestId: '', answers: {} } : current)
     }
   }
+  eventProcessors.current[workspace] = data => {
+    if (recoveringRef.current) bufferedEventsRef.current.push(data)
+    else eventProcessorRef.current(data)
+  }
+  requestProcessors.current[workspace] = request => {
+    if (recoveringRef.current) bufferedRequestsRef.current.push(request)
+    else if (request.params.session_id === sessionRef.current) {
+      setServerRequests(current => current.some(item => item.id === request.id) ? current : [...current, request])
+    }
+  }
+  disconnectProcessors.current[workspace] = () => {
+    setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess"))
+    setConversation(finishReasoning)
+    setTurnBusy(false)
+    setServerRequests([])
+    setClarifyDraft({ requestId: '', answers: {} })
+  }
 
   function finishCurrentTurn(state: 'failed' | 'interrupted') {
     setConversation(finishReasoning)
@@ -159,17 +205,17 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     let unlistenRequest: (() => void) | undefined
     void events.onGatewayEvent(data => {
       if (!active) return
-      if (recoveringRef.current) bufferedEventsRef.current.push(data)
-      else eventProcessorRef.current(data)
+      if (data.profile) eventProcessors.current[workspaceKey(currentEpochRef.current, data.profile)]?.(data)
     }).then(fn => { if (active) unlistenEvent = fn; else fn() })
     void events.onGatewayRequest(request => {
-      if (active && recoveringRef.current) bufferedRequestsRef.current.push(request)
-      else if (active && request.params.session_id === sessionRef.current) {
-        setServerRequests(current => current.some(item => item.id === request.id) ? current : [...current, request])
-      }
+      if (active && request.profile) requestProcessors.current[workspaceKey(currentEpochRef.current, request.profile)]?.(request)
     }).then(fn => { if (active) unlistenRequest = fn; else fn() })
     void events.onDisconnect(() => {
-      if (active) { setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess")); setConversation(finishReasoning); setTurnBusy(false); setServerRequests([]); setClarifyDraft({ requestId: '', answers: {} }) }
+      if (!active) return
+      const prefix = `${currentEpochRef.current || 'offline'}\u0000`
+      for (const [key, process] of Object.entries(disconnectProcessors.current)) {
+        if (key.startsWith(prefix)) process()
+      }
     }).then(fn => { if (active) unlistenDisconnect = fn; else fn() })
     return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
   }, [])
@@ -178,7 +224,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     if (!serverRequest) return
     const request = serverRequest
     try {
-      await chat.answerRequest({
+      await chat.answerRequest(sessionScope(request.params.session_id), {
         requestId: request.id,
         method: request.method,
         choice,
@@ -196,18 +242,41 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setSessionCreating(true)
     const generation = sessionGenerationRef.current
     const creation = (async () => {
-      const created = await chat.createSession(workspacePath || undefined)
+      const owner = profileScope()
+      let selectedModel = activeModel
+      if (!selectedModel) {
+        const [configResult, optionsResult] = await Promise.allSettled([
+          models.savedConfig(owner),
+          models.options(owner, { refresh: false, includeUnconfigured: false }),
+        ])
+        if (configResult.status === 'rejected' && optionsResult.status === 'rejected') throw configResult.reason
+        const saved = savedModelFromOptions(
+          optionsResult.status === 'fulfilled' ? optionsResult.value : { providers: [] },
+          configResult.status === 'fulfilled' ? configResult.value : { provider: '', model: '', base_url: '' },
+        )
+        if (!saved?.provider || !saved.model) throw new Error(t('ui.select.model.before.sending'))
+        selectedModel = { provider: saved.provider, model: saved.model }
+      }
+      const created = await chat.createSession(owner, {
+        cwd: workspacePath || undefined,
+        provider: selectedModel.provider,
+        model: selectedModel.model,
+        reasoning: draftReasoningRef.current || undefined,
+      })
       if (generation !== sessionGenerationRef.current) throw new Error('Session creation was cancelled')
       const id = created.session_id
+      sessionProfileRef.current = owner.profile
       sessionRef.current = id
       epochRef.current[id] = backend?.replay_epoch || ''
       lastSeqRef.current[id] = 0
       storedSessionRef.current = created.stored_session_id
+      lastSessionByProfile.current[owner.profile] = created.stored_session_id
       setSessionId(id)
+      reasoningSessionRef.current = id
       setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
       setSessionCurrentDirectory(created.info?.cwd || workspacePath)
-      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : null)
-      await loadSessions(true)
+      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : selectedModel)
+      void loadSessions(true)
       return id
     })()
     sessionCreationRef.current = creation
@@ -221,35 +290,39 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   React.useEffect(() => {
-    if (!backend) {
+    if (!backend || !profile) {
       setReasoningEffort('')
       setReasoningLoadFailed(false)
       setChatUsage(null)
       return
     }
     let active = true
-    if (!reasoningChangeInFlightRef.current) setReasoningEffort('')
+    if (reasoningSessionRef.current !== sessionId) {
+      reasoningSessionRef.current = sessionId
+      if (!reasoningChangeInFlightRef.current && (sessionId || !draftReasoningRef.current)) setReasoningEffort('')
+    }
     setReasoningLoadFailed(false)
     if (!sessionId) setChatUsage(null)
     void Promise.allSettled([
-      chat.reasoning(sessionId),
-      sessionId ? chat.usage(sessionId) : Promise.resolve(null),
+      chat.reasoning(sessionId ? sessionScope(sessionId) : profileScope()),
+      sessionId ? chat.usage(sessionScope(sessionId)) : Promise.resolve(null),
     ]).then(([reasoning, usage]) => {
       if (!active || sessionRef.current !== sessionId) return
       if (!reasoningChangeInFlightRef.current) {
-        if (reasoning.status === 'fulfilled' && reasoning.value.value) setReasoningEffort(reasoning.value.value)
-        else setReasoningLoadFailed(true)
+        if (reasoning.status === 'fulfilled') {
+          if (sessionId || !draftReasoningRef.current) setReasoningEffort(reasoning.value.value || '')
+        } else if (!draftReasoningRef.current) setReasoningLoadFailed(true)
       }
       if (usage.status === 'fulfilled' && usage.value) setChatUsage(usage.value)
     })
     return () => { active = false }
-  }, [backend, sessionId, activeModel?.provider, activeModel?.model, chatVisible])
+  }, [backend, profile, sessionId, activeModel?.provider, activeModel?.model, chatVisible])
 
   React.useEffect(() => {
     if (!backend || !sessionId || !turnBusy || (chatUsage?.context_max ?? chatUsage?.context_length)) return
     let active = true
     const timer = window.setInterval(() => {
-      void chat.usage(sessionId).then(result => {
+      void chat.usage(sessionScope(sessionId)).then(result => {
         if (active && sessionRef.current === sessionId && (result.context_max ?? result.context_length)) setChatUsage(result)
       }).catch(() => {})
     }, 1500)
@@ -258,13 +331,19 @@ export function useChatController({ backend, chatVisible, activeModel, language,
 
   async function changeReasoning(value: string) {
     if (reasoningChangeInFlightRef.current || !backend || !value) return
+    if (!sessionRef.current) {
+      draftReasoningRef.current = value
+      setReasoningEffort(value)
+      setReasoningLoadFailed(false)
+      return
+    }
     reasoningChangeInFlightRef.current = true
     setReasoningBusy(true)
     try {
-      const id = await ensureChatSession()
-      const saved = await chat.setReasoning(id, value)
+      const id = sessionRef.current
+      const saved = await chat.setReasoning(sessionScope(id), value)
       if (saved.value !== value) throw new Error(language === 'zh-CN' ? '后端未确认思考强度修改' : 'The backend did not confirm the reasoning change')
-      const current = await chat.reasoning(id)
+      const current = await chat.reasoning(sessionScope(id))
       if (current.value !== value) throw new Error(language === 'zh-CN' ? '思考强度回读与所选档位不一致' : 'The reasoning value did not match after reading it back')
       if (sessionRef.current === id) {
         setReasoningEffort(value)
@@ -280,7 +359,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       let request: Promise<CommandCatalog>
       request = ensureChatSession()
         .then(async id => {
-          const catalog = await chat.commands(id)
+          const catalog = await chat.commands(sessionScope(id))
           if (sessionRef.current === id) {
             setCommandCatalog(catalog)
             setCommandCatalogError(catalog.warning || '')
@@ -300,10 +379,10 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   React.useEffect(() => {
-    if (backend && composerTrigger(draft, draftCaret) && !commandCatalog) {
+    if (backend && sessionRef.current && composerTrigger(draft, draftCaret) && !commandCatalog) {
       void loadCommandCatalog().catch(() => {})
     }
-  }, [backend, draft, draftCaret, commandCatalog])
+  }, [backend, sessionId, draft, draftCaret, commandCatalog])
 
   const trigger = composerTrigger(draft, draftCaret)
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []
@@ -326,11 +405,12 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     if (paths.length + attachments.length > 10) { setChatStatus(t("ui.up.to.10.attachments.can.be.temporarily.saved.per.round")); return }
     setAttachmentBusy(true)
     try {
-      const id = await ensureChatSession()
       const existing = new Set(attachments.map(item => item.source_path))
       for (const path of paths) {
         if (existing.has(path)) continue
-        const attached = await chat.attachFile(id, path)
+        const attached = sessionRef.current
+          ? await chat.attachFile(sessionScope(sessionRef.current), path)
+          : await chat.inspectFile(path)
         setAttachments(current => [...current, attached])
         existing.add(attached.source_path)
       }
@@ -369,7 +449,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setAttachmentBusy(true)
     try {
       if (attachment.kind === 'image' && attachment.path) {
-        await chat.detachImage(sessionRef.current, attachment.path)
+        await chat.detachImage(sessionScope(sessionRef.current), attachment.path)
       }
       setAttachments(current => current.filter((_, position) => position !== index))
     } catch (cause) { setChatStatus(t("ui.failed.to.remove.attachment.arg", describeError(cause, language))) }
@@ -377,11 +457,27 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   async function sendMessage(overrideText?: string) {
-    const refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
+    let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = draft.trim() || overrideText?.trim() || ''
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
+    if (slash && ['/new', '/sessions', '/model'].includes(`/${slash[1]}`)) {
+      if (attachments.length) {
+        setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command'))
+        return
+      }
+      if (slash[2]?.trim()) {
+        setChatStatus(t(slash[1] === 'new' ? 'ui.the.desktop.new.command.does.not.accept.a.title.yet.create.a.session.then.u'
+          : slash[1] === 'sessions' ? 'ui.the.desktop.sessions.command.does.not.accept.arguments'
+            : 'ui.choose.a.model.in.model.settings.arguments.after.model.do.not.change.the.cu'))
+        return
+      }
+      if (slash[1] === 'new') await newChat(false)
+      else if (slash[1] === 'sessions') { await loadSessions(true); openView('chat'); setSidebarOpen(true); setDraft('') }
+      else { openView('model'); setDraft('') }
+      return
+    }
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
     let catalog: CommandCatalog | null = null
     if (slash || mentions.length) {
@@ -427,6 +523,19 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setNavigationBusy(true)
     setTurnBusy(true)
     setChatStatus(t("ui.submitting"))
+    // Show the prompt before model lookup and session creation finish.
+    const optimisticStartedAt = !isCommand ? Date.now() : null
+    if (optimisticStartedAt != null) {
+      turnStartedAtRef.current = optimisticStartedAt
+      setConversation(rows => appendMessage(rows, 'user', typed || text, optimisticStartedAt))
+      setDraft('')
+    }
+    const restoreUnsentPrompt = () => {
+      if (optimisticStartedAt == null) return
+      setConversation(rows => rows.filter(row => row.kind !== 'message' || row.role !== 'user' || row.startedAt !== optimisticStartedAt))
+      setDraft(draft)
+      turnStartedAtRef.current = null
+    }
     try {
       if (commandName === '/new' && isCommand) {
         submittingRef.current = false
@@ -450,11 +559,22 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       }
       const id = await ensureChatSession()
       idForSubmission = id
-      if (stopRequestedRef.current) return
+      if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
+      if (attachments.some(item => !item.path && !item.ref_text)) {
+        const prepared: PendingAttachment[] = []
+        for (const attachment of attachments) {
+          prepared.push(attachment.path || attachment.ref_text
+            ? attachment
+            : await chat.attachFile(sessionScope(id), attachment.source_path))
+          setAttachments([...prepared, ...attachments.slice(prepared.length)])
+        }
+        refs = prepared.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text!)
+        text = [typed, ...refs].filter(Boolean).join('\n') || t('ui.please.see.attachment')
+      }
       if (isCommand) {
         const result = isSkill
-          ? await chat.dispatchSkill(id, commandName.slice(1), commandArg)
-          : await chat.executeCommand(id, `${commandName}${commandArg ? ` ${commandArg}` : ''}`)
+          ? await chat.dispatchSkill(sessionScope(id), commandName.slice(1), commandArg)
+          : await chat.executeCommand(sessionScope(id), `${commandName}${commandArg ? ` ${commandArg}` : ''}`)
         if (result.type === 'skill' || result.type === 'send') {
           if (!result.message) throw new Error(t("ui.the.command.did.not.return.a.message.to.send"))
           text = [result.message, ...refs].filter(Boolean).join('\n')
@@ -473,15 +593,17 @@ export function useChatController({ backend, chatVisible, activeModel, language,
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
       }
-      if (stopRequestedRef.current) return
-      const startedAt = Date.now()
+      if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
+      const startedAt = optimisticStartedAt ?? Date.now()
       turnStartedAtRef.current = startedAt
       assistantRef.current = ''
       setAssistant('')
-      setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
-      setDraft('')
+      if (optimisticStartedAt == null) {
+        setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
+        setDraft('')
+      }
       promptDispatchStartedRef.current = true
-      const result = await chat.submitPrompt(id, text)
+      const result = await chat.submitPrompt(sessionScope(id), text)
       if (!stopRequestedRef.current) {
         interruptedSessionsRef.current.delete(storedSessionRef.current)
         setCanContinue(false)
@@ -498,6 +620,9 @@ export function useChatController({ backend, chatVisible, activeModel, language,
       }
     } catch (cause) {
       if (!stopRequestedRef.current && (!sessionRef.current || sessionRef.current === idForSubmission)) {
+        if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
+          restoreUnsentPrompt()
+        }
         setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
         finishCurrentTurn('failed')
         setTurnBusy(false)
@@ -509,11 +634,12 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     }
   }
 
-  async function loadSessions(quiet = false) {
+  async function loadSessions(quiet = false, ownerProfile = viewedProfileRef.current) {
     const request = ++sessionsRequestRef.current
     if (!quiet) setSessionsState('loading')
     try {
-      const result = await chat.listSessions()
+      if (!ownerProfile) throw new Error('No active Profile')
+      const result = await chat.listSessions({ kind: 'profile', profile: ownerProfile })
       if (request !== sessionsRequestRef.current) return
       setSessions(result.sessions)
       setSessionsState('ready')
@@ -528,21 +654,26 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   async function newChat(preserveDraft = true) {
     if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current) return
     navigationBusyRef.current = true
+    if (profile) delete lastSessionByProfile.current[profile]
     setNavigationBusy(true)
     if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft: preserveDraft ? draft : '', attachments }
     if (storedSessionRef.current) void loadSessions(true)
     sessionRef.current = ''
+    sessionProfileRef.current = ''
     turnStartedAtRef.current = null
     storedSessionRef.current = ''
     setSessionId('')
     setSessionWorkspacePath('')
     setSessionCurrentDirectory('')
     setReasoningEffort('')
+    draftReasoningRef.current = ''
+    reasoningSessionRef.current = null
     setActiveModel(null)
     setModelPickerOpen(false)
     setConversation([])
     assistantRef.current = ''
     setAssistant('')
+    setTurnBusy(false)
     setServerRequests([])
     setClarifyDraft({ requestId: '', answers: {} })
     setDraft('')
@@ -556,17 +687,20 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setNavigationBusy(false)
   }
 
-  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '') {
+  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current) {
     if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || (!force && id === storedSessionRef.current)) return
     navigationBusyRef.current = true
     setNavigationBusy(true)
     setChatStatus(t("ui.resuming.session"))
     try {
-      const result = await chat.resumeSession(id)
+      if (!ownerProfile) throw new Error('Session has no Profile owner')
+      const result = await chat.resumeSession({ kind: 'session', profile: ownerProfile, sessionId: id })
       if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft, attachments }
       turnStartedAtRef.current = null
       sessionRef.current = result.session_id
+      sessionProfileRef.current = ownerProfile
       storedSessionRef.current = result.stored_session_id || result.session_key || id
+      lastSessionByProfile.current[ownerProfile] = storedSessionRef.current
       epochRef.current[result.session_id] = replayEpoch
       lastSeqRef.current[result.session_id] = result.last_sequence || 0
       setServerRequests((result.open_requests || []).filter(request => request.method === 'approval' || request.method === 'clarify'))
@@ -592,6 +726,15 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     finally { navigationBusyRef.current = false; setNavigationBusy(false) }
   }
 
+  React.useEffect(() => {
+    if (!backend?.replay_epoch || !profile || sessionId) return
+    const remembered = lastSessionByProfile.current[profile]
+    const attempt = `${backend.replay_epoch}\u0000${profile}`
+    if (!remembered || attemptedEpochResume.current.has(attempt)) return
+    attemptedEpochResume.current.add(attempt)
+    void resumeSession(remembered, true, backend.replay_epoch, profile)
+  }, [backend?.replay_epoch, profile, sessionId])
+
   async function interruptSession() {
     if (submittingRef.current && !promptDispatchStartedRef.current) {
       stopRequestedRef.current = true
@@ -604,7 +747,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     const targetStoredId = storedSessionRef.current
     stopRequestedRef.current = true
     try {
-      const result = await chat.interruptSession(targetSessionId)
+      const result = await chat.interruptSession(sessionScope(targetSessionId))
       if (result.status === 'interrupted' && targetStoredId) interruptedSessionsRef.current.add(targetStoredId)
       if (sessionRef.current !== targetSessionId) return
       if (result.status !== 'interrupted' && submittingRef.current) retryInterruptAfterSubmitRef.current = true
@@ -634,22 +777,25 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setBackendStatus(t("ui.reconnecting"))
     try {
       const info = await runtime.reconnect()
+      const epochChanged = Boolean(backend?.replay_epoch && info.replay_epoch !== backend.replay_epoch)
       setBackend(info)
-      setBackendStatus(previousEpoch && info.replay_epoch !== previousEpoch
+      setBackendStatus(epochChanged
         ? t("ui.reconnected.pictures.to.be.sent.need.to.be.added.again") : t("ui.reconnected"))
-      if (previousEpoch && info.replay_epoch !== previousEpoch) {
+      if (epochChanged) {
         setAttachments(current => current.filter(item => item.kind === 'file'))
         for (const pending of Object.values(pendingBySessionRef.current)) {
           pending.attachments = pending.attachments.filter(item => item.kind === 'file')
         }
+        if (profile && storedSessionRef.current) lastSessionByProfile.current[profile] = storedSessionRef.current
+        return
       }
       if (storedSessionRef.current) {
-        const snapshot = await chat.resumeSession(storedSessionRef.current)
+        const snapshot = await chat.resumeSession(sessionScope(storedSessionRef.current))
         const id = snapshot.session_id
         const sameStream = id === previousId && Boolean(previousEpoch) && info.replay_epoch === previousEpoch
         let replay: ReplayResult | undefined
         if (sameStream) {
-          replay = await chat.replayEvents(id, previousSeq, previousEpoch)
+          replay = await chat.replayEvents(sessionScope(id), previousSeq, previousEpoch)
         }
         const useSnapshot = !sameStream || !replay || replay.truncated || replay.epoch !== previousEpoch
         sessionRef.current = id
@@ -676,7 +822,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
           lastSeqRef.current[id] = snapshot.last_sequence || 0
         } else if (replay) {
           const ordered = replay.events.map(event => ({
-            kind: event.type, session_id: event.session_id, seq: event.seq,
+            kind: event.type, profile: sessionProfileRef.current, session_id: event.session_id, seq: event.seq,
             payload: event.payload || {},
           })).sort((a, b) => (a.seq || 0) - (b.seq || 0))
           for (const event of ordered) eventProcessorRef.current(event)
@@ -699,6 +845,9 @@ export function useChatController({ backend, chatVisible, activeModel, language,
 
 
   function resetChat(clearDraft = false) {
+    draftReasoningRef.current = ''
+    lastSessionByProfile.current = {}
+    attemptedEpochResume.current.clear()
     if (clearDraft) setDraft('')
     sessionsRequestRef.current += 1
     sessionGenerationRef.current += 1
@@ -710,6 +859,7 @@ export function useChatController({ backend, chatVisible, activeModel, language,
     setNavigationBusy(false)
     setSessionCreating(false)
     sessionRef.current = ''
+    sessionProfileRef.current = ''
     turnStartedAtRef.current = null
     storedSessionRef.current = ''
     setSessionId('')
@@ -731,11 +881,11 @@ export function useChatController({ backend, chatVisible, activeModel, language,
   }
 
   return {
-    sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, storedSessionRef,
+    sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, sessionProfileRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
-    attachmentBusy, draggingFiles, trigger, choices, answerRequest, ensureChatSession,
+    attachmentBusy, draggingFiles, trigger, choices, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,
   }

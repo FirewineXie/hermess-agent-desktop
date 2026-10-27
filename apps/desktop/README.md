@@ -10,6 +10,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/diagnostics.rs`：本机工具探测与诊断日志。
 - `src-tauri/src/storage.rs`：产品存储位置校验。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
+- `src-tauri/src/process_manager.rs`：桌面创建的产品进程统一登记、封闭新启动与按用途退出；`process_manager/windows.rs` 用 Job Object 管理进程树，`process_manager/macos.rs` 用独立进程组和随主程序退出的守护进程回收组内成员，尚不能约束主动脱组的后代。
 - `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
 - `src-tauri/src/runtime/modelscope.rs`：客户端自有的 ModelScope Skill 搜索、ZIP 检查与安装适配；只写入本产品的 Hermes 数据目录，不修改固定上游源码。
 - `src-tauri/src/runtime/mcp_registry.rs`：公开 MCP Registry 的只读搜索、详情及可直接配置的 HTTPS 远程条目筛选；实际安装经当前自有 Hermes 的 MCP 配置接口。

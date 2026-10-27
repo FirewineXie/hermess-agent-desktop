@@ -7,14 +7,15 @@ import { useLanguage } from '../../i18n'
 type Options = {
   connected: boolean
   backendEpoch: string | null
-  onSelected: () => void
   restart: () => Promise<unknown>
 }
 
-export function useProfiles({ connected, backendEpoch, onSelected, restart }: Options) {
+export function useProfiles({ connected, backendEpoch, restart }: Options) {
   const { profiles } = useDesktop()
   const language = useLanguage()
-  const [snapshot, setSnapshot] = React.useState<ProfilesSnapshot | null>(null)
+  const [roster, setRoster] = React.useState<ProfilesSnapshot | null>(null)
+  const [viewed, setViewed] = React.useState<string | null>(null)
+  const snapshot = React.useMemo(() => roster && viewed ? { ...roster, selected: viewed } : roster, [roster, viewed])
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
   const [pendingName, setPendingName] = React.useState<string | null>(null)
@@ -23,36 +24,46 @@ export function useProfiles({ connected, backendEpoch, onSelected, restart }: Op
   const refresh = async () => {
     const request = ++generation.current
     const latest = await profiles.list()
-    if (request === generation.current) setSnapshot(latest)
+    if (request === generation.current) {
+      setRoster(latest)
+      setViewed(current => {
+        const served = new Set(latest.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
+        if (current && served.has(current)) return current
+        let stored = ''
+        try { stored = localStorage.getItem('hermess:viewed-profile') || '' } catch { /* optional preference */ }
+        if (stored && served.has(stored)) return stored
+        if (served.has(latest.selected)) return latest.selected
+        return served.has('default') ? 'default' : served.values().next().value || null
+      })
+    }
     return latest
   }
 
   React.useEffect(() => {
     if (!connected) {
       generation.current += 1
-      setSnapshot(null)
+      setRoster(null)
       setPendingName(null)
       return
     }
+    let active = true
     void refresh().then(latest => {
-      if (pendingName && latest.gateways.some(gateway => gateway.served_profiles?.includes(pendingName))) setPendingName(null)
-    }).catch(cause => setError(describeError(cause, language)))
+      if (active && pendingName && latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) setPendingName(null)
+    }).catch(cause => { if (active) setError(describeError(cause, language)) })
+    return () => { active = false }
   }, [connected, backendEpoch])
 
   const select = async (name: string) => {
-    if (busy || snapshot?.selected === name) return
-    setBusy(true)
+    if (snapshot?.selected === name) return
     setError('')
-    try {
-      await profiles.select(name)
-      onSelected()
-      await refresh()
-    } catch (cause) {
+    const served = roster?.gateways.some(gateway => gateway.profile === name || gateway.served_profiles?.includes(name))
+    if (!served) {
+      const cause = new Error('Profile is not served by this Gateway')
       setError(describeError(cause, language))
       throw cause
-    } finally {
-      setBusy(false)
     }
+    setViewed(name)
+    try { localStorage.setItem('hermess:viewed-profile', name) } catch { /* optional preference */ }
   }
 
   const create = async (name: string, preset?: ProfilePresetSelection) => {
@@ -75,24 +86,24 @@ export function useProfiles({ connected, backendEpoch, onSelected, restart }: Op
           : `Profile created, but some settings need attention: ${details.join(', ')}`)
       }
       let latest = await refresh()
-      let served = latest.gateways.some(gateway => gateway.served_profiles?.includes(created.name))
+      let served = latest.gateways.some(gateway => gateway.profile === created.name || gateway.served_profiles?.includes(created.name))
       if (!served) {
         const restarted = await restart()
         if (!restarted) {
           setPendingName(created.name)
-          return
+          return { ...created, served: false }
         }
         latest = await refresh()
-        served = latest.gateways.some(gateway => gateway.served_profiles?.includes(created.name))
+        served = latest.gateways.some(gateway => gateway.profile === created.name || gateway.served_profiles?.includes(created.name))
       }
       if (!served) {
         setPendingName(created.name)
-        return
+        return { ...created, served: false }
       }
-      await profiles.select(created.name)
-      onSelected()
-      await refresh()
+      setViewed(created.name)
+      try { localStorage.setItem('hermess:viewed-profile', created.name) } catch { /* optional preference */ }
       setPendingName(null)
+      return { ...created, served: true }
     } catch (cause) {
       setError(describeError(cause, language))
       throw cause
@@ -106,14 +117,18 @@ export function useProfiles({ connected, backendEpoch, onSelected, restart }: Op
     setBusy(true)
     setError('')
     try {
-      const latest = await refresh()
-      if (!latest.gateways.some(gateway => gateway.served_profiles?.includes(pendingName))) {
+      let latest = await refresh()
+      if (!latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
         const restarted = await restart()
         if (!restarted) return
+        latest = await refresh()
       }
-      await profiles.select(pendingName)
-      onSelected()
-      await refresh()
+      if (!latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
+        setError(describeError(new Error('Profile is not served by this Gateway'), language))
+        return
+      }
+      setViewed(pendingName)
+      try { localStorage.setItem('hermess:viewed-profile', pendingName) } catch { /* optional preference */ }
       setPendingName(null)
     } catch (cause) {
       setError(describeError(cause, language))

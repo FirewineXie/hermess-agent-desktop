@@ -1,110 +1,126 @@
 import React from 'react'
-import type { BackendInfo } from '@hermess/contracts'
+import type { BackendInfo, ProfileScope, SessionScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
-import { desktopModelProviderSupported, normalizedEndpoint, readAddedModels, readModelLists, VOLCENGINE_PRESETS, savedModelFromOptions, MODEL_FALLBACKS, ADDED_MODELS_KEY, MODEL_LISTS_KEY, type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel } from './model'
+import { appendModelIds, desktopModelProviderSupported, endpointForProvider, normalizedEndpoint, readAddedModels, readModelLists, modelStorageKey, VOLCENGINE_PRESETS, savedModelFromOptions, ADDED_MODELS_KEY, MODEL_LISTS_KEY, type ModelProvider, type CustomEndpoint, type ModelPick, type SavedModel } from './model'
 
 type Options = {
   backend: BackendInfo | null
+  profile: string | null
   storagePath: string
   t: (key: string, ...values: unknown[]) => string
   sessionRef: React.RefObject<string>
+  sessionProfileRef: React.RefObject<string>
   turnBusy: boolean
-  ensureChatSession: () => Promise<string>
   setChatStatus: React.Dispatch<React.SetStateAction<string>>
   setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
 }
 
-export function useModelController({ backend, storagePath, t, sessionRef, turnBusy, ensureChatSession, setChatStatus, setActiveModel }: Options) {
+export function useModelController({ backend, profile, storagePath, t, sessionRef, sessionProfileRef, turnBusy, setChatStatus, setActiveModel }: Options) {
   const { models } = useDesktop()
+  const workspace = workspaceKey(backend?.replay_epoch, profile)
+  let stateSlot = 0
+  const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `models:${stateSlot++}`)
+  const useRef = <T,>(initial: T) => useProfileRef(workspace, initial)
+  const profileRef = useRef(profile)
+  profileRef.current = profile
+  function profileScope(): ProfileScope {
+    const owner = profileRef.current
+    if (!owner) throw new Error('No active Profile')
+    return { kind: 'profile', profile: owner }
+  }
+  function sessionScope(id: string): SessionScope {
+    if (!id || !sessionProfileRef.current) throw new Error('Session has no Profile owner')
+    return { kind: 'session', profile: sessionProfileRef.current, sessionId: id }
+  }
   const language = useLanguage()
-  const [modelProviders, setModelProviders] = React.useState<ModelProvider[]>([])
-  const [configuredProviders, setConfiguredProviders] = React.useState<ModelProvider[]>([])
-  const [customEndpoints, setCustomEndpoints] = React.useState<CustomEndpoint[]>([])
-  const [addingProvider, setAddingProvider] = React.useState(false)
-  const [newProviderPreset, setNewProviderPreset] = React.useState('')
-  const [providerFormError, setProviderFormError] = React.useState('')
-  const [newProviderName, setNewProviderName] = React.useState('')
-  const [newProviderUrl, setNewProviderUrl] = React.useState('')
-  const [newProviderModel, setNewProviderModel] = React.useState('')
-  const [modelSuggestionsOpen, setModelSuggestionsOpen] = React.useState(false)
-  const [modelSuggestionQuery, setModelSuggestionQuery] = React.useState('')
-  const [newProviderKey, setNewProviderKey] = React.useState('')
-  const [modelFormOpen, setModelFormOpen] = React.useState(false)
-  const [modelProvider, setModelProvider] = React.useState('')
-  const [modelName, setModelName] = React.useState('')
-  const [modelBaseUrl, setModelBaseUrl] = React.useState('')
-  const [modelKey, setModelKey] = React.useState('')
-  const [modelBusy, setModelBusy] = React.useState(false)
-  const [modelStatus, setModelStatus] = React.useState('')
-  const [modelConfirmation, setModelConfirmation] = React.useState('')
-  const [modelOptionsLoaded, setModelOptionsLoaded] = React.useState(false)
-  const [modelOptionsError, setModelOptionsError] = React.useState('')
-  const [savedModel, setSavedModel] = React.useState<SavedModel | null>(null)
-  const [modelPickerOpen, setModelPickerOpen] = React.useState(false)
-  const modelButtonRef = React.useRef<HTMLButtonElement>(null)
-  const modelPickerRef = React.useRef<HTMLDivElement>(null)
-  const [pickerPosition, setPickerPosition] = React.useState<React.CSSProperties>({})
-  const [pickerProviders, setPickerProviders] = React.useState<ModelProvider[]>([])
-  const [pickerProvider, setPickerProvider] = React.useState('')
-  const [pickerModelInput, setPickerModelInput] = React.useState('')
-  const [pickerBusy, setPickerBusy] = React.useState(false)
-  const [pickerError, setPickerError] = React.useState('')
-  const [pickerConfirmation, setPickerConfirmation] = React.useState<{ provider: string; model: string; remember: boolean; token: string; message: string } | null>(null)
-  const [addedModels, setAddedModels] = React.useState<Record<string, string[]>>({})
-  const [modelLists, setModelLists] = React.useState<Record<string, string[]>>({})
-  const [modelListBusy, setModelListBusy] = React.useState(false)
-  const [modelListLoading, setModelListLoading] = React.useState(true)
+  const [modelProviders, setModelProviders] = useState<ModelProvider[]>([])
+  const [configuredProviders, setConfiguredProviders] = useState<ModelProvider[]>([])
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([])
+  const [addingProvider, setAddingProvider] = useState(false)
+  const [newProviderPreset, setNewProviderPreset] = useState('')
+  const [providerFormError, setProviderFormError] = useState('')
+  const [newProviderName, setNewProviderName] = useState('')
+  const [newProviderUrl, setNewProviderUrl] = useState('')
+  const [newProviderModel, setNewProviderModel] = useState('')
+  const [newProviderKey, setNewProviderKey] = useState('')
+  const [newProviderMakeDefault, setNewProviderMakeDefault] = useState(true)
+  const [newProviderDiscoverModels, setNewProviderDiscoverModels] = useState(true)
+  const [modelFormOpen, setModelFormOpen] = useState(false)
+  const [modelProvider, setModelProvider] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [modelBaseUrl, setModelBaseUrl] = useState('')
+  const [modelKey, setModelKey] = useState('')
+  const [modelBusy, setModelBusy] = useState(false)
+  const [modelStatus, setModelStatus] = useState('')
+  const [modelConfirmation, setModelConfirmation] = useState('')
+  const [modelOptionsLoaded, setModelOptionsLoaded] = useState(false)
+  const [modelOptionsError, setModelOptionsError] = useState('')
+  const [savedModel, setSavedModel] = useState<SavedModel | null>(null)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const modelButtonRef = useRef<HTMLButtonElement | null>(null)
+  const modelPickerRef = useRef<HTMLDivElement | null>(null)
+  const [pickerPosition, setPickerPosition] = useState<React.CSSProperties>({})
+  const [pickerProviders, setPickerProviders] = useState<ModelProvider[]>([])
+  const [pickerProvider, setPickerProvider] = useState('')
+  const [pickerModelInput, setPickerModelInput] = useState('')
+  const [pickerBusy, setPickerBusy] = useState(false)
+  const [pickerError, setPickerError] = useState('')
+  const [pickerConfirmation, setPickerConfirmation] = useState<{ provider: string; model: string; remember: boolean; token: string; message: string } | null>(null)
+  const [addedModels, setAddedModels] = useState<Record<string, string[]>>({})
+  const [modelLists, setModelLists] = useState<Record<string, string[]>>({})
+  const [modelListBusy, setModelListBusy] = useState(false)
+  const [discoveryBusy, setDiscoveryBusy] = useState('')
+  const [modelListLoading, setModelListLoading] = useState(true)
+  const modelOptionsRequestRef = useRef(0)
   React.useEffect(() => {
-    setAddedModels(readAddedModels(storagePath))
-    const legacyLists = readModelLists(storagePath)
+    if (!profile) return
+    const scope: ProfileScope = { kind: 'profile', profile }
+    setAddedModels(readAddedModels(storagePath, profile))
+    const legacyLists = readModelLists(storagePath, profile)
     setModelLists(legacyLists)
     if (!storagePath) return
     let active = true
     setModelListLoading(true)
-    void models.loadLists(storagePath).then(saved => {
+    void models.loadLists(scope, storagePath).then(saved => {
       if (!active) return
       if (saved !== null) setModelLists(saved)
-      else if (Object.keys(legacyLists).length) return models.saveLists(storagePath, legacyLists)
+      else if (Object.keys(legacyLists).length) return models.saveLists(scope, storagePath, legacyLists)
     }).catch(cause => { if (active) setModelStatus(t('ui.failed.to.save.provider.models.arg', describeError(cause, language))) })
       .finally(() => { if (active) setModelListLoading(false) })
     return () => { active = false }
-  }, [storagePath])
+  }, [storagePath, profile])
   const selectedPreset = VOLCENGINE_PRESETS.find(preset => preset.id === modelProvider)
-  function savedCandidates(slug: string, providers: ModelProvider[]): string[] | undefined {
-    const row = providers.find(provider => provider.slug === slug)
-    const endpoint = customEndpoints.find(item => item.id === slug
-      || (row?.api_url && normalizedEndpoint(item.base_url) === normalizedEndpoint(row.api_url)))
+  function savedCandidates(slug: string): string[] | undefined {
+    const endpoint = endpointForProvider({ slug }, customEndpoints)
     return modelLists[endpoint?.id || slug] ?? modelLists[slug]
       ?? (endpoint ? modelLists[`custom:${endpoint.name.toLowerCase().replace(/\s+/g, '-')}`] : undefined)
   }
-  const backendCandidates = modelProviders.find(provider => provider.slug === modelProvider)?.models || []
-  const fallbackCandidates = selectedPreset?.models || MODEL_FALLBACKS[modelProvider] || []
-  const modelCandidates = savedCandidates(modelProvider, modelProviders) ?? [...new Set([...(backendCandidates.length > 0 ? backendCandidates : fallbackCandidates), ...(addedModels[modelProvider] || [])])]
-  const pickerModels = savedCandidates(pickerProvider, pickerProviders) ?? [...new Set([...(pickerProviders.find(row => row.slug === pickerProvider)?.models || []), ...(addedModels[pickerProvider] || [])])]
-  const newProviderPresetModels = newProviderPreset.startsWith('preset:')
-    ? VOLCENGINE_PRESETS.find(preset => `preset:${preset.id}` === newProviderPreset)?.models || []
-    : (() => {
-      const models = modelProviders.find(provider => provider.slug === newProviderPreset)?.models || []
-      return models.length ? models : MODEL_FALLBACKS[newProviderPreset] || []
-    })()
-  const visibleProviderModels = newProviderPresetModels.filter(model => model.toLowerCase().includes(modelSuggestionQuery.toLowerCase()))
+  function visibleModels(slug: string): string[] {
+    const endpoint = endpointForProvider({ slug }, customEndpoints)
+    const current = savedModel && (savedModel.provider === slug || endpoint?.is_current) ? savedModel.model : ''
+    const saved = savedCandidates(slug)
+    return [...new Set([...(saved ?? [endpoint?.model || '', ...(addedModels[slug] || [])]), current || ''].filter(Boolean))]
+  }
+  const modelCandidates = visibleModels(modelProvider)
+  const pickerModels = visibleModels(pickerProvider)
   const savedPreset = savedModel?.provider === 'custom'
     ? VOLCENGINE_PRESETS.find(preset => normalizedEndpoint(preset.baseUrl) === normalizedEndpoint(savedModel.baseUrl))
     : undefined
   const providerCards = configuredProviders
     .filter(provider => desktopModelProviderSupported(provider.slug) && (provider.slug !== 'custom' || !savedPreset))
-    .map(provider => ({ slug: provider.slug, name: provider.name, api_url: provider.api_url || '', is_user_defined: Boolean(provider.is_user_defined), models: provider.models.length ? provider.models : [...(MODEL_FALLBACKS[provider.slug] || [])] }))
-  if (savedModel && desktopModelProviderSupported(savedModel.provider)
-    && !providerCards.some(provider => provider.slug === (savedPreset?.id || savedModel.provider)
-      || (savedModel.baseUrl && normalizedEndpoint(provider.api_url) === normalizedEndpoint(savedModel.baseUrl)))
-    && !customEndpoints.some(endpoint => endpoint.source !== 'direct-config' && savedModel.baseUrl && normalizedEndpoint(endpoint.base_url) === normalizedEndpoint(savedModel.baseUrl))) {
-    providerCards.unshift({ slug: savedPreset?.id || savedModel.provider, name: t(savedModel.name), api_url: savedModel.baseUrl, is_user_defined: savedModel.provider === 'custom', models: savedPreset ? [...savedPreset.models] : [savedModel.model] })
+    .map(provider => ({ slug: provider.slug, name: provider.name, api_url: provider.api_url || '', is_user_defined: Boolean(provider.is_user_defined), is_current: provider.is_current, models: [] as string[] }))
+  if (savedModel?.provider && desktopModelProviderSupported(savedModel.provider)
+    && !providerCards.some(provider => provider.slug === (savedPreset?.id || savedModel.provider) || provider.is_current)
+    && !customEndpoints.some(endpoint => endpoint.source !== 'direct-config' && endpoint.is_current)) {
+    providerCards.unshift({ slug: savedPreset?.id || savedModel.provider, name: t(savedModel.name), api_url: savedModel.baseUrl, is_user_defined: savedModel.provider === 'custom', is_current: true, models: [] })
   }
+  const representedEndpointIds = new Set(providerCards.map(provider => endpointForProvider(provider, customEndpoints)?.id).filter(Boolean))
   for (const endpoint of customEndpoints) {
-    if (endpoint.source === 'direct-config' || providerCards.some(provider => provider.slug === endpoint.id || (provider.api_url && normalizedEndpoint(provider.api_url) === normalizedEndpoint(endpoint.base_url)))) continue
-    providerCards.push({ slug: endpoint.id, name: endpoint.name, api_url: endpoint.base_url, is_user_defined: true, models: endpoint.models.length ? endpoint.models : [endpoint.model] })
+    if (endpoint.source === 'direct-config' || representedEndpointIds.has(endpoint.id)) continue
+    providerCards.push({ slug: endpoint.id, name: endpoint.name, api_url: endpoint.base_url, is_user_defined: true, is_current: endpoint.is_current, models: [] })
   }
 
   React.useEffect(() => {
@@ -123,11 +139,11 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     const above = rect.top - 12
     const below = window.innerHeight - rect.bottom - 12
     setPickerPosition(above >= 260 || above >= below
-      ? { left, bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(390, Math.max(120, above - 8)) }
-      : { left, top: rect.bottom + 8, maxHeight: Math.min(390, Math.max(120, below - 8)) })
-  }, [])
+      ? { left, bottom: window.innerHeight - rect.top + 8, height: Math.min(390, Math.max(120, above - 8)) }
+      : { left, top: rect.bottom + 8, height: Math.min(390, Math.max(120, below - 8)) })
+  }, [workspace])
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!modelPickerOpen) return
     positionModelPicker()
     const dismiss = (event: PointerEvent) => {
@@ -144,46 +160,56 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       document.removeEventListener('keydown', escape)
     }
   }, [modelPickerOpen, positionModelPicker])
-  async function loadModelOptions(preserveSelection = false) {
+  async function loadModelOptions() {
+    const request = ++modelOptionsRequestRef.current
     setModelBusy(true)
     setModelOptionsError('')
-    setModelStatus(preserveSelection ? t("ui.refreshing.backend.model.directory") : t("ui.loading.model.options"))
+    setModelStatus(t("ui.loading.model.options"))
     try {
-      const [result, configured, config, endpoints] = await Promise.all([
-        models.options({ refresh: preserveSelection }),
-        models.options({ refresh: false, includeUnconfigured: false }),
-        models.savedConfig(),
-        models.endpoints(),
+      const scope = profileScope()
+      const configPromise = models.savedConfig(scope)
+      void configPromise.then(config => {
+        if (request === modelOptionsRequestRef.current) {
+          setSavedModel(savedModelFromOptions({ providers: [] }, config))
+        }
+      }).catch(() => { /* Model options may still provide the default. */ })
+      const [optionsResult, configuredResult, configResult, endpointsResult] = await Promise.allSettled([
+        models.options(scope, { refresh: false }),
+        models.options(scope, { refresh: false, includeUnconfigured: false }),
+        configPromise,
+        models.endpoints(scope),
       ])
-      setCustomEndpoints(endpoints.endpoints || [])
+      if (request !== modelOptionsRequestRef.current) return
+      if (optionsResult.status === 'rejected' && configResult.status === 'rejected') throw configResult.reason
+      const result = optionsResult.status === 'fulfilled' ? optionsResult.value : { providers: [] }
+      const config = configResult.status === 'fulfilled' ? configResult.value : { provider: '', model: '', base_url: '' }
+      if (endpointsResult.status === 'fulfilled') setCustomEndpoints(endpointsResult.value.endpoints || [])
       const availableProviders = (result.providers || []).filter(provider => desktopModelProviderSupported(provider.slug))
       setModelProviders(availableProviders)
-      setConfiguredProviders((configured.providers || []).filter(provider => desktopModelProviderSupported(provider.slug) && provider.authenticated !== false))
-      const saved = savedModelFromOptions(result, config)
+      if (configuredResult.status === 'fulfilled') {
+        setConfiguredProviders((configuredResult.value.providers || []).filter(provider => desktopModelProviderSupported(provider.slug) && provider.authenticated !== false))
+      }
+      const displayOptions = { ...result, providers: configuredResult.status === 'fulfilled' ? configuredResult.value.providers : [] }
+      const saved = savedModelFromOptions(displayOptions, config)
       setSavedModel(saved)
       setModelOptionsLoaded(true)
-      if (!preserveSelection) {
-        const preset = saved?.provider === 'custom'
-          ? VOLCENGINE_PRESETS.find(item => item.baseUrl.replace(/\/$/, '').toLowerCase() === saved.baseUrl.replace(/\/$/, '').toLowerCase())
-          : undefined
-        const savedProviderSupported = saved && desktopModelProviderSupported(saved.provider)
-        setModelProvider(preset?.id || (savedProviderSupported ? saved.provider : '') || availableProviders[0]?.slug || 'custom')
-        setModelName(savedProviderSupported ? saved.model : '')
-        setModelBaseUrl(saved?.provider === 'custom' ? saved.baseUrl : '')
-      }
-      if (preserveSelection) {
-        const count = result.providers?.find(provider => provider.slug === modelProvider)?.models?.length || 0
-        setModelStatus(selectedPreset
-          ? t("ui.the.backend.directory.has.been.refreshed.volcano.ark.s.built.in.reference.c")
-          : t("ui.backend.catalog.refreshed.current.provider.returned.arg.models.arg", count, count ? '' : t('ui.built.in.examples.or.manual.entry.remain.available')))
-      } else {
-        setModelStatus('')
-      }
+      const preset = saved?.provider === 'custom'
+        ? VOLCENGINE_PRESETS.find(item => item.baseUrl.replace(/\/$/, '').toLowerCase() === saved.baseUrl.replace(/\/$/, '').toLowerCase())
+        : undefined
+      const savedProviderSupported = saved?.provider && desktopModelProviderSupported(saved.provider)
+      setModelProvider(preset?.id || (savedProviderSupported ? saved.provider : '') || availableProviders[0]?.slug || 'custom')
+      setModelName(savedProviderSupported ? saved.model : '')
+      setModelBaseUrl(saved?.provider === 'custom' ? saved.baseUrl : '')
+      const failed = [optionsResult, configuredResult, configResult, endpointsResult].find(item => item.status === 'rejected')
+      setModelStatus(failed?.status === 'rejected'
+        ? t('ui.failed.to.load.model.options.arg', describeError(failed.reason, language)) : '')
     } catch (cause) {
-      setModelOptionsError(describeError(cause, language))
-      setModelStatus(t("ui.failed.to.load.model.options.arg", describeError(cause, language)))
+      if (request === modelOptionsRequestRef.current) {
+        setModelOptionsError(describeError(cause, language))
+        setModelStatus(t("ui.failed.to.load.model.options.arg", describeError(cause, language)))
+      }
     }
-    finally { setModelBusy(false) }
+    finally { if (request === modelOptionsRequestRef.current) setModelBusy(false) }
   }
 
   function selectModelProvider(provider: string, model = '', fresh = false) {
@@ -196,9 +222,10 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
   }
 
   async function persistModelLists(next: Record<string, string[]>) {
-    await models.saveLists(storagePath, next)
+    const scope = profileScope()
+    await models.saveLists(scope, storagePath, next)
     setModelLists(next)
-    try { localStorage.setItem(`${MODEL_LISTS_KEY}:${storagePath}`, JSON.stringify(next)) } catch { /* Native storage is authoritative. */ }
+    try { localStorage.setItem(`${MODEL_LISTS_KEY}:${modelStorageKey(storagePath, scope.profile)}`, JSON.stringify(next)) } catch { /* Native storage is authoritative. */ }
   }
 
   async function saveProviderModels(provider: string, models: string[]): Promise<boolean> {
@@ -223,6 +250,38 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     } finally { setModelListBusy(false) }
   }
 
+  async function setProviderDiscovery(endpoint: CustomEndpoint, enabled: boolean) {
+    if (discoveryBusy || modelListBusy || endpoint.source === 'direct-config') return
+    setDiscoveryBusy(endpoint.id)
+    try {
+      await models.setEndpointDiscovery(profileScope(), endpoint.id, enabled)
+      const updated = await models.endpoints(profileScope()).catch(() => null)
+      setCustomEndpoints(current => updated?.endpoints || current.map(item => item.id === endpoint.id ? { ...item, discover_models: enabled } : item))
+      setModelStatus(t('ui.provider.discovery.saved'))
+    } catch (cause) {
+      setModelStatus(t('ui.provider.discovery.failed.arg', describeError(cause, language)))
+    } finally { setDiscoveryBusy('') }
+  }
+
+  async function syncProviderModels(provider: string, modelListKey: string): Promise<void> {
+    if (discoveryBusy || modelListBusy || modelListLoading) return
+    setDiscoveryBusy(modelListKey)
+    setModelListBusy(true)
+    try {
+      const result = await models.options(profileScope(), { refresh: true, includeUnconfigured: false })
+      const row = result.providers.find(item => item.slug === provider)
+      if (!row?.is_user_defined) throw new Error(t('ui.provider.sync.no.catalog'))
+      const previous = visibleModels(provider)
+      const nextIds = appendModelIds(previous, row.models || [])
+      if (nextIds.length > previous.length) {
+        await persistModelLists({ ...modelLists, [modelListKey]: nextIds })
+      }
+      setModelStatus(t('ui.provider.sync.finished.arg', nextIds.length - previous.length))
+    } catch (cause) {
+      setModelStatus(t('ui.provider.sync.failed.arg', describeError(cause, language)))
+    } finally { setDiscoveryBusy(''); setModelListBusy(false) }
+  }
+
   async function addProvider() {
     if (!newProviderName.trim() || !newProviderUrl.trim() || !newProviderModel.trim()) return
     if (customEndpoints.some(endpoint => normalizedEndpoint(endpoint.base_url) === normalizedEndpoint(newProviderUrl))) {
@@ -231,17 +290,17 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     }
     setModelBusy(true)
     try {
-      await models.addEndpoint({ name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey })
+      await models.addEndpoint(profileScope(), { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey, makeDefault: newProviderMakeDefault, discoverModels: newProviderDiscoverModels })
       setAddingProvider(false)
       setNewProviderPreset('')
       setProviderFormError('')
       setNewProviderName('')
       setNewProviderUrl('')
       setNewProviderModel('')
-      setModelSuggestionsOpen(false)
-      setModelSuggestionQuery('')
       setNewProviderKey('')
-      await loadModelOptions(true)
+      setNewProviderMakeDefault(true)
+      setNewProviderDiscoverModels(true)
+      await loadModelOptions()
       setModelStatus(t('ui.provider.added'))
     } catch (cause) { setProviderFormError(t('ui.provider.add.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
@@ -250,8 +309,6 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
   function chooseProviderPreset(value: string) {
     setNewProviderPreset(value)
     setProviderFormError('')
-    setModelSuggestionsOpen(false)
-    setModelSuggestionQuery('')
     if (!value) {
       setNewProviderName('')
       setNewProviderUrl('')
@@ -262,20 +319,19 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     const provider = modelProviders.find(item => item.slug === value)
     setNewProviderName(preset ? t(preset.name) : provider?.name || '')
     setNewProviderUrl(preset?.baseUrl || provider?.api_url || '')
-    setNewProviderModel(preset?.models[0] || provider?.models[0] || MODEL_FALLBACKS[value]?.[0] || '')
+    setNewProviderModel(preset?.defaultModel || '')
   }
 
   async function deleteProvider(endpoint: CustomEndpoint) {
-    if (endpoint.source === 'direct-config' || (endpoint.is_current && savedModel?.provider === 'custom')) {
-      setModelStatus(t('ui.switch.default.before.deleting.provider'))
-      return
-    }
-    if (!window.confirm(t('ui.delete.provider.confirm.arg', endpoint.name))) return
+    const confirmKey = endpoint.source === 'direct-config'
+      ? 'ui.delete.direct.provider.confirm.arg'
+      : 'ui.delete.provider.confirm.arg'
+    if (!window.confirm(t(confirmKey, endpoint.name))) return
     setModelBusy(true)
     try {
-      await models.deleteEndpoint(endpoint.id)
+      await models.deleteEndpoint(profileScope(), endpoint.id)
       if (modelProvider === endpoint.id) setModelFormOpen(false)
-      await loadModelOptions(false)
+      await loadModelOptions()
       setModelStatus(t('ui.provider.deleted'))
     } catch (cause) { setModelStatus(t('ui.provider.delete.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
@@ -286,7 +342,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setModelBusy(true)
     setModelStatus(t("ui.saving.model.configuration"))
     try {
-      const result = await models.setDefault({
+      const result = await models.setDefault(profileScope(), {
         provider: selectedPreset ? 'custom' : modelProvider.trim(), model: modelName.trim(),
         baseUrl: modelBaseUrl.trim(), apiKey: modelKey,
         confirmExpensiveModel: confirm,
@@ -315,25 +371,26 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
   async function checkModel() {
     setModelBusy(true)
     try {
-      const result = await models.checkRuntime()
+      const result = await models.checkRuntime(profileScope())
       setModelStatus(result.ok ? t("ui.runtime.recognized.arg.arg", result.provider || '', result.model || '')
         : t("ui.runtime.not.ready.arg", t("ui.check.the.key.and.model.settings")))
     } catch (cause) { setModelStatus(t("ui.check.model.failed.arg", describeError(cause, language))) }
     finally { setModelBusy(false) }
   }
 
-  async function openModelPicker(refresh = true) {
+  async function openModelPicker() {
     if (!backend) return
     setModelPickerOpen(true)
     setPickerBusy(true)
     setPickerError('')
     try {
-      const result = await models.options({
-        refresh, includeUnconfigured: false, sessionId: sessionRef.current || undefined,
-      })
+      const scope = sessionRef.current ? sessionScope(sessionRef.current) : profileScope()
+      const result = await models.options(scope, { refresh: false, includeUnconfigured: false })
       const providers = (result.providers || []).filter(row => desktopModelProviderSupported(row.slug) && row.authenticated !== false)
       setPickerProviders(providers)
-      setActiveModel(result.model && result.provider ? { provider: result.provider, model: result.model } : null)
+      if (sessionRef.current) {
+        setActiveModel(result.model && result.provider ? { provider: result.provider, model: result.model } : null)
+      }
       setPickerProvider(current => providers.some(row => row.slug === current) ? current
         : providers.find(row => row.slug === result.provider)?.slug || providers[0]?.slug || '')
     } catch (cause) { setPickerError(describeError(cause, language)) }
@@ -345,8 +402,9 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     setPickerBusy(true)
     setPickerError('')
     try {
-      const id = await ensureChatSession()
-      const result = await models.selectChat({ sessionId: id, provider, model: model.trim(), confirm })
+      const result = sessionRef.current
+        ? await models.selectChat(sessionScope(sessionRef.current), { provider, model: model.trim(), confirm })
+        : { provider, model: model.trim(), status: 'selected' }
       if (result.confirm_required && result.confirm) {
         setPickerConfirmation({ provider, model: model.trim(), remember, token: result.confirm, message: result.confirm_message || t('ui.please.confirm.model.selection') })
         return
@@ -356,22 +414,23 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
       setPickerConfirmation(null)
       let remembered = true
       if (remember) {
-        const pickerRow = pickerProviders.find(row => row.slug === provider)
-        const endpoint = customEndpoints.find(item => item.id === provider || (pickerRow?.api_url && normalizedEndpoint(item.base_url) === normalizedEndpoint(pickerRow.api_url)))
+        const endpoint = endpointForProvider({ slug: provider }, customEndpoints)
         const modelListKey = endpoint?.id || provider
-        const savedList = savedCandidates(provider, pickerProviders)
+        const savedList = savedCandidates(provider)
         if (savedList) {
           const next = { ...modelLists, [modelListKey]: [...new Set([...savedList, model.trim()])] }
           try { await persistModelLists(next) }
           catch { remembered = false }
         } else {
           const next = { ...addedModels, [provider]: [...new Set([...(addedModels[provider] || []), model.trim()])] }
-          try { localStorage.setItem(`${ADDED_MODELS_KEY}:${storagePath}`, JSON.stringify(next)); setAddedModels(next) }
+          try { localStorage.setItem(`${ADDED_MODELS_KEY}:${modelStorageKey(storagePath, sessionProfileRef.current || profileRef.current || '')}`, JSON.stringify(next)); setAddedModels(next) }
           catch { remembered = false }
         }
         setPickerModelInput('')
       }
-      setChatStatus(remembered ? t('ui.model.switched.for.session.arg', result.model) : t('ui.failed.to.save.model.id'))
+      setChatStatus(remembered
+        ? sessionRef.current ? t('ui.model.switched.for.session.arg', result.model) : t('ui.model.selected.for.new.session.arg', result.model)
+        : t('ui.failed.to.save.model.id'))
       setModelPickerOpen(false)
     } catch (cause) { setPickerError(describeError(cause, language)) }
     finally { setPickerBusy(false) }
@@ -389,7 +448,7 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     modelProviders, configuredProviders, customEndpoints, addingProvider, setAddingProvider,
     newProviderPreset, providerFormError, setProviderFormError, newProviderName, setNewProviderName,
     newProviderUrl, setNewProviderUrl, newProviderModel, setNewProviderModel,
-    modelSuggestionsOpen, setModelSuggestionsOpen, modelSuggestionQuery, setModelSuggestionQuery,
+    newProviderMakeDefault, setNewProviderMakeDefault, newProviderDiscoverModels, setNewProviderDiscoverModels,
     newProviderKey, setNewProviderKey, modelFormOpen, setModelFormOpen, modelProvider,
     modelName, setModelName, modelBaseUrl, setModelBaseUrl, modelKey, setModelKey,
     modelBusy, modelStatus, modelConfirmation, setModelConfirmation,
@@ -397,9 +456,8 @@ export function useModelController({ backend, storagePath, t, sessionRef, turnBu
     modelPickerOpen, setModelPickerOpen, modelButtonRef, modelPickerRef, pickerPosition,
     pickerProviders, pickerProvider, setPickerProvider, pickerModelInput, setPickerModelInput,
     pickerBusy, pickerError, pickerConfirmation, addedModels, modelLists, modelListBusy,
-    modelListLoading, selectedPreset, backendCandidates, fallbackCandidates, modelCandidates,
-    pickerModels, newProviderPresetModels, visibleProviderModels, providerCards,
-    loadModelOptions, selectModelProvider, saveProviderModels, addProvider, chooseProviderPreset,
+    modelListLoading, discoveryBusy, selectedPreset, modelCandidates, pickerModels, providerCards, visibleModels,
+    loadModelOptions, selectModelProvider, saveProviderModels, setProviderDiscovery, syncProviderModels, addProvider, chooseProviderPreset,
     deleteProvider, saveModel, checkModel, openModelPicker, pickModel, resetModel,
   }
 }

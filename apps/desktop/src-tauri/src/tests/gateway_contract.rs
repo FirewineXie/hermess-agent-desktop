@@ -12,18 +12,20 @@ fn forwards_reasoning_content_events() {
 fn event_serialization_uses_contract_fields() {
     let with_session = GatewayEvent {
         kind: "message.delta".into(),
+        profile: Some("writer".into()),
         session_id: Some("session-fixture".into()),
         seq: Some(2),
         payload: json!({"text":"hello"}),
     };
     let without_session = GatewayEvent {
         kind: "status.update".into(),
+        profile: None,
         session_id: None,
         seq: None,
         payload: json!({}),
     };
     let expected = json!({
-        "kind": "message.delta", "session_id": "session-fixture",
+        "kind": "message.delta", "profile": "writer", "session_id": "session-fixture",
         "seq": 2, "payload": {"text": "hello"}
     });
     let expected_no_session = json!({"kind": "status.update", "payload": {}});
@@ -39,6 +41,7 @@ fn request_serialization_uses_contract_fields() {
     let request = GatewayServerRequest {
         id: "srq-1".into(),
         method: "approval".into(),
+        profile: Some("writer".into()),
         params: json!({
             "session_id":"session-fixture",
             "request_id":"request-fixture",
@@ -49,7 +52,7 @@ fn request_serialization_uses_contract_fields() {
         }),
     };
     let expected = json!({
-        "id": "srq-1", "method": "approval", "params": {
+        "id": "srq-1", "method": "approval", "profile": "writer", "params": {
             "session_id": "session-fixture", "request_id": "request-fixture",
             "description": "Run a tool", "command": "tool command",
             "choices": ["once", "deny"], "tool_name": null
@@ -59,6 +62,7 @@ fn request_serialization_uses_contract_fields() {
     let clarify = GatewayServerRequest {
         id: "srq-2".into(),
         method: "clarify".into(),
+        profile: Some("writer".into()),
         params: json!({
             "session_id":"session-fixture",
             "questions":[{"qid":"q1","question":"Which option?","choices":null}],
@@ -66,7 +70,7 @@ fn request_serialization_uses_contract_fields() {
         }),
     };
     let expected_clarify = json!({
-        "id": "srq-2", "method": "clarify", "params": {
+        "id": "srq-2", "method": "clarify", "profile": "writer", "params": {
             "session_id": "session-fixture",
             "questions": [{"qid": "q1", "question": "Which option?", "choices": null}],
             "answers": {"q1": null}

@@ -1,4 +1,4 @@
-use super::{config::config_request, BackendState};
+use super::{config::config_request_for_scope, profile_scope::ResolvedProfileScope, BackendState};
 use crate::errors::DesktopFailure;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -177,15 +177,25 @@ fn write_checked(
 #[tauri::command]
 pub async fn read_personal_file(
     state: State<'_, BackendState>,
+    profile: String,
     kind: PersonalFileKind,
 ) -> Result<PersonalFile, DesktopFailure> {
-    let home = state.profile_home().await?;
+    let scope = state.resolve_profile(&profile).await?;
+    read_personal_file_for_scope(&state, &scope, kind).await
+}
+
+async fn read_personal_file_for_scope(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    kind: PersonalFileKind,
+) -> Result<PersonalFile, DesktopFailure> {
     let config = if kind.config_keys().is_some() {
-        config_request(&state, reqwest::Method::GET, "/api/config", None).await?
+        config_request_for_scope(state, scope, reqwest::Method::GET, "/api/config", None).await?
     } else {
         Value::Null
     };
-    let path = home.join(kind.relative_path());
+    scope.ensure_current(state).await?;
+    let path = scope.home.join(kind.relative_path());
     let raw = read_bytes(&path)?;
     let content = decode(raw.as_deref())?;
     let entries = if kind.config_keys().is_some() {
@@ -194,6 +204,7 @@ pub async fn read_personal_file(
         vec![]
     };
     let (enabled, limit) = memory_config(&config, kind);
+    scope.ensure_current(state).await?;
     Ok(PersonalFile {
         kind,
         path: path.to_string_lossy().into_owned(),
@@ -213,27 +224,33 @@ pub async fn read_personal_file(
 #[tauri::command]
 pub async fn save_personal_file(
     state: State<'_, BackendState>,
+    profile: String,
     kind: PersonalFileKind,
     content: Option<String>,
     entries: Option<Vec<String>>,
     expected_version: String,
 ) -> Result<PersonalFile, DesktopFailure> {
+    let scope = state.resolve_profile(&profile).await?;
     let value = if kind.config_keys().is_some() {
         let entries = entries.ok_or_else(DesktopFailure::invalid_input)?;
-        let config = config_request(&state, reqwest::Method::GET, "/api/config", None).await?;
+        let config =
+            config_request_for_scope(&state, &scope, reqwest::Method::GET, "/api/config", None)
+                .await?;
         let (_, limit) = memory_config(&config, kind);
         memory_text(&entries, limit.unwrap_or(0))?
     } else {
         content.ok_or_else(DesktopFailure::invalid_input)?
     };
-    let path = state.profile_home().await?.join(kind.relative_path());
+    scope.ensure_current(&state).await?;
+    let path = scope.home.join(kind.relative_path());
     write_checked(
         &path,
         &path.with_extension("md.lock"),
         &expected_version,
         &value,
     )?;
-    read_personal_file(state, kind).await
+    scope.ensure_current(&state).await?;
+    read_personal_file_for_scope(&state, &scope, kind).await
 }
 
 #[cfg(test)]

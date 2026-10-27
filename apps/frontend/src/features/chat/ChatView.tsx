@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ModelProvider } from '@hermess/contracts'
+import type { ModelProvider, ProfilesSnapshot } from '@hermess/contracts'
 import type { ModelPick, SavedModel } from '../models/model'
 import { localizeAppMessage } from '../../i18n'
 import type { useChatController } from './useChatController'
@@ -39,12 +39,17 @@ type Props = {
   controller: ReturnType<typeof useChatController>
   workspacePath: string
   onOpenWorkspaces: () => void
+  panelOpen: boolean
+  onTogglePanel: () => void
   picker: Picker
   onOpenRuntime: () => void
   onOpenModelSettings: () => void
+  profiles: ProfilesSnapshot | null
+  profileBusy: boolean
+  onSelectProfile: (name: string) => void
 }
 
-export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, picker, onOpenRuntime, onOpenModelSettings }: Props) {
+export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, profiles, profileBusy, onSelectProfile }: Props) {
   const backend = connected
   const openView = (view: 'runtime' | 'model') => view === 'runtime' ? onOpenRuntime() : onOpenModelSettings()
   const {
@@ -76,15 +81,20 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
   }, [conversation, assistant, serverRequest, sessionId, userCount])
 
-  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${conversation.length === 0 && !assistant ? 'chat-empty' : ''}`}>
-      <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
-        <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button></div>
+  const empty = conversation.length === 0 && !assistant && !sessionId
+  const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
+  const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件与终端' : 'Files & terminal')
+  const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
+  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`}>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={() => openView('runtime')}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
+      {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
+      {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
+        <div className="chat-workspace-actions"><button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>{panelToggle}</div></div>}
       <div ref={contentRef} className="chat-content" onScroll={event => {
         const content = event.currentTarget
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
       }}>
-      <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />
+      {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
       {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={setClarifyAnswer}
         onSubmit={choice => void answerRequest(choice)} />}
@@ -115,10 +125,13 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
-      <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
+      <CommandSuggestions visible={Boolean(trigger && sessionId)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
       <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
+        {!sessionId && profiles && <label className="composer-profile-picker"><span className="sr-only">Profile</span><select aria-label="Profile" value={profiles.selected} disabled={profileBusy || navigationBusy} onChange={event => onSelectProfile(event.target.value)}>
+          {profiles.profiles.map(profile => <option value={profile.name} key={profile.name} disabled={profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}</option>)}
+        </select></label>}
         <span className="composer-spacer" />
         <ContextUsageIndicator usage={chatUsage} language={language} />
         <label className="reasoning-picker">
@@ -131,18 +144,19 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
         </label>
-        <button ref={modelButtonRef} className="secondary-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
-        {turnBusy ? <button onClick={() => void interruptSession()}>{t("ui.stop")}</button>
+        <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
+        {turnBusy ? <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
           : canContinue && !hasSubmission
-            ? <button disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
-            : <button disabled={navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
+            : <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
-        activeModel={activeModel} turnBusy={turnBusy} t={t} onRefresh={() => void openModelPicker(true)} onClose={() => setModelPickerOpen(false)}
+        activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); openView('model') }} />}
-      </div><small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
+      </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
+      <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
         : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}

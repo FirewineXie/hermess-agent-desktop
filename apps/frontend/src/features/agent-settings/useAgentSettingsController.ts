@@ -1,56 +1,68 @@
 import React from 'react'
 import { useLanguage, translateAgentUi, agentFieldTranslation } from '../../i18n'
 import { useDesktop } from '../../app/DesktopContext'
+import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { getField, fieldText, type Field, type Schema, type RawConfig, type Provider } from './model'
 
 type Options = {
   connected: boolean
+  profile: string | null
+  epoch: string | null
   storagePath: string
   onDirtyChange: (dirty: boolean) => void
 }
 
-export function useAgentSettingsController({ connected, storagePath, onDirtyChange }: Options) {
+export function useAgentSettingsController({ connected, profile, epoch, storagePath, onDirtyChange }: Options) {
   const { agentSettings, models } = useDesktop()
+  const workspace = workspaceKey(epoch, profile)
+  let stateSlot = 0
+  const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `agent-settings:${stateSlot++}`)
+  function profileScope() {
+    if (!profile) throw new Error('No active Profile')
+    return { kind: 'profile' as const, profile }
+  }
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
   const t = React.useCallback((key: string, ...values: unknown[]) => translateAgentUi(languageRef.current, key, ...values), [])
-  const [schema, setSchema] = React.useState<Schema | null>(null)
-  const [config, setConfig] = React.useState<Record<string, unknown>>({})
-  const [raw, setRaw] = React.useState<RawConfig | null>(null)
-  const [yamlDraft, setYamlDraft] = React.useState('')
-  const [drafts, setDrafts] = React.useState<Record<string, string>>({})
-  const [editingKey, setEditingKey] = React.useState<string | null>(null)
-  const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(() => new Set())
-  const [search, setSearch] = React.useState('')
-  const [mode, setMode] = React.useState<'form' | 'yaml'>('form')
-  const [section, setSection] = React.useState<'main' | 'auxiliary' | 'approval' | 'advanced'>('auxiliary')
-  const [providers, setProviders] = React.useState<Provider[]>([])
-  const [editingTask, setEditingTask] = React.useState<string | null>(null)
-  const [auxProvider, setAuxProvider] = React.useState('auto')
-  const [auxModel, setAuxModel] = React.useState('')
-  const [auxEffort, setAuxEffort] = React.useState('')
-  const [auxTimeout, setAuxTimeout] = React.useState('')
-  const [busy, setBusy] = React.useState(false)
-  const [status, setStatus] = React.useState('')
-  const loadRequestRef = React.useRef(0)
+  const [schema, setSchema] = useState<Schema | null>(null)
+  const [config, setConfig] = useState<Record<string, unknown>>({})
+  const [raw, setRaw] = useState<RawConfig | null>(null)
+  const [yamlDraft, setYamlDraft] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
+  const [search, setSearch] = useState('')
+  const [mode, setMode] = useState<'form' | 'yaml'>('form')
+  const [section, setSection] = useState<'main' | 'auxiliary' | 'approval' | 'advanced'>('auxiliary')
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [editingTask, setEditingTask] = useState<string | null>(null)
+  const [auxProvider, setAuxProvider] = useState('auto')
+  const [auxModel, setAuxModel] = useState('')
+  const [auxEffort, setAuxEffort] = useState('')
+  const [auxTimeout, setAuxTimeout] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const loadRequestRef = useProfileRef(workspace, 0)
 
   const load = React.useCallback(async (savedKey?: string) => {
-    if (!connected) return false
+    if (!connected || !profile) return false
+    const scope = { kind: 'profile' as const, profile }
     const request = ++loadRequestRef.current
     setBusy(true)
     setStatus(t("ui.loading.agent.settings"))
     try {
       const [nextSchema, nextConfig, nextRaw] = await Promise.all([
-        agentSettings.schema(),
-        agentSettings.config(),
-        agentSettings.raw(),
+        agentSettings.schema(scope),
+        agentSettings.config(scope),
+        agentSettings.raw(scope),
       ])
       const [options, endpoints, savedLists] = await Promise.allSettled([
-        models.options({ refresh: false, includeUnconfigured: false }),
-        models.endpoints(),
-        models.loadLists(storagePath),
+        models.options(scope, { refresh: false, includeUnconfigured: false }),
+        models.endpoints(scope),
+        models.loadLists(scope, storagePath),
       ])
       const choices = options.status === 'fulfilled'
         ? (options.value.providers || []).filter(item => item.authenticated !== false && !['copilot-acp', 'custom'].includes(item.slug)) : []
@@ -82,18 +94,19 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
         return remaining
       })
       setStatus(t("ui.current.runtime.configuration.loaded"))
+      setLoaded(true)
       return true
     } catch (error) {
       if (request === loadRequestRef.current) setStatus(t("ui.load.failed.arg", describeError(error, language)))
       return false
     }
     finally { if (request === loadRequestRef.current) setBusy(false) }
-  }, [connected, storagePath])
+  }, [connected, profile, storagePath])
 
   React.useEffect(() => {
-    void load()
+    if (!loaded) void load()
     return () => { ++loadRequestRef.current }
-  }, [load])
+  }, [load, loaded])
 
   const dirtyYaml = raw !== null && yamlDraft !== raw.yaml
   const dirtyFields = Object.entries(drafts).some(([key, value]) =>
@@ -141,9 +154,10 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
     } catch (error) { setStatus(`${key}：${describeError(error, language)}`); return }
     setBusy(true)
     try {
-      await agentSettings.saveField(key, value)
+      const scope = profileScope()
+      await agentSettings.saveField(scope, key, value)
       if (key === 'agent.reasoning_effort') {
-        const saved = await agentSettings.config()
+        const saved = await agentSettings.config(scope)
         if (String(getField(saved, key) ?? '') !== text) {
           throw new Error(language === 'zh-CN' ? '默认思考强度保存后回读不一致' : 'Default reasoning did not match after saving')
         }
@@ -161,7 +175,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
     if (!window.confirm(t("ui.the.raw.yaml.will.replace.all.of.config.yaml.save.the.complete.content"))) return
     setBusy(true)
     try {
-      await agentSettings.saveRaw(yamlDraft, raw?.yaml || '')
+      await agentSettings.saveRaw(profileScope(), yamlDraft, raw?.yaml || '')
       if (await load()) setStatus(t("ui.full.configuration.saved.some.settings.take.effect.in.a.new.session.or.afte"))
     } catch (error) { setStatus(t("ui.save.failed.arg", describeError(error, language))) }
     finally { setBusy(false) }
@@ -185,7 +199,7 @@ export function useAgentSettingsController({ connected, storagePath, onDirtyChan
     }
     setBusy(true)
     try {
-      await agentSettings.saveAuxiliary({
+      await agentSettings.saveAuxiliary(profileScope(), {
         task, provider: auxProvider, model: auxProvider === 'auto' ? '' : auxModel,
         effort: auxEffort, timeout: auxTimeout ? Number(auxTimeout) : null,
       })

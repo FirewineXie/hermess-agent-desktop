@@ -1,6 +1,7 @@
 // Generated from schema/gateway-request.schema.json. Run pnpm generate:contracts.
 export type GatewayRequest = {
   id: string
+  profile?: string
   method: "approval"
   params: {
     session_id: string
@@ -16,6 +17,7 @@ export type GatewayRequest = {
   } & Record<string, unknown>
 } | {
   id: string
+  profile?: string
   method: "clarify"
   params: {
     session_id: string

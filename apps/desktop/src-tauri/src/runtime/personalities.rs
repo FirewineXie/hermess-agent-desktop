@@ -1,5 +1,6 @@
 use super::{python_for_hermes, BackendState};
 use crate::errors::DesktopFailure;
+use crate::process_manager;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
@@ -46,41 +47,31 @@ print(json.dumps({'active': active_personality_name(cfg) or 'none', 'entries': e
 
 async fn run(
     state: &State<'_, BackendState>,
+    profile: &str,
     mode: &str,
     name: &str,
     prompt: &str,
 ) -> Result<Value, DesktopFailure> {
-    let (hermes, home, profile) = {
-        let owned = state.0.lock().await;
-        let backend = owned
-            .as_ref()
-            .ok_or_else(DesktopFailure::runtime_unavailable)?;
-        let home = backend.storage.join("hermes-home");
-        let home = if backend.selected_profile == "default" {
-            home
-        } else {
-            home.join("profiles").join(&backend.selected_profile)
-        };
-        (
-            backend.hermes.clone(),
-            home,
-            backend.selected_profile.clone(),
-        )
-    };
-    let mut command = Command::new(python_for_hermes(&hermes).map_err(DesktopFailure::from)?);
+    let scope = state.resolve_profile(profile).await?;
+    scope.ensure_current(state).await?;
+    let mut command = Command::new(python_for_hermes(&scope.hermes).map_err(DesktopFailure::from)?);
     command
         .args(["-P", "-u", "-c", SCRIPT, mode, name, prompt])
-        .env("HERMES_HOME", home)
+        .env("HERMES_HOME", &scope.home)
         .env("PYTHONIOENCODING", "utf-8")
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(Duration::from_secs(15), command.output())
-        .await
-        .map_err(|_| DesktopFailure::timeout())?
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    let output = timeout(
+        Duration::from_secs(15),
+        process_manager::output(&mut command, "personality_helper"),
+    )
+    .await
+    .map_err(|_| DesktopFailure::timeout())?
+    .map_err(|_| DesktopFailure::operation_failed())?;
+    scope.ensure_current(state).await?;
     if !output.status.success() {
         return Err(if output.status.code() == Some(3) {
             DesktopFailure::conflict()
@@ -90,18 +81,22 @@ async fn run(
     }
     let mut snapshot: Value =
         serde_json::from_slice(&output.stdout).map_err(|_| DesktopFailure::operation_failed())?;
-    snapshot["profile"] = json!(profile);
+    snapshot["profile"] = json!(scope.profile);
     Ok(snapshot)
 }
 
 #[tauri::command]
-pub async fn list_personalities(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    run(&state, "list", "", "").await
+pub async fn list_personalities(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    run(&state, &profile, "list", "", "").await
 }
 
 #[tauri::command]
 pub async fn apply_personality(
     state: State<'_, BackendState>,
+    profile: String,
     name: String,
     prompt: Option<String>,
 ) -> Result<Value, DesktopFailure> {
@@ -114,5 +109,5 @@ pub async fn apply_personality(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    run(&state, "apply", &name, &prompt).await
+    run(&state, &profile, "apply", &name, &prompt).await
 }

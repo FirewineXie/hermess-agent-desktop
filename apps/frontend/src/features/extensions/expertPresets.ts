@@ -1,4 +1,4 @@
-export type ClientProfilePreset = {
+export type ExpertPreset = {
   id: string
   title: { 'zh-CN': string; 'en-US': string }
   description: { 'zh-CN': string; 'en-US': string }
@@ -7,8 +7,8 @@ export type ClientProfilePreset = {
   mcp: string[]
 }
 
-// Product-owned recipes. Hermes personalities are read from the bundled runtime instead.
-export const clientProfilePresets: ClientProfilePreset[] = [
+// These recipes are shipped by Hermess. They are not an online agent marketplace.
+export const expertPresets: ExpertPreset[] = [
   {
     id: 'hermess_clear',
     title: { 'zh-CN': '清晰助手', 'en-US': 'Clear assistant' },
@@ -20,7 +20,7 @@ export const clientProfilePresets: ClientProfilePreset[] = [
   {
     id: 'hermess_developer',
     title: { 'zh-CN': '编程助手', 'en-US': 'Developer assistant' },
-    description: { 'zh-CN': '定位代码路径、分析故障，并使用随包的代码检查与调试 Skill。', 'en-US': 'Inspect code paths and debug issues with bundled inspection and debugging skills.' },
+    description: { 'zh-CN': '定位代码路径、分析故障，配合随包的代码检查与调试 Skill。', 'en-US': 'Inspect code paths and debug issues with bundled inspection and debugging skills.' },
     personality: { name: 'hermess_developer', prompt: 'Act as a careful software engineer. Inspect the actual code before proposing changes. Explain the cause, the smallest useful fix, and how it was verified.' },
     skills: ['codebase-inspection', 'systematic-debugging'],
     mcp: ['context7'],
@@ -28,7 +28,7 @@ export const clientProfilePresets: ClientProfilePreset[] = [
   {
     id: 'hermess_researcher',
     title: { 'zh-CN': '研究助手', 'en-US': 'Research assistant' },
-    description: { 'zh-CN': '重视来源和可核对的结论，使用随包的引文 Skill。', 'en-US': 'Prioritize traceable sources and use the bundled citation skill.' },
+    description: { 'zh-CN': '重视来源与可核对的结论，配合随包的引文 Skill。', 'en-US': 'Prioritize traceable sources and use the bundled citation skill.' },
     personality: { name: 'hermess_researcher', prompt: 'Act as a rigorous research assistant. Separate evidence from inference, cite sources when available, and state uncertainty directly.' },
     skills: ['grounded-citations'],
     mcp: ['deepwiki'],

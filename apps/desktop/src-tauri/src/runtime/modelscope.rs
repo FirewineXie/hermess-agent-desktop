@@ -307,12 +307,26 @@ fn owned_subdir(storage: &Path, name: &str) -> Result<PathBuf, DesktopFailure> {
     Ok(directory)
 }
 
-fn manifest_path(storage: &Path) -> Result<PathBuf, DesktopFailure> {
-    Ok(owned_subdir(storage, "control")?.join("modelscope-skills.json"))
+fn manifest_path(storage: &Path, home: &Path) -> Result<PathBuf, DesktopFailure> {
+    if home == storage.join("hermes-home") {
+        Ok(owned_subdir(storage, "control")?.join("modelscope-skills.json"))
+    } else {
+        let root = owned_subdir(storage, "hermes-home")?;
+        let resolved = home
+            .canonicalize()
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        if !resolved.starts_with(&root) || resolved == root {
+            return Err(DesktopFailure::invalid_input());
+        }
+        Ok(resolved.join("modelscope-skills.json"))
+    }
 }
 
-fn read_manifest(storage: &Path) -> Result<BTreeMap<String, InstalledSkill>, DesktopFailure> {
-    let path = manifest_path(storage)?;
+fn read_manifest(
+    storage: &Path,
+    home: &Path,
+) -> Result<BTreeMap<String, InstalledSkill>, DesktopFailure> {
+    let path = manifest_path(storage, home)?;
     if !path.exists() {
         return Ok(BTreeMap::new());
     }
@@ -322,19 +336,23 @@ fn read_manifest(storage: &Path) -> Result<BTreeMap<String, InstalledSkill>, Des
 
 fn write_manifest(
     storage: &Path,
+    home: &Path,
     entries: &BTreeMap<String, InstalledSkill>,
 ) -> Result<(), DesktopFailure> {
     fs::write(
-        manifest_path(storage)?,
+        manifest_path(storage, home)?,
         serde_json::to_vec_pretty(entries).map_err(|_| DesktopFailure::operation_failed())?,
     )
     .map_err(|_| DesktopFailure::operation_failed())
 }
 
-fn skills_root(storage: &Path) -> Result<PathBuf, DesktopFailure> {
-    fs::create_dir_all(storage.join("hermes-home"))
+fn skills_root(home: &Path) -> Result<PathBuf, DesktopFailure> {
+    if !home.exists() {
+        fs::create_dir_all(home).map_err(|_| DesktopFailure::operation_failed())?;
+    }
+    let home = home
+        .canonicalize()
         .map_err(|_| DesktopFailure::operation_failed())?;
-    let home = owned_subdir(storage, "hermes-home")?;
     let skills = home.join("skills");
     fs::create_dir_all(&skills).map_err(|_| DesktopFailure::operation_failed())?;
     let skills = skills
@@ -356,13 +374,12 @@ fn local_name(id: &str) -> String {
     format!("modelscope-{slug}-{}", &short[..8])
 }
 
-pub(super) fn installed(storage: &Path) -> Result<Value, DesktopFailure> {
-    let entries = read_manifest(storage)?;
+pub(super) fn installed(storage: &Path, home: &Path) -> Result<Value, DesktopFailure> {
+    let entries = read_manifest(storage, home)?;
     let mut by_identifier = serde_json::Map::new();
     let mut by_name = serde_json::Map::new();
     for entry in entries.values() {
-        if storage
-            .join("hermes-home")
+        if home
             .join("skills")
             .join(&entry.directory)
             .join("SKILL.md")
@@ -380,6 +397,7 @@ pub(super) fn installed(storage: &Path) -> Result<Value, DesktopFailure> {
 
 pub(super) async fn install(
     storage: &Path,
+    home: &Path,
     identifier: &str,
     expected_digest: &str,
     confirmed: bool,
@@ -405,16 +423,17 @@ pub(super) async fn install(
         return Err(DesktopFailure::conflict());
     }
     let storage = storage.to_path_buf();
+    let home = home.to_path_buf();
     let id = id.to_owned();
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = INSTALL_LOCK
             .lock()
             .map_err(|_| DesktopFailure::operation_failed())?;
-        let mut entries = read_manifest(&storage)?;
+        let mut entries = read_manifest(&storage, &home)?;
         if entries.contains_key(&id) {
             return Err(DesktopFailure::conflict());
         }
-        let root = skills_root(&storage)?;
+        let root = skills_root(&home)?;
         let directory = local_name(&id);
         let destination = root.join(&directory);
         if destination.exists() {
@@ -440,7 +459,7 @@ pub(super) async fn install(
                     directory,
                 },
             );
-            if let Err(error) = write_manifest(&storage, &entries) {
+            if let Err(error) = write_manifest(&storage, &home, &entries) {
                 let _ = fs::remove_dir_all(&destination);
                 return Err(error);
             }
@@ -455,11 +474,11 @@ pub(super) async fn install(
     .map_err(|_| DesktopFailure::operation_failed())?
 }
 
-pub(super) fn uninstall(storage: &Path, name: &str) -> Result<Value, DesktopFailure> {
+pub(super) fn uninstall(storage: &Path, home: &Path, name: &str) -> Result<Value, DesktopFailure> {
     let _guard = INSTALL_LOCK
         .lock()
         .map_err(|_| DesktopFailure::operation_failed())?;
-    let mut entries = read_manifest(storage)?;
+    let mut entries = read_manifest(storage, home)?;
     let id = entries
         .iter()
         .find(|(_, entry)| entry.name == name)
@@ -471,7 +490,7 @@ pub(super) fn uninstall(storage: &Path, name: &str) -> Result<Value, DesktopFail
     if entry.directory != local_name(&id) {
         return Err(DesktopFailure::invalid_input());
     }
-    let root = skills_root(storage)?;
+    let root = skills_root(home)?;
     let target = root.join(&entry.directory);
     if target.exists() {
         if target.is_symlink() || !target.is_dir() {
@@ -479,7 +498,7 @@ pub(super) fn uninstall(storage: &Path, name: &str) -> Result<Value, DesktopFail
         }
         fs::remove_dir_all(target).map_err(|_| DesktopFailure::operation_failed())?;
     }
-    write_manifest(storage, &entries)?;
+    write_manifest(storage, home, &entries)?;
     Ok(json!({"ok": true, "name": name}))
 }
 

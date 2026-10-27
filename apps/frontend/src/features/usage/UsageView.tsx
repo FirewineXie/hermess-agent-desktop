@@ -15,10 +15,10 @@ function estimatedCost(value: number | null | undefined, language: string): stri
     maximumFractionDigits: value < 0.01 ? 4 : 2 })}`
 }
 
-export default function UsageView({ connected }: { connected: boolean }) {
+export default function UsageView({ connected, profile, epoch }: { connected: boolean; profile: string | null; epoch: string | null }) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
-  const { days, setDays, data, loading, failed, refresh } = useUsageStatistics(connected)
+  const { days, setDays, data, loading, failed, refresh } = useUsageStatistics(connected, profile, epoch)
   const totals = data?.totals
   const metrics = [
     ['ui.usage.input', totals?.total_input],
