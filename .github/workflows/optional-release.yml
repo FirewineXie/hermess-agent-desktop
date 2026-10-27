@@ -51,8 +51,6 @@ jobs:
     needs: validate
     runs-on: ${{ inputs.target == 'darwin-x64' && 'macos-15-intel' || 'ubuntu-22.04' }}
     timeout-minutes: 180
-    env:
-      CARGO_NET_OFFLINE: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,26 +66,23 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Restore prewarmed pnpm packages
-        uses: actions/cache/restore@v4
+      - name: Cache pnpm packages
+        uses: actions/cache@v4
         with:
           path: .cache/pnpm-store
           key: pnpm-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          fail-on-cache-miss: true
-      - name: Restore prewarmed Cargo packages
-        uses: actions/cache/restore@v4
+      - name: Cache Cargo packages
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
-          fail-on-cache-miss: true
-      - name: Restore prewarmed native dependencies
-        uses: actions/cache/restore@v4
+      - name: Cache native dependencies
+        uses: actions/cache@v4
         with:
           path: .cache/ci-release
           key: native-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/upstream.lock.json', 'scripts/build-core-payload.py') }}
-          fail-on-cache-miss: true
       - name: Install Linux Tauri prerequisites
         if: inputs.target == 'linux-x64'
         run: |
@@ -98,13 +93,15 @@ jobs:
           node scripts/fetch-upstream.mjs
           node scripts/verify-upstream.mjs
           node scripts/check-legal.mjs
-          pnpm install --frozen-lockfile --offline --store-dir .cache/pnpm-store
+          pnpm install --frozen-lockfile --prefer-offline --store-dir .cache/pnpm-store
+          cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
           cargo --version
       - name: Build sealed native Hermes runtime
-        run: python scripts/build-core-payload.py --out .build/payload --cache-root .cache/ci-release --require-cache
+        run: python scripts/build-core-payload.py --out .build/payload --cache-root .cache/ci-release
       - name: Build native offline installer
         env:
           APPLE_SIGNING_IDENTITY: '-'
+          CARGO_NET_OFFLINE: 'true'
         run: python scripts/build-offline-runtime.py --payload .build/payload --build
       - name: Stage expected installers
         env:
