@@ -145,8 +145,8 @@ def main() -> None:
     prepared = publish_prepared(out, upstream, commit, inputs)
     finish_native(prepared, {})
     subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(out)], check=True)
-    if cache_root and not (cache_root / "uv-cache").exists():
-        shutil.copytree(cache, cache_root / "uv-cache")
+    if cache_root and not args.require_cache:
+        shutil.copytree(cache, cache_root / "uv-cache", dirs_exist_ok=True)
     print(f"core payload ready: {out}; extras={len(features)}, tools={names}")
 
 
