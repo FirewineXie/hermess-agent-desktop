@@ -39,6 +39,7 @@ function App() {
   const [agentConfigDirty, setAgentConfigDirty] = React.useState(false)
   const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [profileMemoryOpen, setProfileMemoryOpen] = React.useState(false)
+  const [profileAgentOpen, setProfileAgentOpen] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [aboutInitialTab, setAboutInitialTab] = React.useState<'license' | 'update'>('license')
@@ -85,11 +86,12 @@ function App() {
   }, [backend, viewedProfile])
   const openView = (next: View): boolean => {
     if (next === view) { setSidebarOpen(false); return true }
-    if (view === 'agent' && next !== 'agent' && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return false
+    if ((view === 'agent' && next !== 'agent' || view === 'profiles' && profileAgentOpen && next !== 'profiles') && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return false
     if ((view === 'memory' || (view === 'profiles' && profileMemoryOpen)) && next !== view && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return false
     if (next !== 'agent') setAgentConfigDirty(false)
     if (next !== 'memory') setPersonalFilesDirty(false)
     if (next !== 'profiles') setProfileMemoryOpen(false)
+    if (next !== 'profiles') setProfileAgentOpen(false)
     if (next === 'about') setAboutInitialTab('license')
     setView(next)
     setSidebarOpen(false)
@@ -137,7 +139,10 @@ function App() {
     <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={openView} onNewChat={() => { if (openView('chat')) void newChat() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
-      onOpenProfile={name => { if (openView('profiles') && profileController.snapshot?.selected !== name) void profileController.select(name).catch(() => {}) }} />
+      onOpenProfile={name => {
+        if (profileController.snapshot?.selected !== name && profileAgentOpen && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return
+        if (openView('profiles') && profileController.snapshot?.selected !== name) void profileController.select(name).then(() => setAgentConfigDirty(false)).catch(() => {})
+      }} />
     <main className="workspace">
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
@@ -147,26 +152,45 @@ function App() {
     {view === 'usage' && <UsageView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
       onCreateProfile={profileController.create} />}
-    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot}
+    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} storagePath={storagePath}
       profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} onSelectProfile={name => {
+        if (profileAgentOpen && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return Promise.resolve()
         if (profileMemoryOpen && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return Promise.resolve()
         setPersonalFilesDirty(false)
+        setAgentConfigDirty(false)
         return profileController.select(name)
       }}
       memoryOpen={profileMemoryOpen} onMemoryDirtyChange={setPersonalFilesDirty}
+      agentSettingsOpen={profileAgentOpen} onAgentDirtyChange={setAgentConfigDirty}
+      onCloseAgentSettings={() => {
+        if (agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return
+        setProfileAgentOpen(false)
+        setAgentConfigDirty(false)
+      }}
+      onOpenModelSettings={() => { openView('model') }}
       onCloseMemory={() => {
         if (personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return
         setProfileMemoryOpen(false)
         setPersonalFilesDirty(false)
       }}
-      onOpenExtensions={() => { openView('extensions') }} onOpenMemory={() => { setProfileMemoryOpen(true) }}
-      onOpenAgentSettings={() => { openView('agent') }} onOpenChannels={() => { openView('channels') }} onOpenUsage={() => { openView('usage') }} onNewChat={() => { if (openView('chat')) void newChat() }} />}
+      onOpenExtensions={() => { openView('extensions') }} onOpenMemory={() => {
+        if (profileAgentOpen && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return
+        setProfileAgentOpen(false)
+        setAgentConfigDirty(false)
+        setProfileMemoryOpen(true)
+      }}
+      onOpenAgentSettings={() => {
+        if (profileMemoryOpen && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return
+        setProfileMemoryOpen(false)
+        setPersonalFilesDirty(false)
+        setProfileAgentOpen(true)
+      }} onOpenChannels={() => { openView('channels') }} onOpenUsage={() => { openView('usage') }} onNewChat={() => { if (openView('chat')) void newChat() }} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
     {view === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} storagePath={storagePath} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openView('model')} />}
     {view === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} debugMode={debugMode} debugButtonVisible={debugButtonVisible} onDebugModeChange={changeDebugMode} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
-    {view === 'model' && <ModelSettingsView connected={Boolean(backend)} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}
+    {view === 'model' && <ModelSettingsView connected={Boolean(backend)} profile={viewedProfile} language={language} t={t} controller={modelController} onOpenRuntime={() => openView('runtime')} />}
     <div className="chat-workspace-layout" style={view === 'chat' ? undefined : { display: 'none' }}><ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
       controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
       panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)}

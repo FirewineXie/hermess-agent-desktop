@@ -102,6 +102,7 @@ fn main() {
             runtime::models::load_model_lists,
             runtime::models::save_model_lists,
             runtime::models::add_custom_endpoint,
+            runtime::models::update_custom_endpoint,
             runtime::models::set_custom_endpoint_discovery,
             runtime::models::delete_custom_endpoint,
             runtime::config::save_agent_config_field,

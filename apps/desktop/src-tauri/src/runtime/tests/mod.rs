@@ -4,7 +4,7 @@ use super::models::{
     write_model_lists_file,
 };
 use super::payload::validate_payload;
-use super::{acquire_storage_lock, install_packed_payload, running_storage_matches};
+use super::{acquire_storage_lock, running_storage_matches};
 use super::{
     dev_backend_defaults, BackendInfo, BundledTool, BundledToolsInventory, GracefulRestartResult,
     PackedDefaults,
@@ -242,14 +242,11 @@ fn packed_payload_rejects_a_different_upstream_commit() {
 
 #[cfg(all(windows, target_arch = "x86_64"))]
 #[test]
-#[ignore = "requires a prepared 1.6 GB offline runtime archive under .build/runtime"]
-fn packed_payload_installs_from_real_archive() {
+#[ignore = "requires a prepared offline payload under .build/payload"]
+fn packed_payload_validates_prepared_release_resource() {
     let product = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let build = product.join(".build");
-    let selected = build.join("installed-runtime-smoke");
-    let launcher = install_packed_payload(&build, &selected).unwrap();
+    let launcher = validate_payload(&product.join(".build/payload")).unwrap();
     assert!(launcher.is_file());
-    assert_eq!(install_packed_payload(&build, &selected).unwrap(), launcher);
 }
 
 #[test]

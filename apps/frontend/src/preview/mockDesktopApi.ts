@@ -91,6 +91,7 @@ export const previewDesktopApi: DesktopApi = {
     async loadLists() { return null },
     async saveLists() { throw previewOnly() },
     async addEndpoint() { throw previewOnly() },
+    async updateEndpoint() { throw previewOnly() },
     async setEndpointDiscovery() { throw previewOnly() },
     async deleteEndpoint() { throw previewOnly() },
     async setDefault() { throw previewOnly() },

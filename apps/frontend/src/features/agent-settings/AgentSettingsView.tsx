@@ -5,7 +5,7 @@ import DefaultReasoningField from './components/DefaultReasoningField'
 import YamlEditor from './components/YamlEditor'
 import { useAgentSettingsController } from './useAgentSettingsController'
 
-export default function AgentSettingsView({ connected, profile, epoch, storagePath, onDirtyChange, onOpenModelSettings }: { connected: boolean; profile: string | null; epoch: string | null; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void }) {
+export default function AgentSettingsView({ connected, profile, epoch, storagePath, onDirtyChange, onOpenModelSettings, embedded = false }: { connected: boolean; profile: string | null; epoch: string | null; storagePath: string; onDirtyChange: (dirty: boolean) => void; onOpenModelSettings: () => void; embedded?: boolean }) {
   const {
     language, t, schema, config, raw, yamlDraft, setYamlDraft,
     drafts, setDrafts, editingKey, setEditingKey, expandedPaths, setExpandedPaths,
@@ -19,7 +19,7 @@ export default function AgentSettingsView({ connected, profile, epoch, storagePa
   if (!connected) return <section className="settings-panel flat-settings-panel agent-settings"><div className="empty-panel"><h2>{t("ui.start.the.runtime.first")}</h2><p>{t("ui.agent.settings.are.saved.by.this.app.s.hermes.runtime")}</p></div></section>
 
   return <section className="settings-panel flat-settings-panel agent-settings">
-    <div className="row"><h2>{t("ui.hermes.agent.settings")}</h2><button disabled={busy} onClick={() => void reload()}>{t("ui.reload")}</button></div>
+    <div className="row">{!embedded && <h2>{t("ui.hermes.agent.settings")}</h2>}<button disabled={busy} onClick={() => void reload()}>{t("ui.reload")}</button></div>
     <p>{t("ui.fields.come.from.the.current.runtime.schema.save.each.field.separately.full")}</p>
     <div className="config-mode-tabs">
       {(['main', 'auxiliary', 'approval', 'advanced'] as const).map(item => <button key={item} className={section === item ? 'selected' : ''} onClick={() => { if (canDiscard()) { setSection(item); setEditingTask(null) } }}>{({

@@ -1,10 +1,10 @@
-use super::{python_for_hermes, BackendState};
+use super::{helper_python, BackendState};
 use crate::errors::DesktopFailure;
 use crate::process_manager;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
-use tokio::{process::Command, time::timeout};
+use tokio::time::timeout;
 
 const SCRIPT: &str = r#"import json, sys
 from hermes_cli.config import load_config
@@ -54,9 +54,10 @@ async fn run(
 ) -> Result<Value, DesktopFailure> {
     let scope = state.resolve_profile(profile).await?;
     scope.ensure_current(state).await?;
-    let mut command = Command::new(python_for_hermes(&scope.hermes).map_err(DesktopFailure::from)?);
+    let mut command =
+        helper_python::command(&scope.hermes, SCRIPT).map_err(DesktopFailure::from)?;
     command
-        .args(["-P", "-u", "-c", SCRIPT, mode, name, prompt])
+        .args([mode, name, prompt])
         .env("HERMES_HOME", &scope.home)
         .env("PYTHONIOENCODING", "utf-8")
         .stdin(std::process::Stdio::null())

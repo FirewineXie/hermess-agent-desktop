@@ -19,6 +19,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/runtime/about.rs`：读取编译时产品版本、固定上游锁与随程序内嵌的产品及上游许可证。
 - `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
+- `src-tauri/src/runtime/retired_payload.rs`：Windows 发行版在新 Gateway 就绪后后台清理安装目录中带相邻 `.owner` 标记的旧运行时；占用或中断时保留标记，后续启动重试。
 - `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，启动自有 Hermes 实例前部署并注册为 `powershell_execute`；使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - 新建聊天会话可接收工作区目录；Rust 在调用网关前要求该目录是本机已存在的绝对目录，并向 `session.create` 传递明确的 `cwd`。
@@ -27,7 +28,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 
 运行时所有者仍独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪仍持有所有权锁，最长 60 秒，尚未改为可中断启动。
 
-桌面启动一个自有 `hermes gateway run` 进程，承载聊天会话和消息渠道。HTTP 配置接口使用 Rust 保管的随机会话令牌；聊天 WebSocket 使用网关私有控制端签发的一次性票据。令牌不在根路径公布，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑和三个接入点由 [Hermes fork 的桌面分支](https://github.com/FirewineXie/hermes-agent/tree/hermess-desktop)直接跟踪；`pnpm fetch:upstream` 检出锁定 SHA，`pnpm verify:upstream` 校验来源、分支历史和干净工作区。Rust 启动时检查私有入口和浏览器握手；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。扫码成功后由桌面重启这一自有网关，加载新渠道配置。
+桌面启动一个自有 `hermes gateway run` 进程，承载聊天会话和消息渠道。HTTP 配置接口使用 Rust 保管的随机会话令牌；聊天 WebSocket 使用网关私有控制端签发的一次性票据。Rust 直接连接私有控制端完成自有进程发现和取票请求，不再为这两步启动 Python 辅助进程；票据仍由 Gateway 签发。令牌不在根路径公布，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑和三个接入点由 [Hermes fork 的桌面分支](https://github.com/FirewineXie/hermes-agent/tree/hermess-desktop)直接跟踪；`pnpm fetch:upstream` 检出锁定 SHA，`pnpm verify:upstream` 校验来源、分支历史和干净工作区。Rust 启动时检查私有入口和浏览器握手；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。扫码成功后由桌面重启这一自有网关，加载新渠道配置。
 
 渠道扫码保存配置后，桌面通过 Hermes 现有 drain 接口暂停新任务，等待当前任务结束，再停止并重启自有网关。等待超过 60 秒或 Hermes 拒绝停止时保留旧网关，用户可继续等待或确认强制重启；单实例重启仍会短暂断线。
 

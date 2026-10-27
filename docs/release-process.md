@@ -32,7 +32,11 @@ git push origin vX.Y.Z
 | macOS Intel | `macos-15-intel` | `.dmg` | 按需手动补发 |
 | Linux x64 | `ubuntu-22.04` | AppImage 与 `.deb` | 按需手动补发 |
 
-每个原生 runner 从预热缓存复制经固定上游 PM 验证的 Python/uv 工具及 uv 下载缓存，再验证 payload 与上游提交，归档并计算摘要后交给 Tauri 打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
+每个原生 runner 从预热缓存复制经固定上游 PM 验证的 Python/uv 工具及 uv 下载缓存，再验证 payload 与上游提交。Windows 将 payload 归档并计算摘要交给 Tauri 打包，NSIS 使用 zlib 压缩。安装器将新 payload 解到 `runtime/payload.next`，必要文件校验后再切换到固定的 `runtime/payload`；若安装器记录的旧 payload 归档摘要与新包一致，则跳过解包和目录切换。不同摘要时，旧目录改名为带时间戳的 `payload.old-*`；新 Gateway 启动成功后，客户端在后台只清理带本产品标记的旧目录，未清理完的目录在后续成功启动时重试，卸载时也予以清理。安装器仍会复制新包中的归档资源；这里的复用不等于跳过资源复制。macOS/Linux 将已验证的展开后 payload 直接作为应用资源打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
+
+覆盖安装时若旧 `payload` 暂时被占用，Windows 安装器会短时重试；交互安装允许关闭占用程序后再次尝试。切换失败时保留旧目录和已完整解压的 `payload.next`，下一次运行在摘要及必要文件匹配时直接复用暂存目录。
+
+打包脚本在归档前会暂时把 payload 移到另一目录，运行清单指定的基础 Python，确认它和其子进程都能从搬迁后的源码及依赖目录导入 Hermes；检查结束后恢复原路径。此检查覆盖随包辅助解释器的目录可迁移性，不等于安装程序和原生窗口验收。
 
 需要 macOS Intel 或 Linux x64 时，在 GitHub Actions 运行 `Optional desktop release target`，填写**已存在 Release** 的完整 tag 和所需目标；CLI 也可使用 `gh workflow run optional-release.yml --ref main -f tag=vX.Y.Z -f target=darwin-x64`（Linux 使用 `linux-x64`）。工作流从该 tag 检出源码，重新核对版本、上游与许可证，然后构建选定目标。补发完成后，读取现有 Release 附件，验证默认目标及所选目标的安装包数量和格式，并重写覆盖全部现有安装包的 `SHA256SUMS.txt`。相同 tag 的默认发布与补发串行运行；重跑同一 tag 若产生不同文件名的重复平台安装包会停止，需先核对旧附件，不能悄悄留下不一致的清单。
 

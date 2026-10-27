@@ -56,12 +56,16 @@ fn current_target() -> &'static str {
     }
 }
 
-fn lock_path(hermes: &Path) -> PathBuf {
+fn lock_path(hermes: &Path) -> Result<PathBuf, DesktopFailure> {
     let payload = hermes.parent().and_then(Path::parent);
     if let Some(root) = payload.filter(|root| root.join("manifest.json").is_file()) {
-        return root.join("hermes-agent/pm/lock.json");
+        return Ok(root.join("hermes-agent/pm/lock.json"));
     }
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../upstream/hermes-agent/pm/lock.json")
+    if cfg!(debug_assertions) {
+        return Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../upstream/hermes-agent/pm/lock.json"));
+    }
+    Err(DesktopFailure::runtime_unavailable())
 }
 
 fn read_json(path: &Path) -> Result<Value, DesktopFailure> {
@@ -86,7 +90,7 @@ fn recorded(root: &Path, name: &str, version: &str, target: &str) -> bool {
 }
 
 fn catalogue(hermes: &Path, home: &Path) -> Result<Vec<DownloadableTool>, DesktopFailure> {
-    let lock = read_json(&lock_path(hermes))?;
+    let lock = read_json(&lock_path(hermes)?)?;
     let packages = lock
         .get("packages")
         .and_then(Value::as_object)

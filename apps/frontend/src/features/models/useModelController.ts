@@ -40,12 +40,14 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
   const [configuredProviders, setConfiguredProviders] = useState<ModelProvider[]>([])
   const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([])
   const [addingProvider, setAddingProvider] = useState(false)
+  const [editingEndpoint, setEditingEndpoint] = useState<CustomEndpoint | null>(null)
   const [newProviderPreset, setNewProviderPreset] = useState('')
   const [providerFormError, setProviderFormError] = useState('')
   const [newProviderName, setNewProviderName] = useState('')
   const [newProviderUrl, setNewProviderUrl] = useState('')
   const [newProviderModel, setNewProviderModel] = useState('')
   const [newProviderKey, setNewProviderKey] = useState('')
+  const [clearProviderKey, setClearProviderKey] = useState(false)
   const [newProviderMakeDefault, setNewProviderMakeDefault] = useState(true)
   const [newProviderDiscoverModels, setNewProviderDiscoverModels] = useState(true)
   const [modelFormOpen, setModelFormOpen] = useState(false)
@@ -218,6 +220,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     setModelName(model)
     setModelBaseUrl(preset?.baseUrl || (!fresh && savedModel?.provider === provider ? savedModel.baseUrl : ''))
     setModelConfirmation('')
+    setModelStatus('')
     setModelFormOpen(true)
   }
 
@@ -270,7 +273,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     try {
       const result = await models.options(profileScope(), { refresh: true, includeUnconfigured: false })
       const row = result.providers.find(item => item.slug === provider)
-      if (!row?.is_user_defined) throw new Error(t('ui.provider.sync.no.catalog'))
+      if (!row?.models?.length) throw new Error(t('ui.provider.sync.no.catalog'))
       const previous = visibleModels(provider)
       const nextIds = appendModelIds(previous, row.models || [])
       if (nextIds.length > previous.length) {
@@ -306,6 +309,46 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     finally { setModelBusy(false) }
   }
 
+  function openProviderEditor(endpoint: CustomEndpoint) {
+    setEditingEndpoint(endpoint)
+    setNewProviderPreset('')
+    setNewProviderName(endpoint.name)
+    setNewProviderUrl(endpoint.base_url)
+    setNewProviderModel(endpoint.model)
+    setNewProviderKey('')
+    setClearProviderKey(false)
+    setNewProviderMakeDefault(endpoint.is_current)
+    setNewProviderDiscoverModels(endpoint.discover_models !== false)
+    setProviderFormError('')
+    setAddingProvider(true)
+  }
+
+  async function updateProvider() {
+    const endpoint = editingEndpoint
+    if (!endpoint || !newProviderName.trim() || !newProviderUrl.trim() || !newProviderModel.trim()) return
+    if (customEndpoints.some(item => item.id !== endpoint.id && normalizedEndpoint(item.base_url) === normalizedEndpoint(newProviderUrl))) {
+      setProviderFormError(t('ui.provider.endpoint.already.exists'))
+      return
+    }
+    setModelBusy(true)
+    try {
+      await models.updateEndpoint(profileScope(), {
+        endpointId: endpoint.id, name: newProviderName.trim(), baseUrl: newProviderUrl.trim(),
+        model: newProviderModel.trim(), apiKey: clearProviderKey ? '' : newProviderKey.trim() || null,
+        makeDefault: endpoint.is_current || newProviderMakeDefault,
+        discoverModels: newProviderDiscoverModels,
+      })
+      setAddingProvider(false)
+      setEditingEndpoint(null)
+      setNewProviderKey('')
+      setClearProviderKey(false)
+      setProviderFormError('')
+      await loadModelOptions()
+      setModelStatus(t('ui.provider.updated'))
+    } catch (cause) { setProviderFormError(t('ui.provider.update.failed.arg', describeError(cause, language))) }
+    finally { setModelBusy(false) }
+  }
+
   function chooseProviderPreset(value: string) {
     setNewProviderPreset(value)
     setProviderFormError('')
@@ -338,7 +381,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
   }
 
   async function saveModel(confirm = false) {
-    if (!modelProvider.trim() || !modelName.trim()) return
+    if (!modelProvider.trim() || !modelName.trim()) return false
     setModelBusy(true)
     setModelStatus(t("ui.saving.model.configuration"))
     try {
@@ -361,11 +404,35 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
         })
         setModelOptionsLoaded(true)
         setModelStatus(t("ui.saved.arg.arg.applies.to.new.sessions", selectedPreset ? t(selectedPreset.name) : result.provider || modelProvider, result.model || modelName))
+        return true
       } else {
         setModelStatus(t("ui.model.configuration.not.accepted.by.backend"))
       }
     } catch (cause) { setModelStatus(t("ui.failed.to.save.model.arg", describeError(cause, language))) }
     finally { setModelBusy(false) }
+    return false
+  }
+
+  async function saveProviderDefault(provider: string, model: string, baseUrl: string, confirm = false): Promise<'saved' | 'confirm' | 'error'> {
+    if (!provider.trim() || !model.trim()) return 'error'
+    setModelBusy(true)
+    try {
+      const result = await models.setDefault(profileScope(), {
+        provider: provider.trim(), model: model.trim(), baseUrl: baseUrl.trim(), apiKey: '', confirmExpensiveModel: confirm,
+      })
+      if (result.confirm_required) {
+        setModelStatus(result.confirm_message || t('ui.this.model.needs.confirmation'))
+        return 'confirm'
+      }
+      if (!result.ok) throw new Error(t('ui.model.configuration.not.accepted.by.backend'))
+      setSavedModel({ provider: result.provider || provider, model: result.model || model,
+        name: providerCards.find(item => item.slug === provider)?.name || provider, baseUrl: baseUrl.trim() })
+      setModelStatus(t('ui.saved.arg.arg.applies.to.new.sessions', result.provider || provider, result.model || model))
+      return 'saved'
+    } catch (cause) {
+      setModelStatus(t('ui.failed.to.save.model.arg', describeError(cause, language)))
+      return 'error'
+    } finally { setModelBusy(false) }
   }
 
   async function checkModel() {
@@ -445,11 +512,11 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
   }
 
   return {
-    modelProviders, configuredProviders, customEndpoints, addingProvider, setAddingProvider,
-    newProviderPreset, providerFormError, setProviderFormError, newProviderName, setNewProviderName,
+    modelProviders, configuredProviders, customEndpoints, addingProvider, setAddingProvider, editingEndpoint, setEditingEndpoint,
+    newProviderPreset, setNewProviderPreset, providerFormError, setProviderFormError, newProviderName, setNewProviderName,
     newProviderUrl, setNewProviderUrl, newProviderModel, setNewProviderModel,
     newProviderMakeDefault, setNewProviderMakeDefault, newProviderDiscoverModels, setNewProviderDiscoverModels,
-    newProviderKey, setNewProviderKey, modelFormOpen, setModelFormOpen, modelProvider,
+    newProviderKey, setNewProviderKey, clearProviderKey, setClearProviderKey, modelFormOpen, setModelFormOpen, modelProvider,
     modelName, setModelName, modelBaseUrl, setModelBaseUrl, modelKey, setModelKey,
     modelBusy, modelStatus, modelConfirmation, setModelConfirmation,
     modelOptionsLoaded, modelOptionsError, savedModel, setSavedModel,
@@ -457,7 +524,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     pickerProviders, pickerProvider, setPickerProvider, pickerModelInput, setPickerModelInput,
     pickerBusy, pickerError, pickerConfirmation, addedModels, modelLists, modelListBusy,
     modelListLoading, discoveryBusy, selectedPreset, modelCandidates, pickerModels, providerCards, visibleModels,
-    loadModelOptions, selectModelProvider, saveProviderModels, setProviderDiscovery, syncProviderModels, addProvider, chooseProviderPreset,
+    loadModelOptions, selectModelProvider, saveProviderModels, saveProviderDefault, setProviderDiscovery, syncProviderModels, addProvider, updateProvider, openProviderEditor, chooseProviderPreset,
     deleteProvider, saveModel, checkModel, openModelPicker, pickModel, resetModel,
   }
 }
