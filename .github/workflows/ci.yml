@@ -121,6 +121,9 @@ jobs:
       - name: Check update channel rules
         if: needs.classify.outputs.code_changed == 'true'
         run: pnpm test:update-rules
+      - name: Check release version stamping
+        if: needs.classify.outputs.code_changed == 'true'
+        run: pnpm test:release-version
       - name: Build frontend preview
         if: needs.classify.outputs.code_changed == 'true'
         run: pnpm --dir apps/frontend build

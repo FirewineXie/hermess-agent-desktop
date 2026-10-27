@@ -1,9 +1,9 @@
-name: Tagged desktop release
+name: RC desktop release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*-rc.*'
 
 permissions:
   contents: read
@@ -17,14 +17,21 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v6
         with:
-          python-version: '3.14'
-      - run: python scripts/check-release.py --tag "${{ github.ref_name }}"
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           check-latest: true
+      - name: Validate RC source and version notes
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          node scripts/release-version.mjs check "$TAG"
+          BASE="${TAG%-rc.*}"
+          git fetch origin "refs/heads/feature/$BASE:refs/remotes/origin/feature/$BASE"
+          git merge-base --is-ancestor HEAD "refs/remotes/origin/feature/$BASE"
       - run: node scripts/fetch-upstream.mjs
       - run: node scripts/check-legal.mjs
 
@@ -71,7 +78,12 @@ jobs:
           path: .cache/ci-release
           key: native-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/upstream.lock.json', 'scripts/build-core-payload.py') }}
       - name: Verify source and install frontend dependencies
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
+          node scripts/release-version.mjs stamp "$TAG"
+          node scripts/release-version.mjs verify "$TAG"
           node scripts/fetch-upstream.mjs
           node scripts/verify-upstream.mjs
           node scripts/check-legal.mjs
@@ -86,7 +98,7 @@ jobs:
           CARGO_NET_OFFLINE: 'true'
         run: python scripts/build-offline-runtime.py --payload .build/payload --build
       - name: Stage expected installers
-        run: python scripts/stage-release-assets.py --target ${{ matrix.target }}
+        run: python scripts/stage-release-assets.py --target ${{ matrix.target }} --tag "${{ github.ref_name }}"
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.target }}
@@ -105,37 +117,22 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Restore existing release assets on rerun
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release download "$TAG" --dir release-assets
-          fi
       - uses: actions/download-artifact@v4
         with:
           pattern: bundle-*
           path: release-assets
           merge-multiple: true
       - run: python scripts/write-release-checksums.py release-assets
-      - name: Create or update release with version notes
+      - name: Publish RC with version notes
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         shell: bash
         run: |
-          if [[ "$TAG" == *-* ]]; then
-            prerelease=true
-          else
-            prerelease=false
-          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/* --clobber
-            gh release edit "$TAG" --notes-file "releases/$TAG.md" --prerelease="$prerelease" --draft=false
-          else
-            gh release create "$TAG" release-assets/* --verify-tag \
-              --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md" \
-              --prerelease="$prerelease"
+            echo "Release $TAG already exists; published assets are immutable" >&2
+            exit 1
           fi
+          gh release create "$TAG" release-assets/* --verify-tag \
+            --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md" \
+            --prerelease

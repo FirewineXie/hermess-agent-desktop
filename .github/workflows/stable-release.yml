@@ -1,0 +1,176 @@
+name: Stable desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable version tag (vX.Y.Z)
+        required: true
+        type: string
+      commit:
+        description: Exact 40-character commit SHA already on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - name: Validate dispatch ref and commit syntax
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Dispatch this workflow from main' >&2; exit 1; }
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          [[ "$COMMIT" =~ ^[a-f0-9]{40}$ ]] || exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
+      - name: Validate main commit, CI, and release inputs
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$COMMIT" ]] || exit 1
+          git fetch origin refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$COMMIT" refs/remotes/origin/main
+          node scripts/release-version.mjs check "$TAG"
+          [[ -z "$(git ls-remote --tags origin "refs/tags/$TAG")" ]] || { echo 'Tag already exists' >&2; exit 1; }
+          [[ -z "$(gh release view "$TAG" --json id --jq .id 2>/dev/null)" ]] || { echo 'Release already exists' >&2; exit 1; }
+          CHECK="$(gh api "repos/$GITHUB_REPOSITORY/commits/$COMMIT/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "Build and test (Windows)" and .app.slug == "github-actions")] | sort_by(.started_at) | last | .conclusion')"
+          [[ "$CHECK" == success ]] || { echo 'Latest required check has not succeeded on this exact commit' >&2; exit 1; }
+      - run: node scripts/fetch-upstream.mjs
+      - run: node scripts/check-legal.mjs
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win32-x64
+            runner: windows-2025
+          - target: darwin-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          check-latest: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Cache pnpm packages
+        uses: actions/cache@v4
+        with:
+          path: .cache/pnpm-store
+          key: pnpm-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Cache Cargo packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Cache native dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/ci-release
+          key: native-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/upstream.lock.json', 'scripts/build-core-payload.py') }}
+      - name: Verify source and install frontend dependencies
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          node scripts/release-version.mjs stamp "$TAG"
+          node scripts/release-version.mjs verify "$TAG"
+          node scripts/fetch-upstream.mjs
+          node scripts/verify-upstream.mjs
+          node scripts/check-legal.mjs
+          pnpm install --frozen-lockfile --prefer-offline --store-dir .cache/pnpm-store
+          cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+          cargo --version
+      - name: Build sealed native Hermes runtime
+        run: python scripts/build-core-payload.py --out .build/payload --cache-root .cache/ci-release
+      - name: Build native offline installer
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+          CARGO_NET_OFFLINE: 'true'
+        run: python scripts/build-offline-runtime.py --payload .build/payload --build
+      - name: Stage expected installers
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: python scripts/stage-release-assets.py --target ${{ matrix.target }} --tag "$TAG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: .build/release-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bundle-*
+          path: release-assets
+          merge-multiple: true
+      - run: python scripts/write-release-checksums.py release-assets
+      - name: Tag the tested commit and publish the same installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+        shell: bash
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$COMMIT" ]] || exit 1
+          [[ -z "$(git ls-remote --tags origin "refs/tags/$TAG")" ]] || exit 1
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" "$COMMIT" -m "Hermess Agent Desktop $TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" release-assets/* --verify-tag \
+            --title "Hermess Agent Desktop $TAG" --notes-file "releases/$TAG.md" \
+            --latest

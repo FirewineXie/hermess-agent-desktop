@@ -29,7 +29,7 @@ export function useUpdateStatus() {
   }, [about])
 
   const checkUpdates = React.useCallback(async () => {
-    if (checkingRef.current) return
+    if (!info || info.version === '0.0.0' || checkingRef.current) return
     checkingRef.current = true
     setChecking(true)
     setLookupError(null)
@@ -42,7 +42,7 @@ export function useUpdateStatus() {
       checkingRef.current = false
       setChecking(false)
     }
-  }, [about])
+  }, [about, info])
 
   React.useEffect(() => {
     void checkUpdates()
@@ -51,7 +51,7 @@ export function useUpdateStatus() {
   }, [checkUpdates])
 
   const effectiveChannel = channel ?? defaultUpdateChannel(info?.version ?? '')
-  const candidate = info && lookup?.status === 'available'
+  const candidate = info && info.version !== '0.0.0' && lookup?.status === 'available'
     ? selectUpdate(info.version, effectiveChannel, lookup.releases)
     : null
 

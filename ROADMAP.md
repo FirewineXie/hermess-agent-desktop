@@ -2,7 +2,9 @@
 
 本文件按计划发布版本记录本产品的开发范围与实际进度。版本分支不等于发布 tag；RC tag 可从对应版本的 `feature/vX.Y.Z` 分支在完成本地检查和发行输入核对后创建，正式版 tag 只能从合入 `main` 且通过 CI 的提交创建。功能写入代码、脚本通过、原生窗口验收和正式发布是不同状态。具体接口及逐项验证证据见 [能力矩阵](docs/capability-matrix.md)。
 
-## v0.1.7（开发中，未发布）
+## v0.1.7（已合入 main，未发布）
+
+2026-10-28 `feature/v0.1.7` 已由 PR #17 合入 `main`，这不等于正式版已发布。发行流程调整在独立 `fix/release-workflow` 分支准备：开发态版本统一由 Cargo 清单提供，RC 从版本分支的 tag 在临时工作区写入包版本；正式版将从通过必需检查的准确 `main` 提交构建并核对默认平台附件，然后才创建正式 tag。旧 `v0.1.7-rc.1` 仍指向旧提交，本次未移动该 tag 或发布新版本。Windows 本地 `pnpm install --frozen-lockfile`、`pnpm build`、架构/契约/生成契约检查、更新规则及版本写入测试、`cargo check --locked --offline` 通过；真实 Cargo 清单临时写入 `0.1.7-rc.1` 后的锁文件元数据检查通过并恢复为开发态。三个发行工作流通过 actionlint；`ci.yml` 的既有 `queue: max` 字段未被本机 actionlint 版本识别。新流程尚未经过 PR CI、GitHub Actions 发行构建或 Windows/macOS 安装包验收。
 
 2026-10-27 发布流程改为由 tag 构建和可选平台补发任务在 GitHub runner 上自行获取缺失的 pnpm、Cargo、Python/uv 依赖，并缓存下载内容；移除独立预热工作流，发 tag 前不再需要手动预热。`v0.1.7-rc.1` 已推送，其原始工作流中 Windows 构建在 Cargo 缓存保存前恢复缓存失败，macOS 构建成功，Release job 被跳过。此项变更尚在版本分支，现有 tag 仍指向旧提交；新流程的云端构建和 Release 附件待后续新 tag 验证。
 

@@ -96,16 +96,16 @@ export default function AboutView({ initialTab = 'license', updateTabRequest, up
     {tab === 'update' && <div role="tabpanel" className="about-content">
       <h3>{t('ui.about.tab.update')}</h3>
       <div className="about-card">
-        <p>{t('ui.about.version')}: <strong>{info?.version ?? '—'}</strong>{info && <span className="about-badge">{t(`ui.about.version.${defaultUpdateChannel(info.version)}`)}</span>}</p>
+        <p>{t('ui.about.version')}: <strong>{info?.version ?? '—'}</strong>{info && <span className="about-badge">{t(info.version === '0.0.0' ? 'ui.about.version.development' : `ui.about.version.${defaultUpdateChannel(info.version)}`)}</span>}</p>
         <p>{t('ui.about.hermes.version')}: <strong>{info?.hermesVersion ?? '—'}</strong></p>
         <label>{t('ui.about.channel.preference')}
-          <select value={effectiveChannel} onChange={event => changeChannel(event.target.value as UpdateChannel)}>
+          <select value={effectiveChannel} disabled={info?.version === '0.0.0'} onChange={event => changeChannel(event.target.value as UpdateChannel)}>
             <option value="stable">{t('ui.about.channel.stable')}</option>
             <option value="rc">{t('ui.about.channel.rc')}</option>
           </select>
         </label>
       </div>
-      <button type="button" disabled={!info || checking || downloading} onClick={() => { setUpdateError(''); setDownloadPath(''); void checkUpdates() }}>{checking ? t('ui.about.update.checking') : t('ui.about.check.update')}</button>
+      <button type="button" disabled={!info || info.version === '0.0.0' || checking || downloading} onClick={() => { setUpdateError(''); setDownloadPath(''); void checkUpdates() }}>{checking ? t('ui.about.update.checking') : t('ui.about.check.update')}</button>
       {lookup?.status === 'unavailable' && <p role="status">{t('ui.about.update.unavailable')}</p>}
       {lookup?.status === 'available' && !candidate && <p role="status">{t('ui.about.update.none')}</p>}
       {candidate?.asset && <div className="about-card">
