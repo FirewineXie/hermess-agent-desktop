@@ -104,6 +104,7 @@
   "ui.about.copy.scope": "复制内容只含版本、上游提交、更新渠道和平台；不包含日志、密钥或会话。",
   "ui.about.channel.preference": "接收更新的渠道",
   "ui.about.version.stable": "正式版",
+  "ui.about.version.development": "开发构建",
   "ui.about.version.rc": "候选版（RC）",
   "ui.about.channel.stable": "正式版",
   "ui.about.channel.rc": "候选版（RC）与正式版",

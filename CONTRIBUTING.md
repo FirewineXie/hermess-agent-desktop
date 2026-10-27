@@ -17,7 +17,7 @@
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-公开仓库的 `main` 已启用分支保护：必须经 Pull Request 合并、通过必需状态检查 `Build and test (Windows)`，且禁止强制推送和删除。当前由一人维护，未设置必需批准人数。RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建，无需先合入 `main`；正式版 tag `vX.Y.Z` 只能从已合入且通过 CI 的 `main` 创建。tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+公开仓库的 `main` 已启用分支保护：必须经 Pull Request 合并、通过必需状态检查 `Build and test (Windows)`，且禁止强制推送和删除。当前由一人维护，未设置必需批准人数。未完成的功能与修复留在开发分支；RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建。功能或修复完成后经 PR 合入 `main`。正式版任务只接受 `main` 上最新必需检查通过的准确提交，构建和核对成功后才创建 `vX.Y.Z` tag；详见 [发行流程](docs/release-process.md)。
 
 ## 项目边界
 
@@ -60,4 +60,4 @@ PR 描述请包含：
 
 ## 发布约束
 
-发布前遵循 [发行流程](docs/release-process.md)；发布任务在 GitHub runner 上自行获取缺失的依赖，无需提前预热。`vX.Y.Z` 生成正式 Release，`vX.Y.Z-rc.1` 等预发布 tag 生成预发布 Release；默认等待 Windows x64 与 macOS Apple Silicon 构建成功，macOS Intel 和 Linux x64 按需补发。推送 tag 前须确认四处产品版本、`releases/<tag>.md`、上游锁定提交及安装包输入一致。正式发布还须逐项确认安装、签名、升级和真实模型验收。Release 工作流成功只证明构建产物已汇总。
+发布前遵循 [发行流程](docs/release-process.md)；发布任务在 GitHub runner 上自行获取缺失的依赖，无需提前预热。`vX.Y.Z` 生成正式 Release，`vX.Y.Z-rc.N` 生成预发布 Release；默认等待 Windows x64 与 macOS Apple Silicon 构建成功，macOS Intel 和 Linux x64 按需补发。准备 RC tag 或正式版任务前须核对 `releases/<tag>.md`、上游锁定提交及安装包输入；发行任务在临时工作区写入并核对包版本。正式发布还须逐项确认安装、签名、升级和真实模型验收。Release 工作流成功只证明构建产物已汇总。

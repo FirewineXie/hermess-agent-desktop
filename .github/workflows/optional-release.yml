@@ -32,18 +32,27 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - name: Validate release tag and existing release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-        shell: bash
-        run: |
-          python scripts/check-release.py --tag "$TAG"
-          gh release view "$TAG" >/dev/null
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           check-latest: true
+      - name: Validate release tag and existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ inputs.target }}
+        shell: bash
+        run: |
+          if [[ -f scripts/release-version.mjs ]]; then
+            node scripts/release-version.mjs check "$TAG"
+          else
+            python scripts/check-release.py --tag "$TAG"
+          fi
+          gh release view "$TAG" >/dev/null
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q "^${TARGET}-"; then
+            echo "Target $TARGET already has an installer on $TAG" >&2
+            exit 1
+          fi
       - run: node scripts/fetch-upstream.mjs
       - run: node scripts/check-legal.mjs
 
@@ -89,7 +98,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
       - name: Verify source and install frontend dependencies
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
         run: |
+          if [[ -f scripts/release-version.mjs ]]; then
+            node scripts/release-version.mjs stamp "$TAG"
+            node scripts/release-version.mjs verify "$TAG"
+          fi
           node scripts/fetch-upstream.mjs
           node scripts/verify-upstream.mjs
           node scripts/check-legal.mjs
@@ -106,7 +122,14 @@ jobs:
       - name: Stage expected installers
         env:
           TARGET: ${{ inputs.target }}
-        run: python scripts/stage-release-assets.py --target "$TARGET"
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ -f scripts/release-version.mjs ]]; then
+            python scripts/stage-release-assets.py --target "$TARGET" --tag "$TAG"
+          else
+            python scripts/stage-release-assets.py --target "$TARGET"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ inputs.target }}
@@ -146,4 +169,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         shell: bash
-        run: gh release upload "$TAG" optional-assets/* release-assets/SHA256SUMS.txt --clobber
+        run: |
+          gh release upload "$TAG" optional-assets/*
+          gh release upload "$TAG" release-assets/SHA256SUMS.txt --clobber

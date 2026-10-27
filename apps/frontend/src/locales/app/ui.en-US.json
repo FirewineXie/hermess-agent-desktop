@@ -104,6 +104,7 @@
   "ui.about.copy.scope": "Only version, upstream commit, update channel and platform are copied; logs, secrets and conversations are excluded.",
   "ui.about.channel.preference": "Update channel",
   "ui.about.version.stable": "Stable release",
+  "ui.about.version.development": "Development build",
   "ui.about.version.rc": "Release candidate (RC)",
   "ui.about.channel.stable": "Stable",
   "ui.about.channel.rc": "RC and stable",
