@@ -40,7 +40,7 @@ git push origin vX.Y.Z
 
 Release 附件在公开仓库的 Releases 页面查看。预发布仅表示构建产物已汇总。推送正式 tag 前须完成实机验证；工作流成功不能代替安装、签名、真实模型和升级验收。
 
-「关于」页面内嵌 `legal/hermes-agent-LICENSE`；CI 和 tag 构建从锁定上游检出后运行 `pnpm check:legal`，要求它与上游许可证逐字节一致。更新通道规则见 [关于与软件更新](about-and-updates.md)。客户端可匿名检查公开 GitHub Release，并下载、校验 Windows 或 macOS 安装包；当前不执行自动安装。后续接入签名更新清单前，还需停止已公开版本的同 tag 附件覆盖，避免同一版本号指向不同字节的安装包。
+「关于」页面内嵌 `legal/hermes-agent-LICENSE`；CI 和 tag 构建从锁定上游检出后运行 `pnpm check:legal`，要求它与上游许可证逐字节一致。更新通道规则见 [关于与软件更新](about-and-updates.md)。客户端可匿名检查公开 GitHub Release，并下载、校验 Windows 或 macOS 安装包；当前不执行自动安装。公开版本原则上不覆盖同 tag 附件，避免同一版本号指向不同字节的安装包；本次 `v0.1.6` 的明确重新发行须在 Release 说明中告知旧附件撤换和重新校验要求。
 
 ## 当前限制
 
