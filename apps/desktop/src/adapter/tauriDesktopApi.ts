@@ -153,6 +153,7 @@ export const tauriDesktopApi: DesktopApi = {
     loadLists: (scope, storagePath) => invoke('load_model_lists', { profile: scope.profile, storagePath }),
     saveLists: (scope, storagePath, lists) => invoke('save_model_lists', { profile: scope.profile, storagePath, lists }),
     addEndpoint: (scope, args) => invoke('add_custom_endpoint', { profile: scope.profile, ...args }),
+    updateEndpoint: (scope, args) => invoke('update_custom_endpoint', { profile: scope.profile, ...args }),
     setEndpointDiscovery: (scope, endpointId, discoverModels) => invoke('set_custom_endpoint_discovery', { profile: scope.profile, endpointId, discoverModels }),
     deleteEndpoint: (scope, endpointId) => invoke('delete_custom_endpoint', { profile: scope.profile, endpointId }),
     setDefault: (scope, args) => invoke('set_default_model', { profile: scope.profile, ...args }),

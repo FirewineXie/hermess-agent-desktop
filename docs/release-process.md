@@ -8,9 +8,7 @@ RC tag 可从对应 `feature/vX.Y.Z` 上已提交、完成本地检查并核对�
 
 默认发布工作流仅监听 `v*.*.*` tag 的 `push`，支持正式版本 `vX.Y.Z` 和 SemVer 预发布版本（例如 `vX.Y.Z-rc.1`），不监听普通分支推送。`scripts/check-release.py` 在构建前要求 tag、四处产品版本和 `releases/<tag>.md` 一致；`pnpm fetch:upstream` 检出锁定的 fork 桌面提交，`pnpm verify:upstream` 校验官方 tag/基线、fork 分支历史、提交 SHA、来源与干净工作区。构建期间不动态查询最新 Release。PR 的同编号检查只保留最新运行，所有 PR 同时最多有一个 Windows 检查在跑；`main` 推送检查独立。pnpm 和 Cargo 下载缓存仍须经过锁文件安装和源码校验。
 
-发布前先在 `main` 上运行 [Warm native release dependencies](../.github/workflows/warm-release-cache.yml)，分别预热 Windows x64 与 macOS Apple Silicon；需要补发其他目标时，先预热对应目标。该工作流在影响依赖的文件合入 `main` 后自动预热两个默认目标，也可用 `gh workflow run warm-release-cache.yml --ref main -f target=win32-x64` 手动重新预热。预热 job 必须成功；发布构建缺少对应平台、锁文件和构建脚本版本的 pnpm、Cargo 或原生 Python/uv 依赖缓存时会直接失败，不在发布任务中重新下载这些依赖。`pnpm install`、Cargo 和上游 PM 构建均使用离线模式。首次预热或缓存被清除后需下载一次；tag 可读取默认分支的缓存，但不同 tag 之间不能直接共享各自创建的缓存。预热的工具树由上游 PM 按锁文件、摘要和目标平台重新验证，uv 缓存仅作下载输入，离线载荷仍重新构建并校验。锁定的 Hermes 源码检出及 runner 工具链不属于这些依赖缓存。
-
-RC 从版本分支创建时，手动预热须传入 `-f source_ref=<拟打 tag 的完整提交 SHA>`，确保缓存 key 与 RC 提交的锁文件、构建脚本一致；手动预热工作流文件本身须先存在于默认分支。首次合入该工作流前无法手动触发预热。
+发布任务在对应平台的 GitHub runner 上恢复 pnpm、Cargo 和原生 Python/uv 依赖缓存；缓存缺失时自行下载并构建，任务完成后保存新缓存。pnpm 仍按锁文件安装，Cargo 先按锁文件获取依赖，再在离线模式下打包。上游 PM 按锁文件、摘要和目标平台验证工具树，运行时载荷重新构建并校验。RC 从版本分支的目标提交构建，不需要为该提交单独预热；首次构建或缓存清除后的构建可能更久，也需要 runner 能访问依赖下载来源。锁定的 Hermes 源码检出及 runner 工具链不属于这些依赖缓存。
 
 发布新版本时，先修改 `package.json`、`apps/desktop/package.json`、`apps/desktop/src-tauri/Cargo.toml`、`apps/desktop/src-tauri/tauri.conf.json` 的版本，更新锁文件，新增 `releases/<tag>.md`。预发布版本须将四处版本同步为不含前缀 `v` 的完整版本（例如 `0.1.5-rc.1`），说明文件名为 `releases/v0.1.5-rc.1.md`。提交后再创建并推送同名 tag：
 
@@ -32,7 +30,11 @@ git push origin vX.Y.Z
 | macOS Intel | `macos-15-intel` | `.dmg` | 按需手动补发 |
 | Linux x64 | `ubuntu-22.04` | AppImage 与 `.deb` | 按需手动补发 |
 
-每个原生 runner 从预热缓存复制经固定上游 PM 验证的 Python/uv 工具及 uv 下载缓存，再验证 payload 与上游提交，归档并计算摘要后交给 Tauri 打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
+每个原生 runner 复用缓存或自行获取 Python/uv 工具及 uv 下载依赖，再验证 payload 与上游提交。Windows 将 payload 归档并计算摘要交给 Tauri 打包，NSIS 使用 zlib 压缩。安装器将新 payload 解到 `runtime/payload.next`，必要文件校验后再切换到固定的 `runtime/payload`；若安装器记录的旧 payload 归档摘要与新包一致，则跳过解包和目录切换。不同摘要时，旧目录改名为带时间戳的 `payload.old-*`；新 Gateway 启动成功后，客户端在后台只清理带本产品标记的旧目录，未清理完的目录在后续成功启动时重试，卸载时也予以清理。安装器仍会复制新包中的归档资源；这里的复用不等于跳过资源复制。macOS/Linux 将已验证的展开后 payload 直接作为应用资源打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
+
+覆盖安装时若旧 `payload` 暂时被占用，Windows 安装器会短时重试；交互安装允许关闭占用程序后再次尝试。切换失败时保留旧目录和已完整解压的 `payload.next`，下一次运行在摘要及必要文件匹配时直接复用暂存目录。
+
+打包脚本在归档前会暂时把 payload 移到另一目录，运行清单指定的基础 Python，确认它和其子进程都能从搬迁后的源码及依赖目录导入 Hermes；检查结束后恢复原路径。此检查覆盖随包辅助解释器的目录可迁移性，不等于安装程序和原生窗口验收。
 
 需要 macOS Intel 或 Linux x64 时，在 GitHub Actions 运行 `Optional desktop release target`，填写**已存在 Release** 的完整 tag 和所需目标；CLI 也可使用 `gh workflow run optional-release.yml --ref main -f tag=vX.Y.Z -f target=darwin-x64`（Linux 使用 `linux-x64`）。工作流从该 tag 检出源码，重新核对版本、上游与许可证，然后构建选定目标。补发完成后，读取现有 Release 附件，验证默认目标及所选目标的安装包数量和格式，并重写覆盖全部现有安装包的 `SHA256SUMS.txt`。相同 tag 的默认发布与补发串行运行；重跑同一 tag 若产生不同文件名的重复平台安装包会停止，需先核对旧附件，不能悄悄留下不一致的清单。
 

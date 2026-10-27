@@ -5,6 +5,8 @@ pub mod chat;
 pub mod config;
 pub mod downloadable_tools;
 pub mod extensions;
+mod gateway_control;
+mod helper_python;
 mod jobs;
 mod location;
 mod mcp_registry;
@@ -19,6 +21,8 @@ mod powershell_tool;
 pub mod profile_data;
 mod profile_scope;
 pub mod profiles;
+#[cfg(windows)]
+mod retired_payload;
 pub mod tools;
 pub mod usage;
 
@@ -28,7 +32,7 @@ use crate::gateway::GatewayClient;
 use crate::process_manager::{self, ProcessRegistration};
 use futures_util::{SinkExt, StreamExt};
 use location::{acquire_storage_lock, save_storage_path, saved_storage_path};
-use payload::install_packed_payload;
+use payload::validate_payload;
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
@@ -214,146 +218,19 @@ async fn verify_private_api(port: u16, token: &str) -> Result<(), String> {
     }
 }
 
-fn python_for_hermes(hermes: &Path) -> Result<PathBuf, String> {
-    let scripts = hermes.parent().ok_or("无法定位网关运行时")?;
-    let python = if scripts.file_name().and_then(|n| n.to_str()) == Some("bin") {
-        scripts
-            .parent()
-            .ok_or("无法定位网关运行时")?
-            .join("venv")
-            .join(if cfg!(windows) {
-                "Scripts/python.exe"
-            } else {
-                "bin/python"
-            })
-    } else {
-        scripts.join(if cfg!(windows) {
-            "python.exe"
-        } else {
-            "python"
-        })
-    };
-    if !python.is_file() {
-        return Err("网关解释器不存在".into());
-    }
-    Ok(python)
-}
-
 async fn discover_owned_gateway(
-    hermes: &Path,
     home: &Path,
     launched_pid: u32,
-) -> Option<(u16, serde_json::Value)> {
-    const SCRIPT: &str = r#"import json,sys
-from contextlib import redirect_stdout
-from pathlib import Path
-import psutil
-home=Path(sys.argv[1])
-launched_pid=int(sys.argv[2])
-try:
-    gateway_pid=json.loads((home/'gateway.lock').read_text(encoding='utf-8'))['pid']
-    gateway=psutil.Process(gateway_pid)
-    if gateway.pid != launched_pid and not any(parent.pid == launched_pid for parent in gateway.parents()):
-        raise SystemExit(1)
-except (OSError, ValueError, KeyError, TypeError, psutil.Error):
-    raise SystemExit(1)
-with redirect_stdout(sys.stderr):
-    from hermes_cli.gateway_runtime import discover_gateway_endpoint
-result=discover_gateway_endpoint(home)
-if result.state != 'ready' or result.endpoint is None:
-    raise SystemExit(1)
-e=result.endpoint
-print(json.dumps({'profile_id':e.profile_id,'instance_id':e.instance_id,
-    'runtime_protocol':e.runtime_protocol,'control_home':e.control_home,
-    'api_origin':e.api_origin}))
-"#;
-    let mut command = tokio::process::Command::new(python_for_hermes(hermes).ok()?);
-    command
-        .args(["-P", "-u", "-c", SCRIPT])
-        .arg(home)
-        .arg(launched_pid.to_string())
-        .env("HERMES_HOME", home)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000);
-    let output = timeout(
-        Duration::from_secs(5),
-        process_manager::output(&mut command, "gateway_discovery"),
-    )
-    .await
-    .ok()?
-    .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let endpoint: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
-    if !endpoint
-        .get("profile_id")
-        .and_then(|v| v.as_str())?
-        .eq_ignore_ascii_case(home.to_str()?)
-    {
-        return None;
-    }
-    let port = endpoint
-        .get("api_origin")
-        .and_then(|v| v.as_str())?
-        .strip_prefix("http://127.0.0.1:")?
-        .parse::<u16>()
-        .ok()?;
-    Some((port, endpoint))
+) -> Result<Option<(u16, serde_json::Value)>, String> {
+    gateway_control::discover(home, launched_pid).await
 }
 
 async fn mint_gateway_ticket(
-    hermes: &Path,
     home: &Path,
     endpoint: &serde_json::Value,
+    launched_pid: u32,
 ) -> Result<String, String> {
-    const SCRIPT: &str = r#"import json,os,sys
-from contextlib import redirect_stdout
-from pathlib import Path
-from types import SimpleNamespace
-with redirect_stdout(sys.stderr):
-    from hermes_cli.gateway_client import _session_ticket
-    from hermes_cli.gateway_runtime_discovery import _private_node
-home=Path(sys.argv[1]).resolve()
-endpoint=SimpleNamespace(**json.loads(sys.argv[2]))
-if endpoint.runtime_protocol != 1 or os.path.normcase(str(home)) != os.path.normcase(endpoint.profile_id):
-    raise SystemExit(1)
-if os.name != 'nt':
-    _private_node(home, kind='directory', home=True)
-with redirect_stdout(sys.stderr):
-    ticket=_session_ticket(home, endpoint, purpose='interactive', scope='host')
-print(ticket)
-"#;
-    let mut command = tokio::process::Command::new(python_for_hermes(hermes)?);
-    command
-        .args(["-P", "-u", "-c", SCRIPT])
-        .arg(home)
-        .arg(endpoint.to_string())
-        .env("HERMES_HOME", home)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000);
-    let output = timeout(
-        Duration::from_secs(8),
-        process_manager::output(&mut command, "gateway_ticket"),
-    )
-    .await
-    .map_err(|_| "获取网关票据超时".to_string())?
-    .map_err(|_| "无法获取网关票据".to_string())?;
-    if !output.status.success() {
-        return Err("网关拒绝桌面票据".into());
-    }
-    let ticket = String::from_utf8(output.stdout).map_err(|_| "网关票据无效".to_string())?;
-    let ticket = ticket.trim();
-    if ticket.is_empty() || ticket.len() > 4096 || !ticket.is_ascii() {
-        return Err("网关票据无效".into());
-    }
-    Ok(ticket.to_owned())
+    gateway_control::ticket(home, endpoint, launched_pid).await
 }
 
 #[tauri::command]
@@ -446,22 +323,19 @@ pub async fn start_packed_backend(
             return Ok(info);
         }
     }
-    let resource_for_install = resource.clone();
-    let selected_for_install = selected.clone();
-    let hermes = tokio::task::spawn_blocking(move || {
-        install_packed_payload(&resource_for_install, &selected_for_install)
-    })
-    .await
-    .map_err(|_| "运行时准备任务失败".to_string())??;
+    let hermes = validate_payload(&resource.join("runtime/payload"))?;
     if saved_storage_path(&app)?.is_none() {
         let resolved = selected
             .canonicalize()
             .map_err(|_| "无法解析主要存储位置".to_string())?;
         save_storage_path(&app, &resolved)?;
     }
-    launch_backend(app, &state, hermes, selected, true)
+    let info = launch_backend(app, &state, hermes, selected.clone(), true)
         .await
-        .map_err(Into::into)
+        .map_err(DesktopFailure::from)?;
+    #[cfg(windows)]
+    retired_payload::schedule_cleanup(resource, selected.join("HermessAgentDesktop"));
+    Ok(info)
 }
 
 async fn launch_backend(
@@ -536,7 +410,7 @@ async fn launch_backend(
             return Err("后端在发布就绪状态前退出；请查看开发者诊断中的 Hermess 日志".into());
         }
         if hermes_home.join("gateway.lock").is_file() {
-            if let Some(found) = discover_owned_gateway(&hermes, &hermes_home, pid).await {
+            if let Some(found) = discover_owned_gateway(&hermes_home, pid).await? {
                 break found;
             }
         }
@@ -554,7 +428,7 @@ async fn launch_backend(
     {
         return Err("后端在鉴权后退出".into());
     }
-    let ticket = mint_gateway_ticket(&hermes, &hermes_home, &endpoint).await?;
+    let ticket = mint_gateway_ticket(&hermes_home, &endpoint, pid).await?;
     let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
     let selected_profile =
         profiles::restore_selected_profile(&storage, &gateway, child.id(), port, &token).await;
@@ -598,9 +472,9 @@ async fn reuse_owned_backend(
             }
             if existing.gateway.is_closed() {
                 let ticket = mint_gateway_ticket(
-                    &existing.hermes,
                     &existing.storage.join("hermes-home"),
                     &existing.endpoint,
+                    existing.child.id().ok_or("自有网关 PID 丢失")?,
                 )
                 .await?;
                 existing.gateway =
@@ -660,9 +534,9 @@ pub async fn reconnect_backend(
         return Err(DesktopFailure::runtime_unavailable());
     }
     let ticket = mint_gateway_ticket(
-        &backend.hermes,
         &backend.storage.join("hermes-home"),
         &backend.endpoint,
+        backend.child.id().ok_or("自有网关 PID 丢失")?,
     )
     .await?;
     let replacement = Arc::new(

@@ -1,4 +1,4 @@
-use super::{profile_scope::SessionOwners, python_for_hermes, BackendState};
+use super::{helper_python, profile_scope::SessionOwners, BackendState};
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
 use crate::process_manager;
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::Path, sync::Arc, time::Duration};
 use tauri::State;
-use tokio::{process::Command, time::timeout};
+use tokio::time::timeout;
 
 const SELECTED_FILE: &str = "selected-profile";
 
@@ -400,9 +400,9 @@ if not _save_mcp_server(entry.name, card_install_config(entry)):
                 warnings.append('mcp:' + mcp_name)
 print(json.dumps({'name': name, 'personality_applied': personality_applied, 'warnings': warnings}))
 "#;
-    let mut command = Command::new(python_for_hermes(&hermes).map_err(DesktopFailure::from)?);
+    let mut command = helper_python::command(&hermes, SCRIPT).map_err(DesktopFailure::from)?;
     command
-        .args(["-P", "-u", "-c", SCRIPT, name])
+        .arg(name)
         .arg(serde_json::to_string(&preset).map_err(|_| DesktopFailure::invalid_input())?)
         .env("HERMES_HOME", home)
         .env("PYTHONIOENCODING", "utf-8")
@@ -491,9 +491,8 @@ if endpoint.api_origin != 'http://127.0.0.1:' + sys.argv[2]:
     raise SystemExit(1)
 print(_session_ticket(home, endpoint, purpose='native-http'))
 "#;
-    let mut command = Command::new(python_for_hermes(hermes).map_err(DesktopFailure::from)?);
+    let mut command = helper_python::command(hermes, SCRIPT).map_err(DesktopFailure::from)?;
     command
-        .args(["-P", "-u", "-c", SCRIPT])
         .arg(home)
         .arg(expected_port.to_string())
         .env("HERMES_HOME", home)

@@ -1,6 +1,6 @@
 {
   "name": "hermess-agent-desktop",
-  "version": "0.1.6",
+  "version": "0.1.7-rc.1",
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "scripts": {

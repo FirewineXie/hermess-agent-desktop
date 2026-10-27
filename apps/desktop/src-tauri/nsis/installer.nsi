@@ -54,6 +54,7 @@ ${StrLoc}
 !define UNINSTALLERHEADERIMAGE "{{uninstaller_header_image}}"
 !define MAINBINARYNAME "{{main_binary_name}}"
 !define MAINBINARYSRCPATH "{{main_binary_path}}"
+!define HERMESS_RUNTIME_SHA256 "@HERMESS_RUNTIME_SHA256@"
 !define BUNDLEID "{{bundle_id}}"
 !define COPYRIGHT "{{copyright}}"
 !define OUTFILE "{{out_file}}"
@@ -78,6 +79,7 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
+; HERMESS_RUNTIME_MACROS
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -285,6 +287,10 @@ Function PageReinstall
   ; related to current installed version if detected and whether
   ; we are downgrading or not.
   ${If} $PassiveMode = 1
+    ${If} $WixMode = 0
+    ${AndIf} $R0 = 1
+      Abort ; compatible NSIS upgrades keep the existing install for replacement
+    ${EndIf}
     Call PageLeaveReinstall
   ${Else}
     nsDialogs::Create 1018
@@ -309,7 +315,9 @@ Function PageReinstall
     ; Check the first radio button if this the first time
     ; we enter this page or if the second button wasn't
     ; selected the last time we were on this page
-    ${If} $ReinstallPageCheck <> 2
+    ${If} $R0 = 1
+      SendMessage $R3 ${BM_SETCHECK} ${BST_CHECKED} 0
+    ${ElseIf} $ReinstallPageCheck <> 2
       SendMessage $R2 ${BM_SETCHECK} ${BST_CHECKED} 0
     ${Else}
       SendMessage $R3 ${BM_SETCHECK} ${BST_CHECKED} 0
@@ -692,8 +700,8 @@ Section Install
 
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
-  ; Copy main executable
-  File "${MAINBINARYSRCPATH}"
+  ; Keep the current executable until the new runtime is ready.
+  File "/oname=${MAINBINARYNAME}.next.exe" "${MAINBINARYSRCPATH}"
 
   ; Copy resources
   {{#each resources_dirs}}
@@ -707,6 +715,8 @@ Section Install
   {{#each binaries}}
     File /a "/oname={{this}}" "{{no-escape @key}}"
   {{/each}}
+
+  !insertmacro HERMESS_INSTALL_RUNTIME
 
   ; Create file associations
   {{#each file_associations as |association| ~}}
@@ -828,6 +838,8 @@ Section Uninstall
   !endif
 
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+
+  !insertmacro HERMESS_UNINSTALL_RUNTIME
 
   ; Delete the app directory and its content from disk
   ; Copy main executable

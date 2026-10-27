@@ -23,7 +23,7 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 - 中文聊天界面、模型配置、流式回复、会话历史、停止、审批与澄清。
 - 工作区页可保存本地文件夹快捷入口，并在选定目录中新建 Hermes 会话；已有会话恢复时沿用原工作目录。
 - 本地文件和图片附件，含原生选择、拖入及短文本预览。
-- 独立数据根、固定上游提交、运行时归档校验与首次解包。
+- 独立数据根、固定上游提交与离线运行时。v0.1.7 开发分支将运行时放在安装目录：Windows 安装时解包到暂存目录并切换到固定路径，相同运行时跳过再次解包，旧目录在新网关启动后后台清理；macOS/Linux 从应用资源目录直接运行。真实覆盖升级、后台清理与跨平台原生操作仍待验收。
 - 按正式或预发布版本 tag 默认构建 Windows x64 与 macOS Apple Silicon 安装包并汇总到 Release；macOS Intel 与 Linux x64 可按需为同一 tag 补发。
 - 「关于」页展示产品与锁定上游版本、两份离线许可证及工具来源；软件更新页可保存正式版或 RC 渠道偏好，并从公开的 GitHub Release 检查、校验和下载适用安装包。下载后仍需手动运行安装程序。
 - 「渠道接入」页提供飞书和微信二维码授权；桌面使用一个自有 Hermes 网关进程承载聊天与消息渠道。关闭窗口时收起到系统托盘，托盘菜单可恢复窗口或退出。
@@ -74,7 +74,7 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 ## 版本构建
 
-推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。先用 `.github/workflows/warm-release-cache.yml` 在 `main` 预热对应平台的原生依赖缓存；缓存缺失时发布构建会失败，不在发布任务中下载 Python/uv 依赖。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
+推送正式 tag `v主版本.次版本.修订号` 或预发布 tag（例如 `v0.1.5-rc.1`）会触发 `.github/workflows/tagged-release.yml`。tag 必须与根包、桌面包、Cargo 和 Tauri 的版本一致，并包含 `releases/<tag>.md` 的版本说明。发布任务在 GitHub runner 上复用已有依赖缓存，缓存缺失时自行下载并构建，无需提前预热。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
 
 ## 许可
 

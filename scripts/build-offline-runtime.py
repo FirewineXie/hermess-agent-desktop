@@ -45,61 +45,76 @@ def main() -> None:
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
     subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"),
                     "--payload", str(payload)], check=True)
+    subprocess.run([sys.executable, str(product / "scripts" / "verify-relocated-helper.py"),
+                    "--payload", str(payload)], check=True)
     build.mkdir(exist_ok=True)
-    runtime = build / "runtime"
-    runtime.mkdir(exist_ok=True)
-    archive = runtime / "payload.tar"
-    receipt = runtime / "receipt.json"
-    digest = hashlib.sha256()
-    with tarfile.open(archive, "w", format=tarfile.PAX_FORMAT, dereference=False) as tar:
-        for path in sorted(payload.rglob("*")):
-            relative = path.relative_to(payload).as_posix()
-            info = tar.gettarinfo(str(path), arcname=relative)
-            info.uid = info.gid = 0
-            info.uname = info.gname = ""
-            info.mtime = 0
-            if path.is_symlink():
-                resolved = path.resolve(strict=True)
-                if not resolved.is_relative_to(payload) or not (resolved.is_file() or resolved.is_dir()):
-                    parser.error(f"payload link escapes its root: {relative}")
-                info.linkname = Path(os.path.relpath(resolved, path.parent)).as_posix()
-                tar.addfile(info)
-            elif path.is_file():
-                info.type = tarfile.REGTYPE
-                info.linkname = ""
-                info.size = path.stat().st_size
-                with path.open("rb") as source:
-                    tar.addfile(info, source)
-            elif path.is_dir():
-                tar.addfile(info)
-            else:
-                parser.error(f"payload contains an unsupported entry: {relative}")
-    with archive.open("rb") as source:
-        while chunk := source.read(8 * 1024 * 1024):
-            digest.update(chunk)
-    receipt.write_text(json.dumps({
-        "schema": 1, "target": target, "upstream_commit": lock["commit"],
-        "archive_sha256": digest.hexdigest(), "archive_bytes": archive.stat().st_size,
-    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    resources = {str(payload): "runtime/payload"}
+    if target == "win32-x64":
+        runtime = build / "runtime"
+        runtime.mkdir(exist_ok=True)
+        archive = runtime / "payload.tar"
+        receipt = runtime / "receipt.json"
+        digest = hashlib.sha256()
+        with tarfile.open(archive, "w", format=tarfile.PAX_FORMAT, dereference=False) as tar:
+            for path in sorted(payload.rglob("*")):
+                relative = path.relative_to(payload).as_posix()
+                info = tar.gettarinfo(str(path), arcname=relative)
+                info.uid = info.gid = 0
+                info.uname = info.gname = ""
+                info.mtime = 0
+                if path.is_symlink():
+                    resolved = path.resolve(strict=True)
+                    if not resolved.is_relative_to(payload) or not (resolved.is_file() or resolved.is_dir()):
+                        parser.error(f"payload link escapes its root: {relative}")
+                    info.linkname = Path(os.path.relpath(resolved, path.parent)).as_posix()
+                    tar.addfile(info)
+                elif path.is_file():
+                    info.type = tarfile.REGTYPE
+                    info.linkname = ""
+                    info.size = path.stat().st_size
+                    with path.open("rb") as source:
+                        tar.addfile(info, source)
+                elif path.is_dir():
+                    tar.addfile(info)
+                else:
+                    parser.error(f"payload contains an unsupported entry: {relative}")
+        with archive.open("rb") as source:
+            while chunk := source.read(8 * 1024 * 1024):
+                digest.update(chunk)
+        receipt.write_text(json.dumps({
+            "schema": 1, "target": target, "upstream_commit": lock["commit"],
+            "archive_sha256": digest.hexdigest(), "archive_bytes": archive.stat().st_size,
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        resources = {str(archive): "runtime/payload.tar", str(receipt): "runtime/receipt.json"}
     config = build / "tauri-offline.json"
     bundle = {
         "active": True,
         "targets": bundles[target],
-        "resources": {str(archive): "runtime/payload.tar", str(receipt): "runtime/receipt.json"},
+        "resources": resources,
     }
     if target == "win32-x64":
         nsis_source = product / "apps" / "desktop" / "src-tauri" / "nsis"
         nsis_template = build / "installer.nsi"
-        nsis_template.write_text("".join(
+        template = "".join(
             (nsis_source / part).read_text(encoding="utf-8")
             for part in ("installer.nsi", "installer-shortcuts.nsi")
-        ), encoding="utf-8")
+        )
+        marker = "; HERMESS_RUNTIME_MACROS"
+        if template.count(marker) != 1:
+            parser.error("NSIS runtime macro insertion point is missing or ambiguous")
+        template = template.replace(marker, (nsis_source / "installer-runtime.nsi").read_text(encoding="utf-8"))
+        digest_marker = "@HERMESS_RUNTIME_SHA256@"
+        if template.count(digest_marker) != 1:
+            parser.error("NSIS runtime digest insertion point is missing or ambiguous")
+        template = template.replace(digest_marker, digest.hexdigest())
+        nsis_template.write_text(template, encoding="utf-8")
         bundle["windows"] = {"nsis": {
             "installMode": "currentUser",
+            "compression": "zlib",
             "template": str(nsis_template),
         }}
     config.write_text(json.dumps({"bundle": bundle}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"validated payload, archived {archive.stat().st_size} bytes, prepared Tauri bundle config: {config}")
+    print(f"validated payload, prepared Tauri bundle config: {config}")
     if args.build:
         pnpm = shutil.which("pnpm")
         if not pnpm:

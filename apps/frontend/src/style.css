@@ -547,6 +547,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel .provider-model-suggestions button { display: block; width: 100%; padding: 8px 10px; overflow-wrap: anywhere; color: #20242d; background: transparent; text-align: left; }
 .settings-panel .provider-model-suggestions button:hover, .settings-panel .provider-model-suggestions button[aria-selected="true"] { background: #eaf1fa; }
 .provider-card-meta { display: flex; align-items: start; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.provider-card-actions { display: flex; flex: none; align-items: center; gap: 12px; }
+.settings-panel .provider-card-actions button { padding: 0; color: #245b9d; background: transparent; font-size: 12px; }
 .provider-card-meta small { min-width: 0; overflow-wrap: anywhere; font-size: 11px; }
 .settings-panel .provider-card-meta button { flex: none; padding: 0; color: #a33c3c; background: transparent; font-size: 12px; }
 .provider-card-discovery { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -565,6 +567,16 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel .provider-add-model { width: 100%; padding: 7px; border: 1px dashed #a9bbd1; color: #315c91; background: transparent; font-size: 12px; }
 .settings-panel .provider-add-model:hover { background: #edf4fb; }
 .model-editor-heading { margin-top: 34px; padding-top: 25px; border-top: 1px solid #e7ebef; }
+.provider-add-form .model-editor-heading { margin: 0 0 18px; padding: 0; border: 0; }
+.provider-add-form .model-editor-heading h2 { min-width: 0; font-size: 18px; overflow-wrap: anywhere; }
+.provider-add-form .model-editor-heading button { flex: none; width: 36px; height: 36px; padding: 0; color: #66758c; background: transparent; font-size: 25px; }
+.provider-add-form .model-editor-heading button:hover { background: #eef3f8; }
+.builtin-provider-endpoint, .builtin-provider-models { margin: 18px 0; color: #273348; font-size: 13px; }
+.builtin-provider-endpoint strong, .builtin-provider-models strong { display: block; margin-bottom: 8px; }
+.builtin-provider-endpoint p, .builtin-provider-models p { margin: 0; overflow-wrap: anywhere; }
+.provider-add-form .builtin-provider-models ul { display: grid; gap: 6px; max-height: 180px; margin: 0; overflow-y: auto; }
+.provider-add-form .builtin-provider-models li { display: block; padding: 7px 10px; overflow-wrap: anywhere; border: 1px solid #e7ebef; border-radius: 7px; }
+.provider-add-form .builtin-provider-note { margin: 8px 0 0; font-size: 12px; }
 .chat-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; width: 100%; padding: 0 32px; }
 .chat-content { width: min(860px, 100%); flex: 1; min-height: 0; margin: 0 auto; overflow: auto; }
 .welcome { margin: 0 auto; text-align: center; }

@@ -305,12 +305,35 @@ pub async fn add_custom_endpoint(
     let name = name.trim();
     let base_url = base_url.trim();
     let model = model.trim();
+    validate_custom_endpoint_fields(name, base_url, model, Some(&api_key))?;
+    let mut body = json!({"id": format!("desktop-{}", Uuid::new_v4().simple()),
+        "name": name, "base_url": base_url, "model": model, "make_default": make_default,
+        "discover_models": discover_models});
+    if !api_key.is_empty() {
+        body["api_key"] = json!(api_key);
+    }
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::POST,
+        "/api/providers/custom-endpoints",
+        Some(body),
+    )
+    .await
+}
+
+fn validate_custom_endpoint_fields(
+    name: &str,
+    base_url: &str,
+    model: &str,
+    api_key: Option<&String>,
+) -> Result<(), DesktopFailure> {
     if name.is_empty()
         || name.len() > 128
         || model.is_empty()
         || model.len() > 256
         || model.chars().any(char::is_whitespace)
-        || api_key.len() > 4096
+        || api_key.is_some_and(|key| key.len() > 4096)
     {
         return Err(DesktopFailure::invalid_input());
     }
@@ -323,15 +346,61 @@ pub async fn add_custom_endpoint(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let mut body = json!({"id": format!("desktop-{}", Uuid::new_v4().simple()),
-        "name": name, "base_url": base_url, "model": model, "make_default": make_default,
-        "discover_models": discover_models});
-    if !api_key.is_empty() {
-        body["api_key"] = json!(api_key);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_custom_endpoint(
+    state: State<'_, BackendState>,
+    profile: String,
+    endpoint_id: String,
+    name: String,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+    make_default: bool,
+    discover_models: bool,
+) -> Result<Value, DesktopFailure> {
+    let endpoint_id = endpoint_id.trim();
+    let name = name.trim();
+    let base_url = base_url.trim();
+    let model = model.trim();
+    if endpoint_id.is_empty()
+        || endpoint_id.len() > 128
+        || endpoint_id.chars().any(char::is_control)
+    {
+        return Err(DesktopFailure::invalid_input());
     }
-    config_request_to_profile(
+    validate_custom_endpoint_fields(name, base_url, model, api_key.as_ref())?;
+    let scope = state.resolve_profile(&profile).await?;
+    let listed = config_request_for_scope(
         &state,
-        &profile,
+        &scope,
+        reqwest::Method::GET,
+        "/api/providers/custom-endpoints",
+        None,
+    )
+    .await?;
+    let exists = listed
+        .get("endpoints")
+        .and_then(Value::as_array)
+        .is_some_and(|endpoints| {
+            endpoints.iter().any(|endpoint| {
+                endpoint.get("id").and_then(Value::as_str) == Some(endpoint_id)
+                    && endpoint.get("source").and_then(Value::as_str) != Some("direct-config")
+            })
+        });
+    if !exists {
+        return Err(DesktopFailure::conflict());
+    }
+    let mut body = json!({"id": endpoint_id, "name": name, "base_url": base_url,
+        "model": model, "make_default": make_default, "discover_models": discover_models});
+    if let Some(key) = api_key {
+        body["api_key"] = json!(key);
+    }
+    config_request_for_scope(
+        &state,
+        &scope,
         reqwest::Method::POST,
         "/api/providers/custom-endpoints",
         Some(body),

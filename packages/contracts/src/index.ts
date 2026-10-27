@@ -241,6 +241,7 @@ export interface DesktopApi {
     loadLists(scope: ProfileScope, storagePath: string): Promise<Record<string, string[]> | null>
     saveLists(scope: ProfileScope, storagePath: string, lists: Record<string, string[]>): Promise<void>
     addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string; makeDefault: boolean; discoverModels: boolean }): Promise<void>
+    updateEndpoint(scope: ProfileScope, args: { endpointId: string; name: string; baseUrl: string; model: string; apiKey: string | null; makeDefault: boolean; discoverModels: boolean }): Promise<void>
     setEndpointDiscovery(scope: ProfileScope, endpointId: string, discoverModels: boolean): Promise<void>
     deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
