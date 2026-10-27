@@ -8,59 +8,116 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: pr-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  classify:
+    name: Classify PR changes
+    runs-on: ubuntu-22.04
+    outputs:
+      code_changed: ${{ steps.changes.outputs.code_changed }}
+    steps:
+      - id: changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+            echo 'code_changed=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/pr-files.txt"
+          code_changed=true
+          if [[ -s "$RUNNER_TEMP/pr-files.txt" ]]; then
+            code_changed=false
+            while IFS= read -r file; do
+              case "$file" in
+                *.md|docs/screenshots/*) ;;
+                *) code_changed=true; break ;;
+              esac
+            done < "$RUNNER_TEMP/pr-files.txt"
+          fi
+          echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
+
   ci:
     name: Build and test (Windows)
-    runs-on: windows-2025
+    if: ${{ !cancelled() }}
+    needs: classify
+    runs-on: ${{ needs.classify.outputs.code_changed == 'true' && 'windows-2025' || 'ubuntu-22.04' }}
     timeout-minutes: 45
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && 'all-pr-windows-ci' || format('main-windows-ci-{0}', github.ref) }}
+      group: ${{ needs.classify.outputs.code_changed == 'false' && format('docs-pr-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && 'all-pr-windows-ci' || format('main-windows-ci-{0}', github.ref) }}
       queue: max
     steps:
+      - name: Require a successful change classification
+        if: needs.classify.result != 'success' || (needs.classify.outputs.code_changed != 'true' && needs.classify.outputs.code_changed != 'false')
+        run: exit 1
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check documentation-only changes
+        if: needs.classify.outputs.code_changed == 'false'
+        run: git diff --check HEAD^1 HEAD
       - uses: pnpm/action-setup@v4
+        if: needs.classify.outputs.code_changed == 'true'
         with:
           version: 10.25.0
           run_install: false
       - uses: actions/setup-node@v4
+        if: needs.classify.outputs.code_changed == 'true'
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - uses: actions/cache@v4
+        if: needs.classify.outputs.code_changed == 'true'
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: cargo-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock', 'rust-toolchain.toml') }}
       - name: Verify locked upstream source
+        if: needs.classify.outputs.code_changed == 'true'
         run: node scripts/fetch-upstream.mjs
       - name: Check bundled upstream license
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm check:legal
       - name: Install frontend dependencies
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm install --frozen-lockfile
       - name: Check architecture boundaries
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm check:architecture
       - name: Check shared contract schemas
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm check:contracts
       - name: Check generated contract types
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm check:generated-contracts
       - name: Check update channel rules
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm test:update-rules
       - name: Build frontend preview
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm --dir apps/frontend build
       - name: Build frontend
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm build
       - name: Install Rust formatter
+        if: needs.classify.outputs.code_changed == 'true'
         run: rustup component add rustfmt
       - name: Check Rust formatting
+        if: needs.classify.outputs.code_changed == 'true'
         run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --all -- --check
       - name: Check Rust compilation
+        if: needs.classify.outputs.code_changed == 'true'
         run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
       - name: Run Rust tests
+        if: needs.classify.outputs.code_changed == 'true'
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked

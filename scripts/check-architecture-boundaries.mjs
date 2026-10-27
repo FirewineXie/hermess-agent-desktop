@@ -110,7 +110,7 @@ for (const name of invoked) if (!registered.has(name)) failures.push(`adapter in
 for (const name of registered) if (!invoked.has(name)) failures.push(`registered command has no adapter capability: ${name}`)
 
 const runtimeDir = resolve(root, 'apps/desktop/src-tauri/src/runtime')
-const profileGatewaySource = readFileSync(resolve(runtimeDir, 'profiles.rs'), 'utf8')
+const profileGatewaySource = readFileSync(resolve(runtimeDir, 'profiles.rs'), 'utf8').replace(/\r\n/g, '\n')
 const acceptedMethodsBlock = profileGatewaySource.match(/fn accepts_profile\([^)]*\) -> bool \{[\s\S]*?matches!\([\s\S]*?\n\s*\)\n\}/)?.[0]
 if (!acceptedMethodsBlock) failures.push('runtime/profiles.rs: named Profile Gateway method list not found')
 const acceptedMethods = new Set([...(acceptedMethodsBlock || '').matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)].map(match => match[1]))

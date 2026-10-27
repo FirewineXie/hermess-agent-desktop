@@ -13,11 +13,11 @@
 ## 合并流程
 
 1. 在版本分支或修复分支完成改动、本地检查和提交，推送分支并向 `main` 提交 Pull Request。
-2. 等待 [PR checks](.github/workflows/ci.yml) 的 `Build and test (Windows)` 作业成功，并处理代码审查意见。该作业验证锁定上游、前端构建、Rust 格式、编译和测试。
+2. 等待 [PR checks](.github/workflows/ci.yml) 的必需状态检查 `Build and test (Windows)` 成功，并处理代码审查意见。含代码、脚本、配置或许可证变更的 PR 在 Windows 验证锁定上游、前端构建、Rust 格式、编译和测试；仅改 Markdown 文档或 `docs/screenshots/` 的 PR 在 Linux 执行轻量差异检查，不启动 Windows 编译。`main` 推送始终执行完整 Windows 检查。
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-当前仓库为私有仓库，现有 GitHub 方案对 `main` 分支保护接口返回“需要 GitHub Pro 或公开仓库”，因此上述合并门槛目前由维护者逐次执行；本地 hook 只拦截已启用它的检出，GitHub 尚未强制拦截直接推送。若将来具备分支保护能力，应启用“必须经 Pull Request 合并”和必需状态检查 `Build and test (Windows)`。RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建，无需先合入 `main`；正式版 tag `vX.Y.Z` 只能从已合入且通过 CI 的 `main` 创建。tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
+公开仓库的 `main` 已启用分支保护：必须经 Pull Request 合并、通过必需状态检查 `Build and test (Windows)`，且禁止强制推送和删除。当前由一人维护，未设置必需批准人数。RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建，无需先合入 `main`；正式版 tag `vX.Y.Z` 只能从已合入且通过 CI 的 `main` 创建。tag 构建仍由 [发行工作流](.github/workflows/tagged-release.yml) 单独完成。
 
 ## 项目边界
 
