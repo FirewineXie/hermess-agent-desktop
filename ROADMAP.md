@@ -6,7 +6,7 @@
 
 2026-10-27 公开仓库启用 GitHub 私密漏洞报告入口，并新增 `SECURITY.md` 说明报告路径、所需信息和普通 Issue 的使用边界；未承诺固定修复时限。此项不改变安装包或运行时能力。
 
-2026-10-27 PR 检查按变更范围选择验证：仅改 Markdown 文档或 `docs/screenshots/` 的 PR 在 Linux 上运行轻量差异检查，保留必需状态检查的成功结果但不启动 Windows 编译；涉及其他文件的 PR 与 `main` 推送继续运行完整 Windows 检查。此项是 CI 资源优化，不代表桌面客户端验收。
+2026-10-27 PR 与 `main` 推送检查按变更范围选择验证：仅改 Markdown 文档或 `docs/screenshots/` 时在 Linux 上运行轻量差异检查，保留必需状态检查的成功结果但不启动 Windows 编译；涉及其他文件时继续运行完整 Windows 检查。此项是 CI 资源优化，不代表桌面客户端验收。
 
 2026-10-27 仓库已公开可见，保留 PolyForm Strict 许可；`main` 已启用 PR 与 Windows 必需检查的分支保护，并禁止强推和删除。GitHub 已启用 secret scanning、推送保护和 Dependabot 安全更新。同步修正 README、贡献与发行文档中的私有仓库描述；通过 `.gitattributes` 统一文本文件检出为 LF，修复架构检查对 CRLF 换行的误报，并以锁定上游提交中的许可证原始内容校验随包许可证，避免平台检出换行影响逐字节比对。本地 `pnpm check:architecture` 在原始 LF 文件和临时改为 CRLF 的 Profile 路由文件下均通过，`pnpm check:legal` 通过。上述变更不代表安装包或真实模型验收。
 
