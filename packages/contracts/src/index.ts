@@ -4,6 +4,7 @@ export type Unsubscribe = () => void
 export type ProfileScope = { kind: 'profile'; profile: string }
 export type SessionScope = { kind: 'session'; profile: string; sessionId: string }
 export type GatewayScope = { kind: 'gateway' }
+export type WebviewCacheSettings = { strategy: 'size' | 'time' | 'unsupported'; value: number }
 export type WorkspaceScope = { kind: 'workspace'; path: string; owner?: SessionScope }
 export type OperationScope = ProfileScope | SessionScope | GatewayScope | WorkspaceScope
 
@@ -64,7 +65,7 @@ export type PersonalFile = {
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
-export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean }
+export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
 export type { SavedModelConfig } from './generated/saved-model-config'
@@ -217,6 +218,9 @@ export interface DesktopApi {
   diagnostics: {
     readLogs(storagePath: string, source: 'hermes' | 'client' | 'browser'): Promise<string>
     recordEvent(storagePath: string, event: string): Promise<void>
+    getWebviewCacheSettings(): Promise<WebviewCacheSettings>
+    setWebviewCacheSettings(value: number): Promise<void>
+    clearWebviewCacheNow(): Promise<void>
   }
   agentSettings: {
     schema(scope: ProfileScope): Promise<AgentConfigSchema>
@@ -236,7 +240,8 @@ export interface DesktopApi {
     endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
     loadLists(scope: ProfileScope, storagePath: string): Promise<Record<string, string[]> | null>
     saveLists(scope: ProfileScope, storagePath: string, lists: Record<string, string[]>): Promise<void>
-    addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string; makeDefault: boolean }): Promise<void>
+    addEndpoint(scope: ProfileScope, args: { name: string; baseUrl: string; model: string; apiKey: string; makeDefault: boolean; discoverModels: boolean }): Promise<void>
+    setEndpointDiscovery(scope: ProfileScope, endpointId: string, discoverModels: boolean): Promise<void>
     deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>

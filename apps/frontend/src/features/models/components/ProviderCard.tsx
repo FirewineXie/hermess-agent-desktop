@@ -10,16 +10,19 @@ type Props = {
   modelBusy: boolean
   modelListBusy: boolean
   modelListLoading: boolean
+  discoveryBusy: boolean
   t: (key: string, ...values: unknown[]) => string
   onDeleteProvider: (endpoint: CustomEndpoint) => void
   onSelectModel: (provider: string, model: string) => void
   onSaveModels: (provider: string, models: string[]) => Promise<boolean>
+  onSetDiscovery: (endpoint: CustomEndpoint, enabled: boolean) => void
+  onSyncModels: () => void
 }
 
-export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, t, onDeleteProvider, onSelectModel, onSaveModels }: Props) {
+export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, discoveryBusy, t, onDeleteProvider, onSelectModel, onSaveModels, onSetDiscovery, onSyncModels }: Props) {
   const [editingModel, setEditingModel] = React.useState<{ original: string; value: string } | null>(null)
   const [newModelId, setNewModelId] = React.useState<string | null>(null)
-  const isDefault = Boolean(savedModel && (savedModel.provider === provider.slug || (savedModel.baseUrl && provider.api_url && normalizedEndpoint(savedModel.baseUrl) === normalizedEndpoint(provider.api_url))))
+  const isDefault = Boolean(savedModel && (savedModel.provider === provider.slug || provider.is_current || endpoint?.is_current))
   const providerPreset = VOLCENGINE_PRESETS.find(preset => normalizedEndpoint(preset.baseUrl) === normalizedEndpoint(endpoint?.base_url || provider.api_url || ''))
   const saveRename = async (original: string) => {
     const replacement = editingModel?.value.trim() || ''
@@ -32,6 +35,10 @@ export default function ProviderCard({ provider, endpoint, models, modelListKey,
     {isDefault && <span className="saved-badge">{t('ui.current.default')}</span>}
     <div className="provider-card-heading"><strong>{providerPreset ? t(providerPreset.name) : endpoint?.name || provider.name}</strong><small>{models.length} {t('ui.models.count.unit')}</small></div>
     {endpoint && <div className="provider-card-meta"><small>{providerPreset ? t('ui.preset.endpoint.via.custom') : t('ui.custom.endpoint')}：{endpoint.base_url}</small><button type="button" disabled={modelBusy} onClick={() => onDeleteProvider(endpoint)}>{t('ui.delete.provider')}</button></div>}
+    {endpoint && endpoint.source !== 'direct-config' && <div className="provider-card-discovery">
+      <label><input type="checkbox" checked={endpoint.discover_models !== false} disabled={modelBusy || modelListBusy || discoveryBusy} onChange={event => onSetDiscovery(endpoint, event.target.checked)} />{t('ui.provider.discover.models')}</label>
+      <button type="button" disabled={modelBusy || modelListBusy || modelListLoading || discoveryBusy || endpoint.discover_models === false} onClick={onSyncModels}>{t('ui.provider.sync.models')}</button>
+    </div>}
     {isDefault && savedModel?.baseUrl && <small className="provider-card-endpoint">{savedModel.baseUrl}</small>}
     <div className="provider-model-list"><div className="provider-model-items" role="region" aria-label={`${provider.name} ${t('ui.model.options')}`} tabIndex={0}>{models.map(model => {
       const editing = editingModel?.original === model

@@ -34,8 +34,8 @@ export default function ExtensionsView({ connected, profiles, epoch, profileBusy
     {category === 'experts' && <ExpertCatalog profiles={profiles} busy={profileBusy || !connected} onCreate={onCreateProfile} />}
     {connected && <>
       {state.message && <p className="extension-message" role="status">{state.message}</p>}
-      {category === 'skills' && <SkillHub official={state.official} featured={state.featured} sources={state.sources}
-        results={state.results} resultsSource={state.resultsSource} profiles={profiles} busy={state.busy} loading={state.loading} t={t} search={state.searchSkills} request={state.request} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} />}
+      {category === 'skills' && <SkillHub key={workspace} official={state.official} featured={state.featured} sources={state.sources}
+        results={state.results} resultsSource={state.resultsSource} profiles={profiles} busy={state.busy} loading={state.loading} t={t} search={state.searchSkills} loadSources={state.loadSources} request={state.request} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} />}
       {category === 'mcp' && <McpCatalog entries={state.catalog} results={state.catalogResults}
         resultsSource={state.catalogResultsSource} profiles={profiles} busy={state.busy} loading={state.loading}
         t={t} search={state.searchCatalog} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} />}

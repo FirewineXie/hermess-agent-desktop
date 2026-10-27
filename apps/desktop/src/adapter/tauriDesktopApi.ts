@@ -130,6 +130,9 @@ export const tauriDesktopApi: DesktopApi = {
   diagnostics: {
     readLogs: (storagePath, source) => invoke('read_diagnostic_logs', { storagePath, source }),
     recordEvent: (storagePath, event) => invoke('record_client_event', { storagePath, event }),
+    getWebviewCacheSettings: () => invoke('get_webview_cache_settings'),
+    setWebviewCacheSettings: value => invoke('set_webview_cache_settings', { value }),
+    clearWebviewCacheNow: () => invoke('clear_webview_cache_now'),
   },
   agentSettings: {
     schema: scope => invoke('get_agent_config_schema', { profile: scope.profile }),
@@ -150,6 +153,7 @@ export const tauriDesktopApi: DesktopApi = {
     loadLists: (scope, storagePath) => invoke('load_model_lists', { profile: scope.profile, storagePath }),
     saveLists: (scope, storagePath, lists) => invoke('save_model_lists', { profile: scope.profile, storagePath, lists }),
     addEndpoint: (scope, args) => invoke('add_custom_endpoint', { profile: scope.profile, ...args }),
+    setEndpointDiscovery: (scope, endpointId, discoverModels) => invoke('set_custom_endpoint_discovery', { profile: scope.profile, endpointId, discoverModels }),
     deleteEndpoint: (scope, endpointId) => invoke('delete_custom_endpoint', { profile: scope.profile, endpointId }),
     setDefault: (scope, args) => invoke('set_default_model', { profile: scope.profile, ...args }),
     checkRuntime: scope => invoke('check_model_runtime', { profile: scope.profile }),

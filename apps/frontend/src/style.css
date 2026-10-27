@@ -1,10 +1,11 @@
 :root { font-family: system-ui, 'Microsoft YaHei', sans-serif; color: #20242d; background: #fff; }
 * { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 body { margin: 0; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .48; cursor: not-allowed; }
-.app-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100vh; min-height: 560px; }
+.app-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100%; min-height: 0; }
 .sidebar { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 22px 12px 14px; background: #f7f8fa; border-right: 1px solid #eaedf1; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 25px; font-size: 17px; font-weight: 750; }
 .brand small { display: block; color: #858c97; font-size: 11px; font-weight: 500; }
@@ -446,6 +447,12 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel .runtime-debug-toggle { margin-top: 24px; color: #415269; background: #eef1f5; }
 .settings-panel .runtime-debug-toggle[aria-pressed="true"] { color: #fff; background: #315c91; }
 .runtime-dev-settings { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e7ebef; }
+.webview-cache-settings { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e7ebef; }
+.webview-cache-settings h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.webview-cache-settings p { margin: 8px 0 0; font-size: 13px; }
+.webview-cache-settings label { max-width: 360px; }
+.webview-cache-settings button { margin-top: 16px; color: #415269; background: #eef1f5; }
+.webview-cache-settings small[role="status"], .webview-cache-settings small[role="alert"] { margin-top: 10px; }
 .runtime-dev-settings summary { color: #68717d; cursor: pointer; font-size: 13px; }
 .runtime-dev-settings small { margin-top: 10px; }
 .diagnostic-log-output { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -542,6 +549,10 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .provider-card-meta { display: flex; align-items: start; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .provider-card-meta small { min-width: 0; overflow-wrap: anywhere; font-size: 11px; }
 .settings-panel .provider-card-meta button { flex: none; padding: 0; color: #a33c3c; background: transparent; font-size: 12px; }
+.provider-card-discovery { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.provider-card-discovery label { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; }
+.settings-panel .provider-card-discovery input { width: 16px; height: 16px; margin: 0; }
+.settings-panel .provider-card-discovery button { padding: 5px 8px; font-size: 12px; }
 .provider-card-endpoint { margin-top: 5px; overflow-wrap: anywhere; font-size: 11px; }
 .provider-model-list { display: grid; gap: 6px; width: calc(100% - 24px); min-height: 0; margin: 15px 0 0 auto; }
 .provider-model-items { display: grid; gap: 6px; max-height: min(42vh, 350px); min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }

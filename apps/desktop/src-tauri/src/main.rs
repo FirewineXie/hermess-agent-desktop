@@ -9,6 +9,7 @@ mod runtime;
 mod storage;
 mod tray;
 mod updates;
+mod webview_cache;
 mod workspace_panel;
 
 fn main() {
@@ -28,12 +29,17 @@ fn main() {
         .manage(panel_terminal::TerminalState::default())
         .setup(|app| {
             process_manager::ProcessManager::init()?;
-            tray::setup(app)
+            tray::setup(app)?;
+            webview_cache::start(app.handle().clone());
+            Ok(())
         })
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
             diagnostics::set_frontend_debug_enabled,
+            webview_cache::get_webview_cache_settings,
+            webview_cache::set_webview_cache_settings,
+            webview_cache::clear_webview_cache_now,
             workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
             panel_terminal::start_panel_terminal,
@@ -96,6 +102,7 @@ fn main() {
             runtime::models::load_model_lists,
             runtime::models::save_model_lists,
             runtime::models::add_custom_endpoint,
+            runtime::models::set_custom_endpoint_discovery,
             runtime::models::delete_custom_endpoint,
             runtime::config::save_agent_config_field,
             runtime::config::save_agent_config_raw,

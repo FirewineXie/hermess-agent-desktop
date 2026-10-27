@@ -3,6 +3,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, changeLanguage, translateApp, localizeAppMessage, type Language } from '../../i18n'
 import { displayPath } from '../../shared/displayPath'
+import WebviewCacheSettings from './WebviewCacheSettings'
 
 type Props = {
   storagePath: string
@@ -66,6 +67,7 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
       <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
       {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
       {storageLocked && <small>{t("ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i")}</small>}
+      <WebviewCacheSettings />
       {debugButtonVisible && <button type="button" className="runtime-debug-toggle" aria-pressed={debugMode} disabled={debugOpening} onClick={() => void toggleDebugMode()}>{t('ui.debug')}</button>}
       {debugError && <p role="alert">{t('ui.frontend.console.open.failed.arg', debugError)}</p>}
       {debugMode && <>

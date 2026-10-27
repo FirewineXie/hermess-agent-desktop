@@ -68,6 +68,9 @@ export const previewDesktopApi: DesktopApi = {
   diagnostics: {
     async readLogs() { return '' },
     async recordEvent() {},
+    async getWebviewCacheSettings() { return { strategy: 'size' as const, value: 512 } },
+    async setWebviewCacheSettings() {},
+    async clearWebviewCacheNow() {},
   },
   agentSettings: {
     async schema() { throw previewOnly() },
@@ -88,6 +91,7 @@ export const previewDesktopApi: DesktopApi = {
     async loadLists() { return null },
     async saveLists() { throw previewOnly() },
     async addEndpoint() { throw previewOnly() },
+    async setEndpointDiscovery() { throw previewOnly() },
     async deleteEndpoint() { throw previewOnly() },
     async setDefault() { throw previewOnly() },
     async checkRuntime() { throw previewOnly() },

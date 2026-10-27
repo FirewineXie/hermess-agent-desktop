@@ -4,7 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
-import type { ModelPick } from '../models/model'
+import { savedModelFromOptions, type ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool, type TimelineItem } from './timeline'
 import { mergeRecoveredRequests } from './requestRecovery'
 
@@ -243,14 +243,24 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     const generation = sessionGenerationRef.current
     const creation = (async () => {
       const owner = profileScope()
-      if (!activeModel) {
-        const options = await models.options(owner, { refresh: false, includeUnconfigured: false })
-        if (!options.model) throw new Error(t('ui.select.model.before.sending'))
+      let selectedModel = activeModel
+      if (!selectedModel) {
+        const [configResult, optionsResult] = await Promise.allSettled([
+          models.savedConfig(owner),
+          models.options(owner, { refresh: false, includeUnconfigured: false }),
+        ])
+        if (configResult.status === 'rejected' && optionsResult.status === 'rejected') throw configResult.reason
+        const saved = savedModelFromOptions(
+          optionsResult.status === 'fulfilled' ? optionsResult.value : { providers: [] },
+          configResult.status === 'fulfilled' ? configResult.value : { provider: '', model: '', base_url: '' },
+        )
+        if (!saved?.provider || !saved.model) throw new Error(t('ui.select.model.before.sending'))
+        selectedModel = { provider: saved.provider, model: saved.model }
       }
       const created = await chat.createSession(owner, {
         cwd: workspacePath || undefined,
-        provider: activeModel?.provider,
-        model: activeModel?.model,
+        provider: selectedModel.provider,
+        model: selectedModel.model,
         reasoning: draftReasoningRef.current || undefined,
       })
       if (generation !== sessionGenerationRef.current) throw new Error('Session creation was cancelled')
@@ -265,7 +275,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       reasoningSessionRef.current = id
       setSessionWorkspacePath(workspacePath ? created.info?.cwd || workspacePath : '')
       setSessionCurrentDirectory(created.info?.cwd || workspacePath)
-      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : activeModel)
+      setActiveModel(created.info?.provider && created.info.model ? { provider: created.info.provider, model: created.info.model } : selectedModel)
       void loadSessions(true)
       return id
     })()

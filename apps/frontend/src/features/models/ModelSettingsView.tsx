@@ -1,5 +1,5 @@
 import { localizeAppMessage } from '../../i18n'
-import { normalizedEndpoint, VOLCENGINE_PRESETS } from './model'
+import { endpointForProvider, VOLCENGINE_PRESETS } from './model'
 import ProviderCard from './components/ProviderCard'
 import type { useModelController } from './useModelController'
 
@@ -18,12 +18,12 @@ export default function ModelSettingsView({ connected, language, t, controller, 
     modelProviders, customEndpoints, addingProvider, setAddingProvider, newProviderPreset,
     providerFormError, setProviderFormError, newProviderName, setNewProviderName,
     newProviderUrl, setNewProviderUrl, newProviderModel, setNewProviderModel,
-    newProviderKey, setNewProviderKey, newProviderMakeDefault, setNewProviderMakeDefault, modelFormOpen, setModelFormOpen, modelProvider,
+    newProviderKey, setNewProviderKey, newProviderMakeDefault, setNewProviderMakeDefault, newProviderDiscoverModels, setNewProviderDiscoverModels, modelFormOpen, setModelFormOpen, modelProvider,
     modelName, setModelName, modelBaseUrl, setModelBaseUrl, modelKey, setModelKey,
     modelBusy, modelStatus, modelConfirmation, setModelConfirmation,
     modelOptionsLoaded, modelOptionsError, savedModel,
-    modelListBusy, modelListLoading, selectedPreset, modelCandidates, providerCards, visibleModels,
-    loadModelOptions, selectModelProvider, saveProviderModels, addProvider,
+    modelListBusy, modelListLoading, discoveryBusy, selectedPreset, modelCandidates, providerCards, visibleModels,
+    loadModelOptions, selectModelProvider, saveProviderModels, setProviderDiscovery, syncProviderModels, addProvider,
     chooseProviderPreset, deleteProvider, saveModel, checkModel,
   } = controller
   return <section className="settings-panel model-settings-panel">
@@ -42,6 +42,7 @@ export default function ModelSettingsView({ connected, language, t, controller, 
         <label>{t('ui.provider.default.model')}<input value={newProviderModel} onChange={event => setNewProviderModel(event.target.value)} placeholder={t('ui.model.id')} /></label>
         <label>{t('ui.provider.api.key.optional')}<input type="password" autoComplete="off" value={newProviderKey} onChange={event => setNewProviderKey(event.target.value)} /></label>
         <label className="provider-make-default"><input type="checkbox" checked={newProviderMakeDefault} onChange={event => setNewProviderMakeDefault(event.target.checked)} />{t('ui.provider.make.default')}</label>
+        <label className="provider-make-default"><input type="checkbox" checked={newProviderDiscoverModels} onChange={event => setNewProviderDiscoverModels(event.target.checked)} />{t('ui.provider.discover.models')}</label>
         {providerFormError && <p role="alert">{providerFormError}</p>}
         <div className="actions"><button disabled={modelBusy || !newProviderName.trim() || !newProviderUrl.trim() || !newProviderModel.trim()} onClick={() => void addProvider()}>{t('ui.save.provider')}</button><button type="button" disabled={modelBusy} onClick={() => setAddingProvider(false)}>{t('ui.cancel')}</button></div>
       </div></div>}
@@ -52,15 +53,14 @@ export default function ModelSettingsView({ connected, language, t, controller, 
         <p>{t('ui.provider.model.list.local.note')}</p>
         {providerCards.length === 0 && <p>{t('ui.no.configured.providers')}</p>}
         <div className="provider-grid">{providerCards.map(provider => {
-          const endpoint = customEndpoints.find(item => item.id === provider.slug)
-            || ((provider.is_user_defined || provider.slug === 'custom' || provider.slug.startsWith('custom:'))
-              ? customEndpoints.find(item => Boolean(provider.api_url) && item.base_url.replace(/\/$/, '') === provider.api_url.replace(/\/$/, ''))
-              : undefined)
+          const endpoint = endpointForProvider(provider, customEndpoints)
           const modelListKey = endpoint?.id || provider.slug
-          const models = visibleModels(provider.slug, providerCards)
+          const models = visibleModels(provider.slug)
           return <ProviderCard key={provider.slug} provider={provider} endpoint={endpoint} models={models} modelListKey={modelListKey}
-            savedModel={savedModel} modelBusy={modelBusy} modelListBusy={modelListBusy} modelListLoading={modelListLoading} t={t}
-            onDeleteProvider={endpoint => void deleteProvider(endpoint)} onSelectModel={selectModelProvider} onSaveModels={saveProviderModels} />
+            savedModel={savedModel} modelBusy={modelBusy} modelListBusy={modelListBusy} modelListLoading={modelListLoading} discoveryBusy={Boolean(discoveryBusy)} t={t}
+            onDeleteProvider={endpoint => void deleteProvider(endpoint)} onSelectModel={selectModelProvider} onSaveModels={saveProviderModels}
+            onSetDiscovery={(endpoint, enabled) => void setProviderDiscovery(endpoint, enabled)}
+            onSyncModels={() => void syncProviderModels(provider.slug, modelListKey)} />
         })}</div>
       </div>}
       {modelFormOpen && <><div className="row model-editor-heading"><h2>{t("ui.select.or.modify.a.model")}</h2><button type="button" onClick={() => { setModelFormOpen(false); setModelConfirmation('') }}>{t('ui.cancel')}</button></div>

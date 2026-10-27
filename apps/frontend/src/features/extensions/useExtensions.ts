@@ -25,7 +25,6 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
   const [official, setOfficial] = useState<HubSkill[]>([])
   const [featured, setFeatured] = useState<HubSkill[]>([])
   const [sources, setSources] = useState<HubSources['sources']>([])
-  const [installed, setInstalled] = useState<Record<string, unknown>>({})
   const [catalog, setCatalog] = useState<McpCatalogEntry[]>([])
   const [catalogResults, setCatalogResults] = useState<McpCatalogEntry[] | null>(null)
   const [catalogResultsSource, setCatalogResultsSource] = useState<string | null>(null)
@@ -38,6 +37,7 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
   const alive = React.useRef(true)
   const refreshRequest = useProfileRef(workspace, 0)
   const searchRequest = useProfileRef(workspace, 0)
+  const sourcesRequest = useProfileRef(workspace, 0)
   const catalogRequest = useProfileRef(workspace, 0)
 
   React.useEffect(() => {
@@ -69,16 +69,9 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
         setServers(value.servers)
       }
       if (target === 'skillHub') {
-        const [officialResponse, sourceResponse, modelScope] = await Promise.all([
-          extensions.request<{ skills: HubSkill[] }>(owner, 'skills.official'),
-          extensions.request<HubSources>(owner, 'skills.sources'),
-          extensions.request<ModelScopeInstalled>(owner, 'modelscope.installed'),
-        ])
+        const officialResponse = await extensions.request<{ skills: HubSkill[] }>(owner, 'skills.official')
         if (requestId !== refreshRequest.current || !alive.current) return false
         setOfficial(officialResponse.skills)
-        setFeatured(sourceResponse.featured)
-        setSources(sourceResponse.sources)
-        setInstalled({ ...sourceResponse.installed, ...modelScope.identifiers })
       }
       if (target === 'mcpCatalog') {
         const [value, local] = await Promise.all([
@@ -105,18 +98,39 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     return () => { ++refreshRequest.current }
   }, [tab, connected, profile, epoch])
 
+  async function loadSources() {
+    if (!connected || !profile) return
+    const requestId = ++sourcesRequest.current
+    try {
+      const value = await extensions.request<HubSources>(scope(), 'skills.sources')
+      if (requestId !== sourcesRequest.current || !alive.current) return
+      setFeatured(value.featured)
+      setSources(value.sources)
+    } catch (error) {
+      if (requestId === sourcesRequest.current && alive.current) setMessage(describeError(error, language))
+    }
+  }
+
   async function searchSkills(query: string, source: string) {
     const requestId = ++searchRequest.current
+    if (source === 'official') {
+      const term = query.trim().toLowerCase()
+      setResults(term ? official.filter(item =>
+        `${item.name} ${item.description || ''} ${item.identifier}`.toLowerCase().includes(term)) : null)
+      setResultsSource(term ? source : null)
+      setLoading(false)
+      setMessage('')
+      return
+    }
     if (!query.trim() && source !== 'modelscope') { setResults(null); setResultsSource(null); setLoading(false); setMessage(''); return }
     setLoading(true)
     setMessage('')
     try {
-      const value = await extensions.request<{ results: HubSkill[]; installed?: Record<string, unknown>; source_errors?: string[] }>(
+      const value = await extensions.request<{ results: HubSkill[]; source_errors?: string[] }>(
         scope(), 'skills.search', { q: query.trim(), source })
       if (requestId !== searchRequest.current || !alive.current) return
       setResults(value.results)
       setResultsSource(source)
-      setInstalled(previous => ({ ...previous, ...value.installed }))
       if (value.source_errors?.includes('modelscope')) setMessage(language === 'zh-CN' ? 'ModelScope 搜索暂不可用；已显示其他来源结果。' : 'ModelScope search is unavailable; other results are shown.')
       if (value.source_errors?.includes('hermes')) setMessage(language === 'zh-CN' ? 'Hermes 来源搜索暂不可用；已显示 ModelScope 结果。' : 'Hermes source search is unavailable; ModelScope results are shown.')
     } catch (error) { if (requestId === searchRequest.current && alive.current) setMessage(describeError(error, language)) }
@@ -235,6 +249,10 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
         const value = await extensions.request<ModelScopeInstalled>(owner, 'modelscope.installed')
         return Boolean(value.identifiers[identifier])
       }
+      if (identifier.startsWith('official/')) {
+        const value = await extensions.request<{ skills: HubSkill[] }>(owner, 'skills.official')
+        return Boolean(value.skills.find(skill => skill.identifier === identifier)?.installed)
+      }
       const value = await extensions.request<HubSources>(owner, 'skills.sources')
       return Boolean(value.installed[identifier])
     }))
@@ -248,7 +266,7 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     return extensions.request<R>(scope(), operation, payload)
   }
 
-  return { tab, setTab, skills, servers, official, featured, sources, installed, catalog,
+  return { tab, setTab, skills, servers, official, featured, sources, catalog,
     catalogResults, catalogResultsSource, results, resultsSource,
-    busy, loading, message, setMessage, searchSkills, searchCatalog, run, runForProfiles, installedTargets, request }
+    busy, loading, message, setMessage, loadSources, searchSkills, searchCatalog, run, runForProfiles, installedTargets, request }
 }
