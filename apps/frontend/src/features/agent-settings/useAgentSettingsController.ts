@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { getField, fieldText, type Field, type Schema, type RawConfig } from './model'
+import { isMemoryContextField } from './memoryContextModel'
 
 type Options = {
   connected: boolean
@@ -147,7 +148,7 @@ export function useAgentSettingsController({ connected, profile, epoch, onDirtyC
   const entries = Object.entries(schema?.fields || {})
   const query = search.trim().toLowerCase()
   const scoped = entries.filter(([key]) => {
-    if (section === 'advanced') return true
+    if (section === 'advanced') return !isMemoryContextField(key)
     if (section === 'main') return ['agent.reasoning_overrides', 'agent.max_turns'].includes(key)
     if (section === 'approval') return key.startsWith('approvals.') || key.startsWith('security.')
     return false

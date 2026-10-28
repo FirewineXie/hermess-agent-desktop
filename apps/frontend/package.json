@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:recovery": "node --experimental-strip-types --test tests/requestRecovery.test.mjs",
-    "test:profile-workspace": "node --experimental-strip-types --test tests/profileWorkspace.test.mjs"
+    "test:profile-workspace": "node --experimental-strip-types --test tests/profileWorkspace.test.mjs",
+    "test:memory-settings": "node --experimental-strip-types --test tests/memoryContextSettings.test.mjs"
   },
   "dependencies": {
     "@hermess/contracts": "workspace:*",

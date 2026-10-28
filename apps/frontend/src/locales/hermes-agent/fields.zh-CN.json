@@ -1606,10 +1606,10 @@
     "label": "上下文 / 内存修剪 / 信息日志最小增量 MB"
   },
   "memory.memory_enabled": {
-    "label": "记忆 / 内存启用"
+    "label": "持久记忆 / 启用"
   },
   "memory.user_profile_enabled": {
-    "label": "记忆 / 用户配置文件"
+    "label": "持久记忆 / 用户画像"
   },
   "memory.prefetch_spill_enabled": {
     "label": "记忆 / 预取溢出"
@@ -1618,10 +1618,10 @@
     "label": "记忆 / 写入审批"
   },
   "memory.memory_char_limit": {
-    "label": "记忆 / 内存字符限制"
+    "label": "持久记忆 / 记忆字符限制"
   },
   "memory.user_char_limit": {
-    "label": "记忆 / 用户字符限制"
+    "label": "持久记忆 / 用户画像字符限制"
   },
   "memory.nudge_interval": {
     "label": "记忆 / 微移间隔"

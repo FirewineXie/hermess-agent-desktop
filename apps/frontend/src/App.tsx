@@ -9,6 +9,7 @@ import { useChatController } from './features/chat/useChatController'
 import ModelSettingsView from './features/models/ModelSettingsView'
 import MainModelSettings from './features/models/MainModelSettings'
 import ModelRouteSettings from './features/agent-settings/ModelRouteSettings'
+import MemoryContextSettings from './features/agent-settings/MemoryContextSettings'
 import SettingsView from './features/settings/SettingsView'
 import type { SettingsPage } from './features/settings/model'
 import { useModelController } from './features/models/useModelController'
@@ -213,12 +214,16 @@ function App() {
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'agent' && <AgentSettingsView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onDirtyChange={setAgentConfigDirty} onOpenModelSettings={() => openSettings('main')} />}
     {view === 'settings' && <SettingsView language={language} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot?.profiles || []} profileBusy={profileController.busy || settingsBusy}
-      onSelectProfile={async name => { if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); setSettingsDirty(false); await profileController.select(name); return true }}
+      onSelectProfile={async name => { if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); await profileController.select(name); setSettingsDirty(false); return true }}
       onNavigate={page => { if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); setSettingsDirty(false); setSettingsPage(page); if (page === 'about') setAboutInitialTab('license'); return true }}
       onExit={() => { if (openView(settingsReturnView)) setSettingsDirty(false) }}>
       {settingsPage === 'providers' && <ModelSettingsView connected={Boolean(backend)} profile={viewedProfile} language={language} t={t} controller={modelController} onOpenRuntime={() => openSettings('runtime')} onOpenMain={() => openSettings('main')} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {settingsPage === 'main' && <MainModelSettings key={viewedProfile || ''} connected={Boolean(backend)} profile={viewedProfile} language={language} controller={modelController} epoch={backend?.replay_epoch || null} onOpenProviders={() => openSettings('providers')} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {(settingsPage === 'fallbacks' || settingsPage === 'auxiliary') && <ModelRouteSettings key={`${viewedProfile}:${settingsPage}`} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} epoch={backend?.replay_epoch || null} storagePath={storagePath} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
+      {(settingsPage === 'memory-persistent' || settingsPage === 'memory-context') && <MemoryContextSettings
+        key={`${backend?.replay_epoch || 'offline'}:${viewedProfile || 'unselected'}:${settingsPage}`}
+        page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} language={language}
+        onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {settingsPage === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} debugMode={debugMode} debugButtonVisible={debugButtonVisible} onDebugModeChange={changeDebugMode} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
       {settingsPage === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
     </SettingsView>}

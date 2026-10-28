@@ -121,7 +121,7 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
     } catch (cause) { setStatus(describeError(cause, language)) }
     finally { setBusy(false) }
   }
-  const tasks = Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1])
+  const tasks = Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1]).filter(task => task !== 'compression')
   return <section className="model-route-settings">
     <div className="row"><h2>{page === 'fallbacks' ? (zh ? '回退模型' : 'Fallback models') : (zh ? '辅助模型' : 'Auxiliary models')}</h2><button type="button" disabled={busy || dirty} onClick={() => void load()}>{zh ? '重新读取' : 'Reload'}</button></div>
     {!connected || !profile ? <p role="status">{zh ? '连接运行时并选择 Profile 后可编辑。' : 'Connect the runtime and select a Profile.'}</p>
