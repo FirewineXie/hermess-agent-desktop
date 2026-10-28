@@ -26,6 +26,7 @@ pub mod profiles;
 mod retired_payload;
 pub mod tools;
 pub mod usage;
+pub mod workbuddy_import;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;

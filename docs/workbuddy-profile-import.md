@@ -1,6 +1,6 @@
 # WorkBuddy 专家包导入 Profile 落地方案
 
-状态：待实现。本文只定义产品侧实现与验收，不代表导入功能已经存在或完成原生验收。
+状态：首版代码已实现，Windows 解析与构建验证通过；原生窗口操作、真实 Gateway 导入及 macOS 实机尚未验收。
 
 ## 1. 目标与边界
 
@@ -48,7 +48,7 @@
     └── avatars/...
 ```
 
-`agents/` 与 README 原文保存到同一 Profile 的 `imports/workbuddy/<包名>/`。导入记录保存来源包名、版本、文件摘要、主理人 ID、成员 ID、Skill 名称和逐项状态；不保存来源绝对路径作为跨机器依赖。复制完成后即使原下载目录被移走，已导入的 Skill 仍应可读取。
+首版把来源包完整复制到同一 Profile 的 `imports/workbuddy/<包名>/`，其中包含 `agents/` 与 README 原文；另复制一份到 `skills/imports/workbuddy/<包名>/`，保持所有 Skill 的跨目录资源相对路径。`import.json` 保存预览摘要、角色和 Skill 清单，不保存来源绝对路径作为跨机器依赖。复制完成后即使原下载目录被移走，已导入的 Skill 仍应可读取。双份复制会增加 Profile 存储占用，后续可在不改变相对路径的前提下优化。
 
 ## 4. SOUL.md 的生成规则
 
@@ -60,21 +60,21 @@ SOUL 是主理人的身份入口，不承担脚本代码、用户资料或成员
 
 ### 前端与契约
 
-在专家目录新增「导入专家包」入口，使用现有 `nativeFiles.choose({ directory: true, multiple: false })` 选择目录。选择后调用具名 `DesktopApi.profiles.inspectImport(path)` 返回只读预览：包名、建议 Profile 标识、主理人、成员、Skill、MCP 数量、脚本依赖提示和阻断错误。用户可改 Profile 标识，并查看待生成的 SOUL 摘要；确认后调用 `DesktopApi.profiles.importPackage({ path, profileName, expectedDigest })`。导入中禁用重复提交；完成后刷新 Profile 列表，按实际 Gateway 服务状态显示可选或待启用。
+在专家目录新增「导入 WorkBuddy 专家包」入口，使用现有 `nativeFiles.choose({ directory: true, multiple: false })` 选择目录。选择后调用具名 `DesktopApi.profiles.inspectImport(path)` 返回只读预览：包名、建议 Profile 标识、主理人、成员、Skill、MCP 数量、脚本数量和摘要。用户可改 Profile 标识，并查看待生成的 SOUL；确认后调用 `DesktopApi.profiles.importPackage(path, profileName, expectedDigest)`。导入中禁用重复提交；完成后刷新 Profile 列表，按实际 Gateway 服务状态显示可选或待启用。
 
-预览明确分开「可复制的文件」「Hermes 已发现的 Skill」「需要另行配置或运行验证的能力」。不把 WorkBuddy `agents/*.md` 显示为已注册的 Hermes 子 Agent。错误保留具体文件或字段位置，避免统一报「导入失败」。浏览器预览使用模拟宿主数据，不能作为原生导入验收。
+首版预览列出包文件、待导入 Skill 与仍需配置的外部能力；只有实际运行时检查后才能称 Skill 已被 Hermes 发现。WorkBuddy `agents/*.md` 不显示为已注册的 Hermes 子 Agent。错误目前是通用校验提示，按文件定位仍待完善。浏览器预览使用模拟宿主数据，不能作为原生导入验收。
 
 ### 桌面宿主
 
 新增产品自有 Rust 导入模块，负责本地目录读取、路径与大小校验、复制、文件摘要、目标 Profile 归属和完成状态；Tauri adapter 只转发具名接口。`inspectImport` 不写数据、不运行脚本；`importPackage` 在目标创建前重读并核对摘要，避免预览之后来源改变。命令在作用域登记表中登记为创建 Profile 的 Gateway/运行时级操作，目标只允许落在本产品 `hermes-home/profiles/` 内。
 
-沿用现有 Hermes `create_profile(..., no_alias=True, clone_channels=False)` 创建独立 Profile，不镜像渠道或凭据。当前创建 API 会先公布 Profile，再返回目录；后续复制不是原子的。实现须在产品层记录「导入中／完成／未完成」状态，在所有目标文件和 Skill 校验通过前不向 UI 宣称完成；中断后可按导入记录恢复或清理**本次新建且仍未完成**的目标，不触碰预先存在的 Profile。是否能阻止 Gateway 在复制期间服务半成品，需要以锁定运行时实测，不能仅凭 UI 隐藏判断。
+沿用现有 Hermes `create_profile(..., no_alias=True, clone_channels=False)` 创建独立 Profile，不镜像渠道或凭据；导入时传入精简 SOUL 并只预装必需 Skill。当前创建 API 会先公布 Profile，再返回目录；后续复制不是原子的。首版仅在复制完成并写入 `import.json` 后向 UI 报告成功，常规复制错误会删除本次创建的 Profile。若应用在创建后、复制完成前异常退出，可能留下不完整 Profile，重试会因名称冲突被拒绝；自动恢复或安全清理仍待实现。是否能阻止 Gateway 在复制期间服务半成品，需要以锁定运行时实测，不能仅凭 UI 隐藏判断。
 
 ### 检查规则
 
 - 只接受包含 `.codebuddy-plugin/plugin.json` 的目录；首版支持清单已验证的 `team` 结构。清单路径必须是包内相对路径，不接受绝对路径、`..`、符号链接、Windows junction 或其他跳出包根的入口。
-- 限制总文件数、单文件与总大小；文本以 UTF-8 校验。拒绝目标重名、Skill 声明名冲突、缺失的 `SKILL.md` 或清单文件，既不覆盖已有 Profile，也不覆盖预装 Skill。
-- 整目录复制不执行 `*.py`、`*.sh` 或其他来源代码，不自动安装 `requirements.txt`。检查结果只报告依赖名称及是否待配置，不读取、复制或回显来源包之外的凭据。
+- 限制总文件数、单文件与总大小；清单、角色与 Skill frontmatter 按 UTF-8 校验。拒绝目标重名、Skill 声明名冲突、缺失的 `SKILL.md` 或清单文件，既不覆盖已有 Profile，也不覆盖预装 Skill。首版错误提示仍是通用校验错误，逐文件定位尚待完善。
+- 整目录复制不执行 `*.py`、`*.sh` 或其他来源代码，不自动安装 `requirements.txt`。首版仅提示脚本、外部服务或模型需要另行配置验证，不提取依赖名称；不读取、复制或回显来源包之外的凭据。
 - 保留完整文件内容及资源层级；`wechat-config.md` 之类占位模板可复制，但不能当成已配置的微信账号。导入成功后再通过 Profile 专属配置入口设置凭据。
 
 ## 6. 两个样本的预期导入报告

@@ -35,6 +35,8 @@ export const previewDesktopApi: DesktopApi = {
     async listDataDirectory() { throw previewOnly() },
     async openDataDirectory() { throw previewOnly() },
     async create() { throw previewOnly() },
+    async inspectImport() { throw previewOnly() },
+    async importPackage() { throw previewOnly() },
     async select() { throw previewOnly() },
     async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
     async listToolsets() { return [] },

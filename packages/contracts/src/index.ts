@@ -101,6 +101,12 @@ export type PersonalityEntry = { name: string; description: string; source: 'her
 export type PersonalitiesSnapshot = { profile: string; active: string; entries: PersonalityEntry[] }
 export type ProfilePresetSelection = { personalityName: string; personalityPrompt: string; skills: string[]; mcp: string[] }
 export type ProfileCreateResult = { ok?: boolean; name: string; personality_applied?: boolean; warnings?: string[] }
+export type WorkBuddyImportPreview = {
+  packageName: string; version: string; displayName: string; profileName: string
+  lead: string; members: string[]; skills: string[]; mcpCount: number
+  scriptCount: number; fileCount: number; totalBytes: number; digest: string; soul: string
+  notices: string[]
+}
 export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
@@ -240,6 +246,8 @@ export interface DesktopApi {
     listDataDirectory(scope: ProfileScope, relativePath?: string): Promise<ProfileDataListing>
     openDataDirectory(scope: ProfileScope): Promise<void>
     create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
+    inspectImport(path: string): Promise<WorkBuddyImportPreview>
+    importPackage(path: string, profileName: string, expectedDigest: string): Promise<ProfileCreateResult>
     select(name: string): Promise<void>
     listPersonalities(scope: ProfileScope): Promise<PersonalitiesSnapshot>
     listToolsets(scope: ProfileScope): Promise<ProfileToolset[]>

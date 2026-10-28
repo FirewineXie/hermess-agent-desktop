@@ -836,7 +836,10 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .header-github { display: grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; color: #44536b; cursor: pointer; }
 .header-github:hover { color: #1b6ffd; }
 .header-github svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.header-update-badge { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; color: #fff; background: #1b6ffd; font-size: 12px; font-weight: 700; line-height: 1; }
+.header-update { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; cursor: pointer; }
+.header-update:focus-visible { outline: 2px solid #1b6ffd; outline-offset: -3px; }
+.header-update svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.header-update-dot { position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: #1b6ffd; }
 .header-settings { display: grid; place-items: center; width: 40px; height: 40px; font-size: 21px; cursor: pointer; list-style: none; }
 .workspace-header .language-switch { margin-left: 0; }
 .custom-titlebar-shell.app-shell { grid-template-rows: 32px minmax(0, 1fr); }
@@ -852,6 +855,9 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .custom-titlebar-shell .header-github:hover { background: #ece7e1; }
 .custom-titlebar-shell .header-github svg { width: 16px; height: 16px; }
 .custom-titlebar-shell .header-link { display: inline-flex; align-items: center; height: 100%; padding: 0 10px; color: #36445b; font-size: 13px; }
+.custom-titlebar-shell .header-update { justify-content: center; width: 36px; padding: 0; }
+.custom-titlebar-shell .header-update svg { width: 16px; height: 16px; }
+.custom-titlebar-shell .header-update-dot { top: 4px; right: 4px; }
 .custom-titlebar-shell .header-link:hover, .custom-titlebar-shell .header-settings:hover { background: #ece7e1; }
 .custom-titlebar-shell .header-settings { height: 32px; width: 44px; margin-right: 8px; color: #36445b; font-size: 18px; }
 .window-controls { display: flex; height: 32px; flex: none; }
@@ -890,6 +896,5 @@ button:disabled { opacity: .48; cursor: not-allowed; }
   .custom-titlebar-shell .window-title-status-dot, .custom-titlebar-shell .window-title-location, .custom-titlebar-shell .window-title-connection { display: none; }
 }
 @media (max-width: 580px) {
-  .custom-titlebar-shell .header-link:not(.has-update) { display: none; }
   .custom-titlebar-shell .header-settings { margin-right: 0; }
 }

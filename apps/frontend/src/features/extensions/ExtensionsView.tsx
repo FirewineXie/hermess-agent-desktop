@@ -10,7 +10,7 @@ import ExpertCatalog from './ExpertCatalog'
 
 type Category = 'experts' | 'skills' | 'mcp'
 
-export default function ExtensionsView({ connected, profiles, epoch, profileBusy, onCreateProfile }: { connected: boolean; profiles: ProfilesSnapshot | null; epoch: string | null; profileBusy: boolean; onCreateProfile: (name: string, preset?: ProfilePresetSelection) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined> }) {
+export default function ExtensionsView({ connected, profiles, epoch, profileBusy, onCreateProfile, onImportProfile }: { connected: boolean; profiles: ProfilesSnapshot | null; epoch: string | null; profileBusy: boolean; onCreateProfile: (name: string, preset?: ProfilePresetSelection) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined>; onImportProfile: (path: string, name: string, digest: string) => Promise<{ name: string; served: boolean } | undefined> }) {
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const t = labels(language)
@@ -31,7 +31,7 @@ export default function ExtensionsView({ connected, profiles, epoch, profileBusy
       {([['experts', zh ? '专家' : 'Experts'], ['skills', zh ? '技能 · 插件' : 'Skills · Plugins'], ['mcp', 'MCP']] as const).map(([id, label]) => <button type="button" role="tab" aria-selected={category === id} key={id} onClick={() => selectCategory(id)}>{label}</button>)}
     </div>
     {!connected && <p>{t('needsRuntime')}</p>}
-    {category === 'experts' && <ExpertCatalog profiles={profiles} busy={profileBusy || !connected} onCreate={onCreateProfile} />}
+    {category === 'experts' && <ExpertCatalog profiles={profiles} busy={profileBusy || !connected} onCreate={onCreateProfile} onImport={onImportProfile} />}
     {connected && <>
       {state.message && <p className="extension-message" role="status">{state.message}</p>}
       {category === 'skills' && <SkillHub key={workspace} official={state.official} featured={state.featured} sources={state.sources}

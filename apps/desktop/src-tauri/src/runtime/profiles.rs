@@ -300,6 +300,23 @@ pub async fn create_profile(
     name: String,
     preset: Option<ProfilePresetSelection>,
 ) -> Result<Value, DesktopFailure> {
+    create_profile_with_options(state, name, preset, None).await
+}
+
+pub(super) async fn create_import_profile(
+    state: State<'_, BackendState>,
+    name: String,
+    soul: String,
+) -> Result<Value, DesktopFailure> {
+    create_profile_with_options(state, name, None, Some(soul)).await
+}
+
+async fn create_profile_with_options(
+    state: State<'_, BackendState>,
+    name: String,
+    preset: Option<ProfilePresetSelection>,
+    soul: Option<String>,
+) -> Result<Value, DesktopFailure> {
     let name = name.trim();
     if name.is_empty() || name.len() > 64 {
         return Err(DesktopFailure::invalid_input());
@@ -350,7 +367,8 @@ pub async fn create_profile(
 from hermes_cli.profiles import create_profile, normalize_profile_name, seed_profile_skills
 name = normalize_profile_name(sys.argv[1])
 preset = json.loads(sys.argv[2])
-path = create_profile(name, no_alias=True, clone_channels=False)
+soul = json.loads(sys.argv[3])
+path = create_profile(name, no_alias=True, clone_channels=False, no_skills=soul is not None, soul=soul)
 seed_profile_skills(path, quiet=True)
 warnings = []
 personality_applied = False
@@ -404,6 +422,7 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
     command
         .arg(name)
         .arg(serde_json::to_string(&preset).map_err(|_| DesktopFailure::invalid_input())?)
+        .arg(serde_json::to_string(&soul).map_err(|_| DesktopFailure::invalid_input())?)
         .env("HERMES_HOME", home)
         .env("PYTHONIOENCODING", "utf-8")
         .env("HERMES_GATEWAY_LOCK_DIR", lock_dir)

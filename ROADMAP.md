@@ -4,6 +4,10 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-28 WorkBuddy 团队专家包导入首版：专家页新增选目录、预览、改 Profile 名称及确认导入；桌面宿主只读校验清单、主理人和 Skill frontmatter、文件路径、大小与摘要，复核后在产品自有数据根创建一个独立 Profile，并保存精简 SOUL、完整来源包及 Skill 脚本素材，不将成员角色注册为子 Agent，也不推断 MCP。Windows 本机两个样本（5/7 份角色、9/1 个 Skill、均 0 MCP）解析与逐文件复制比对通过，复制与越界路径单测通过；锁定 Hermes 开发运行时的独立 Profile 创建、SOUL 写入与 Skill 目录初始化冒烟通过，Hermes Skill 索引扫描分别发现 9/1 个 Skill；前端类型检查和生产构建、契约及架构检查、Rust 格式与编译检查、全量单测（82 通过、5 项按环境忽略）通过。真实桌面导入、Gateway 中实际调用 Skill、外部模型/API 与脚本执行、macOS 原生行为未验收；异常退出后的不完整 Profile 自动恢复尚未实现。未修改 Hermes fork。
+
+2026-10-28 顶栏软件更新入口调整：仅在检测到可用新版本时显示与 GitHub、设置入口一致的环形箭头图标和提示点，悬停与辅助技术提示包含版本号，点击仍进入设置中的“软件更新”页；无更新时可从设置手动检查。Windows 本地前端类型检查和桌面 UI 生产构建通过；Windows、macOS 原生窗口的图标显示与点击尚未实机验收。
+
 2026-10-28 桌面补充信息、审批卡与等待时间线修复：桌面通过 `hermes-gateway-v1` canonical authority 协议提交普通聊天回合时声明 `clarify_batch`，使模型调用结构化 `clarify` 后通过客户端已支持的整批 JSON-RPC 请求卡等待用户回答，不再落入消息适配器的逐题路径而让 canonical 桌面窗口持续等待。危险命令审批补齐 canonical `approval.request` 事件、`approval.respond` 回应、`session.resume.prompts` 重连恢复及 `approval.settled` 收卡，同时保留旧式服务端审批请求兼容。恢复仍在等待澄清或审批的会话时，不再仅因已持久化 assistant 思考记录就把用户回合显示为“约用时/已完成”；后端仍在运行时，即使已有部分 assistant 文本也继续保持未完成，只有非运行回合的最终 assistant 文本才能结束计时。补充信息卡和审批卡改为紧凑的白色待办卡：选项直接平铺为单选或多选行、推荐标识本地化、操作区与正文分离，并保留窄窗口单列和键盘焦点状态。新增 canonical 提交参数、审批映射与恢复时间线回归测试。Windows 原生窗口已确认补充信息和审批请求能够显示、审批决定能够提交并恢复执行；前端时间线 5 项、类型检查、生产构建、架构检查、差异检查、Rust 格式检查与全量单测（79 项通过、5 项按环境忽略）、网关定向测试 11 项及锁定上游普通 Gateway 冒烟通过。macOS 原生行为尚未验收；未修改 Hermes fork。
 
 2026-10-28 Windows PowerShell Tool 路由说明修正：模型可见的 `powershell_execute` 描述现在明确要求原生 Windows 本地命令优先使用该工具而不是依赖 bash 的通用 `terminal`，并说明直接传入 PowerShell 源码，不再套用 `powershell.exe`、`pwsh.exe`、`cmd.exe` 或 bash；插件清单同步相同的首句路由提示，注册验证增加描述断言。Windows 本机锁定 Hermes 注册验证通过，Windows PowerShell 5.1 与 PowerShell 7 均完成中文输出和原生命令退出码检查，Rust 内嵌部署定向测试 1 项及差异检查通过。未修改锁定 Hermes fork；真实会话是否在首次本地命令操作时选用该工具仍待原生窗口复测。该工具仅在 Windows 注册，macOS 行为未改变。

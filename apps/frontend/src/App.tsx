@@ -184,7 +184,7 @@ function App() {
     {view === 'tools' && <ToolsView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} generation={workspaceGeneration} onRestart={() => restartBackend().then(Boolean)} />}
     {view === 'usage' && <UsageView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
-      onCreateProfile={profileController.create} />}
+      onCreateProfile={profileController.create} onImportProfile={profileController.importPackage} />}
     {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot}
       profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} onSelectProfile={name => {
         if (profileAgentOpen && agentConfigDirty && !window.confirm(t("ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave"))) return Promise.resolve()

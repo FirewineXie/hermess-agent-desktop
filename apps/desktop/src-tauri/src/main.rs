@@ -60,6 +60,8 @@ fn main() {
             runtime::stop_backend,
             runtime::profiles::list_profiles,
             runtime::profiles::create_profile,
+            runtime::workbuddy_import::inspect_workbuddy_import,
+            runtime::workbuddy_import::import_workbuddy_package,
             runtime::profiles::select_profile,
             runtime::profile_data::get_profile_data_directory,
             runtime::profile_data::list_profile_data_directory,
