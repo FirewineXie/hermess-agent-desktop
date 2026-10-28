@@ -12,6 +12,7 @@ fn forwards_reasoning_content_events() {
 fn event_serialization_uses_contract_fields() {
     let with_session = GatewayEvent {
         kind: "message.delta".into(),
+        connection_id: "local".into(),
         profile: Some("writer".into()),
         session_id: Some("session-fixture".into()),
         seq: Some(2),
@@ -19,16 +20,18 @@ fn event_serialization_uses_contract_fields() {
     };
     let without_session = GatewayEvent {
         kind: "status.update".into(),
+        connection_id: "local".into(),
         profile: None,
         session_id: None,
         seq: None,
         payload: json!({}),
     };
     let expected = json!({
-        "kind": "message.delta", "profile": "writer", "session_id": "session-fixture",
+        "kind": "message.delta", "connection_id": "local", "profile": "writer", "session_id": "session-fixture",
         "seq": 2, "payload": {"text": "hello"}
     });
-    let expected_no_session = json!({"kind": "status.update", "payload": {}});
+    let expected_no_session =
+        json!({"kind": "status.update", "connection_id": "local", "payload": {}});
     assert_eq!(serde_json::to_value(with_session).unwrap(), expected);
     assert_eq!(
         serde_json::to_value(without_session).unwrap(),
@@ -41,6 +44,7 @@ fn request_serialization_uses_contract_fields() {
     let request = GatewayServerRequest {
         id: "srq-1".into(),
         method: "approval".into(),
+        connection_id: "local".into(),
         profile: Some("writer".into()),
         params: json!({
             "session_id":"session-fixture",
@@ -52,7 +56,7 @@ fn request_serialization_uses_contract_fields() {
         }),
     };
     let expected = json!({
-        "id": "srq-1", "method": "approval", "profile": "writer", "params": {
+        "id": "srq-1", "method": "approval", "connection_id": "local", "profile": "writer", "params": {
             "session_id": "session-fixture", "request_id": "request-fixture",
             "description": "Run a tool", "command": "tool command",
             "choices": ["once", "deny"], "tool_name": null
@@ -62,6 +66,7 @@ fn request_serialization_uses_contract_fields() {
     let clarify = GatewayServerRequest {
         id: "srq-2".into(),
         method: "clarify".into(),
+        connection_id: "local".into(),
         profile: Some("writer".into()),
         params: json!({
             "session_id":"session-fixture",
@@ -70,7 +75,7 @@ fn request_serialization_uses_contract_fields() {
         }),
     };
     let expected_clarify = json!({
-        "id": "srq-2", "method": "clarify", "profile": "writer", "params": {
+        "id": "srq-2", "method": "clarify", "connection_id": "local", "profile": "writer", "params": {
             "session_id": "session-fixture",
             "questions": [{"qid": "q1", "question": "Which option?", "choices": null}],
             "answers": {"q1": null}

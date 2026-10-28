@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-entry",
+  "description": "允许快捷输入窗监听提交结果、拖动和隐藏自身",
+  "webviews": ["quick-entry"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-start-dragging"
+  ]
+}

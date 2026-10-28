@@ -162,7 +162,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
       document.removeEventListener('keydown', escape)
     }
   }, [modelPickerOpen, positionModelPicker])
-  async function loadModelOptions() {
+  async function loadModelOptions(expected?: { model: string; provider?: string; baseUrl?: string }) {
     const request = ++modelOptionsRequestRef.current
     setModelBusy(true)
     setModelOptionsError('')
@@ -181,7 +181,7 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
         configPromise,
         models.endpoints(scope),
       ])
-      if (request !== modelOptionsRequestRef.current) return
+      if (request !== modelOptionsRequestRef.current) return false
       if (optionsResult.status === 'rejected' && configResult.status === 'rejected') throw configResult.reason
       const result = optionsResult.status === 'fulfilled' ? optionsResult.value : { providers: [] }
       const config = configResult.status === 'fulfilled' ? configResult.value : { provider: '', model: '', base_url: '' }
@@ -205,6 +205,10 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
       const failed = [optionsResult, configuredResult, configResult, endpointsResult].find(item => item.status === 'rejected')
       setModelStatus(failed?.status === 'rejected'
         ? t('ui.failed.to.load.model.options.arg', describeError(failed.reason, language)) : '')
+      return configResult.status === 'fulfilled'
+        && (!expected || (config.model === expected.model
+          && (!expected.provider || config.provider === expected.provider)
+          && (!expected.baseUrl || normalizedEndpoint(config.base_url) === normalizedEndpoint(expected.baseUrl))))
     } catch (cause) {
       if (request === modelOptionsRequestRef.current) {
         setModelOptionsError(describeError(cause, language))
@@ -212,6 +216,15 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
       }
     }
     finally { if (request === modelOptionsRequestRef.current) setModelBusy(false) }
+    return false
+  }
+
+  function requiredModelUrl(provider: string, baseUrl: string): string | undefined {
+    const submitted = baseUrl.trim()
+    if (!submitted) return undefined
+    const builtin = modelProviders.find(item => item.slug === provider)?.api_url || ''
+    return provider === 'custom' || !builtin || normalizedEndpoint(submitted) !== normalizedEndpoint(builtin)
+      ? submitted : undefined
   }
 
   function selectModelProvider(provider: string, model = '', fresh = false) {
@@ -293,7 +306,20 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     }
     setModelBusy(true)
     try {
-      await models.addEndpoint(profileScope(), { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey, makeDefault: newProviderMakeDefault, discoverModels: newProviderDiscoverModels })
+      const scope = profileScope()
+      const latest = await models.endpoints(scope)
+      if (latest.endpoints.some(endpoint => normalizedEndpoint(endpoint.base_url) === normalizedEndpoint(newProviderUrl))) {
+        setCustomEndpoints(latest.endpoints)
+        setProviderFormError(t('ui.provider.endpoint.already.exists'))
+        return
+      }
+      await models.addEndpoint(scope, { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), apiKey: newProviderKey, makeDefault: newProviderMakeDefault, discoverModels: newProviderDiscoverModels })
+      const verified = await verifyProviderWrite(scope, { name: newProviderName.trim(), baseUrl: newProviderUrl.trim(),
+        model: newProviderModel.trim(), makeDefault: newProviderMakeDefault })
+      if (!verified || !await loadModelOptions()) {
+        setProviderFormError(t('ui.provider.saved.but.unverified'))
+        return
+      }
       setAddingProvider(false)
       setNewProviderPreset('')
       setProviderFormError('')
@@ -303,10 +329,23 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
       setNewProviderKey('')
       setNewProviderMakeDefault(true)
       setNewProviderDiscoverModels(true)
-      await loadModelOptions()
       setModelStatus(t('ui.provider.added'))
     } catch (cause) { setProviderFormError(t('ui.provider.add.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
+  }
+
+  async function verifyProviderWrite(scope: ProfileScope, expected: { id?: string; name: string; baseUrl: string; model: string; makeDefault: boolean }) {
+    try {
+      const { endpoints } = await models.endpoints(scope)
+      const endpoint = endpoints.find(item => (!expected.id || item.id === expected.id)
+        && item.name === expected.name && item.model === expected.model
+        && normalizedEndpoint(item.base_url) === normalizedEndpoint(expected.baseUrl))
+      if (!endpoint) return false
+      if (!expected.makeDefault) return true
+      const current = await models.savedConfig(scope)
+      return current.provider === endpoint.id && current.model === expected.model
+        && normalizedEndpoint(current.base_url) === normalizedEndpoint(expected.baseUrl)
+    } catch { return false }
   }
 
   function openProviderEditor(endpoint: CustomEndpoint) {
@@ -332,18 +371,25 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     }
     setModelBusy(true)
     try {
-      await models.updateEndpoint(profileScope(), {
+      const scope = profileScope()
+      const makeDefault = endpoint.is_current || newProviderMakeDefault
+      await models.updateEndpoint(scope, {
         endpointId: endpoint.id, name: newProviderName.trim(), baseUrl: newProviderUrl.trim(),
         model: newProviderModel.trim(), apiKey: clearProviderKey ? '' : newProviderKey.trim() || null,
-        makeDefault: endpoint.is_current || newProviderMakeDefault,
+        makeDefault,
         discoverModels: newProviderDiscoverModels,
       })
+      const verified = await verifyProviderWrite(scope, { id: endpoint.id, name: newProviderName.trim(),
+        baseUrl: newProviderUrl.trim(), model: newProviderModel.trim(), makeDefault })
+      if (!verified || !await loadModelOptions()) {
+        setProviderFormError(t('ui.provider.saved.but.unverified'))
+        return
+      }
       setAddingProvider(false)
       setEditingEndpoint(null)
       setNewProviderKey('')
       setClearProviderKey(false)
       setProviderFormError('')
-      await loadModelOptions()
       setModelStatus(t('ui.provider.updated'))
     } catch (cause) { setProviderFormError(t('ui.provider.update.failed.arg', describeError(cause, language))) }
     finally { setModelBusy(false) }
@@ -382,10 +428,11 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
 
   async function saveModel(confirm = false) {
     if (!modelProvider.trim() || !modelName.trim()) return false
+    const scope = profileScope()
     setModelBusy(true)
     setModelStatus(t("ui.saving.model.configuration"))
     try {
-      const result = await models.setDefault(profileScope(), {
+      const result = await models.setDefault(scope, {
         provider: selectedPreset ? 'custom' : modelProvider.trim(), model: modelName.trim(),
         baseUrl: modelBaseUrl.trim(), apiKey: modelKey,
         confirmExpensiveModel: confirm,
@@ -396,13 +443,17 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
       } else if (result.ok) {
         setModelConfirmation('')
         setModelKey('')
-        setSavedModel({
-          provider: result.provider || (selectedPreset ? 'custom' : modelProvider),
-          model: result.model || modelName,
-          name: selectedPreset?.name || modelProviders.find(provider => provider.slug === modelProvider)?.name || modelProvider,
-          baseUrl: modelBaseUrl.trim(),
+        if (profileRef.current !== scope.profile) return false
+        const verified = await loadModelOptions({
+          provider: result.provider || (selectedPreset ? 'custom' : modelProvider.trim()),
+          model: result.model || modelName.trim(),
+          baseUrl: requiredModelUrl(selectedPreset ? 'custom' : modelProvider.trim(), modelBaseUrl),
         })
-        setModelOptionsLoaded(true)
+        if (profileRef.current !== scope.profile) return false
+        if (!verified) {
+          setModelStatus(t('ui.model.saved.but.unverified'))
+          return false
+        }
         setModelStatus(t("ui.saved.arg.arg.applies.to.new.sessions", selectedPreset ? t(selectedPreset.name) : result.provider || modelProvider, result.model || modelName))
         return true
       } else {
@@ -413,11 +464,12 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     return false
   }
 
-  async function saveProviderDefault(provider: string, model: string, baseUrl: string, confirm = false): Promise<'saved' | 'confirm' | 'error'> {
+  async function saveProviderDefault(provider: string, model: string, baseUrl: string, confirm = false): Promise<'saved' | 'confirm' | 'unverified' | 'error'> {
     if (!provider.trim() || !model.trim()) return 'error'
+    const scope = profileScope()
     setModelBusy(true)
     try {
-      const result = await models.setDefault(profileScope(), {
+      const result = await models.setDefault(scope, {
         provider: provider.trim(), model: model.trim(), baseUrl: baseUrl.trim(), apiKey: '', confirmExpensiveModel: confirm,
       })
       if (result.confirm_required) {
@@ -425,8 +477,15 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
         return 'confirm'
       }
       if (!result.ok) throw new Error(t('ui.model.configuration.not.accepted.by.backend'))
-      setSavedModel({ provider: result.provider || provider, model: result.model || model,
-        name: providerCards.find(item => item.slug === provider)?.name || provider, baseUrl: baseUrl.trim() })
+      if (profileRef.current !== scope.profile) return 'unverified'
+      const expectedProvider = result.provider || (providerCards.find(item => item.slug === provider)?.is_user_defined ? undefined : provider)
+      const verified = await loadModelOptions({ provider: expectedProvider, model: result.model || model.trim(),
+        baseUrl: requiredModelUrl(provider, baseUrl) })
+      if (profileRef.current !== scope.profile) return 'unverified'
+      if (!verified) {
+        setModelStatus(t('ui.model.saved.but.unverified'))
+        return 'unverified'
+      }
       setModelStatus(t('ui.saved.arg.arg.applies.to.new.sessions', result.provider || provider, result.model || model))
       return 'saved'
     } catch (cause) {

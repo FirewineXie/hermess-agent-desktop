@@ -1,4 +1,5 @@
 import React from 'react'
+import type { AuxiliaryModels } from '@hermess/contracts'
 import { useLanguage, translateAgentUi, agentFieldTranslation } from '../../i18n'
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
@@ -11,9 +12,10 @@ type Options = {
   epoch: string | null
   storagePath: string
   onDirtyChange: (dirty: boolean) => void
+  sectionOverride?: string
 }
 
-export function useAgentSettingsController({ connected, profile, epoch, storagePath, onDirtyChange }: Options) {
+export function useAgentSettingsController({ connected, profile, epoch, storagePath, onDirtyChange, sectionOverride }: Options) {
   const { agentSettings, models } = useDesktop()
   const workspace = workspaceKey(epoch, profile)
   let stateSlot = 0
@@ -35,8 +37,10 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [search, setSearch] = useState('')
   const [mode, setMode] = useState<'form' | 'yaml'>('form')
-  const [section, setSection] = useState<'main' | 'auxiliary' | 'approval' | 'advanced'>('auxiliary')
+  const [section, setSection] = useState(sectionOverride || 'auxiliary')
   const [providers, setProviders] = useState<Provider[]>([])
+  const [auxiliarySummary, setAuxiliarySummary] = useState<AuxiliaryModels | null>(null)
+  const [auxiliaryLoadFailed, setAuxiliaryLoadFailed] = useState(false)
   const [editingTask, setEditingTask] = useState<string | null>(null)
   const [auxProvider, setAuxProvider] = useState('auto')
   const [auxModel, setAuxModel] = useState('')
@@ -46,6 +50,18 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
   const [status, setStatus] = useState('')
   const [loaded, setLoaded] = useState(false)
   const loadRequestRef = useProfileRef(workspace, 0)
+
+  React.useEffect(() => {
+    if (sectionOverride && section !== sectionOverride) {
+      setSection(sectionOverride)
+      setDrafts({})
+      setYamlDraft(raw?.yaml || '')
+      setEditingTask(null)
+      setEditingKey(null)
+      setSearch('')
+      setMode(sectionOverride === 'advanced.raw' ? 'yaml' : 'form')
+    }
+  }, [sectionOverride])
 
   const load = React.useCallback(async (savedKey?: string) => {
     if (!connected || !profile) return false
@@ -59,10 +75,11 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
         agentSettings.config(scope),
         agentSettings.raw(scope),
       ])
-      const [options, endpoints, savedLists] = await Promise.allSettled([
+      const [options, endpoints, savedLists, auxiliary] = await Promise.allSettled([
         models.options(scope, { refresh: false, includeUnconfigured: false }),
         models.endpoints(scope),
         models.loadLists(scope, storagePath),
+        models.auxiliary(scope),
       ])
       const choices = options.status === 'fulfilled'
         ? (options.value.providers || []).filter(item => item.authenticated !== false && !['copilot-acp', 'custom'].includes(item.slug)) : []
@@ -83,6 +100,8 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
       }
       if (request !== loadRequestRef.current) return false
       setProviders(choices)
+      setAuxiliarySummary(auxiliary.status === 'fulfilled' ? auxiliary.value : null)
+      setAuxiliaryLoadFailed(auxiliary.status === 'rejected')
       setSchema(nextSchema)
       setConfig(nextConfig)
       setRaw(nextRaw)
@@ -107,6 +126,10 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
     if (!loaded) void load()
     return () => { ++loadRequestRef.current }
   }, [load, loaded])
+
+  React.useEffect(() => {
+    if (sectionOverride === 'model.auxiliary' && loaded) void load()
+  }, [sectionOverride, profile])
 
   const dirtyYaml = raw !== null && yamlDraft !== raw.yaml
   const dirtyFields = Object.entries(drafts).some(([key, value]) =>
@@ -216,12 +239,38 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
   const scoped = entries.filter(([key]) => {
     if (section === 'advanced') return true
     if (section === 'main') return ['agent.reasoning_overrides', 'agent.max_turns', 'model_context_length'].includes(key)
-    if (section === 'approval') return key.startsWith('approvals.') || key.startsWith('security.')
-    return false
+    if (section === 'approval') return key === 'command_allowlist' || key.startsWith('approvals.') || key.startsWith('security.') || key.startsWith('checkpoints.')
+    if (section === 'model.main') return ['model_context_length', 'agent.reasoning_effort', 'agent.service_tier'].includes(key)
+    if (section === 'model.fallbacks') return key === 'fallback_providers'
+    if (section === 'model.delegation') return key.startsWith('delegation.')
+    if (section === 'model.moa') return key.startsWith('moa.')
+    if (section === 'memory.persistent') return key.startsWith('memory.')
+    if (section === 'memory.context') return key.startsWith('context.') || key.startsWith('compression.') || key.startsWith('auxiliary.compression.')
+    if (section === 'security.approvals') return key === 'command_allowlist' || key.startsWith('approvals.')
+    if (section === 'security.privacy') return key.startsWith('security.')
+    if (section === 'security.checkpoints') return key.startsWith('checkpoints.')
+    if (section === 'voice.conversation') return ['voice.voice_chat_mode', 'voice.max_recording_seconds', 'voice.client_direct'].includes(key) || key.startsWith('voice.gpt_live.')
+    if (section === 'voice.transcription') return key.startsWith('stt.')
+    if (section === 'voice.speech') return key === 'voice.auto_tts' || key.startsWith('tts.')
+    if (section === 'advanced.desktop') return key.startsWith('updates.')
+    if (section === 'advanced.runtime') return ['agent.max_turns', 'agent.api_max_retries', 'agent.service_tier'].includes(key)
+    if (section === 'advanced.tools') return key === 'toolsets' || key === 'agent.tool_use_enforcement'
+    if (section === 'advanced.terminal') return key.startsWith('terminal.')
+    if (section === 'advanced.output') return key.startsWith('tool_output.') || key.startsWith('checkpoints.')
+    if (section === 'advanced.raw') return true
+    return section === 'auxiliary' && key.startsWith('auxiliary.')
   })
   const visible = scoped.filter(([key, field]) => !query ||
     `${key} ${field.description || ''} ${agentFieldTranslation(language, key)?.label || ''} ${agentFieldTranslation(language, key)?.description || ''}`.toLowerCase().includes(query))
-  const auxiliaryTasks = Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1])
+  const auxiliaryTasks = auxiliarySummary?.tasks.length
+    ? auxiliarySummary.tasks.map(task => task.task).filter(task => /^[a-zA-Z0-9_]+$/.test(task))
+    : Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1])
+  const staleAuxiliary = auxiliarySummary?.main.provider
+    ? auxiliarySummary.tasks.filter(task => {
+      const provider = task.provider.toLowerCase()
+      return provider !== '' && provider !== 'auto' && provider !== 'main'
+        && provider !== auxiliarySummary.main.provider.toLowerCase() && !task.local_endpoint
+    }) : []
   return {
     language, t, schema, config, raw, yamlDraft, setYamlDraft,
     drafts, setDrafts, editingKey, setEditingKey, expandedPaths, setExpandedPaths,
@@ -229,6 +278,6 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
     editingTask, setEditingTask, auxProvider, setAuxProvider, auxModel, setAuxModel,
     auxEffort, setAuxEffort, auxTimeout, setAuxTimeout, busy, status, dirtyYaml,
     canDiscard, reload, editField, cancelEdit, saveField, saveYaml,
-    editAuxiliary, saveAuxiliary, visible, query, auxiliaryTasks,
+    editAuxiliary, saveAuxiliary, visible, query, auxiliaryTasks, auxiliarySummary, auxiliaryLoadFailed, staleAuxiliary,
   }
 }

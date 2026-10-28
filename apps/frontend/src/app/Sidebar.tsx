@@ -8,6 +8,7 @@ type Props = {
   view: View
   open: boolean
   connected: boolean
+  remote: boolean
   busy: boolean
   sessions: SessionRow[]
   otherProfileSessions: Record<string, SessionRow[]>
@@ -25,7 +26,7 @@ type Props = {
   onOpenProfile: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile }: Props) {
+export default function Sidebar({ view, open, connected, remote, busy, sessions, otherProfileSessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -64,7 +65,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
       <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
       <nav className="primary-nav" aria-label={t('ui.features')}>
         <button onClick={onNewChat}><span>{t('ui.new.session')}</span></button>
-        <button className={view === 'workspaces' ? 'active' : ''} onClick={() => onOpenView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
+        <button className={view === 'workspaces' ? 'active' : ''} disabled={remote} title={remote ? (zh ? '远端工作区尚未提供' : 'Remote workspaces are not available yet') : undefined} onClick={() => onOpenView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
         <button className={view === 'extensions' ? 'active' : ''} onClick={() => onOpenView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Hub'}</span></button>
         <button className={view === 'scheduled' ? 'active' : ''} onClick={() => onOpenView('scheduled')}>◷ <span>{zh ? '定时任务' : 'Scheduled tasks'}</span></button>
         <button className={view === 'tools' ? 'active' : ''} onClick={() => onOpenView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>

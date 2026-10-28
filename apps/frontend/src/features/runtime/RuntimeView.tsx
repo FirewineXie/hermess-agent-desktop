@@ -1,4 +1,5 @@
 import React from 'react'
+import type { BackendInfo } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, changeLanguage, translateApp, localizeAppMessage, type Language } from '../../i18n'
@@ -14,7 +15,7 @@ type Props = {
   onDebugModeChange: (value: boolean) => Promise<void>
   pythonPath: string
   onPythonPathChange: (value: string) => void
-  backend: { pid: number; port: number } | null
+  backend: BackendInfo | null
   backendStatus: string
   busy: boolean
   onChooseStoragePath: () => Promise<void>
@@ -22,9 +23,11 @@ type Props = {
   onPing: () => Promise<void>
   onReconnect: () => Promise<void>
   onStop: () => Promise<void>
+  onReturnToLocal: () => Promise<void>
 }
 
-export default function RuntimeView({ storagePath, onStoragePathChange: setStoragePath, storageLocked, debugMode, debugButtonVisible, onDebugModeChange, pythonPath, onPythonPathChange: setPythonPath, backend, backendStatus, busy, onChooseStoragePath: chooseStoragePath, onStart: startBackend, onPing: pingBackend, onReconnect: reconnectBackend, onStop: stopBackend }: Props) {
+export default function RuntimeView({ storagePath, onStoragePathChange: setStoragePath, storageLocked, debugMode, debugButtonVisible, onDebugModeChange, pythonPath, onPythonPathChange: setPythonPath, backend, backendStatus, busy, onChooseStoragePath: chooseStoragePath, onStart: startBackend, onPing: pingBackend, onReconnect: reconnectBackend, onStop: stopBackend, onReturnToLocal }: Props) {
+  const remoteActive = backend !== null && backend.connection_id !== 'local'
   const { diagnostics } = useDesktop()
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
@@ -34,6 +37,16 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
   const [logLoading, setLogLoading] = React.useState(false)
   const [debugOpening, setDebugOpening] = React.useState(false)
   const [debugError, setDebugError] = React.useState('')
+  const [returningLocal, setReturningLocal] = React.useState(false)
+  const [returnError, setReturnError] = React.useState('')
+
+  async function returnToLocal() {
+    setReturningLocal(true)
+    setReturnError('')
+    try { await onReturnToLocal() }
+    catch (cause) { setReturnError(describeError(cause, language)) }
+    finally { setReturningLocal(false) }
+  }
 
   async function toggleDebugMode() {
     setDebugOpening(true)
@@ -68,6 +81,8 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
       {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
       {storageLocked && <small>{t("ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i")}</small>}
       <WebviewCacheSettings />
+      {remoteActive && <div className="actions"><button type="button" disabled={returningLocal || busy} onClick={() => void returnToLocal()}>{language === 'zh-CN' ? '切回本地连接' : 'Return to local connection'}</button></div>}
+      {returnError && <p role="alert">{returnError}</p>}
       {debugButtonVisible && <button type="button" className="runtime-debug-toggle" aria-pressed={debugMode} disabled={debugOpening} onClick={() => void toggleDebugMode()}>{t('ui.debug')}</button>}
       {debugError && <p role="alert">{t('ui.frontend.console.open.failed.arg', debugError)}</p>}
       {debugMode && <>
@@ -92,12 +107,12 @@ export default function RuntimeView({ storagePath, onStoragePathChange: setStora
           <pre className="diagnostic-log-output" aria-live="polite">{logLoading ? t('ui.loading.logs') : logText || t('ui.no.logs.yet')}</pre>
         </details>
         <div className="actions">
-          <button disabled={busy || !storagePath || (import.meta.env.DEV && !pythonPath)} onClick={() => void startBackend()}>{t("ui.start")}</button>
-          <button disabled={busy || !backend} onClick={() => void pingBackend()}>{t("ui.check.connection")}</button>
-          <button disabled={busy || !backend} onClick={() => void reconnectBackend()}>{t("ui.reconnect.and.restore")}</button>
-          <button disabled={busy || !backend} onClick={() => void stopBackend()}>{t("ui.stop")}</button>
+          <button disabled={busy || remoteActive || !storagePath || (import.meta.env.DEV && !pythonPath)} onClick={() => void startBackend()}>{t("ui.start")}</button>
+          <button disabled={busy || !backend || remoteActive} onClick={() => void pingBackend()}>{t("ui.check.connection")}</button>
+          <button disabled={busy || !backend || remoteActive} onClick={() => void reconnectBackend()}>{t("ui.reconnect.and.restore")}</button>
+          <button disabled={busy || !backend || remoteActive} onClick={() => void stopBackend()}>{t("ui.stop")}</button>
         </div>
-        <p role="status">{localizeAppMessage(language, backendStatus)}{backend && t("ui.pid.arg.port.arg", backend.pid, backend.port)}</p>
+        <p role="status">{localizeAppMessage(language, backendStatus)}{backend && ('pid' in backend ? t("ui.pid.arg.port.arg", backend.pid, backend.port) : ` · ${backend.label}`)}</p>
       </>}
     </section>
 }

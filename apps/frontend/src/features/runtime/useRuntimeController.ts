@@ -8,15 +8,16 @@ import { activateWorkspaceEpoch } from '../../app/profile-scope/ProfileWorkspace
 type Options = {
   t: (key: string, ...values: unknown[]) => string
   onReset: () => void
+  initialDebugMode?: boolean
 }
 
-export function useRuntimeController({ t, onReset }: Options) {
-  const { nativeFiles, runtime, diagnostics, windowChrome } = useDesktop()
+export function useRuntimeController({ t, onReset, initialDebugMode = false }: Options) {
+  const { nativeFiles, runtime, connections, diagnostics, windowChrome } = useDesktop()
   const language = useLanguage()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
-  const [debugMode, setDebugMode] = React.useState(false)
+  const [debugMode, setDebugMode] = React.useState(initialDebugMode)
   const [debugButtonVisible, setDebugButtonVisible] = React.useState(false)
   React.useEffect(() => {
     if (debugButtonVisible) return
@@ -37,13 +38,10 @@ export function useRuntimeController({ t, onReset }: Options) {
     await windowChrome.setFrontendDebugEnabled(enabled)
     setDebugMode(enabled)
   }
-  React.useEffect(() => {
-    void windowChrome.setFrontendDebugEnabled(false).catch(() => {})
-  }, [])
   const [backend, setBackendState] = React.useState<BackendInfo | null>(null)
   const [workspaceGeneration, setWorkspaceGeneration] = React.useState(0)
   const setBackend = (next: BackendInfo | null) => {
-    setWorkspaceGeneration(activateWorkspaceEpoch(next?.replay_epoch, next === null || !next.replay_epoch))
+    setWorkspaceGeneration(activateWorkspaceEpoch(next?.replay_epoch, next === null || !next.replay_epoch, next?.connection_id))
     setBackendState(next)
   }
   const [backendStatus, setBackendStatus] = React.useState(t("ui.not.started"))
@@ -59,12 +57,28 @@ export function useRuntimeController({ t, onReset }: Options) {
           if (!active) return
           setPythonPath(defaults.python_path)
           setStoragePath(defaults.storage_path)
+          const remote = await connections.currentRemote()
+          if (!active) return
+          if (remote) {
+            setBackend({ kind: 'remote', connection_id: remote.connectionId, replay_epoch: remote.replayEpoch, label: remote.label })
+            setBackendStatus(language === 'zh-CN' ? `已恢复远端目标「${remote.label}」；如已断线，请在已保存连接中重新连接。` : `Restored remote target “${remote.label}”. Reconnect from Saved connections if disconnected.`)
+            setBusy(false)
+            return
+          }
           await startBackend(defaults.storage_path, defaults.python_path)
         } else {
           const defaults = await runtime.packedDefaults()
           if (!active) return
           setStoragePath(defaults.storage_path)
           setStorageLocked(defaults.initialized)
+          const remote = await connections.currentRemote()
+          if (!active) return
+          if (remote) {
+            setBackend({ kind: 'remote', connection_id: remote.connectionId, replay_epoch: remote.replayEpoch, label: remote.label })
+            setBackendStatus(language === 'zh-CN' ? `已恢复远端目标「${remote.label}」；如已断线，请在已保存连接中重新连接。` : `Restored remote target “${remote.label}”. Reconnect from Saved connections if disconnected.`)
+            setBusy(false)
+            return
+          }
           await startBackend(defaults.storage_path)
         }
       } catch (cause) {

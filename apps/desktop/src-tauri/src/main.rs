@@ -5,6 +5,7 @@ mod errors;
 mod gateway;
 mod panel_terminal;
 mod process_manager;
+mod quick_entry;
 mod runtime;
 mod storage;
 mod tray;
@@ -22,14 +23,18 @@ fn main() {
             tray::show_main_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(runtime::BackendState::default())
+        .manage(runtime::remote_registry::RemoteRegistryState::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
         .manage(panel_terminal::TerminalState::default())
         .setup(|app| {
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
+            quick_entry::setup(app)?;
             webview_cache::start(app.handle().clone());
             Ok(())
         })
@@ -37,6 +42,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
             diagnostics::set_frontend_debug_enabled,
+            quick_entry::get_quick_entry_registration,
+            quick_entry::save_quick_entry_settings,
+            quick_entry::submit_quick_entry,
+            quick_entry::acknowledge_quick_entry,
             webview_cache::get_webview_cache_settings,
             webview_cache::set_webview_cache_settings,
             webview_cache::clear_webview_cache_now,
@@ -53,6 +62,15 @@ fn main() {
             runtime::start_packed_backend,
             runtime::ping_backend,
             runtime::reconnect_backend,
+            runtime::remote_connections::test_remote_url_connection,
+            runtime::remote_ssh::test_ssh_connection,
+            runtime::remote_registry::list_remote_connections,
+            runtime::remote_registry::save_remote_url_connection,
+            runtime::remote_registry::save_remote_ssh_connection,
+            runtime::remote_registry::delete_remote_connection,
+            runtime::remote_registry::apply_saved_remote_connection,
+            runtime::remote_registry::current_remote_connection,
+            runtime::remote_registry::return_to_local_connection,
             runtime::restart_backend_gracefully,
             runtime::stop_backend,
             runtime::profiles::list_profiles,
@@ -89,9 +107,11 @@ fn main() {
             runtime::usage::get_usage_statistics,
             runtime::extensions::extension_request,
             runtime::models::list_model_options,
+            runtime::models::get_auxiliary_models,
             runtime::models::select_chat_model,
             runtime::models::get_saved_model_config,
             runtime::config::get_agent_config,
+            runtime::config::get_checkpoint_inventory,
             runtime::config::get_agent_config_schema,
             runtime::config::get_agent_config_raw,
             runtime::config::save_auxiliary_route,
@@ -105,6 +125,21 @@ fn main() {
             runtime::models::update_custom_endpoint,
             runtime::models::set_custom_endpoint_discovery,
             runtime::models::delete_custom_endpoint,
+            runtime::models::sync_model_provider,
+            runtime::models::get_moa_config,
+            runtime::models::save_moa_config,
+            runtime::settings_extras::get_memory_provider_config,
+            runtime::settings_extras::save_memory_provider_config,
+            runtime::settings_extras::start_memory_provider_oauth,
+            runtime::settings_extras::get_memory_provider_oauth_status,
+            runtime::settings_extras::get_shared_metrics_consent,
+            runtime::settings_extras::save_shared_metrics_consent,
+            runtime::settings_extras::get_delegation_routing,
+            runtime::settings_extras::select_delegation_backend,
+            runtime::settings_extras::save_delegation_model_map,
+            runtime::settings_extras::save_delegation_profile_routes,
+            runtime::settings_extras::transcribe_audio,
+            runtime::settings_extras::speak_text,
             runtime::config::save_agent_config_field,
             runtime::config::save_agent_config_raw,
             runtime::personal_files::read_personal_file,

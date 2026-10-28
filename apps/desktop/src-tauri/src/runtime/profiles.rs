@@ -1,4 +1,8 @@
-use super::{helper_python, profile_scope::SessionOwners, BackendState};
+use super::{
+    config, helper_python,
+    profile_scope::{valid_profile_name, SessionOwners},
+    remote_connections, BackendState,
+};
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
 use crate::process_manager;
@@ -149,6 +153,8 @@ fn accepts_profile(method: &str) -> bool {
             | "browser.manage"
             | "cron.manage"
             | "setup.runtime_check"
+            | "shared_metrics.status"
+            | "shared_metrics.set"
     )
 }
 
@@ -268,6 +274,38 @@ pub(super) fn is_served(status: &Value, name: &str) -> bool {
 
 #[tauri::command]
 pub async fn list_profiles(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
+    let mut remote = state.3.lock().await;
+    if let Some(active) = remote.as_mut() {
+        if active.gateway.is_closed() {
+            return Err(DesktopFailure::connection_lost());
+        }
+        let roster = active
+            .gateway
+            .request("profiles.list", json!({"include_sessions": false}))
+            .await?;
+        let names: Vec<String> = roster
+            .get("profiles")
+            .and_then(Value::as_array)
+            .ok_or_else(DesktopFailure::operation_failed)?
+            .iter()
+            .filter_map(|row| row.get("name").and_then(Value::as_str).map(str::to_owned))
+            .collect();
+        if names.is_empty() {
+            return Err(DesktopFailure::operation_failed());
+        }
+        active.roster = roster.clone();
+        if !names.contains(&active.selected_profile) {
+            active.selected_profile = names[0].clone();
+        }
+        return Ok(json!({
+            "profiles": roster["profiles"],
+            "selected": active.selected_profile,
+            "gateway_mode": "remote",
+            "gateways": [{"profile": names[0], "served_profiles": names}],
+            "reason": null,
+        }));
+    }
+    drop(remote);
     let (client, selected, storage, pid, port, token) = {
         let owned = state.0.lock().await;
         let backend = owned
@@ -333,6 +371,47 @@ pub async fn create_profile(
             return Err(DesktopFailure::invalid_input());
         }
     }
+    let mut remote = state.3.lock().await;
+    if let Some(active) = remote.as_mut() {
+        if !valid_profile_name(name) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        if preset.is_some() {
+            return Err("远端网关尚未支持本产品的专家预设，请创建自定义 Profile".into());
+        }
+        if active.gateway.is_closed() {
+            return Err(DesktopFailure::connection_lost());
+        }
+        let base = remote_connections::normalized_remote_url(&active.base_url)?;
+        let url = remote_connections::endpoint_url(&base, "api/profiles")?;
+        let created = config::request_url_with_auth(
+            reqwest::Method::POST,
+            url,
+            Some(json!({"name": name, "clone_from_default": false, "clone_channels": false})),
+            "X-Hermes-Session-Token",
+            active.token.clone(),
+            Duration::from_secs(20),
+            128 * 1024,
+            false,
+        )
+        .await?;
+        if created.get("name").and_then(Value::as_str) != Some(name)
+            || created.get("ok").and_then(Value::as_bool) != Some(true)
+        {
+            return Err(DesktopFailure::operation_failed());
+        }
+        let mut warnings = Vec::new();
+        match active
+            .gateway
+            .request("profiles.list", json!({"include_sessions": false}))
+            .await
+        {
+            Ok(roster) if roster_contains(&roster, name) => active.roster = roster,
+            _ => warnings.push("roster_refresh"),
+        }
+        return Ok(json!({"name": name, "warnings": warnings}));
+    }
+    drop(remote);
     let (hermes, home, lock_dir) = {
         let owned = state.0.lock().await;
         let backend = owned
@@ -435,6 +514,15 @@ pub async fn select_profile(
     state: State<'_, BackendState>,
     name: String,
 ) -> Result<(), DesktopFailure> {
+    let mut remote = state.3.lock().await;
+    if let Some(active) = remote.as_mut() {
+        if !roster_contains(&active.roster, &name) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        active.selected_profile = name;
+        return Ok(());
+    }
+    drop(remote);
     let (client, storage, pid, port, token) = {
         let owned = state.0.lock().await;
         let backend = owned

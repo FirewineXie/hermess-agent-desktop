@@ -1,7 +1,8 @@
 use super::location::{read_storage_location, write_storage_location};
 use super::models::{
-    custom_endpoint_delete_path, parse_saved_model_config, read_model_lists_file,
-    write_model_lists_file,
+    custom_endpoint_delete_path, parse_saved_model_config, provider_sync_conflict,
+    provider_sync_difference_fields, provider_sync_model_details, provider_sync_template,
+    provider_sync_verified, read_model_lists_file, write_model_lists_file,
 };
 use super::payload::validate_payload;
 use super::{acquire_storage_lock, running_storage_matches};
@@ -24,11 +25,12 @@ fn backend_info_serializes_contract_fields() {
         port: 1421,
         pid: 421,
         replay_epoch: "fixture-epoch".to_owned(),
+        connection_id: "local",
     })
     .unwrap();
     assert_eq!(
         actual,
-        json!({"port": 1421, "pid": 421, "replay_epoch": "fixture-epoch"})
+        json!({"port": 1421, "pid": 421, "replay_epoch": "fixture-epoch", "connection_id": "local"})
     );
 }
 
@@ -44,11 +46,12 @@ fn graceful_restart_reports_restarted_or_deferred() {
                 port: 1421,
                 pid: 421,
                 replay_epoch: "next-epoch".to_owned(),
+                connection_id: "local",
             },
         })
         .unwrap(),
         json!({"status": "restarted", "info": {
-            "port": 1421, "pid": 421, "replay_epoch": "next-epoch"
+            "port": 1421, "pid": 421, "replay_epoch": "next-epoch", "connection_id": "local"
         }})
     );
 }
@@ -123,6 +126,91 @@ fn custom_endpoint_delete_path_has_one_separator_before_id() {
         custom_endpoint_delete_path("desktop-example").unwrap(),
         "/api/providers/custom-endpoints/desktop-example"
     );
+}
+
+#[test]
+fn provider_sync_copies_public_fields_and_clears_target_credentials() {
+    let source = json!({
+        "name": "Example", "base_url": "https://example.com/v1", "model": "primary",
+        "models": ["primary", "secondary"], "api_mode": "codex_responses",
+        "context_length": 128000, "discover_models": false,
+        "has_api_key": true, "api_key_preview": "secret-preview",
+    });
+    let body = provider_sync_template(&source).unwrap();
+    assert_eq!(body["models"], json!(["primary", "secondary"]));
+    assert_eq!(body["api_mode"], "codex_responses");
+    assert_eq!(body["context_length"], 128000);
+    assert_eq!(body["discover_models"], false);
+    assert_eq!(body["api_key"], "");
+    assert_eq!(body["make_default"], false);
+    assert!(body.get("api_key_preview").is_none());
+}
+
+#[test]
+fn provider_sync_requires_target_readback_before_reporting_success() {
+    let template = json!({
+        "name": "Example", "base_url": "https://example.com/v1", "model": "primary",
+        "models": ["primary", "secondary"], "api_mode": "codex_responses",
+        "context_length": 128000, "discover_models": false,
+    });
+    let saved = json!({"endpoints": [{
+        "id": "target", "name": "Example", "base_url": "https://example.com/v1",
+        "model": "primary", "models": ["primary", "secondary"],
+        "api_mode": "codex_responses", "context_length": 128000,
+        "discover_models": false, "has_api_key": false,
+    }]});
+    assert!(provider_sync_verified(&saved, "target", &template));
+    assert!(!provider_sync_verified(&saved, "another", &template));
+    let mut stale = saved.clone();
+    stale["endpoints"][0]["base_url"] = json!("https://old.example.com/v1");
+    assert!(!provider_sync_verified(&stale, "target", &template));
+    stale = saved;
+    stale["endpoints"][0]["has_api_key"] = json!(true);
+    assert!(!provider_sync_verified(&stale, "target", &template));
+    stale["endpoints"][0]["has_api_key"] = json!(false);
+    stale["endpoints"][0]["models"] = json!(["primary", "secondary", "old"]);
+    assert!(!provider_sync_verified(&stale, "target", &template));
+}
+
+#[test]
+fn provider_sync_detects_id_collision_and_reports_public_differences() {
+    let listing = json!({"endpoints": [
+        {"id": "same-id", "name": "Old", "base_url": "https://old.example/v1", "model": "old-model",
+         "models": ["old-model"], "api_mode": "chat_completions", "has_api_key": true},
+        {"id": "other", "name": "Source", "base_url": "https://source.example/v1"}
+    ]});
+    let (existing, kind) =
+        provider_sync_conflict(&listing, "same-id", "Source", "https://source.example/v1").unwrap();
+    assert_eq!(kind, "id");
+    assert_eq!(existing["id"], "same-id");
+    let template = json!({"name": "Source", "base_url": "https://source.example/v1", "model": "new-model",
+        "models": ["new-model"], "api_mode": "codex_responses"});
+    let changed = provider_sync_difference_fields(existing, &template);
+    assert!(changed.contains(&"name"));
+    assert!(changed.contains(&"base_url"));
+    assert!(changed.contains(&"model"));
+    assert!(changed.contains(&"models"));
+    assert!(changed.contains(&"credential"));
+}
+
+#[test]
+fn provider_sync_copies_only_public_model_alias_metadata() {
+    let config = json!({"providers": {"edge/provider": {"models": {
+        "primary": {"context_length": 128000, "api_key": "never-copy"},
+        "reasoning-high": {"canonical_model": "primary", "reasoning_effort": "high", "api_key": "never-copy"},
+    }}}});
+    let details = provider_sync_model_details(
+        &config,
+        "edge/provider",
+        &json!(["primary", "reasoning-high"]),
+    );
+    assert_eq!(
+        details,
+        vec![json!({
+            "id": "reasoning-high", "canonical_model": "primary", "reasoning_effort": "high"
+        })]
+    );
+    assert!(provider_sync_model_details(&config, "other", &json!(["reasoning-high"])).is_empty());
 }
 
 #[test]

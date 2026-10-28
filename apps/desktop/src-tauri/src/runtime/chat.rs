@@ -38,6 +38,9 @@ pub async fn create_chat_session(
     reasoning: Option<String>,
 ) -> Result<Value, DesktopFailure> {
     let cwd = validate_workspace_path(cwd)?;
+    if cwd.is_some() && state.3.lock().await.is_some() {
+        return Err("远程连接不能使用本机工作目录；请先取消工作目录选择".into());
+    }
     if provider.as_deref().is_some_and(|value| {
         value.is_empty() || value.len() > 128 || value.chars().any(char::is_whitespace)
     }) || model.as_deref().is_some_and(|value| {
@@ -52,7 +55,7 @@ pub async fn create_chat_session(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let result = gateway
         .request(
             "session.create",
@@ -110,6 +113,7 @@ pub async fn submit_chat_prompt(
     profile: String,
     session_id: String,
     text: String,
+    voice_turn: Option<bool>,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
@@ -117,12 +121,14 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
+    let mut params =
+        json!({"session_id":session_id,"text":text,"submission_id":Uuid::new_v4().to_string()});
+    if voice_turn == Some(true) {
+        params["voice_turn"] = json!(true);
+    }
     gateway
-        .request(
-            "prompt.submit",
-            json!({"session_id":session_id,"text":text,"submission_id":Uuid::new_v4().to_string()}),
-        )
+        .request("prompt.submit", params)
         .await
         .map_err(Into::into)
 }
@@ -136,7 +142,7 @@ pub async fn list_composer_commands(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request("commands.catalog", json!({"session_id": session_id}))
         .await
@@ -156,7 +162,7 @@ pub async fn execute_composer_command(
     if !command.starts_with('/') || command.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request(
             "slash.exec",
@@ -184,7 +190,7 @@ pub async fn dispatch_composer_skill(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request(
             "command.dispatch",
@@ -255,6 +261,9 @@ pub async fn attach_chat_file(
     session_id: String,
     path: String,
 ) -> Result<Value, DesktopFailure> {
+    if state.3.lock().await.is_some() {
+        return Err("本机文件不能按路径附加到远程网关".into());
+    }
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
@@ -264,7 +273,7 @@ pub async fn attach_chat_file(
     } else {
         "file.attach"
     };
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let result = gateway
         .request(
             method,
@@ -297,7 +306,7 @@ pub async fn detach_chat_image(
     if session_id.is_empty() || session_id.len() > 256 || path.len() > 4096 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let result = gateway
         .request(
             "image.detach",
@@ -350,7 +359,7 @@ pub async fn answer_gateway_request(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .answer(request_id, method, result, session_id)
         .await
@@ -362,7 +371,7 @@ pub async fn list_chat_sessions(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let live = gateway.request("session.list", json!({"limit":50})).await?;
     let stored = gateway
         .request("session.list", json!({"limit":50,"scope":"stored"}))
@@ -410,7 +419,7 @@ pub async fn get_chat_reasoning(
     if session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let params = if session_id.is_empty() {
         json!({"key": "reasoning"})
     } else {
@@ -438,7 +447,7 @@ pub async fn set_chat_reasoning(
     ) {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request(
             "config.set",
@@ -457,7 +466,7 @@ pub async fn get_chat_usage(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request("session.stats", json!({"session_id": session_id}))
         .await
@@ -473,7 +482,7 @@ pub async fn resume_chat_session(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request(
             "session.resume",
@@ -492,7 +501,7 @@ pub async fn interrupt_chat_session(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     // The ticketed session authority requires the current execution generation.
     // Reattaching an already subscribed session is idempotent and gives us that fence.
     let mut snapshot = gateway
@@ -540,7 +549,7 @@ pub async fn replay_chat_events(
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let result = gateway
         .request(
             "session.events.since",

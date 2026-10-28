@@ -1,4 +1,7 @@
-use super::config::{config_request_for_scope, config_request_to_profile};
+use super::config::{
+    config_request_for_scope, config_request_to_profile, config_request_to_profile_with_limits,
+    resolve_config_target,
+};
 use super::profile_scope::ResolvedProfileScope;
 use super::BackendState;
 use crate::errors::DesktopFailure;
@@ -13,6 +16,28 @@ use std::{
 };
 use tauri::State;
 use uuid::Uuid;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSyncTarget {
+    profile: String,
+    status: &'static str,
+    config_copied: bool,
+    credential_copied: bool,
+    requires_reauthentication: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conflict_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    changed_fields: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSyncResult {
+    source_profile: String,
+    endpoint_id: String,
+    targets: Vec<ProviderSyncTarget>,
+}
 
 pub(super) fn custom_endpoint_delete_path(endpoint_id: &str) -> Result<String, DesktopFailure> {
     let mut url = reqwest::Url::parse("http://localhost/api/providers/custom-endpoints/")
@@ -122,7 +147,7 @@ pub async fn list_model_options(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let mut params = json!({"include_unconfigured": include_unconfigured.unwrap_or(true),
                             "refresh": refresh});
     if let Some(id) = session_id {
@@ -132,6 +157,23 @@ pub async fn list_model_options(
         .request("model.options", params)
         .await
         .map_err(Into::into)
+}
+
+#[tauri::command]
+pub async fn get_auxiliary_models(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    config_request_to_profile_with_limits(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/model/auxiliary",
+        None,
+        Duration::from_secs(15),
+        256 * 1024,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -156,7 +198,7 @@ pub async fn select_chat_model(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     let snapshot = gateway
         .request("session.resume", json!({"session_id": session_id}))
         .await?;
@@ -229,6 +271,24 @@ pub async fn get_saved_model_config(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<SavedModelConfig, DesktopFailure> {
+    if state.3.lock().await.is_some() {
+        let value = config_request_to_profile_with_limits(
+            &state,
+            &profile,
+            reqwest::Method::GET,
+            "/api/config/raw",
+            None,
+            Duration::from_secs(15),
+            256 * 1024,
+        )
+        .await?;
+        let yaml = value
+            .get("yaml")
+            .and_then(Value::as_str)
+            .filter(|text| text.len() <= 256 * 1024)
+            .ok_or_else(DesktopFailure::operation_failed)?;
+        return parse_saved_model_config(yaml).map_err(Into::into);
+    }
     let scope = state.resolve_profile(&profile).await?;
     scope.ensure_current(&state).await?;
     let (port, auth_header, token) = scope.http_auth().await?;
@@ -372,15 +432,15 @@ pub async fn update_custom_endpoint(
         return Err(DesktopFailure::invalid_input());
     }
     validate_custom_endpoint_fields(name, base_url, model, api_key.as_ref())?;
-    let scope = state.resolve_profile(&profile).await?;
-    let listed = config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::GET,
-        "/api/providers/custom-endpoints",
-        None,
-    )
-    .await?;
+    let target = resolve_config_target(&state, &profile).await?;
+    let listed = target
+        .request(
+            &state,
+            reqwest::Method::GET,
+            "/api/providers/custom-endpoints",
+            None,
+        )
+        .await?;
     let exists = listed
         .get("endpoints")
         .and_then(Value::as_array)
@@ -398,14 +458,14 @@ pub async fn update_custom_endpoint(
     if let Some(key) = api_key {
         body["api_key"] = json!(key);
     }
-    config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::POST,
-        "/api/providers/custom-endpoints",
-        Some(body),
-    )
-    .await
+    target
+        .request(
+            &state,
+            reqwest::Method::POST,
+            "/api/providers/custom-endpoints",
+            Some(body),
+        )
+        .await
 }
 
 #[tauri::command]
@@ -421,15 +481,15 @@ pub async fn set_custom_endpoint_discovery(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let scope = state.resolve_profile(&profile).await?;
-    let listed = config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::GET,
-        "/api/providers/custom-endpoints",
-        None,
-    )
-    .await?;
+    let target = resolve_config_target(&state, &profile).await?;
+    let listed = target
+        .request(
+            &state,
+            reqwest::Method::GET,
+            "/api/providers/custom-endpoints",
+            None,
+        )
+        .await?;
     let endpoint = listed
         .get("endpoints")
         .and_then(Value::as_array)
@@ -454,17 +514,17 @@ pub async fn set_custom_endpoint_discovery(
     if name.is_empty() || base_url.is_empty() || model.is_empty() {
         return Err(DesktopFailure::invalid_input());
     }
-    config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::POST,
-        "/api/providers/custom-endpoints",
-        Some(
-            json!({"id": endpoint_id, "name": name, "base_url": base_url,
+    target
+        .request(
+            &state,
+            reqwest::Method::POST,
+            "/api/providers/custom-endpoints",
+            Some(
+                json!({"id": endpoint_id, "name": name, "base_url": base_url,
             "model": model, "discover_models": discover_models, "make_default": false}),
-        ),
-    )
-    .await
+            ),
+        )
+        .await
 }
 
 #[tauri::command]
@@ -479,15 +539,15 @@ pub async fn delete_custom_endpoint(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let scope = state.resolve_profile(&profile).await?;
-    let listed = config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::GET,
-        "/api/providers/custom-endpoints",
-        None,
-    )
-    .await?;
+    let target = resolve_config_target(&state, &profile).await?;
+    let listed = target
+        .request(
+            &state,
+            reqwest::Method::GET,
+            "/api/providers/custom-endpoints",
+            None,
+        )
+        .await?;
     let source = listed
         .get("endpoints")
         .and_then(Value::as_array)
@@ -502,24 +562,265 @@ pub async fn delete_custom_endpoint(
         return Err(DesktopFailure::conflict());
     };
     if source == "direct-config" {
-        return config_request_for_scope(
-            &state,
-            &scope,
-            reqwest::Method::PUT,
-            "/api/config",
-            Some(json!({
-                "profile": profile,
-                "config": {"model": {
-                    "default": "", "model": "", "name": "", "provider": "",
-                    "base_url": "", "api_base": "", "api": "", "api_key": "",
-                    "key_env": "", "api_key_env": "", "api_mode": ""
-                }}
-            })),
-        )
-        .await;
+        return target
+            .request(
+                &state,
+                reqwest::Method::PUT,
+                "/api/config",
+                Some(json!({
+                    "profile": profile,
+                    "config": {"model": {
+                        "default": "", "model": "", "name": "", "provider": "",
+                        "base_url": "", "api_base": "", "api": "", "api_key": "",
+                        "key_env": "", "api_key_env": "", "api_mode": ""
+                    }}
+                })),
+            )
+            .await;
     }
     let path = custom_endpoint_delete_path(&endpoint_id)?;
-    config_request_for_scope(&state, &scope, reqwest::Method::DELETE, &path, None).await
+    target
+        .request(&state, reqwest::Method::DELETE, &path, None)
+        .await
+}
+
+mod provider_sync;
+pub(super) use provider_sync::{
+    provider_sync_conflict, provider_sync_difference_fields, provider_sync_model_details,
+    provider_sync_template, provider_sync_verified,
+};
+
+#[tauri::command]
+pub async fn sync_model_provider(
+    state: State<'_, BackendState>,
+    profile: String,
+    endpoint_id: String,
+    target_profiles: Vec<String>,
+    apply: bool,
+    replace_conflicts: bool,
+) -> Result<ProviderSyncResult, DesktopFailure> {
+    if profile.is_empty()
+        || endpoint_id.is_empty()
+        || endpoint_id.len() > 128
+        || target_profiles.is_empty()
+        || target_profiles.len() > 32
+        || target_profiles.iter().any(|target| {
+            target.is_empty()
+                || target == &profile
+                || target.len() > 128
+                || target.chars().any(char::is_control)
+        })
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut targets = target_profiles;
+    targets.sort();
+    targets.dedup();
+    let source_scope = state.resolve_profile(&profile).await?;
+    let listed = config_request_for_scope(
+        &state,
+        &source_scope,
+        reqwest::Method::GET,
+        "/api/providers/custom-endpoints",
+        None,
+    )
+    .await?;
+    let source = listed
+        .get("endpoints")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items
+                .iter()
+                .find(|item| item.get("id").and_then(Value::as_str) == Some(endpoint_id.as_str()))
+        })
+        .cloned()
+        .ok_or_else(DesktopFailure::conflict)?;
+    let mut copy_template = provider_sync_template(&source)?;
+    let source_config = config_request_for_scope(
+        &state,
+        &source_scope,
+        reqwest::Method::GET,
+        "/api/config?include_defaults=false",
+        None,
+    )
+    .await?;
+    let model_details =
+        provider_sync_model_details(&source_config, &endpoint_id, &copy_template["models"]);
+    if !model_details.is_empty() {
+        copy_template["model_details"] = json!(model_details);
+    }
+    let name = copy_template["name"].as_str().unwrap_or_default();
+    let base_url = copy_template["base_url"].as_str().unwrap_or_default();
+    let mut results = Vec::with_capacity(targets.len());
+    for target_profile in targets {
+        let target_scope = state.resolve_profile(&target_profile).await?;
+        let target_list = config_request_for_scope(
+            &state,
+            &target_scope,
+            reqwest::Method::GET,
+            "/api/providers/custom-endpoints",
+            None,
+        )
+        .await?;
+        let conflict = provider_sync_conflict(&target_list, &endpoint_id, name, base_url);
+        let different_name_same_url = conflict.is_some_and(|(existing, kind)| {
+            kind == "address" && existing.get("name").and_then(Value::as_str) != Some(name)
+        });
+        if !apply || (conflict.is_some() && (!replace_conflicts || different_name_same_url)) {
+            results.push(ProviderSyncTarget {
+                profile: target_profile,
+                status: if conflict.is_some() {
+                    "conflict"
+                } else {
+                    "ready"
+                },
+                config_copied: false,
+                credential_copied: false,
+                requires_reauthentication: true,
+                conflict_kind: conflict.map(|(_, kind)| kind),
+                changed_fields: conflict
+                    .map(|(existing, _)| provider_sync_difference_fields(existing, &copy_template))
+                    .unwrap_or_default(),
+            });
+            continue;
+        }
+        let target_id = match conflict.map(|(existing, _)| existing) {
+            Some(existing)
+                if existing.get("source").and_then(Value::as_str) == Some("direct-config") =>
+            {
+                results.push(ProviderSyncTarget {
+                    profile: target_profile,
+                    status: "failed",
+                    config_copied: false,
+                    credential_copied: false,
+                    requires_reauthentication: true,
+                    conflict_kind: conflict.map(|(_, kind)| kind),
+                    changed_fields: conflict
+                        .map(|(existing, _)| {
+                            provider_sync_difference_fields(existing, &copy_template)
+                        })
+                        .unwrap_or_default(),
+                });
+                continue;
+            }
+            Some(existing) => existing
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            None => format!("desktop-{}", Uuid::new_v4().simple()),
+        };
+        let mut copy_body = copy_template.clone();
+        copy_body["id"] = json!(target_id);
+        let write_result = config_request_for_scope(
+            &state,
+            &target_scope,
+            reqwest::Method::POST,
+            "/api/providers/custom-endpoints",
+            Some(copy_body),
+        )
+        .await;
+        let status = match write_result {
+            Ok(response) if response.get("ok").and_then(Value::as_bool) == Some(true) => {
+                match config_request_for_scope(
+                    &state,
+                    &target_scope,
+                    reqwest::Method::GET,
+                    "/api/providers/custom-endpoints",
+                    None,
+                )
+                .await
+                {
+                    Ok(readback)
+                        if provider_sync_verified(&readback, &target_id, &copy_template) =>
+                    {
+                        if model_details.is_empty() {
+                            "copied"
+                        } else {
+                            match config_request_for_scope(
+                                &state,
+                                &target_scope,
+                                reqwest::Method::GET,
+                                "/api/config?include_defaults=false",
+                                None,
+                            )
+                            .await
+                            {
+                                Ok(config)
+                                    if provider_sync_model_details(
+                                        &config,
+                                        &target_id,
+                                        &copy_template["models"],
+                                    ) == model_details =>
+                                {
+                                    "copied"
+                                }
+                                _ => "unverified",
+                            }
+                        }
+                    }
+                    _ => "unverified",
+                }
+            }
+            _ => "failed",
+        };
+        results.push(ProviderSyncTarget {
+            profile: target_profile,
+            status,
+            config_copied: status == "copied",
+            // The locked runtime does not expose an export-safe credential copy API.
+            credential_copied: false,
+            requires_reauthentication: true,
+            conflict_kind: conflict.map(|(_, kind)| kind),
+            changed_fields: conflict
+                .map(|(existing, _)| provider_sync_difference_fields(existing, &copy_template))
+                .unwrap_or_default(),
+        });
+    }
+    Ok(ProviderSyncResult {
+        source_profile: profile,
+        endpoint_id,
+        targets: results,
+    })
+}
+
+#[tauri::command]
+pub async fn get_moa_config(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/model/moa",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn save_moa_config(
+    state: State<'_, BackendState>,
+    profile: String,
+    config: Value,
+) -> Result<Value, DesktopFailure> {
+    let encoded = serde_json::to_vec(&config).map_err(|_| DesktopFailure::invalid_input())?;
+    if encoded.len() > 512 * 1024
+        || !config.get("presets").is_some_and(Value::is_object)
+        || !config.get("default_preset").is_some_and(Value::is_string)
+        || !config.get("active_preset").is_some_and(Value::is_string)
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::PUT,
+        "/api/model/moa",
+        Some(config),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -527,7 +828,7 @@ pub async fn check_model_runtime(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
-    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let gateway = state.resolve_chat_gateway(&profile).await?;
     gateway
         .request("setup.runtime_check", json!({}))
         .await
@@ -566,6 +867,22 @@ pub async fn set_default_model(
         {
             return Err(DesktopFailure::invalid_input());
         }
+    }
+    if state.3.lock().await.is_some() {
+        return config_request_to_profile_with_limits(
+            &state,
+            &profile,
+            reqwest::Method::POST,
+            "/api/model/set",
+            Some(json!({
+                "scope": "main", "provider": provider, "model": model,
+                "base_url": base_url, "api_key": api_key,
+                "confirm_expensive_model": confirm_expensive_model,
+            })),
+            Duration::from_secs(45),
+            64 * 1024,
+        )
+        .await;
     }
     let scope = state.resolve_profile(&profile).await?;
     scope.ensure_current(&state).await?;

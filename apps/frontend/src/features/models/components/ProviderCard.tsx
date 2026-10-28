@@ -18,9 +18,10 @@ type Props = {
   onSaveModels: (provider: string, models: string[]) => Promise<boolean>
   onSetDiscovery: (endpoint: CustomEndpoint, enabled: boolean) => void
   onSyncModels: () => void
+  onSyncProvider?: (endpoint: CustomEndpoint) => void
 }
 
-export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, discoveryBusy, t, onDeleteProvider, onEditProvider, onSelectModel, onSaveModels, onSetDiscovery, onSyncModels }: Props) {
+export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, discoveryBusy, t, onDeleteProvider, onEditProvider, onSelectModel, onSaveModels, onSetDiscovery, onSyncModels, onSyncProvider }: Props) {
   const [editingModel, setEditingModel] = React.useState<{ original: string; value: string } | null>(null)
   const [newModelId, setNewModelId] = React.useState<string | null>(null)
   const isDefault = Boolean(savedModel && (savedModel.provider === provider.slug || provider.is_current || endpoint?.is_current))
@@ -34,7 +35,7 @@ export default function ProviderCard({ provider, endpoint, models, modelListKey,
   }
   return <div className={`provider-card ${isDefault ? 'selected' : ''}`}>
     {isDefault && <span className="saved-badge">{t('ui.current.default')}</span>}
-    <div className="provider-card-heading"><strong>{providerPreset ? t(providerPreset.name) : endpoint?.name || provider.name}</strong><div className="provider-card-actions"><small>{models.length} {t('ui.models.count.unit')}</small><button type="button" disabled={modelBusy} onClick={() => onEditProvider(provider, endpoint)}>{t('ui.edit.configuration')}</button></div></div>
+    <div className="provider-card-heading"><strong>{providerPreset ? t(providerPreset.name) : endpoint?.name || provider.name}</strong><div className="provider-card-actions"><small>{models.length} {t('ui.models.count.unit')}</small><button type="button" disabled={modelBusy} onClick={() => onEditProvider(provider, endpoint)}>{t('ui.edit.configuration')}</button>{endpoint && onSyncProvider && <button type="button" disabled={modelBusy} onClick={() => onSyncProvider(endpoint)}>⇄ {t('ui.provider.sync.profiles')}</button>}</div></div>
     {endpoint && <div className="provider-card-meta"><small>{providerPreset ? t('ui.preset.endpoint.via.custom') : t('ui.custom.endpoint')}：{endpoint.base_url}</small><button type="button" disabled={modelBusy} onClick={() => onDeleteProvider(endpoint)}>{t('ui.delete.provider')}</button></div>}
     {endpoint && endpoint.source !== 'direct-config' && <div className="provider-card-discovery">
       <label><input type="checkbox" checked={endpoint.discover_models !== false} disabled={modelBusy || modelListBusy || discoveryBusy} onChange={event => onSetDiscovery(endpoint, event.target.checked)} />{t('ui.provider.discover.models')}</label>

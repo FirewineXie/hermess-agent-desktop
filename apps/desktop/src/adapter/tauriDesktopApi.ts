@@ -4,7 +4,39 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
+import { notificationApprovalChoice } from './notificationActions'
+
+type NotificationTarget = NonNullable<Parameters<DesktopApi['notifications']['show']>[2]>
+const notificationTargets = new Map<number, NotificationTarget>()
+let nextNotificationId = Math.floor(Math.random() * 1_000_000_000)
+let notificationListener: Promise<unknown> | null = null
+let approvalActionsRegistered: Promise<void> | null = null
+
+function ensureApprovalActions(): Promise<void> {
+  if (!approvalActionsRegistered) approvalActionsRegistered = registerActionTypes([
+    { id: 'hermess-approval-zh-CN', actions: [{ id: 'approve', title: '允许一次' }, { id: 'deny', title: '拒绝' }] },
+    { id: 'hermess-approval-en-US', actions: [{ id: 'approve', title: 'Allow once' }, { id: 'deny', title: 'Reject' }] },
+  ]).catch(error => { approvalActionsRegistered = null; throw error })
+  return approvalActionsRegistered
+}
+
+function ensureNotificationListener(): Promise<unknown> {
+  if (!notificationListener) notificationListener = onAction(action => {
+    const id = action.notification?.id
+    const target = id === undefined ? undefined : notificationTargets.get(id)
+    if (id !== undefined) notificationTargets.delete(id)
+    const choice = notificationApprovalChoice(action.actionId)
+    if (action.actionId !== 'tap' && (!target?.approvalRequestId || !choice)) return
+    void getCurrentWindow().show().then(() => getCurrentWindow().setFocus()).catch(() => {}).finally(() => {
+      if (!target) return
+      if (action.actionId === 'tap') window.dispatchEvent(new CustomEvent('hermess-open-session', { detail: target }))
+      else window.dispatchEvent(new CustomEvent('hermess-notification-approval', { detail: { ...target, choice } }))
+    })
+  }).catch(error => { notificationListener = null; throw error })
+  return notificationListener
+}
 
 function desktopFailure(cause: unknown): DesktopFailure {
   if (isDesktopFailure(cause)) return cause
@@ -28,6 +60,7 @@ function isSupportedRequest(value: unknown): value is GatewayRequest {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
   if (typeof request.id !== 'string' || !request.params || typeof request.params !== 'object' || Array.isArray(request.params)) return false
+  if (typeof request.connection_id !== 'string' || !request.connection_id) return false
   if (typeof request.profile !== 'string' || !request.profile) return false
   const params = request.params as Record<string, unknown>
   if (typeof params.session_id !== 'string') return false
@@ -74,6 +107,12 @@ export const tauriDesktopApi: DesktopApi = {
     toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
     close: () => nativeCall(() => getCurrentWindow().close()),
     setFrontendDebugEnabled: enabled => invoke('set_frontend_debug_enabled', { enabled }),
+  },
+  quickEntry: {
+    registration: () => invoke('get_quick_entry_registration'),
+    save: (enabled, shortcut) => invoke('save_quick_entry_settings', { enabled, shortcut }),
+    onSubmit: handler => listenPayload('quick-entry-submit', handler),
+    acknowledge: (id, ok, message) => invoke('acknowledge_quick_entry', { id, ok, message }),
   },
   workspacePanel: {
     listDirectory: (scope, path) => invoke('list_workspace_panel_directory', { scope, path }),
@@ -122,6 +161,17 @@ export const tauriDesktopApi: DesktopApi = {
     stop: () => invoke('stop_backend'),
     probeLocalTools: () => invoke('probe_local_tools'),
   },
+  connections: {
+    testRemoteUrl: (rawUrl, token) => invoke('test_remote_url_connection', { rawUrl, token }),
+    testSsh: (host, user, port, keyPath) => invoke('test_ssh_connection', { host, user, port, keyPath }),
+    listSaved: () => invoke('list_remote_connections'),
+    saveRemoteUrl: (label, rawUrl, token) => invoke('save_remote_url_connection', { label, rawUrl, token }),
+    saveRemoteSsh: (label, target, token) => invoke('save_remote_ssh_connection', { label, target, token }),
+    deleteSaved: id => invoke('delete_remote_connection', { id }),
+    applySaved: id => invoke('apply_saved_remote_connection', { id }),
+    currentRemote: () => invoke('current_remote_connection'),
+    returnToLocal: () => invoke('return_to_local_connection'),
+  },
   tools: {
     listBundledTools: () => invoke('list_bundled_tools'),
     listDownloadableTools: () => invoke('list_downloadable_tools'),
@@ -137,6 +187,7 @@ export const tauriDesktopApi: DesktopApi = {
   agentSettings: {
     schema: scope => invoke('get_agent_config_schema', { profile: scope.profile }),
     config: scope => invoke('get_agent_config', { profile: scope.profile }),
+    checkpoints: scope => invoke('get_checkpoint_inventory', { profile: scope.profile }),
     raw: scope => invoke('get_agent_config_raw', { profile: scope.profile }),
     saveField: (scope, key, value) => invoke('save_agent_config_field', { profile: scope.profile, key, value }),
     saveRaw: (scope, yamlText, expectedYaml) => invoke('save_agent_config_raw', { profile: scope.profile, yamlText, expectedYaml }),
@@ -146,8 +197,46 @@ export const tauriDesktopApi: DesktopApi = {
     read: (scope, kind) => invoke('read_personal_file', { profile: scope.profile, kind }),
     save: (scope, args) => invoke('save_personal_file', { profile: scope.profile, ...args }),
   },
+  memory: {
+    providerConfig: (scope, provider) => invoke('get_memory_provider_config', { profile: scope.profile, provider }),
+    saveProviderConfig: (scope, provider, values) => invoke('save_memory_provider_config', { profile: scope.profile, provider, values }),
+    startOAuth: (scope, provider) => invoke('start_memory_provider_oauth', { profile: scope.profile, provider }),
+    oauthStatus: (scope, provider) => invoke('get_memory_provider_oauth_status', { profile: scope.profile, provider }),
+  },
+  privacy: {
+    sharedMetrics: scope => invoke('get_shared_metrics_consent', { profile: scope.profile }),
+    saveSharedMetrics: (scope, enabled) => invoke('save_shared_metrics_consent', { profile: scope.profile, enabled }),
+  },
+  delegation: {
+    routing: scope => invoke('get_delegation_routing', { profile: scope.profile }),
+    selectBackend: (scope, backend) => invoke('select_delegation_backend', { profile: scope.profile, backend }),
+    saveModelMap: (scope, value) => invoke('save_delegation_model_map', { profile: scope.profile, value }),
+    saveProfileRoutes: (scope, value) => invoke('save_delegation_profile_routes', { profile: scope.profile, value }),
+  },
+  voice: {
+    transcribe: (scope, args) => invoke('transcribe_audio', { profile: scope.profile, ...args }),
+    speak: (scope, text) => invoke('speak_text', { profile: scope.profile, text }),
+  },
+  notifications: {
+    permission: () => nativeCall(isPermissionGranted),
+    requestPermission: () => nativeCall(async () => await requestPermission() === 'granted'),
+    show: (title, body, target) => nativeCall(async () => {
+      await ensureNotificationListener()
+      const granted = await isPermissionGranted() || await requestPermission() === 'granted'
+      if (!granted) throw desktopFailure(null)
+      if (target?.approvalRequestId) await ensureApprovalActions()
+      const id = ++nextNotificationId % 2_147_483_647
+      if (target) {
+        notificationTargets.set(id, target)
+        if (notificationTargets.size > 128) notificationTargets.delete(notificationTargets.keys().next().value!)
+      }
+      try { sendNotification({ id, title, body, extra: target ? { ...target } : undefined, actionTypeId: target?.approvalRequestId ? `hermess-approval-${target.locale === 'en-US' ? 'en-US' : 'zh-CN'}` : undefined }) }
+      catch (error) { notificationTargets.delete(id); throw error }
+    }),
+  },
   models: {
     options: (scope, args) => invoke('list_model_options', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : undefined, ...args }),
+    auxiliary: scope => invoke('get_auxiliary_models', { profile: scope.profile }),
     savedConfig: scope => invoke('get_saved_model_config', { profile: scope.profile }),
     endpoints: scope => invoke('list_custom_endpoints', { profile: scope.profile }),
     loadLists: (scope, storagePath) => invoke('load_model_lists', { profile: scope.profile, storagePath }),
@@ -156,6 +245,9 @@ export const tauriDesktopApi: DesktopApi = {
     updateEndpoint: (scope, args) => invoke('update_custom_endpoint', { profile: scope.profile, ...args }),
     setEndpointDiscovery: (scope, endpointId, discoverModels) => invoke('set_custom_endpoint_discovery', { profile: scope.profile, endpointId, discoverModels }),
     deleteEndpoint: (scope, endpointId) => invoke('delete_custom_endpoint', { profile: scope.profile, endpointId }),
+    syncProvider: (scope, args) => invoke('sync_model_provider', { profile: scope.profile, ...args }),
+    moa: scope => invoke('get_moa_config', { profile: scope.profile }),
+    saveMoa: (scope, config) => invoke('save_moa_config', { profile: scope.profile, config }),
     setDefault: (scope, args) => invoke('set_default_model', { profile: scope.profile, ...args }),
     checkRuntime: scope => invoke('check_model_runtime', { profile: scope.profile }),
     selectChat: (scope, args) => invoke('select_chat_model', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
@@ -170,7 +262,7 @@ export const tauriDesktopApi: DesktopApi = {
       return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }
     },
     listSessions: scope => invoke('list_chat_sessions', { profile: scope.profile }),
-    submitPrompt: (scope, text) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text }),
+    submitPrompt: (scope, text, options) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text, voiceTurn: options?.voiceTurn }),
     interruptSession: scope => invoke('interrupt_chat_session', { profile: scope.profile, sessionId: scope.sessionId }),
     replayEvents: async (scope, lastSeen, replayEpoch) => {
       const result = await invoke<ReplayResult>('replay_chat_events', { profile: scope.profile, sessionId: scope.sessionId, lastSeen, replayEpoch })
@@ -192,7 +284,7 @@ export const tauriDesktopApi: DesktopApi = {
     onGatewayRequest: handler => listenPayload<unknown>('hermes-request', request => {
       if (isSupportedRequest(request)) handler(request)
     }),
-    onDisconnect: handler => listenPayload('hermes-disconnected', handler),
+    onDisconnect: handler => listenPayload<{ connection_id: string }>('hermes-disconnected', handler),
   },
   nativeFiles: {
     choose: options => nativeCall(() => open(options)),

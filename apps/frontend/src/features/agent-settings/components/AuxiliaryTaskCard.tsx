@@ -1,8 +1,11 @@
+import type { AuxiliaryTaskAssignment } from '@hermess/contracts'
 import { agentFieldTranslation, type Language } from '../../../i18n'
 import { getField, type Provider, type Schema } from '../model'
 
 type Props = {
   task: string
+  searchTarget?: boolean
+  assignment?: AuxiliaryTaskAssignment
   config: Record<string, unknown>
   schema: Schema | null
   providers: Provider[]
@@ -23,19 +26,22 @@ type Props = {
   onCancel: () => void
 }
 
-export default function AuxiliaryTaskCard({ task, config, schema, providers, editing, provider, model,
+export default function AuxiliaryTaskCard({ task, searchTarget = false, assignment, config, schema, providers, editing, provider, model,
   effort, timeout, busy, language, t, onEdit, onProviderChange, onModelChange, onEffortChange,
   onTimeoutChange, onSave, onCancel }: Props) {
   const key = `auxiliary.${task}.provider`
   const current = getField(config, `auxiliary.${task}`) as Record<string, unknown> | undefined
-  const title = agentFieldTranslation(language, key)?.label.split(/\s*\/\s*/)[1] || task
+  const title = assignment?.label || agentFieldTranslation(language, key)?.label.split(/\s*\/\s*/)[1] || task
   const choice = providers.find(item => item.slug === provider)
 
-  return <div className="auxiliary-card">
+  return <div id={`auxiliary-task-${task}`} className={`auxiliary-card${searchTarget ? ' search-target' : ''}`}>
     <div className="row"><strong>{title}</strong><button type="button" disabled={busy} onClick={() => onEdit(task)}>{t('ui.edit')}</button></div>
+    {assignment?.hint && <p>{assignment.hint}</p>}
     {editing ? <>
       <label>{language === 'zh-CN' ? '提供商' : 'Provider'}<select value={provider} onChange={event => { onProviderChange(event.target.value); onModelChange('') }}>
-        <option value="auto">{language === 'zh-CN' ? '跟随主模型' : 'Follow main model'}</option>
+        <option value="auto">{assignment?.inherit_from
+          ? (language === 'zh-CN' ? `继承 ${assignment.inherit_from}` : `Inherit ${assignment.inherit_from}`)
+          : (language === 'zh-CN' ? '跟随主模型' : 'Follow main model')}</option>
         {provider !== 'auto' && !providers.some(item => item.slug === provider) && <option value={provider}>{provider} ({language === 'zh-CN' ? '当前配置，不能直接引用' : 'Current route, not reusable'})</option>}
         {providers.map(item => <option key={item.slug} value={item.slug}>{item.name} ({item.slug})</option>)}
       </select></label>
@@ -43,6 +49,10 @@ export default function AuxiliaryTaskCard({ task, config, schema, providers, edi
       {schema?.fields[`auxiliary.${task}.reasoning_effort`] && <label>{language === 'zh-CN' ? '推理强度' : 'Reasoning effort'}<select value={effort} onChange={event => onEffortChange(event.target.value)}><option value="">{language === 'zh-CN' ? '继承默认' : 'Inherit default'}</option>{['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option key={value} value={value}>{value}</option>)}</select></label>}
       {schema?.fields[`auxiliary.${task}.timeout`] && <label>{language === 'zh-CN' ? '超时（秒）' : 'Timeout (seconds)'}<input type="number" min="1" value={timeout} onChange={event => onTimeoutChange(event.target.value)} /></label>}
       <div className="config-field-actions"><button disabled={busy || (provider !== 'auto' && (!model.trim() || !providers.some(item => item.slug === provider)))} onClick={() => onSave(task)}>{t('ui.save.setting')}</button><button className="config-field-cancel" onClick={onCancel}>{t('ui.cancel')}</button></div>
-    </> : <small>{current?.provider && current.provider !== 'auto' ? `${String(current.provider)} · ${String(current.model || '')}` : language === 'zh-CN' ? '跟随主模型' : 'Follow main model'}</small>}
+    </> : <small>{current?.provider && current.provider !== 'auto' && current.provider !== 'main'
+      ? `${String(current.provider)} · ${String(current.model || '')}`
+      : assignment?.inherit_from
+        ? `${language === 'zh-CN' ? '继承' : 'Inherit'} ${assignment.inherit_from}${assignment.effective?.model ? ` · ${assignment.effective.provider} / ${assignment.effective.model}` : ''}`
+        : language === 'zh-CN' ? '跟随主模型' : 'Follow main model'}</small>}
   </div>
 }

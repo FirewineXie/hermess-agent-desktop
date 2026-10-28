@@ -6,11 +6,12 @@ import { useLanguage } from '../../i18n'
 
 type Options = {
   connected: boolean
+  remote: boolean
   backendEpoch: string | null
   restart: () => Promise<unknown>
 }
 
-export function useProfiles({ connected, backendEpoch, restart }: Options) {
+export function useProfiles({ connected, remote, backendEpoch, restart }: Options) {
   const { profiles } = useDesktop()
   const language = useLanguage()
   const [roster, setRoster] = React.useState<ProfilesSnapshot | null>(null)
@@ -79,15 +80,22 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
           if (warning === 'skills') return 'Skill'
           if (warning.startsWith('skills_missing:')) return `${language === 'zh-CN' ? '缺少 Skill' : 'Missing skills'} ${warning.slice(15)}`
           if (warning.startsWith('mcp:')) return `MCP ${warning.slice(4)}`
+          if (warning === 'roster_refresh') return language === 'zh-CN' ? '远端 Profile 列表刷新' : 'remote profile list refresh'
           return warning
         })
         setError(language === 'zh-CN'
-          ? `Profile 已创建，但以下设置未完成：${details.join('、')}`
-          : `Profile created, but some settings need attention: ${details.join(', ')}`)
+          ? `Profile 已创建，但以下操作未完成：${details.join('、')}`
+          : `Profile created, but these steps need attention: ${details.join(', ')}`)
       }
-      let latest = await refresh()
+      let latest: ProfilesSnapshot
+      try {
+        latest = await refresh()
+      } catch {
+        setPendingName(created.name)
+        return { ...created, served: false }
+      }
       let served = latest.gateways.some(gateway => gateway.profile === created.name || gateway.served_profiles?.includes(created.name))
-      if (!served) {
+      if (!served && !remote) {
         const restarted = await restart()
         if (!restarted) {
           setPendingName(created.name)
@@ -118,7 +126,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     setError('')
     try {
       let latest = await refresh()
-      if (!latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
+      if (!remote && !latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) {
         const restarted = await restart()
         if (!restarted) return
         latest = await refresh()

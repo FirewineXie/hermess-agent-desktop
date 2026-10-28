@@ -21,10 +21,16 @@ mod powershell_tool;
 pub mod profile_data;
 mod profile_scope;
 pub mod profiles;
+pub mod remote_connections;
+pub mod remote_registry;
+mod remote_secret;
+pub mod remote_ssh;
 #[cfg(windows)]
 mod retired_payload;
+pub mod settings_extras;
 pub mod tools;
 pub mod usage;
+mod voice_direct;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;
@@ -60,6 +66,7 @@ pub struct BackendState(
     Mutex<Option<OwnedBackend>>,
     Mutex<()>,
     Mutex<Option<profile_scope::ProfileTopology>>,
+    Mutex<Option<remote_registry::ActiveRemote>>,
 );
 
 struct OwnedBackend {
@@ -90,6 +97,7 @@ pub struct BackendInfo {
     port: u16,
     pid: u32,
     replay_epoch: String,
+    connection_id: &'static str,
 }
 
 #[derive(Serialize)]
@@ -452,6 +460,7 @@ async fn launch_backend(
         port,
         pid,
         replay_epoch,
+        connection_id: "local",
     })
 }
 
@@ -484,6 +493,7 @@ async fn reuse_owned_backend(
                 port: existing.port,
                 pid: existing.child.id().unwrap_or(0),
                 replay_epoch: existing.gateway.replay_epoch.clone(),
+                connection_id: "local",
             }));
         }
         *owned = None;
@@ -549,6 +559,7 @@ pub async fn reconnect_backend(
         port: backend.port,
         pid: backend.child.id().unwrap_or(0),
         replay_epoch: backend.gateway.replay_epoch.clone(),
+        connection_id: "local",
     })
 }
 

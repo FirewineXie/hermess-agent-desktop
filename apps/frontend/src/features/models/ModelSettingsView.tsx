@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { localizeAppMessage } from '../../i18n'
-import { endpointForProvider, VOLCENGINE_PRESETS } from './model'
+import { endpointForProvider, VOLCENGINE_PRESETS, type CustomEndpoint } from './model'
 import ProviderCard from './components/ProviderCard'
 import type { useModelController } from './useModelController'
+import type { ProviderSyncResult } from '@hermess/contracts'
+import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
 
 type Props = {
   connected: boolean
@@ -11,9 +14,28 @@ type Props = {
   t: (key: string, ...values: unknown[]) => string
   controller: ReturnType<typeof useModelController>
   onOpenRuntime: () => void
+  profiles?: Array<{ name: string; display_name?: string }>
 }
 
-export default function ModelSettingsView({ connected, profile, language, t, controller, onOpenRuntime }: Props) {
+const syncFieldLabels: Record<string, [string, string]> = {
+  name: ['名称', 'name'], base_url: ['接口地址', 'endpoint URL'], model: ['默认模型', 'default model'],
+  api_mode: ['API 模式', 'API mode'], context_length: ['上下文长度', 'context length'],
+  discover_models: ['模型发现', 'model discovery'], models: ['模型目录', 'model catalog'],
+  credential: ['目标已有凭据会被清除', 'existing target credential will be cleared'],
+}
+
+function syncConflictDescription(item: ProviderSyncResult['targets'][number], language: Props['language']): string {
+  const kind = ({
+    id: ['提供商 ID 相同', 'same provider ID'],
+    name: ['提供商名称相同', 'same provider name'],
+    address: ['接口地址相同但名称不同，不能自动覆盖', 'same endpoint URL with a different name; cannot replace automatically'],
+  } as const)[item.conflictKind || 'name'][language === 'zh-CN' ? 0 : 1]
+  const fields = (item.changedFields || []).map(key => syncFieldLabels[key]?.[language === 'zh-CN' ? 0 : 1] || key)
+  return fields.length ? `${kind} · ${language === 'zh-CN' ? '差异' : 'Differences'}：${fields.join(language === 'zh-CN' ? '、' : ', ')}` : kind
+}
+
+export default function ModelSettingsView({ connected, profile, language, t, controller, onOpenRuntime, profiles = [] }: Props) {
+  const { models: modelApi } = useDesktop()
   const backend = connected
   const openView = (_view: 'runtime') => onOpenRuntime()
   const {
@@ -37,6 +59,36 @@ export default function ModelSettingsView({ connected, profile, language, t, con
   const [builtinSubmitted, setBuiltinSubmitted] = useState(false)
   const builtinAutoSyncAttempted = useRef(false)
   const modelEditorOrigin = useRef<HTMLElement | null>(null)
+  const [syncEndpoint, setSyncEndpoint] = useState<CustomEndpoint | null>(null)
+  const [syncTargets, setSyncTargets] = useState<string[]>([])
+  const [syncReplace, setSyncReplace] = useState(false)
+  const [syncResult, setSyncResult] = useState<ProviderSyncResult | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncError, setSyncError] = useState('')
+  const syncRun = useRef(0)
+  useEffect(() => {
+    syncRun.current += 1
+    setSyncEndpoint(null)
+    setSyncTargets([])
+    setSyncReplace(false)
+    setSyncResult(null)
+    setSyncBusy(false)
+    setSyncError('')
+  }, [profile])
+  const availableSyncTargets = profiles.filter(item => item.name !== profile)
+  const runProviderSync = async (apply: boolean) => {
+    if (!profile || !syncEndpoint || syncTargets.length === 0) return
+    const request = ++syncRun.current
+    setSyncBusy(true)
+    setSyncError('')
+    try {
+      const result = await modelApi.syncProvider({ kind: 'profile', profile }, { endpointId: syncEndpoint.id, targetProfiles: syncTargets, apply, replaceConflicts: syncReplace })
+      if (request !== syncRun.current) return
+      setSyncResult(result)
+      if (apply) await loadModelOptions()
+    } catch (error) { if (request === syncRun.current) setSyncError(describeError(error, language)) }
+    finally { if (request === syncRun.current) setSyncBusy(false) }
+  }
   const restoreEditorFocus = () => requestAnimationFrame(() => { if (modelEditorOrigin.current?.isConnected) modelEditorOrigin.current.focus() })
   const closeModelEditor = () => {
     setModelFormOpen(false)
@@ -132,9 +184,19 @@ export default function ModelSettingsView({ connected, profile, language, t, con
               setModelBaseUrl(endpoint?.base_url || provider.api_url || (provider.is_current ? savedModel?.baseUrl : '') || '')
             }} onSelectModel={(provider, model) => { modelEditorOrigin.current = document.activeElement as HTMLElement; setEditingProviderName(''); selectModelProvider(provider, model) }} onSaveModels={saveProviderModels}
             onSetDiscovery={(endpoint, enabled) => void setProviderDiscovery(endpoint, enabled)}
-            onSyncModels={() => void syncProviderModels(provider.slug, modelListKey)} />
+            onSyncModels={() => void syncProviderModels(provider.slug, modelListKey)} onSyncProvider={availableSyncTargets.length ? endpoint => { setSyncEndpoint(endpoint); setSyncTargets([]); setSyncReplace(false); setSyncResult(null); setSyncError('') } : undefined} />
         })}</div>
       </div>}
+      {syncEndpoint && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !syncBusy) setSyncEndpoint(null) }}><div className="provider-add-form provider-sync-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-sync-title" onKeyDown={event => { trapDialogFocus(event); if (event.key === 'Escape' && !syncBusy) setSyncEndpoint(null) }}>
+        <div className="row model-editor-heading"><div><h2 id="provider-sync-title">{language === 'zh-CN' ? `同步 ${syncEndpoint.name} 到其他 Profile` : `Sync ${syncEndpoint.name} to other Profiles`}</h2><p>{language === 'zh-CN' ? '复制提供商配置，不会修改目标 Profile 的主模型、回退链或辅助模型。' : 'Copies provider configuration without changing the target Profile model assignments.'}</p></div><button type="button" aria-label={t('ui.close')} disabled={syncBusy} onClick={() => setSyncEndpoint(null)}>×</button></div>
+        <div className="provider-sync-source"><span>{language === 'zh-CN' ? '来源 Profile' : 'Source Profile'}</span><strong>{profile}</strong></div>
+        <fieldset><legend>{language === 'zh-CN' ? '选择目标 Profile' : 'Select target Profiles'}</legend>{availableSyncTargets.map(item => <label key={item.name}><input type="checkbox" checked={syncTargets.includes(item.name)} disabled={syncBusy} onChange={event => { setSyncTargets(current => event.target.checked ? [...current, item.name] : current.filter(name => name !== item.name)); setSyncResult(null); setSyncReplace(false) }} /><span><strong>{item.display_name || item.name}</strong><small>{item.name}</small></span></label>)}</fieldset>
+        <p className="provider-sync-warning">{language === 'zh-CN' ? '锁定运行时没有安全的凭据导出接口。本次只复制 Endpoint、API 模式和模型配置；目标 Profile 需要重新认证。' : 'The locked runtime has no export-safe credential API. Endpoint and model configuration are copied; target Profiles must authenticate again.'}</p>
+        {syncResult && <ul className="provider-sync-results">{syncResult.targets.map(item => <li key={item.profile}><strong>{item.profile}</strong><span>{({ ready: language === 'zh-CN' ? '可以复制' : 'Ready', conflict: language === 'zh-CN' ? '存在冲突' : 'Conflict', copied: language === 'zh-CN' ? '配置已复制，需要重新认证' : 'Configuration copied; authentication required', unverified: language === 'zh-CN' ? '写入后未能核实，请检查目标 Profile，避免重复提交' : 'Could not verify after writing; check the target Profile before retrying', failed: language === 'zh-CN' ? '复制失败' : 'Copy failed' })[item.status]}{item.status === 'conflict' && <small>{syncConflictDescription(item, language)}</small>}</span></li>)}</ul>}
+        {syncResult?.targets.some(item => item.status === 'conflict') && <label className="provider-make-default"><input type="checkbox" checked={syncReplace} onChange={event => setSyncReplace(event.target.checked)} />{language === 'zh-CN' ? '明确替换目标中冲突的可迁移字段' : 'Explicitly replace conflicting transferable fields'}</label>}
+        {syncError && <p role="alert">{syncError}</p>}
+        <div className="actions"><button type="button" disabled={syncBusy || syncTargets.length === 0} onClick={() => void runProviderSync(false)}>{language === 'zh-CN' ? '检查冲突' : 'Check conflicts'}</button><button type="button" disabled={syncBusy || syncTargets.length === 0 || Boolean(syncResult?.targets.some(item => item.status === 'conflict') && !syncReplace)} onClick={() => void runProviderSync(true)}>{language === 'zh-CN' ? `同步到 ${syncTargets.length} 个 Profile` : `Sync to ${syncTargets.length} Profiles`}</button><button type="button" disabled={syncBusy} onClick={() => setSyncEndpoint(null)}>{t('ui.cancel')}</button></div>
+      </div></div>}
       {builtinEditor && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !modelListBusy && !modelBusy) closeBuiltinEditor() }}><div className="provider-add-form" role="dialog" aria-modal="true" aria-labelledby="builtin-editor-title" onKeyDown={event => { trapDialogFocus(event); if (event.key === 'Escape' && !modelListBusy && !modelBusy) { event.stopPropagation(); closeBuiltinEditor() } }}>
         <div className="row model-editor-heading"><h2 id="builtin-editor-title">{t('ui.edit.provider')} · {builtinEditor.name}</h2><button type="button" aria-label={t('ui.close')} disabled={modelListBusy || modelBusy} onClick={closeBuiltinEditor}>×</button></div>
         <label>{t('ui.provider.endpoint')}<input autoFocus type="url" value={builtinUrlDraft} onChange={event => setBuiltinUrlDraft(event.target.value)} placeholder={t('ui.builtin.provider.url.placeholder')} /></label>

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import JavaScriptObfuscator from 'javascript-obfuscator'
+import { resolve } from 'node:path'
 
 export default defineConfig({
   plugins: [react(), {
@@ -29,5 +30,5 @@ export default defineConfig({
     },
   }],
   server: { host: '127.0.0.1', port: 1420, strictPort: true },
-  build: { sourcemap: false },
+  build: { sourcemap: false, rollupOptions: { input: { main: resolve(__dirname, 'index.html'), quickEntry: resolve(__dirname, 'quick-entry.html') } } },
 })

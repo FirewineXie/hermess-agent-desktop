@@ -67,8 +67,8 @@ export function savedModelFromOptions(options: ModelOptions, config: SavedModelC
       : null
   }
   const row = options.providers?.find(item => item.is_current && item.slug === provider)
-    || options.providers?.find(item => item.is_current && Boolean(item.api_url))
     || options.providers?.find(item => item.slug === provider)
+    || (provider === 'custom' ? options.providers?.find(item => item.is_current && Boolean(item.api_url)) : undefined)
   const baseUrl = config.base_url?.trim() || row?.api_url || ''
   const preset = provider === 'custom'
     ? VOLCENGINE_PRESETS.find(item => item.baseUrl.replace(/\/$/, '').toLowerCase() === baseUrl.replace(/\/$/, '').toLowerCase())

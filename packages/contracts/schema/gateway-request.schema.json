@@ -9,6 +9,7 @@
       "required": ["id", "method", "params"],
       "properties": {
         "id": { "type": "string" },
+        "connection_id": { "type": "string", "minLength": 1 },
         "profile": { "type": "string" },
         "method": { "enum": ["approval"] },
         "params": {
@@ -36,6 +37,7 @@
       "required": ["id", "method", "params"],
       "properties": {
         "id": { "type": "string" },
+        "connection_id": { "type": "string", "minLength": 1 },
         "profile": { "type": "string" },
         "method": { "enum": ["clarify"] },
         "params": {

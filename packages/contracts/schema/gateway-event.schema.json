@@ -7,6 +7,7 @@
   "required": ["kind", "payload"],
   "properties": {
     "kind": { "type": "string" },
+    "connection_id": { "type": "string", "minLength": 1 },
     "profile": { "type": "string" },
     "session_id": { "type": "string" },
     "seq": { "type": "integer", "minimum": 0 },

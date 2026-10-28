@@ -92,6 +92,7 @@ fn validate_server_answer(
 #[derive(Clone, Serialize)]
 struct GatewayEvent {
     kind: String,
+    connection_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -122,9 +123,15 @@ fn is_forwarded_event(kind: &str) -> bool {
 struct GatewayServerRequest {
     id: String,
     method: String,
+    connection_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     profile: Option<String>,
     params: Value,
+}
+
+#[derive(Clone, Serialize)]
+struct GatewayDisconnected {
+    connection_id: String,
 }
 
 fn register_owner(owners: &mut HashMap<String, Option<String>>, id: &str, profile: &str) {
@@ -189,15 +196,39 @@ impl GatewayClient {
             "Sec-WebSocket-Protocol",
             HeaderValue::from_str(&protocol).map_err(|_| "无效的网关票据".to_string())?,
         );
+        Self::connect_request(request, true, "local".into(), app).await
+    }
+
+    pub async fn connect_remote(
+        ws_url: &str,
+        connection_id: &str,
+        app: AppHandle,
+    ) -> Result<Self, String> {
+        if uuid::Uuid::parse_str(connection_id).is_err() {
+            return Err("无效的远程连接标识".into());
+        }
+        let request = ws_url
+            .into_client_request()
+            .map_err(|_| "无法构造远程网关连接".to_string())?;
+        Self::connect_request(request, false, connection_id.to_owned(), app).await
+    }
+
+    async fn connect_request(
+        request: tokio_tungstenite::tungstenite::http::Request<()>,
+        desktop_local: bool,
+        connection_id: String,
+        app: AppHandle,
+    ) -> Result<Self, String> {
         let (socket, response) = timeout(Duration::from_secs(5), connect_async(request))
             .await
             .map_err(|_| "网关连接超时".to_string())?
             .map_err(|_| "网关鉴权或连接失败".to_string())?;
-        if response
-            .headers()
-            .get("Sec-WebSocket-Protocol")
-            .and_then(|v| v.to_str().ok())
-            != Some("hermes-gateway-v1")
+        if desktop_local
+            && response
+                .headers()
+                .get("Sec-WebSocket-Protocol")
+                .and_then(|v| v.to_str().ok())
+                != Some("hermes-gateway-v1")
         {
             return Err("网关未确认桌面会话协议".into());
         }
@@ -313,7 +344,7 @@ impl GatewayClient {
                                     .and_then(Option::as_ref).cloned();
                                 if let Some(profile) = profile.as_deref() {
                                     register_owner(&mut request_owners, id_text, profile);
-                                    let request = GatewayServerRequest { id: id_text.to_owned(), method: method.to_owned(), profile: Some(profile.to_owned()), params };
+                                    let request = GatewayServerRequest { id: id_text.to_owned(), method: method.to_owned(), connection_id: connection_id.clone(), profile: Some(profile.to_owned()), params };
                                     if app.emit("hermes-request", request).is_ok() { continue; }
                                 }
                                 server_requests.remove(id_text);
@@ -341,6 +372,7 @@ impl GatewayClient {
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
                             kind: kind.into(),
+                            connection_id: connection_id.clone(),
                             profile: params.get("session_id").and_then(Value::as_str)
                                 .and_then(|session| session_owners.get(session))
                                 .and_then(Option::as_ref).cloned(),
@@ -355,7 +387,7 @@ impl GatewayClient {
             for (_, (_, reply)) in pending {
                 let _ = reply.send(Err("网关连接已断开".into()));
             }
-            let _ = app.emit("hermes-disconnected", ());
+            let _ = app.emit("hermes-disconnected", GatewayDisconnected { connection_id });
         });
         let replay_epoch = match timeout(Duration::from_secs(5), ready_receiver).await {
             Ok(Ok(epoch)) => epoch,
@@ -376,7 +408,7 @@ impl GatewayClient {
         if let Err(error) = client
             .request(
                 "client.capabilities",
-                json!({"server_requests":true,"desktop_local":true}),
+                json!({"server_requests":true,"desktop_local":desktop_local}),
             )
             .await
         {

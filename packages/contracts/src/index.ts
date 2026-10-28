@@ -63,11 +63,56 @@ export type PersonalFile = {
   version: string; limit: number | null; enabled: boolean | null
 }
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
+export type AuxiliaryTaskAssignment = {
+  task: string; provider: string; model: string; base_url: string; local_endpoint?: boolean
+  label?: string; hint?: string; plugin?: string; inherit_from?: string | null
+  effective?: { provider: string; model: string; base_url: string }
+  reasoning_effort?: string | null
+}
+export type AuxiliaryModels = { main: { provider: string; model: string }; tasks: AuxiliaryTaskAssignment[] }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
+export type ProviderSyncTarget = {
+  profile: string
+  status: 'ready' | 'conflict' | 'copied' | 'unverified' | 'failed'
+  configCopied: boolean
+  credentialCopied: boolean
+  requiresReauthentication: boolean
+  conflictKind?: 'id' | 'name' | 'address'
+  changedFields?: string[]
+}
+export type ProviderSyncResult = { sourceProfile: string; endpointId: string; targets: ProviderSyncTarget[] }
+export type CheckpointInventory = { sessions: Array<{ session: string; files: number; bytes: number }>; total_bytes: number; preview_only?: boolean }
+export type MoaModelSlot = { provider: string; model: string; reasoning_effort?: string; enabled?: boolean }
+export type MoaPreset = {
+  aggregator: MoaModelSlot
+  aggregator_temperature: number
+  degraded_reference_policy: 'loud' | 'silent'
+  enabled: boolean
+  reference_models: MoaModelSlot[]
+  reference_temperature: number
+  fanout?: string
+  reference_timeout: number | null
+}
+export type MoaConfig = MoaPreset & { default_preset: string; active_preset: string; presets: Record<string, MoaPreset> }
+export type MemoryProviderField = { description: string; group: string; info?: string; inline: boolean; is_set: boolean; key: string; kind: 'bool' | 'json' | 'number' | 'secret' | 'select' | 'text'; label: string; options: Array<{ description: string; label: string; value: string }>; placeholder: string; value: string }
+export type MemoryProviderConfig = { docs_url: string; fields: MemoryProviderField[]; label: string; name: string }
+export type MemoryProviderOAuthStatus = { auth: 'apikey' | 'oauth' | null; connected: boolean; detail: string; state: 'connected' | 'error' | 'idle' | 'pending' }
+export type AudioTranscription = { ok: boolean; provider?: string; transcript: string }
+export type AudioSpeech = { ok: boolean; data_url: string; mime_type: string; provider?: string }
+export type VoiceTurnOptions = { voiceTurn?: boolean }
+export type SharedMetricsConsent = { enabled: boolean; send: boolean; decided: boolean }
+export type DelegationRouting = {
+  configured: string
+  blocked_reason: string | null
+  backends: Array<{ name: string; label: string; description: string; available: boolean; reason: string; builtin: boolean }>
+  model_map: { options: Array<{ name: string; description: string; provider?: string; base_url?: string; api_key?: string; api_mode?: string; reasoning_effort?: string; service_tier?: string; fallback_providers?: Array<Record<string, unknown>>; request_overrides?: Record<string, unknown>; model: string; [key: string]: unknown }>; default: string | null }
+  profile_routes: { profiles: Array<{ name: string; description?: string }>; default: string | null }
+  profiles: string[]
+}
 export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
@@ -150,6 +195,20 @@ export type ChannelStatus = { id: string; name: string; enabled: boolean; config
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
+export type RemoteConnectionProbe = {
+  status: 'ready' | 'status_unreachable' | 'oauth_required' | 'http_unreachable' | 'auth_rejected' | 'invalid_response' | 'ws_failed'
+  baseUrl: string
+  version: string | null
+  profileCount: number | null
+}
+export type SshConnectionProbe = {
+  status: 'reachable' | 'unsupported_platform' | 'ssh_missing' | 'host_key_changed' | 'auth_failed' | 'unreachable' | 'ssh_failed' | 'timeout' | 'preview_only'
+  platform: 'Linux' | 'Darwin' | null
+}
+export type SshTarget = { host: string; user: string; port: number; remotePort: number; keyPath: string }
+export type SavedRemoteConnection = { id: string; label: string; baseUrl: string; authMode: 'token' } & ({ kind: 'url'; sshTarget?: never } | { kind: 'ssh'; sshTarget: SshTarget })
+export type AppliedRemoteConnection = { connectionId: string; label: string; replayEpoch: string; profiles: Array<{ name: string }> }
+export type GatewayDisconnected = { connection_id: string }
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
@@ -162,6 +221,12 @@ export interface DesktopApi {
     toggleMaximize(): Promise<void>
     close(): Promise<void>
     setFrontendDebugEnabled(enabled: boolean): Promise<void>
+  }
+  quickEntry: {
+    registration(): Promise<{ enabled: boolean; shortcut: string; registered: boolean; error: 'taken' | 'invalid' | 'preview' | null }>
+    save(enabled: boolean, shortcut: string): Promise<{ enabled: boolean; shortcut: string; registered: boolean; error: 'taken' | 'invalid' | 'preview' | null }>
+    onSubmit(handler: (request: { id: string; text: string }) => void): Promise<Unsubscribe>
+    acknowledge(id: string, ok: boolean, message: string): Promise<void>
   }
   workspacePanel: {
     listDirectory(scope: WorkspaceScope, path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
@@ -199,6 +264,17 @@ export interface DesktopApi {
     stop(): Promise<void>
     probeLocalTools(): Promise<RuntimeProbe[]>
   }
+  connections: {
+    testRemoteUrl(rawUrl: string, token: string): Promise<RemoteConnectionProbe>
+    testSsh(host: string, user: string, port: number, keyPath: string): Promise<SshConnectionProbe>
+    listSaved(): Promise<SavedRemoteConnection[]>
+    saveRemoteUrl(label: string, rawUrl: string, token: string): Promise<SavedRemoteConnection>
+    saveRemoteSsh(label: string, target: SshTarget, token: string): Promise<SavedRemoteConnection>
+    deleteSaved(id: string): Promise<void>
+    applySaved(id: string): Promise<AppliedRemoteConnection>
+    currentRemote(): Promise<AppliedRemoteConnection | null>
+    returnToLocal(): Promise<BackendInfo | null>
+  }
   profiles: {
     list(): Promise<ProfilesSnapshot>
     dataDirectory(scope: ProfileScope): Promise<{ path: string }>
@@ -225,6 +301,7 @@ export interface DesktopApi {
   agentSettings: {
     schema(scope: ProfileScope): Promise<AgentConfigSchema>
     config(scope: ProfileScope): Promise<Record<string, unknown>>
+    checkpoints(scope: ProfileScope): Promise<CheckpointInventory>
     raw(scope: ProfileScope): Promise<AgentRawConfig>
     saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
     saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<void>
@@ -234,8 +311,34 @@ export interface DesktopApi {
     read(scope: ProfileScope, kind: PersonalFileKind): Promise<PersonalFile>
     save(scope: ProfileScope, args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
   }
+  memory: {
+    providerConfig(scope: ProfileScope, provider: string): Promise<MemoryProviderConfig>
+    saveProviderConfig(scope: ProfileScope, provider: string, values: Record<string, unknown>): Promise<void>
+    startOAuth(scope: ProfileScope, provider: string): Promise<MemoryProviderOAuthStatus>
+    oauthStatus(scope: ProfileScope, provider: string): Promise<MemoryProviderOAuthStatus>
+  }
+  privacy: {
+    sharedMetrics(scope: ProfileScope): Promise<SharedMetricsConsent | null>
+    saveSharedMetrics(scope: ProfileScope, enabled: boolean): Promise<SharedMetricsConsent>
+  }
+  delegation: {
+    routing(scope: ProfileScope): Promise<DelegationRouting>
+    selectBackend(scope: ProfileScope, backend: string): Promise<void>
+    saveModelMap(scope: ProfileScope, value: DelegationRouting['model_map']): Promise<void>
+    saveProfileRoutes(scope: ProfileScope, value: DelegationRouting['profile_routes']): Promise<void>
+  }
+  voice: {
+    transcribe(scope: ProfileScope, args: { dataUrl: string; mimeType: string }): Promise<AudioTranscription>
+    speak(scope: ProfileScope, text: string): Promise<AudioSpeech>
+  }
+  notifications: {
+    permission(): Promise<boolean>
+    requestPermission(): Promise<boolean>
+    show(title: string, body: string, target?: { connectionId: string; profile: string; sessionId: string; approvalRequestId?: string; locale?: 'zh-CN' | 'en-US' }): Promise<void>
+  }
   models: {
     options(scope: ProfileScope | SessionScope, args: { refresh: boolean; includeUnconfigured?: boolean }): Promise<ModelOptions>
+    auxiliary(scope: ProfileScope): Promise<AuxiliaryModels>
     savedConfig(scope: ProfileScope): Promise<SavedModelConfig>
     endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
     loadLists(scope: ProfileScope, storagePath: string): Promise<Record<string, string[]> | null>
@@ -244,6 +347,9 @@ export interface DesktopApi {
     updateEndpoint(scope: ProfileScope, args: { endpointId: string; name: string; baseUrl: string; model: string; apiKey: string | null; makeDefault: boolean; discoverModels: boolean }): Promise<void>
     setEndpointDiscovery(scope: ProfileScope, endpointId: string, discoverModels: boolean): Promise<void>
     deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
+    syncProvider(scope: ProfileScope, args: { endpointId: string; targetProfiles: string[]; apply: boolean; replaceConflicts: boolean }): Promise<ProviderSyncResult>
+    moa(scope: ProfileScope): Promise<MoaConfig>
+    saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig & { ok?: boolean }>
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
     selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
@@ -255,7 +361,7 @@ export interface DesktopApi {
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
-    submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
+    submitPrompt(scope: SessionScope, text: string, options?: VoiceTurnOptions): Promise<{ status?: string }>
     interruptSession(scope: SessionScope): Promise<{ status: string }>
     replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
     usage(scope: SessionScope): Promise<ChatUsage>
@@ -272,7 +378,7 @@ export interface DesktopApi {
   events: {
     onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>
     onGatewayRequest(handler: (request: GatewayRequest) => void): Promise<Unsubscribe>
-    onDisconnect(handler: () => void): Promise<Unsubscribe>
+    onDisconnect(handler: (source: GatewayDisconnected) => void): Promise<Unsubscribe>
   }
   nativeFiles: {
     choose(options: NativeOpenOptions): Promise<string | string[] | null>

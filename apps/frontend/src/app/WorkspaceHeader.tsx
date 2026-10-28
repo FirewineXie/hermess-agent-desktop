@@ -5,7 +5,7 @@ import { sessionSourceLabel } from '../features/chat/sessionSource'
 import { useDesktop } from './DesktopContext'
 import windowIcon from '../assets/hermess-window-icon.png'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, connectionLabel, updateVersion, onOpenNavigation, onOpenView, onOpenSettings, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; connectionLabel?: string; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenSettings: (category: 'model' | 'gateway' | 'about', subpage?: string) => void; onOpenUpdate: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
@@ -17,14 +17,11 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
     document.addEventListener('pointerdown', closeOutside)
     return () => document.removeEventListener('pointerdown', closeOutside)
   }, [])
-  const openSetting = (next: View) => {
-    settingsRef.current && (settingsRef.current.open = false)
-    onOpenView(next)
-  }
   const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
     usage: t('ui.usage.title'),
     workspaces: t('ui.workspace.title'),
     scheduled: language === 'zh-CN' ? '定时任务' : 'Scheduled tasks',
+    settings: language === 'zh-CN' ? '设置' : 'Settings',
     model: t('ui.model.settings'),
     agent: t('ui.agent.settings'),
     profiles: language === 'zh-CN' ? '角色与 Profile' : 'Roles and profiles',
@@ -36,20 +33,20 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
     about: t('ui.about'),
   })[view]
   return <header className="workspace-header">
-    <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>
+    {view !== 'settings' && <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>}
     {windowChrome.customTitlebar ? <>
       <img className="window-title-icon" src={windowIcon} alt="" draggable={false} data-tauri-drag-region />
       <span className="window-title-text" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()}>Hermess Agent Desktop</span>
       <span className={`window-title-status-dot ${connected ? 'ready' : ''}`} aria-hidden="true" data-tauri-drag-region />
-      <span className="window-title-location" data-tauri-drag-region>{language === 'zh-CN' ? '本地' : 'Local'}</span>
+      <span className="window-title-location" data-tauri-drag-region>{connectionLabel || (language === 'zh-CN' ? '本地' : 'Local')}</span>
       <span className="window-title-connection" data-tauri-drag-region>{connected ? t('ui.connected') : t('ui.not.started')}</span>
       <div className="window-title-drag" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()} />
     </> : <>
       <div className="header-brand"><span className="header-brand-mark">H</span><strong>Hermess <span>Desktop</span></strong></div>
-      <div className="header-location"><span className={`status-dot ${connected ? 'ready' : ''}`} /><span>{language === 'zh-CN' ? '本地' : 'Local'}</span><small>{connected ? t('ui.connected') : t('ui.not.started')}</small></div>
+      <div className="header-location"><span className={`status-dot ${connected ? 'ready' : ''}`} /><span>{connectionLabel || (language === 'zh-CN' ? '本地' : 'Local')}</span><small>{connected ? t('ui.connected') : t('ui.not.started')}</small></div>
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
     </>}
-    <button className="header-model" type="button" aria-label={t('ui.model.settings')} title={t('ui.model.settings')} onClick={() => onOpenView('model')}>{language === 'zh-CN' ? '模型' : 'Models'}</button>
+    <button className="header-model" type="button" aria-label={t('ui.model.settings')} title={t('ui.model.settings')} onClick={() => onOpenSettings('model')}>{language === 'zh-CN' ? '模型' : 'Models'}</button>
     <button className="header-github" type="button" onClick={() => void links.openRepository()} aria-label="GitHub" title="GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.94-2.64 3.14 3.14 0 0 0-.08-2.64S19.73 3.3 17.09 5a13.38 13.38 0 0 0-10.18 0C4.27 3.3 4.02 3.82 4.02 3.82a3.14 3.14 0 0 0-.08 2.64A3.4 3.4 0 0 0 3 9.1V13a6 6 0 0 0 6 6v3" /></svg>
     </button>
@@ -59,8 +56,8 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
     <details ref={settingsRef} className="header-settings-menu" onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
       <summary className="header-settings" aria-label={language === 'zh-CN' ? '系统设置' : 'System settings'} title={language === 'zh-CN' ? '系统设置' : 'System settings'}>⚙</summary>
       <div className="header-settings-popover">
-        <button type="button" onClick={() => openSetting('runtime')}>{t('ui.runtime.and.storage')}</button>
-        <button type="button" onClick={() => openSetting('about')}>{t('ui.about')}</button>
+        <button type="button" onClick={() => { settingsRef.current && (settingsRef.current.open = false); onOpenSettings('gateway', 'runtime') }}>{t('ui.runtime.and.storage')}</button>
+        <button type="button" onClick={() => { settingsRef.current && (settingsRef.current.open = false); onOpenSettings('about') }}>{t('ui.about')}</button>
       </div>
     </details>
     {windowChrome.customTitlebar && <div className="window-controls" role="group" aria-label={language === 'zh-CN' ? '窗口控制' : 'Window controls'}>

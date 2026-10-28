@@ -44,7 +44,10 @@ function check(value, rule, path) {
 
 const clarifyQuestion = { qid: 'q1', question: 'Which option?', choices: null }
 const samples = {
-  'backend-info': [{ port: 1421, pid: 421, replay_epoch: 'example-epoch' }],
+  'backend-info': [
+    { port: 1421, pid: 421, replay_epoch: 'example-epoch', connection_id: 'local' },
+    { kind: 'remote', connection_id: '9e230bfd-a41c-475b-9c70-6ec243504702', replay_epoch: 'remote-epoch', label: 'Remote' },
+  ],
   'bundled-tools-inventory': [{
     has_manifest: true,
     tools: [{ name: 'python', version: '3.14', path: 'example-data/runtime/tools/python', present: true }],
@@ -52,18 +55,18 @@ const samples = {
   'dev-defaults': [{ python_path: 'example-build/venv/python', storage_path: 'example-build/desktop-data' }],
   'desktop-failure': [{ kind: 'desktop_failure', code: 'operation_failed', category: 'operation' }],
   'gateway-event': [
-    { kind: 'message.delta', session_id: 'session-example', seq: 2, payload: { text: 'hello' } },
-    { kind: 'status.update', payload: {} },
+    { kind: 'message.delta', connection_id: 'local', session_id: 'session-example', seq: 2, payload: { text: 'hello' } },
+    { kind: 'status.update', connection_id: 'local', payload: {} },
   ],
   'gateway-request': [
     {
-      id: 'srq-1', method: 'approval', params: {
+      id: 'srq-1', connection_id: 'local', method: 'approval', params: {
         session_id: 'session-example', request_id: 'request-example', description: 'Run a tool',
         command: 'tool command', choices: ['once', 'deny'], tool_name: null,
       },
     },
     {
-      id: 'srq-2', method: 'clarify', params: {
+      id: 'srq-2', connection_id: 'local', method: 'clarify', params: {
         session_id: 'session-example', questions: [clarifyQuestion], answers: { q1: null },
       },
     },

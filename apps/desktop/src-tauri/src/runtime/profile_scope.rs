@@ -50,6 +50,9 @@ pub(super) struct ResolvedProfileScope {
 
 impl ResolvedProfileScope {
     pub(super) async fn ensure_current(&self, state: &BackendState) -> Result<(), DesktopFailure> {
+        if state.3.lock().await.is_some() {
+            return Err(DesktopFailure::conflict());
+        }
         let owned = state.0.lock().await;
         let backend = owned
             .as_ref()
@@ -87,6 +90,31 @@ pub(super) struct ProfileTopology {
 }
 
 impl BackendState {
+    pub(super) async fn resolve_chat_gateway(
+        &self,
+        profile: &str,
+    ) -> Result<profiles::ProfiledGateway, DesktopFailure> {
+        if !valid_profile_name(profile) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let remote = self.3.lock().await;
+        if let Some(active) = remote.as_ref() {
+            if !profiles::roster_contains(&active.roster, profile) {
+                return Err(DesktopFailure::invalid_input());
+            }
+            if active.gateway.is_closed() {
+                return Err(DesktopFailure::connection_lost());
+            }
+            return Ok(profiles::ProfiledGateway::new(
+                Arc::clone(&active.gateway),
+                profile.to_owned(),
+                Arc::clone(&active.session_owners),
+            ));
+        }
+        drop(remote);
+        Ok(self.resolve_profile(profile).await?.gateway)
+    }
+
     pub(super) async fn refresh_profile_topology(
         &self,
         client: Arc<GatewayClient>,
@@ -122,6 +150,9 @@ impl BackendState {
     ) -> Result<ResolvedProfileScope, DesktopFailure> {
         if !valid_profile_name(profile) {
             return Err(DesktopFailure::invalid_input());
+        }
+        if self.3.lock().await.is_some() {
+            return Err(DesktopFailure::conflict());
         }
         let (client, storage, pid, port, token) = {
             let owned = self.0.lock().await;
@@ -201,7 +232,7 @@ impl BackendState {
     }
 }
 
-fn valid_profile_name(profile: &str) -> bool {
+pub(super) fn valid_profile_name(profile: &str) -> bool {
     !profile.is_empty()
         && profile.len() <= 64
         && profile.bytes().all(|byte| {
