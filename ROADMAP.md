@@ -4,9 +4,11 @@
 
 ## v0.1.8（开发中，未发布）
 
-2026-10-28 正式版发布触发方式调整：从 `main` 创建并推送 `vX.Y.Z` tag 后，工作流自动核对 tag 指向当前 `main` HEAD、版本说明与该提交的最新必需检查；Windows x64 和 macOS Apple Silicon 安装包及校验清单均完成后才发布 Release。构建失败会保留 tag，需核对后重跑同一任务或修复源码并使用新版本号。本改动不改变现有安装包功能。Windows 本机 `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/stable-release.yml` 与 `git diff --check` 通过；PR CI、实际 tag 触发及双平台构建仍待验证，不代表原生安装验收。
+2026-10-29 正式版发布触发方式调整：从 `main` 创建并推送 `vX.Y.Z` tag 后，工作流自动核对 tag 指向当前 `main` HEAD、版本说明与该提交的最新必需检查；Windows x64 和 macOS Apple Silicon 安装包及校验清单均完成后才发布 Release。构建失败会保留 tag，需核对后重跑同一任务或修复源码并使用新版本号。本改动不改变现有安装包功能。Windows 本机 `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/stable-release.yml` 与 `git diff --check` 通过；PR #20 的 CI、实际 tag 触发及新流程双平台构建仍待验证，不代表原生安装验收。
 
-## v0.1.7（已合入 main，未发布）
+## v0.1.7（已发布，原生安装与功能验收仍待完成）
+
+2026-10-29 `v0.1.7` 正式版已由 `Stable desktop release` 从 `main` 提交 `810b61466d305dda057dc55ef492cb8ec7af7794` 构建并发布。任务 `40719901348` 的校验、Windows x64、macOS Apple Silicon 构建及 Release 汇总均成功；正式 tag 解引用为该提交。Release 包含 Windows NSIS `.exe`、macOS Apple Silicon `.dmg` 与 `SHA256SUMS.txt`，清单中的两个摘要与 GitHub 附件摘要一致。构建及附件核对不代表原生安装、覆盖升级、后台清理、真实模型或 macOS 实机功能已验收；本次 tag 使用旧的手动发布工作流，后续版本的 tag 自动触发流程仍在 PR #20 中。
 
 2026-10-28 正式版发布准备：补充 `releases/v0.1.7.md`，依据已合入的实现与现有测试记录说明功能、实际验证范围和待验收项目。正式版仍须从通过必需检查的准确 `main` 提交运行发布任务，待 Windows x64 与 macOS Apple Silicon 附件及校验清单构建核对成功后，工作流才会创建 tag 和 Release；本条不代表已发布或完成跨平台实机验收。
 

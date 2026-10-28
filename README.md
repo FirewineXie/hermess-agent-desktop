@@ -2,7 +2,7 @@
 
 Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 的中文桌面 AI 助手。它把聊天、文件工作区、独立的专家 Profile、Skill/MCP 扩展、工具和定时任务放在一个窗口中；用户可连接自己的模型，客户端负责管理独立的本地 Hermes Gateway 和数据目录。
 
-首个正式版 **v0.1.6** 提供 [Windows x64 安装包](https://github.com/FirewineXie/hermess-agent-desktop/releases/tag/v0.1.6)。macOS 和 Linux 安装包暂未随本版发布；安装、升级与真实模型的验证范围见下方路线图。
+最新正式版 **v0.1.7** 提供 [Windows x64 与 macOS Apple Silicon 安装包](https://github.com/FirewineXie/hermess-agent-desktop/releases/tag/v0.1.7)。安装、升级与真实模型的验证范围见下方路线图。
 
 ## 产品截图
 
@@ -12,7 +12,7 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 | --- | --- |
 | <img src="docs/screenshots/v0.1.6-new-chat.jpg" alt="新会话界面" width="400"> | <img src="docs/screenshots/v0.1.6-experts.jpg" alt="扩展中心的内置专家预设" width="400"> |
 
-**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。首个正式版 `v0.1.6` 已发布 Windows x64 安装包；macOS、Linux 安装包及 0.1.5 → 0.1.6 覆盖安装仍待验收。
+**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。`v0.1.7` 已发布 Windows x64 与 macOS Apple Silicon 安装包；原生安装、升级和真实模型的剩余验收范围见路线图。
 
 **[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
 
