@@ -4,7 +4,9 @@
 
 ## v0.1.7（已合入 main，未发布）
 
-2026-10-28 `feature/v0.1.7` 已由 PR #17 合入 `main`，这不等于正式版已发布。发行流程调整在独立 `fix/release-workflow` 分支准备：开发态版本统一由 Cargo 清单提供，RC 从版本分支的 tag 在临时工作区写入包版本；正式版将从通过必需检查的准确 `main` 提交构建并核对默认平台附件，然后才创建正式 tag。旧 `v0.1.7-rc.1` 仍指向旧提交，本次未移动该 tag 或发布新版本。Windows 本地 `pnpm install --frozen-lockfile`、`pnpm build`、架构/契约/生成契约检查、更新规则及版本写入测试、`cargo check --locked --offline` 通过；真实 Cargo 清单临时写入 `0.1.7-rc.1` 后的锁文件元数据检查通过并恢复为开发态。三个发行工作流通过 actionlint；`ci.yml` 的既有 `queue: max` 字段未被本机 actionlint 版本识别。新流程尚未经过 PR CI、GitHub Actions 发行构建或 Windows/macOS 安装包验收。
+2026-10-28 正式版发布准备：补充 `releases/v0.1.7.md`，依据已合入的实现与现有测试记录说明功能、实际验证范围和待验收项目。正式版仍须从通过必需检查的准确 `main` 提交运行发布任务，待 Windows x64 与 macOS Apple Silicon 附件及校验清单构建核对成功后，工作流才会创建 tag 和 Release；本条不代表已发布或完成跨平台实机验收。
+
+2026-10-28 `feature/v0.1.7` 已由 PR #17 合入 `main`，发行流程调整已由 PR #18 合入 `main`，这不等于正式版已发布。开发态版本统一由 Cargo 清单提供，RC 从版本分支的 tag 在临时工作区写入包版本；正式版将从通过必需检查的准确 `main` 提交构建并核对默认平台附件，然后才创建正式 tag。旧 `v0.1.7-rc.1` 仍指向旧提交，本次未移动该 tag 或发布新版本。Windows 本地 `pnpm install --frozen-lockfile`、`pnpm build`、架构/契约/生成契约检查、更新规则及版本写入测试、`cargo check --locked --offline` 通过；真实 Cargo 清单临时写入 `0.1.7-rc.1` 后的锁文件元数据检查通过并恢复为开发态。三个发行工作流通过 actionlint；`ci.yml` 的既有 `queue: max` 字段未被本机 actionlint 版本识别。PR #18 与对应 `main` 提交的必需检查已通过；正式版工作流构建及 Windows/macOS 安装包验收仍待进行。
 
 2026-10-27 发布流程改为由 tag 构建和可选平台补发任务在 GitHub runner 上自行获取缺失的 pnpm、Cargo、Python/uv 依赖，并缓存下载内容；移除独立预热工作流，发 tag 前不再需要手动预热。`v0.1.7-rc.1` 已推送，其原始工作流中 Windows 构建在 Cargo 缓存保存前恢复缓存失败，macOS 构建成功，Release job 被跳过。此项变更尚在版本分支，现有 tag 仍指向旧提交；新流程的云端构建和 Release 附件待后续新 tag 验证。
 
