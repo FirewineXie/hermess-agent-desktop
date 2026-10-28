@@ -105,8 +105,10 @@ export default function ModelSettingsView({ connected, profile, language, t, con
       {deleteTarget && <div className="provider-modal-backdrop"><div className="provider-add-form" role="dialog" aria-modal="true" aria-label={language === 'zh-CN' ? '删除提供商' : 'Delete provider'} onKeyDown={event => dialogKeyDown(event, () => setDeleteTarget(null))}>
         <h3>{language === 'zh-CN' ? '删除提供商' : 'Delete provider'}</h3><p>{customEndpoints.find(item => item.id === deleteTarget)?.name}</p>
         {deleteReferences && <p role="alert">{deleteReferences}</p>}
-        <p>{language === 'zh-CN' ? '删除前请确认主模型、回退链和辅助任务是否引用此提供商。' : 'Check main, fallback, and auxiliary references before deletion.'}</p>
-        <div className="actions"><button type="button" disabled={modelBusy || checkingReferences || Boolean(deleteReferences)} onClick={() => { const target = customEndpoints.find(item => item.id === deleteTarget); setDeleteTarget(null); if (target) void deleteProvider(target) }}>{t('ui.delete.provider')}</button><button type="button" autoFocus onClick={() => setDeleteTarget(null)}>{t('ui.cancel')}</button></div>
+        <p>{language === 'zh-CN'
+          ? '删除会移除提供商及其保存的密钥。主模型关联会自动解除；回退链和辅助任务引用不会自动改写，删除后可能失效。仍要删除吗？'
+          : 'Deleting removes the provider and its saved key. The main model is detached automatically; fallback and auxiliary references are not rewritten and may stop working. Delete anyway?'}</p>
+        <div className="actions"><button type="button" disabled={modelBusy || checkingReferences} onClick={() => { const target = customEndpoints.find(item => item.id === deleteTarget); setDeleteTarget(null); if (target) void deleteProvider(target) }}>{t('ui.delete.provider')}</button><button type="button" autoFocus onClick={() => setDeleteTarget(null)}>{t('ui.cancel')}</button></div>
       </div></div>}
       {addingProvider && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !modelBusy) closeEditor() }}><div className="provider-add-form" role="dialog" aria-modal="true" aria-labelledby="provider-add-title" onKeyDown={event => dialogKeyDown(event, closeEditor)}>
         <div className="row model-editor-heading"><h3 id="provider-add-title">{t(editingEndpoint ? 'ui.edit.provider' : 'ui.add.custom.provider')}</h3><button type="button" aria-label={t('ui.close')} disabled={modelBusy} onClick={closeEditor}>×</button></div>
