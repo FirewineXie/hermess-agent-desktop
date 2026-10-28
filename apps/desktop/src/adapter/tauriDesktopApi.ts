@@ -4,7 +4,48 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
+import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
+import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
+import { notificationApprovalChoice } from './notificationActions'
+
+const notificationTargets = new Map<number, NotificationTarget>()
+const notificationHandlers = new Set<(action: NotificationAction) => void>()
+let nextNotificationId = Math.floor(Math.random() * 1_000_000_000)
+let notificationListener: Promise<unknown> | null = null
+let approvalActionsRegistered: Promise<void> | null = null
+const nativeWindowsNotifications = navigator.platform.startsWith('Win')
+
+type NativeNotificationAction = { id: number; actionId: string }
+
+function ensureApprovalActions(): Promise<void> {
+  if (!approvalActionsRegistered) approvalActionsRegistered = registerActionTypes([
+    { id: 'hermess-approval-zh-CN', actions: [{ id: 'approve', title: '允许一次' }, { id: 'deny', title: '拒绝' }] },
+    { id: 'hermess-approval-en-US', actions: [{ id: 'approve', title: 'Allow once' }, { id: 'deny', title: 'Reject' }] },
+  ]).catch(error => { approvalActionsRegistered = null; throw error })
+  return approvalActionsRegistered
+}
+
+function dispatchNotificationAction(id: number | undefined, actionId: string): void {
+  const target = id === undefined ? undefined : notificationTargets.get(id)
+  if (id !== undefined) notificationTargets.delete(id)
+  if (!target) return
+  const choice = notificationApprovalChoice(actionId)
+  const mapped: NotificationAction | null = actionId === 'tap'
+    ? { target, kind: 'open' }
+    : target.approvalRequestId && choice ? { target, kind: 'approval', choice } : null
+  if (!mapped) return
+  void getCurrentWindow().show().then(() => getCurrentWindow().setFocus()).catch(() => {}).finally(() => {
+    for (const handler of notificationHandlers) handler(mapped)
+  })
+}
+
+function ensureNotificationListener(): Promise<unknown> {
+  if (!notificationListener) notificationListener = (nativeWindowsNotifications
+    ? listenPayload<NativeNotificationAction>('native-notification-action', action => dispatchNotificationAction(action.id, action.actionId))
+    : onAction(action => dispatchNotificationAction(action.notification?.id, action.actionId))
+  ).catch(error => { notificationListener = null; throw error })
+  return notificationListener
+}
 
 function desktopFailure(cause: unknown): DesktopFailure {
   if (isDesktopFailure(cause)) return cause
@@ -74,6 +115,41 @@ export const tauriDesktopApi: DesktopApi = {
     toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
     close: () => nativeCall(() => getCurrentWindow().close()),
     setFrontendDebugEnabled: enabled => invoke('set_frontend_debug_enabled', { enabled }),
+  },
+  notifications: {
+    permission: () => nativeCall(isPermissionGranted),
+    requestPermission: () => nativeCall(async () => await requestPermission() === 'granted'),
+    show: (title, body, target) => nativeCall(async () => {
+      await ensureNotificationListener()
+      const granted = await isPermissionGranted() || await requestPermission() === 'granted'
+      if (!granted) throw desktopFailure(null)
+      if (!nativeWindowsNotifications && target?.approvalRequestId) await ensureApprovalActions()
+      const id = ++nextNotificationId % 2_147_483_647
+      if (target) {
+        notificationTargets.set(id, target)
+        while (notificationTargets.size > 128) notificationTargets.delete(notificationTargets.keys().next().value!)
+      }
+      try {
+        if (nativeWindowsNotifications) {
+          await invoke('show_native_notification', {
+            id,
+            title,
+            body,
+            approvalLocale: target?.approvalRequestId ? target.locale : undefined,
+          })
+        } else {
+          sendNotification({ id, title, body, actionTypeId: target?.approvalRequestId ? `hermess-approval-${target.locale}` : undefined })
+        }
+      } catch (cause) {
+        notificationTargets.delete(id)
+        throw cause
+      }
+    }),
+    onAction: async handler => {
+      await nativeCall(ensureNotificationListener)
+      notificationHandlers.add(handler)
+      return () => { notificationHandlers.delete(handler) }
+    },
   },
   workspacePanel: {
     listDirectory: (scope, path) => invoke('list_workspace_panel_directory', { scope, path }),
@@ -166,6 +242,8 @@ export const tauriDesktopApi: DesktopApi = {
     setDefault: (scope, args) => invoke('set_default_model', { profile: scope.profile, ...args }),
     checkRuntime: scope => invoke('check_model_runtime', { profile: scope.profile }),
     selectChat: (scope, args) => invoke('select_chat_model', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
+    moa: scope => invoke('get_moa_config', { profile: scope.profile }),
+    saveMoa: (scope, config) => invoke('save_moa_config', { profile: scope.profile, config }),
   },
   usage: {
     statistics: (scope, days) => invoke('get_usage_statistics', { profile: scope.profile, days }),

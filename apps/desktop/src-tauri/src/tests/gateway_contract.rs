@@ -1,4 +1,4 @@
-use super::{is_forwarded_event, GatewayEvent, GatewayServerRequest};
+use super::{canonical_approval_request, is_forwarded_event, GatewayEvent, GatewayServerRequest};
 use serde_json::json;
 
 #[test]
@@ -77,4 +77,28 @@ fn request_serialization_uses_contract_fields() {
         }
     });
     assert_eq!(serde_json::to_value(clarify).unwrap(), expected_clarify);
+}
+
+#[test]
+fn canonical_approval_event_maps_to_the_existing_card_contract() {
+    let request = canonical_approval_request(
+        "session-fixture",
+        Some("writer"),
+        &json!({
+            "kind":"approval",
+            "prompt_id":"approval-fixture",
+            "execution_generation":7,
+            "command":"rm -rf /tmp/probe",
+            "description":"recursive delete",
+            "choices":["once","deny"]
+        }),
+    )
+    .unwrap();
+    assert_eq!(request.id, "approval-fixture");
+    assert_eq!(request.method, "approval");
+    assert_eq!(request.profile.as_deref(), Some("writer"));
+    assert_eq!(request.params["session_id"], "session-fixture");
+    assert_eq!(request.params["request_id"], "approval-fixture");
+    assert_eq!(request.params["execution_generation"], 7);
+    assert_eq!(request.params["choices"], json!(["once", "deny"]));
 }

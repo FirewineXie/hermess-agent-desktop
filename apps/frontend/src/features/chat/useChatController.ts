@@ -718,7 +718,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       setCanContinue(!result.running && interruptedSessionsRef.current.has(storedSessionRef.current))
       setCommandCatalog(null)
       commandCatalogPromiseRef.current = null
-      setConversation(historyTimeline(result.messages))
+      setConversation(historyTimeline(result.messages, Boolean(result.running)))
       assistantRef.current = result.inflight?.assistant || ''
       setAssistant(assistantRef.current)
       setTurnBusy(Boolean(result.running))
@@ -816,7 +816,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         setCanContinue(!snapshot.running && interruptedSessionsRef.current.has(storedSessionRef.current))
         if (useSnapshot) {
           turnStartedAtRef.current = null
-          setConversation(historyTimeline(snapshot.messages))
+          setConversation(historyTimeline(snapshot.messages, Boolean(snapshot.running)))
           assistantRef.current = snapshot.inflight?.assistant || ''
           setAssistant(assistantRef.current)
           epochRef.current[id] = info.replay_epoch

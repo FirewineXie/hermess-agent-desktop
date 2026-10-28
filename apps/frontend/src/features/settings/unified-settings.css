@@ -15,6 +15,29 @@
   color: var(--settings-ink);
 }
 
+.notification-settings { display: grid; gap: 14px; }
+.notification-settings .settings-form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.notification-settings .settings-form-heading h2 { margin: 0 0 6px; }
+.notification-settings .settings-form-heading p { margin: 0; color: var(--settings-muted); }
+.notification-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 18px; border: 1px solid var(--settings-line); border-radius: 12px; background: #fff; }
+.notification-setting-row span { display: grid; gap: 5px; }
+.notification-setting-row small { color: var(--settings-muted); }
+.notification-setting-row input[type='checkbox'] { width: 18px; height: 18px; flex: 0 0 auto; }
+.moa-heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.moa-settings { max-width: 1100px; margin-top: 27px; }
+.moa-preset-bar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin: 24px 0; padding: 16px; border-radius: 12px; background: #f7f8fa; }
+.moa-preset-bar label, .moa-card label { display: grid; gap: 6px; color: #34445b; font-size: 13px; }
+.moa-preset-bar :is(input, select), .moa-card :is(input, select) { min-height: 38px; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: var(--settings-ink); font: inherit; }
+.moa-flags { display: flex; flex-wrap: wrap; gap: 22px; margin: 0 0 20px; }
+.moa-flags label, .moa-check { display: flex; align-items: center; gap: 7px; color: #34445b; font-size: 13px; }
+.moa-card { margin: 0 0 18px; padding: 20px; border: 1px solid var(--settings-line); border-radius: 12px; background: #fff; }
+.moa-card h3 { margin: 0 0 16px; }
+.moa-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.moa-slot { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(210px, 1.25fr) minmax(150px, .7fr) auto auto; align-items: end; gap: 10px; margin: 0 0 12px; padding: 12px; border-radius: 10px; background: #f7f8fa; }
+.moa-options { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; }
+@media (max-width: 900px) { .moa-slot, .moa-options { grid-template-columns: 1fr 1fr; } }
+
 .settings-category-nav { display: flex; flex-direction: column; gap: 4px; padding: 27px 16px; border-right: 1px solid var(--settings-line); background: #f5f6f8; }
 .settings-nav-heading { display: grid; gap: 17px; padding: 0 11px 25px; }
 .settings-nav-heading strong { font-size: 24px; line-height: 1.25; }

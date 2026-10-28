@@ -44,8 +44,16 @@ def main() -> None:
             enabled_toolsets=["terminal"], quiet_mode=True,
             skip_tool_search_assembly=True,
         )
-        if "powershell_execute" not in {item["function"]["name"] for item in definitions}:
+        powershell_definition = next(
+            (item["function"] for item in definitions
+             if item["function"]["name"] == "powershell_execute"),
+            None,
+        )
+        if powershell_definition is None:
             raise RuntimeError("PowerShell Tool schema is unavailable to the model")
+        description = powershell_definition.get("description", "")
+        if "use this instead of `terminal`" not in description or "requires bash" not in description:
+            raise RuntimeError("PowerShell Tool schema does not explain Windows terminal routing")
 
         for engine in ("winps51", "ps7"):
             probe = json.loads(entry.handler({"command": "Write-Output '中文 空格'",

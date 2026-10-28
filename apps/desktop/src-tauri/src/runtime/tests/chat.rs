@@ -1,4 +1,7 @@
-use super::{merge_session_lists, session_create_params, validate_workspace_path, ReplayResult};
+use super::{
+    merge_session_lists, prompt_submit_params, session_create_params, validate_workspace_path,
+    ReplayResult,
+};
 use serde_json::json;
 
 #[test]
@@ -52,6 +55,17 @@ fn default_workspace_leaves_cwd_out_of_the_gateway_request() {
     assert_eq!(prepared["provider"], "custom:ark");
     assert_eq!(prepared["model"], "model-1");
     assert_eq!(prepared["reasoning"], "high");
+}
+
+#[test]
+fn canonical_prompt_submit_declares_batch_clarification_support() {
+    let prepared = prompt_submit_params("session-example".into(), "Choose a file".into());
+    assert_eq!(prepared["session_id"], "session-example");
+    assert_eq!(prepared["text"], "Choose a file");
+    assert_eq!(prepared["clarify_batch"], true);
+    assert!(prepared["submission_id"]
+        .as_str()
+        .is_some_and(|id| !id.is_empty()));
 }
 
 #[test]

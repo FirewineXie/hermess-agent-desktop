@@ -713,14 +713,37 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .composer li { display: flex; flex-wrap: wrap; gap: 6px; margin: 5px 0; padding: 8px; border-radius: 8px; background: #f5f7fa; font-size: 12px; }
 .composer li code, .composer li details { flex-basis: 100%; overflow-wrap: anywhere; }
 .composer li pre { white-space: pre-wrap; }
-.request-card { margin: 16px 0; padding: 16px; border: 1px solid #eac68e; border-radius: 12px; background: #fff9ef; }
-.request-card pre { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.request-card .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.request-card label { display: block; margin: 12px 0; }
-.request-card select, .request-card input { display: block; width: 100%; margin-top: 7px; padding: 9px; }
-.request-card fieldset { margin: 12px 0; padding: 8px 12px; border: 1px solid #eac68e; border-radius: 8px; }
-.request-card fieldset label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-.request-card input[type="checkbox"] { display: inline-block; width: auto; margin: 0; }
+.request-card { width: min(760px, 100%); margin: 22px auto; padding: 20px; border: 1px solid #dce4ee; border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(29, 43, 60, .07); }
+.request-card-header { display: flex; align-items: flex-start; gap: 12px; }
+.request-card-header > div { min-width: 0; }
+.request-card-header strong { display: block; color: #172033; font-size: 16px; line-height: 1.4; }
+.request-card-header p { margin: 3px 0 0; color: #66758c; font-size: 13px; line-height: 1.5; }
+.request-card-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; color: #1b6ffd; background: #e8f1ff; font-size: 17px; font-weight: 750; }
+.request-card-icon-approval { color: #a66108; background: #fff2d8; }
+.request-question-list { display: grid; gap: 12px; margin-top: 18px; }
+.request-card .request-question { min-width: 0; margin: 0; padding: 14px; border: 1px solid #e5eaf0; border-radius: 12px; background: #f8fafc; }
+.request-question legend { max-width: 100%; padding: 0 5px; color: #273348; font-size: 14px; font-weight: 650; line-height: 1.5; }
+.request-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin-top: 4px; }
+.request-card .request-choice { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 44px; margin: 0; padding: 10px 12px; border: 1px solid #dce3ec; border-radius: 10px; color: #354255; background: #fff; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.request-card .request-choice:hover { border-color: #a9c5ee; background: #f7faff; }
+.request-card .request-choice:focus-within { border-color: #1b6ffd; box-shadow: 0 0 0 3px rgba(27, 111, 253, .12); }
+.request-card .request-choice.is-selected { border-color: #1b6ffd; color: #155acb; background: #edf4ff; }
+.request-choice input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: #1b6ffd; }
+.request-choice span { min-width: 0; overflow-wrap: anywhere; }
+.request-choice small { flex: none; margin-left: auto; padding: 2px 6px; border-radius: 99px; color: #155acb; background: #dceaff; font-size: 10px; font-weight: 650; }
+.request-card .request-freeform { display: block; width: 100%; min-height: 42px; margin-top: 5px; padding: 9px 11px; border: 1px solid #d5dee9; border-radius: 10px; outline: none; color: #20242d; background: #fff; }
+.request-card .request-freeform:focus { border-color: #1b6ffd; box-shadow: 0 0 0 3px rgba(27, 111, 253, .12); }
+.request-command { max-height: 180px; margin: 16px 0 0; padding: 12px 14px; overflow: auto; border: 1px solid #eadfcd; border-radius: 10px; color: #4d3c24; background: #fffaf1; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.request-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #edf0f4; }
+.chat-panel .request-card-actions button { min-height: 38px; padding: 8px 15px; border-radius: 9px; background: #1b6ffd; font-size: 13px; font-weight: 650; }
+.chat-panel .request-card-actions button:hover:not(:disabled) { background: #155acb; }
+.chat-panel .request-card-actions .request-action-deny { border: 1px solid #d7dee8; color: #526176; background: #fff; }
+.chat-panel .request-card-actions .request-action-deny:hover:not(:disabled) { border-color: #e3a8aa; color: #b4232c; background: #fff7f7; }
+@media (prefers-reduced-motion: reduce) { .request-card .request-choice { transition: none; } }
+@media (max-width: 760px) {
+  .request-card { padding: 16px; }
+  .request-choice-grid { grid-template-columns: 1fr; }
+}
 .drop-active { outline: 2px dashed #4d8cf7; outline-offset: -8px; }
 @media (max-width: 760px) {
   .app-shell { display: block; }

@@ -397,6 +397,7 @@
   "ui.saving.model.configuration": "正在保存模型配置…",
   "ui.search.tool.groups.or.tools": "搜索工具组或工具名称",
   "ui.search.tools": "搜索工具",
+  "ui.recommended": "推荐",
   "ui.select": "请选择",
   "ui.select.attachments.no.more.than.20.mib.each": "选择附件（单个不超过 20 MiB）",
   "ui.select.directory": "选择目录…",

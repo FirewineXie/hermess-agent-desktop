@@ -3,6 +3,7 @@
 mod diagnostics;
 mod errors;
 mod gateway;
+mod notifications;
 mod panel_terminal;
 mod process_manager;
 mod runtime;
@@ -23,6 +24,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(runtime::BackendState::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
@@ -37,6 +39,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             diagnostics::probe_local_tools,
             diagnostics::set_frontend_debug_enabled,
+            notifications::show_native_notification,
             webview_cache::get_webview_cache_settings,
             webview_cache::set_webview_cache_settings,
             webview_cache::clear_webview_cache_now,
@@ -90,6 +93,8 @@ fn main() {
             runtime::extensions::extension_request,
             runtime::models::list_model_options,
             runtime::models::select_chat_model,
+            runtime::models::get_moa_config,
+            runtime::models::save_moa_config,
             runtime::models::get_saved_model_config,
             runtime::config::get_agent_config,
             runtime::config::get_agent_config_schema,

@@ -72,6 +72,18 @@ export type ModelOptions = { providers: ModelProvider[]; model?: string; provide
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
+export type MoaModelSlot = { provider: string; model: string; reasoning_effort?: string; enabled?: boolean }
+export type MoaPreset = {
+  aggregator: MoaModelSlot
+  aggregator_temperature: number | null
+  degraded_reference_policy: 'loud' | 'silent'
+  enabled: boolean
+  reference_models: MoaModelSlot[]
+  reference_temperature: number | null
+  fanout?: string
+  reference_timeout: number | null
+}
+export type MoaConfig = MoaPreset & { default_preset: string; active_preset: string; presets: Record<string, MoaPreset> }
 export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
@@ -155,6 +167,19 @@ export type ChannelQrStart = { id: string; url: string; expires_in: number; poll
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
 
+export type NotificationTarget = {
+  connectionId: string
+  profile: string
+  sessionId: string
+  approvalRequestId?: string
+  locale: 'zh-CN' | 'en-US'
+}
+export type NotificationAction = {
+  target: NotificationTarget
+  kind: 'open' | 'approval'
+  choice?: 'once' | 'deny'
+}
+
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
   links: {
@@ -166,6 +191,12 @@ export interface DesktopApi {
     toggleMaximize(): Promise<void>
     close(): Promise<void>
     setFrontendDebugEnabled(enabled: boolean): Promise<void>
+  }
+  notifications: {
+    permission(): Promise<boolean>
+    requestPermission(): Promise<boolean>
+    show(title: string, body: string, target?: NotificationTarget): Promise<void>
+    onAction(handler: (action: NotificationAction) => void): Promise<Unsubscribe>
   }
   workspacePanel: {
     listDirectory(scope: WorkspaceScope, path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
@@ -258,6 +289,8 @@ export interface DesktopApi {
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
     selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
+    moa(scope: ProfileScope): Promise<MoaConfig>
+    saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig>
   }
   usage: {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>

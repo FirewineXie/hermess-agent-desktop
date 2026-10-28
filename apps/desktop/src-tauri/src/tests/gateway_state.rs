@@ -107,6 +107,38 @@ fn answer_must_match_the_open_request_method_and_choices() {
 }
 
 #[test]
+fn canonical_approval_answer_uses_the_prompt_id_and_declared_choices() {
+    let requests = HashMap::from([(
+        "approval-1".to_string(),
+        (
+            "approval".to_string(),
+            json!({
+                "session_id":"s1",
+                "request_id":"approval-1",
+                "execution_generation":3,
+                "choices":["once","deny"]
+            }),
+        ),
+    )]);
+    assert!(validate_server_answer(
+        &requests,
+        "approval-1",
+        "approval",
+        &json!({"choice":"deny"}),
+        "s1"
+    )
+    .is_ok());
+    assert!(validate_server_answer(
+        &requests,
+        "approval-1",
+        "approval",
+        &json!({"choice":"always"}),
+        "s1"
+    )
+    .is_err());
+}
+
+#[test]
 fn clarify_answer_must_use_questions_from_the_open_request() {
     let requests = HashMap::from([(
         "srq-2".to_string(),

@@ -8,6 +8,7 @@ import ChatView from './features/chat/ChatView'
 import { useChatController } from './features/chat/useChatController'
 import ModelSettingsView from './features/models/ModelSettingsView'
 import MainModelSettings from './features/models/MainModelSettings'
+import MoaSettings from './features/models/MoaSettings'
 import ModelRouteSettings from './features/agent-settings/ModelRouteSettings'
 import MemoryContextSettings from './features/agent-settings/MemoryContextSettings'
 import SettingsView from './features/settings/SettingsView'
@@ -33,6 +34,8 @@ import type { ModelPick } from './features/models/model'
 import type { SessionRow } from '@hermess/contracts'
 import { useDesktop } from './app/DesktopContext'
 import { useProfileState, workspaceKey } from './app/profile-scope/ProfileWorkspace'
+import NotificationsSettings from './features/notifications/NotificationsSettings'
+import { useNativeNotifications } from './features/notifications/useNativeNotifications'
 
 function App() {
   const { chat, windowChrome } = useDesktop()
@@ -149,6 +152,12 @@ function App() {
       setPendingSession({ profile, id })
     } catch { /* useProfiles reports selection errors in the sidebar */ }
   }
+  useNativeNotifications({
+    connectionId: backend?.replay_epoch || null,
+    activeTarget: viewedProfile && sessionId ? { profile: viewedProfile, sessionId } : undefined,
+    language,
+    onOpenSession: openProfileSession,
+  })
   React.useEffect(() => {
     if (!pendingSession || pendingSession.profile !== viewedProfile) return
     void resumeSession(pendingSession.id, false, backend?.replay_epoch || '', pendingSession.profile)
@@ -219,11 +228,17 @@ function App() {
       onExit={() => { if (openView(settingsReturnView)) setSettingsDirty(false) }}>
       {settingsPage === 'providers' && <ModelSettingsView connected={Boolean(backend)} profile={viewedProfile} language={language} t={t} controller={modelController} onOpenRuntime={() => openSettings('runtime')} onOpenMain={() => openSettings('main')} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {settingsPage === 'main' && <MainModelSettings key={viewedProfile || ''} connected={Boolean(backend)} profile={viewedProfile} language={language} controller={modelController} epoch={backend?.replay_epoch || null} onOpenProviders={() => openSettings('providers')} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
+      {settingsPage === 'moa' && <MoaSettings key={`${backend?.replay_epoch || 'offline'}:${viewedProfile || 'unselected'}`} connected={Boolean(backend)} profile={viewedProfile} language={language}
+        providers={modelController.providerCards.filter(provider => modelController.configuredProviders.some(configured => configured.slug === provider.slug)
+          || modelController.customEndpoints.some(endpoint => endpoint.id === provider.slug && endpoint.source !== 'direct-config'))
+          .map(provider => ({ ...provider, models: modelController.visibleModels(provider.slug) }))}
+        onOpenProviders={() => openSettings('providers')} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {(settingsPage === 'fallbacks' || settingsPage === 'auxiliary') && <ModelRouteSettings key={`${viewedProfile}:${settingsPage}`} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} epoch={backend?.replay_epoch || null} storagePath={storagePath} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {(settingsPage === 'memory-persistent' || settingsPage === 'memory-context') && <MemoryContextSettings
         key={`${backend?.replay_epoch || 'offline'}:${viewedProfile || 'unselected'}:${settingsPage}`}
         page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} language={language}
         onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
+      {(settingsPage === 'notification-alerts' || settingsPage === 'notification-sounds') && <NotificationsSettings page={settingsPage === 'notification-alerts' ? 'alerts' : 'sounds'} language={language} />}
       {settingsPage === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} debugMode={debugMode} debugButtonVisible={debugButtonVisible} onDebugModeChange={changeDebugMode} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
       {settingsPage === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
     </SettingsView>}

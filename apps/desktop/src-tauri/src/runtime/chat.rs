@@ -119,12 +119,21 @@ pub async fn submit_chat_prompt(
     }
     let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
-        .request(
-            "prompt.submit",
-            json!({"session_id":session_id,"text":text,"submission_id":Uuid::new_v4().to_string()}),
-        )
+        .request("prompt.submit", prompt_submit_params(session_id, text))
         .await
         .map_err(Into::into)
+}
+
+fn prompt_submit_params(session_id: String, text: String) -> Value {
+    json!({
+        "session_id": session_id,
+        "text": text,
+        "submission_id": Uuid::new_v4().to_string(),
+        // This client speaks hermes-gateway-v1. Declaring the canonical batch capability makes
+        // clarify use the server request card this desktop already handles instead of the
+        // messaging adapter's one-question-at-a-time path.
+        "clarify_batch": true
+    })
 }
 
 #[tauri::command]
@@ -322,7 +331,7 @@ pub async fn answer_gateway_request(
     choice: Option<String>,
     answers: Option<serde_json::Map<String, Value>>,
 ) -> Result<(), DesktopFailure> {
-    if !request_id.starts_with("srq-") || request_id.len() > 128 {
+    if request_id.is_empty() || request_id.len() > 128 || request_id.chars().any(char::is_control) {
         return Err(DesktopFailure::invalid_input());
     }
     let result = match method.as_str() {

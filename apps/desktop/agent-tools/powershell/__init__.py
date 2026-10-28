@@ -6,9 +6,11 @@ from .tool import execute, available
 SCHEMA = {
     "name": "powershell_execute",
     "description": (
-        "Run a PowerShell command on this Windows host using the user's installed "
-        "PowerShell. Each call starts a fresh process; variables and location do not "
-        "persist. The result identifies the executable and version used."
+        "On Windows, use this instead of `terminal` for local commands; `terminal` "
+        "requires bash. Run PowerShell source directly without wrapping it in "
+        "powershell.exe, pwsh.exe, cmd.exe, or a bash command. Each call starts a fresh "
+        "process, so variables and location do not persist. The result identifies the "
+        "executable and version used."
     ),
     "parameters": {
         "type": "object",

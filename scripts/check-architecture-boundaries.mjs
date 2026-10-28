@@ -129,6 +129,7 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/runtime/mod.rs',
   ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
   'apps/desktop/src-tauri/src/diagnostics.rs',
+  'apps/desktop/src-tauri/src/notifications.rs',
   'apps/desktop/src-tauri/src/webview_cache.rs',
   'apps/desktop/src-tauri/src/updates.rs',
   'apps/desktop/src-tauri/src/panel_terminal.rs',

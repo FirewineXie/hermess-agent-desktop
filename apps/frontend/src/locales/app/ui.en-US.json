@@ -397,6 +397,7 @@
   "ui.saving.model.configuration": "Saving model configuration...",
   "ui.search.tool.groups.or.tools": "Search tool groups or tools",
   "ui.search.tools": "Search tools",
+  "ui.recommended": "Recommended",
   "ui.select": "Select…",
   "ui.select.attachments.no.more.than.20.mib.each": "Select attachments (no more than 20 MiB each)",
   "ui.select.directory": "Select directory…",

@@ -13,6 +13,12 @@ export const previewDesktopApi: DesktopApi = {
     async close() {},
     async setFrontendDebugEnabled() {},
   },
+  notifications: {
+    async permission() { return false },
+    async requestPermission() { throw previewOnly() },
+    async show() { throw previewOnly() },
+    async onAction() { return () => {} },
+  },
   workspacePanel: {
     async listDirectory() { throw previewOnly() },
     async readFile() { throw previewOnly() },
@@ -104,6 +110,8 @@ export const previewDesktopApi: DesktopApi = {
     async setDefault() { throw previewOnly() },
     async checkRuntime() { throw previewOnly() },
     async selectChat() { throw previewOnly() },
+    async moa() { throw previewOnly() },
+    async saveMoa() { throw previewOnly() },
   },
   usage: {
     async statistics() { throw previewOnly() },
