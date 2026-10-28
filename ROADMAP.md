@@ -2,6 +2,10 @@
 
 本文件按计划发布版本记录本产品的开发范围与实际进度。版本分支不等于发布 tag；RC tag 可从对应版本的 `feature/vX.Y.Z` 分支在完成本地检查和发行输入核对后创建，正式版 tag 只能从合入 `main` 且通过 CI 的提交创建。功能写入代码、脚本通过、原生窗口验收和正式发布是不同状态。具体接口及逐项验证证据见 [能力矩阵](docs/capability-matrix.md)。
 
+## v0.1.8（开发中，未发布）
+
+2026-10-28 正式版发布触发方式调整：从 `main` 创建并推送 `vX.Y.Z` tag 后，工作流自动核对 tag 指向当前 `main` HEAD、版本说明与该提交的最新必需检查；Windows x64 和 macOS Apple Silicon 安装包及校验清单均完成后才发布 Release。构建失败会保留 tag，需核对后重跑同一任务或修复源码并使用新版本号。本改动不改变现有安装包功能。Windows 本机 `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/stable-release.yml` 与 `git diff --check` 通过；PR CI、实际 tag 触发及双平台构建仍待验证，不代表原生安装验收。
+
 ## v0.1.7（已合入 main，未发布）
 
 2026-10-28 正式版发布准备：补充 `releases/v0.1.7.md`，依据已合入的实现与现有测试记录说明功能、实际验证范围和待验收项目。正式版仍须从通过必需检查的准确 `main` 提交运行发布任务，待 Windows x64 与 macOS Apple Silicon 附件及校验清单构建核对成功后，工作流才会创建 tag 和 Release；本条不代表已发布或完成跨平台实机验收。

@@ -4,7 +4,7 @@
 
 ## 分支与提交
 
-- `main` 作为长期主干，合入的变更应保持可构建。按 [README 的按版本开发流程](README.md#按版本开发) 检查并复用 `feature/vX.Y.Z`；只有该版本分支在本地和远端都不存在时，才从最新 `origin/main` 创建。紧急修复使用从最新 `origin/main` 创建的 `fix/...` 分支；不要直接向 `main` 提交或推送。仅在确需维护旧版本时建立 `release/vX.Y` 分支。
+- `main` 作为长期主干，合入的变更应保持可构建。按 [README 的按版本开发流程](README.md#按版本开发) 检查并复用 `feature/vX.Y.Z`；只有该版本分支在本地和远端都不存在时，才从最新 `origin/main` 创建。紧急修复使用从最新 `origin/main` 创建的 `fix/...` 分支；不要直接向 `main` 提交或推送。正式发行 tag 从通过检查的 `main` 提交创建；仅在确需维护旧版本时建立 `release/vX.Y` 分支。
 - 提交信息采用 Conventional Commits，例如 `feat: add attachment preview`、`fix: preserve runtime location`、`docs: update capability matrix`。标题使用简短英文祈使句；必要时在正文解释原因和兼容影响。
 - 保持改动聚焦。涉及架构、运行时契约、平台验收或发布状态时，同步更新对应文档与证据，避免只修改结论。
 
@@ -17,7 +17,7 @@
 3. 若检查失败，继续在同一分支修复并重新运行 CI；不得用未验证的新提交合并。检查被跳过、取消或尚未结束都不算通过。
 4. CI 全部通过后，维护者检查 PR 差异并手动合并；版本分支在该版本开发结束后再删除，修复分支合并后可删除。当前由一人维护，可由 PR 作者自行审查和合并，不要求另一人批准。合并后的 `main` 也会运行同一工作流；若失败，立即修复。
 
-公开仓库的 `main` 已启用分支保护：必须经 Pull Request 合并、通过必需状态检查 `Build and test (Windows)`，且禁止强制推送和删除。当前由一人维护，未设置必需批准人数。未完成的功能与修复留在开发分支；RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建。功能或修复完成后经 PR 合入 `main`。正式版任务只接受 `main` 上最新必需检查通过的准确提交，构建和核对成功后才创建 `vX.Y.Z` tag；详见 [发行流程](docs/release-process.md)。
+公开仓库的 `main` 已启用分支保护：必须经 Pull Request 合并、通过必需状态检查 `Build and test (Windows)`，且禁止强制推送和删除。当前由一人维护，未设置必需批准人数。未完成的功能与修复留在开发分支；RC tag（如 `v0.1.5-rc.1`）可从对应的 `feature/vX.Y.Z` 已提交、完成本地检查并核对发行输入的提交创建。功能或修复完成后经 PR 合入 `main`。正式版 tag 从当前 `main` 提交创建并推送；正式版任务核对该提交的最新必需检查，通过后构建并发布 Release。构建失败时 tag 仍保留，不得移动或复用；详见 [发行流程](docs/release-process.md)。
 
 ## 项目边界
 
