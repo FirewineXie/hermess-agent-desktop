@@ -63,6 +63,10 @@ export type PersonalFile = {
   version: string; limit: number | null; enabled: boolean | null
 }
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
+export type MemoryProviderSummary = { name: string; description: string; available: boolean; configured: boolean; status: string }
+export type MemoryProviderField = { key: string; label: string; kind: 'bool' | 'json' | 'number' | 'secret' | 'select' | 'text'; description: string; placeholder: string; group: string; is_set: boolean; value: string; options: Array<{ value: string; label: string }> }
+export type MemoryProviderConfig = { name: string; label: string; fields: MemoryProviderField[] }
+export type MemoryOAuthStatus = { state: 'idle' | 'pending' | 'connected' | 'error'; connected: boolean }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
@@ -229,6 +233,13 @@ export interface DesktopApi {
     saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
     saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<void>
     saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<void>
+  }
+  memory: {
+    providers(scope: ProfileScope): Promise<{ active: string; providers: MemoryProviderSummary[] }>
+    config(scope: ProfileScope, provider: string): Promise<MemoryProviderConfig>
+    save(scope: ProfileScope, provider: string, values: Record<string, string>): Promise<void>
+    oauthStart(scope: ProfileScope, provider: string): Promise<MemoryOAuthStatus>
+    oauthStatus(scope: ProfileScope, provider: string): Promise<MemoryOAuthStatus>
   }
   personalFiles: {
     read(scope: ProfileScope, kind: PersonalFileKind): Promise<PersonalFile>

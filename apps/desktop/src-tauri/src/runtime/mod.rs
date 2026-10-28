@@ -10,6 +10,7 @@ mod helper_python;
 mod jobs;
 mod location;
 mod mcp_registry;
+pub mod memory_provider;
 pub mod models;
 mod modelscope;
 mod modelscope_mcp;

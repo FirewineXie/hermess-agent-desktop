@@ -69,6 +69,13 @@
 .memory-settings-error { color: #8f2d2d; }
 .memory-settings-sensitive-note { margin: 22px 0 0; color: var(--settings-muted); font-size: 13px; line-height: 1.5; }
 .memory-settings-status { margin: 20px 0 0; color: #315f4c; font-size: 13px; line-height: 1.5; }
+.memory-provider-editor { display: grid; gap: 14px; min-width: 0; }
+.memory-provider-editor label { display: grid; gap: 6px; color: var(--settings-ink); font-size: 14px; }
+.memory-provider-editor small { color: var(--settings-muted); line-height: 1.5; }
+.memory-provider-editor :is(input, select, textarea) { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: var(--settings-ink); font: inherit; }
+.memory-provider-editor textarea { min-height: 96px; resize: vertical; }
+.memory-provider-editor .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.memory-provider-editor .actions button { min-height: 36px; padding: 7px 12px; }
 
 /* One quiet surface per provider; models use the card's full width. */
 .unified-settings .model-settings-panel > p { max-width: 760px; margin: 9px 0 0; color: var(--settings-muted); font-size: 14px; line-height: 1.55; }

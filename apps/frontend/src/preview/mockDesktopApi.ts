@@ -80,6 +80,13 @@ export const previewDesktopApi: DesktopApi = {
     async saveRaw() { throw previewOnly() },
     async saveAuxiliary() { throw previewOnly() },
   },
+  memory: {
+    async providers() { throw previewOnly() },
+    async config() { throw previewOnly() },
+    async save() { throw previewOnly() },
+    async oauthStart() { throw previewOnly() },
+    async oauthStatus() { throw previewOnly() },
+  },
   personalFiles: {
     async read() { throw previewOnly() },
     async save() { throw previewOnly() },

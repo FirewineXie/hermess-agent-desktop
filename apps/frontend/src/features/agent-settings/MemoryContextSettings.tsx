@@ -1,5 +1,7 @@
+import React from 'react'
 import type { Language } from '../../i18n'
 import ConfigFieldEditor from './components/ConfigFieldEditor'
+import MemoryProviderSettings from './MemoryProviderSettings'
 import type { MemorySettingsPage } from './memoryContextModel'
 import { useMemoryContextSettings } from './useMemoryContextSettings'
 
@@ -14,7 +16,13 @@ type Props = {
 
 export default function MemoryContextSettings({ connected, profile, page, language, onDirtyChange, onBusyChange }: Props) {
   const zh = language === 'zh-CN'
-  const controller = useMemoryContextSettings({ connected, profile, page, language, onDirtyChange, onBusyChange })
+  const [fieldDirty, setFieldDirty] = React.useState(false)
+  const [providerDirty, setProviderDirty] = React.useState(false)
+  const [fieldBusy, setFieldBusy] = React.useState(false)
+  const [providerBusy, setProviderBusy] = React.useState(false)
+  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty) }, [fieldDirty, providerDirty, onDirtyChange])
+  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy) }, [fieldBusy, providerBusy, onBusyChange])
+  const controller = useMemoryContextSettings({ connected, profile, page, language, onDirtyChange: setFieldDirty, onBusyChange: setFieldBusy })
   const {
     config, drafts, setDrafts, editingKey, loading, saving, loaded, status, groups, sensitiveCount, unsupportedCount,
     editField, cancelEdit, reload, saveField,
@@ -57,6 +65,7 @@ export default function MemoryContextSettings({ connected, profile, page, langua
       {groups.every(group => group.fields.length === 0) && <div className="memory-settings-state" role="status">
         {zh ? '当前运行时 Schema 没有提供此页面可配置的字段。' : 'The runtime schema does not provide configurable fields for this page.'}
       </div>}
+      {page === 'memory-persistent' && <MemoryProviderSettings profile={profile} language={language} onDirtyChange={setProviderDirty} onBusyChange={setProviderBusy} />}
       {sensitiveCount > 0 && <p className="memory-settings-sensitive-note" role="note">
         {zh ? `已隐藏 ${sensitiveCount} 个敏感凭据字段；普通配置页不会读取或覆盖密钥。` : `${sensitiveCount} sensitive credential field(s) are hidden; this settings page does not read or overwrite secrets.`}
       </p>}

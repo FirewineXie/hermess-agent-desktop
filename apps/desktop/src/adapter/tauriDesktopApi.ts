@@ -142,6 +142,13 @@ export const tauriDesktopApi: DesktopApi = {
     saveRaw: (scope, yamlText, expectedYaml) => invoke('save_agent_config_raw', { profile: scope.profile, yamlText, expectedYaml }),
     saveAuxiliary: (scope, route) => invoke('save_auxiliary_route', { profile: scope.profile, ...route }),
   },
+  memory: {
+    providers: scope => invoke('get_memory_providers', { profile: scope.profile }),
+    config: (scope, provider) => invoke('get_memory_provider_config', { profile: scope.profile, provider }),
+    save: (scope, provider, values) => invoke('save_memory_provider_config', { profile: scope.profile, provider, values }),
+    oauthStart: (scope, provider) => invoke('start_memory_provider_oauth', { profile: scope.profile, provider }),
+    oauthStatus: (scope, provider) => invoke('get_memory_provider_oauth_status', { profile: scope.profile, provider }),
+  },
   personalFiles: {
     read: (scope, kind) => invoke('read_personal_file', { profile: scope.profile, kind }),
     save: (scope, args) => invoke('save_personal_file', { profile: scope.profile, ...args }),
