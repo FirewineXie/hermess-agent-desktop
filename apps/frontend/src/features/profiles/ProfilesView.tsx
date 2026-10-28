@@ -11,7 +11,6 @@ type Props = {
   epoch: string | null
   profiles: ProfilesSnapshot | null
   profileBusy: boolean
-  storagePath: string
   onSelectProfile: (name: string) => Promise<unknown>
   memoryOpen: boolean
   agentSettingsOpen: boolean
@@ -84,7 +83,7 @@ export default function ProfilesView(props: Props) {
         <button type="button" className="profile-agent-settings-close" aria-label={zh ? '关闭 Agent 配置' : 'Close Agent settings'} title={zh ? '关闭' : 'Close'} onClick={props.onCloseAgentSettings}>×</button>
       </div>
       <AgentSettingsView key={props.profiles?.selected || ''} connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
-        storagePath={props.storagePath} onDirtyChange={props.onAgentDirtyChange} onOpenModelSettings={props.onOpenModelSettings} embedded />
+        onDirtyChange={props.onAgentDirtyChange} onOpenModelSettings={props.onOpenModelSettings} embedded />
     </div> : props.memoryOpen ? <PersonalFilesView
       connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
       initialTab="memory" onDirtyChange={props.onMemoryDirtyChange} onClose={props.onCloseMemory} /> : <ProfileOverview

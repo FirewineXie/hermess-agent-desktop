@@ -10,7 +10,6 @@ export function endpointForProvider(provider: Pick<ModelProvider, 'slug'>, endpo
 export type ModelPick = { provider: string; model: string }
 export type SavedModel = { provider: string; model: string; name: string; baseUrl: string }
 export const ADDED_MODELS_KEY = 'hermess.desktop.added-models.v1'
-export const MODEL_LISTS_KEY = 'hermess.desktop.model-lists.v1'
 export function appendModelIds(local: string[], discovered: string[]): string[] {
   const result = [...new Set(local)]
   const known = new Set(result)
@@ -31,16 +30,6 @@ export function readAddedModels(storagePath: string, profile = 'default'): Recor
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
     return Object.fromEntries(Object.entries(value).filter(([, models]) => Array.isArray(models))
       .map(([provider, models]) => [provider, (models as unknown[]).filter((model): model is string => typeof model === 'string' && model.length <= 256)]))
-  } catch { return {} }
-}
-export function readModelLists(storagePath: string, profile = 'default'): Record<string, string[]> {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(`${MODEL_LISTS_KEY}:${modelStorageKey(storagePath, profile)}`) || '{}')
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    return Object.fromEntries(Object.entries(value).filter(([, models]) => Array.isArray(models))
-      .map(([provider, models]) => [provider, [...new Set((models as unknown[])
-        .filter((model): model is string => typeof model === 'string' && model.trim().length > 0 && model.length <= 256)
-        .map(model => model.trim()))]]))
   } catch { return {} }
 }
 export const VOLCENGINE_PRESETS = [

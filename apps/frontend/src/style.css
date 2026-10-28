@@ -807,19 +807,14 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .header-location small { padding-left: 9px; border-left: 1px solid #d8dee8; color: #66758c; font-size: 12px; white-space: nowrap; }
 .header-session-title { min-width: 0; max-width: 240px; overflow: hidden; margin-left: 12px; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #66758c; }
 .workspace-header .panel-toggle { margin-left: auto; }
-.header-link, .header-settings, .header-model { flex: none; border: 0; background: transparent; color: #44536b; text-decoration: none; font-size: 13px; }
-.header-link:hover, .header-settings:hover, .header-model:hover { color: #1b6ffd; }
-.header-model { min-width: 58px; min-height: 40px; margin-left: auto; padding: 0 10px; }
+.header-link, .header-settings { flex: none; border: 0; background: transparent; color: #44536b; text-decoration: none; font-size: 13px; }
+.header-link:hover, .header-settings:hover { color: #1b6ffd; }
+.header-github { margin-left: auto; }
 .header-github { display: grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; color: #44536b; cursor: pointer; }
 .header-github:hover { color: #1b6ffd; }
 .header-github svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .header-update-badge { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; color: #fff; background: #1b6ffd; font-size: 12px; font-weight: 700; line-height: 1; }
-.header-settings-menu { position: relative; flex: none; }
 .header-settings { display: grid; place-items: center; width: 40px; height: 40px; font-size: 21px; cursor: pointer; list-style: none; }
-.header-settings::-webkit-details-marker { display: none; }
-.header-settings-popover { position: absolute; top: calc(100% + 5px); right: 0; z-index: 5; min-width: 188px; padding: 6px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px #1118271a; }
-.header-settings-popover button { display: block; width: 100%; min-height: 38px; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #273348; text-align: left; font-size: 13px; }
-.header-settings-popover button:hover, .header-settings-popover button:focus-visible { background: #e4eefd; color: #1b6ffd; }
 .workspace-header .language-switch { margin-left: 0; }
 .custom-titlebar-shell.app-shell { grid-template-rows: 32px minmax(0, 1fr); }
 .custom-titlebar-shell .workspace-header { height: 32px; gap: 0; padding: 0 0 0 2px; background: #f7f2eb; border-bottom: 1px solid #e6e0d9; }
@@ -831,8 +826,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .window-title-connection { padding-left: 9px; border-left: 1px solid #cbd1d8; color: #66758c; }
 .window-title-drag { flex: 1; align-self: stretch; min-width: 12px; }
 .custom-titlebar-shell .header-github { width: 36px; height: 32px; margin-left: 0; }
-.custom-titlebar-shell .header-model { height: 32px; min-height: 32px; min-width: 48px; margin-left: 0; padding: 0 8px; }
-.custom-titlebar-shell .header-model:hover { background: #ece7e1; }
 .custom-titlebar-shell .header-github:hover { background: #ece7e1; }
 .custom-titlebar-shell .header-github svg { width: 16px; height: 16px; }
 .custom-titlebar-shell .header-link { display: inline-flex; align-items: center; height: 100%; padding: 0 10px; color: #36445b; font-size: 13px; }
@@ -864,7 +857,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
   .header-brand { min-width: 0; font-size: 16px; }
   .header-brand strong span, .header-location small, .header-link, .workspace-header .language-switch { display: none; }
   .header-location { margin-left: auto; font-size: 12px; }
-  .header-model { margin-left: 0; }
   .workspace-header .panel-toggle { margin-left: 0; }
   .custom-titlebar-shell .workspace-header { height: 32px; }
   .custom-titlebar-shell .header-link { display: inline-flex; }

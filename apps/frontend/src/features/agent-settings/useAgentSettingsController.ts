@@ -3,18 +3,17 @@ import { useLanguage, translateAgentUi, agentFieldTranslation } from '../../i18n
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
-import { getField, fieldText, type Field, type Schema, type RawConfig, type Provider } from './model'
+import { getField, fieldText, type Field, type Schema, type RawConfig } from './model'
 
 type Options = {
   connected: boolean
   profile: string | null
   epoch: string | null
-  storagePath: string
   onDirtyChange: (dirty: boolean) => void
 }
 
-export function useAgentSettingsController({ connected, profile, epoch, storagePath, onDirtyChange }: Options) {
-  const { agentSettings, models } = useDesktop()
+export function useAgentSettingsController({ connected, profile, epoch, onDirtyChange }: Options) {
+  const { agentSettings } = useDesktop()
   const workspace = workspaceKey(epoch, profile)
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `agent-settings:${stateSlot++}`)
@@ -35,13 +34,7 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [search, setSearch] = useState('')
   const [mode, setMode] = useState<'form' | 'yaml'>('form')
-  const [section, setSection] = useState<'main' | 'auxiliary' | 'approval' | 'advanced'>('auxiliary')
-  const [providers, setProviders] = useState<Provider[]>([])
-  const [editingTask, setEditingTask] = useState<string | null>(null)
-  const [auxProvider, setAuxProvider] = useState('auto')
-  const [auxModel, setAuxModel] = useState('')
-  const [auxEffort, setAuxEffort] = useState('')
-  const [auxTimeout, setAuxTimeout] = useState('')
+  const [section, setSection] = useState<'main' | 'approval' | 'advanced'>('main')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [loaded, setLoaded] = useState(false)
@@ -59,30 +52,7 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
         agentSettings.config(scope),
         agentSettings.raw(scope),
       ])
-      const [options, endpoints, savedLists] = await Promise.allSettled([
-        models.options(scope, { refresh: false, includeUnconfigured: false }),
-        models.endpoints(scope),
-        models.loadLists(scope, storagePath),
-      ])
-      const choices = options.status === 'fulfilled'
-        ? (options.value.providers || []).filter(item => item.authenticated !== false && !['copilot-acp', 'custom'].includes(item.slug)) : []
-      if (endpoints.status === 'fulfilled') for (const endpoint of endpoints.value.endpoints || []) {
-        if (endpoint.source === 'direct-config' || choices.some(item => item.slug === endpoint.id
-          || (endpoint.source === 'custom_providers' && item.name === endpoint.name
-            && item.api_url?.replace(/\/+$/, '').toLowerCase() === endpoint.base_url.replace(/\/+$/, '').toLowerCase()))) continue
-        choices.push({ slug: endpoint.id, name: endpoint.name, models: endpoint.models.length ? endpoint.models : [endpoint.model].filter(Boolean) })
-      }
-      if (savedLists.status === 'fulfilled' && savedLists.value) for (const choice of choices) {
-        const endpoint = endpoints.status === 'fulfilled'
-          ? endpoints.value.endpoints.find(item => item.id === choice.slug
-            || (choice.api_url && item.name === choice.name
-              && item.base_url.replace(/\/+$/, '').toLowerCase() === choice.api_url.replace(/\/+$/, '').toLowerCase()))
-          : undefined
-        const saved = savedLists.value[endpoint?.id || choice.slug] ?? savedLists.value[choice.slug]
-        if (saved !== undefined) choice.models = saved
-      }
       if (request !== loadRequestRef.current) return false
-      setProviders(choices)
       setSchema(nextSchema)
       setConfig(nextConfig)
       setRaw(nextRaw)
@@ -101,7 +71,7 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
       return false
     }
     finally { if (request === loadRequestRef.current) setBusy(false) }
-  }, [connected, profile, storagePath])
+  }, [connected, profile])
 
   React.useEffect(() => {
     if (!loaded) void load()
@@ -111,18 +81,11 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
   const dirtyYaml = raw !== null && yamlDraft !== raw.yaml
   const dirtyFields = Object.entries(drafts).some(([key, value]) =>
     value !== fieldText(getField(config, key), schema?.fields[key]?.type || 'string'))
-  const currentAux = editingTask ? getField(config, `auxiliary.${editingTask}`) as Record<string, unknown> | undefined : undefined
-  const dirtyAux = Boolean(editingTask && (
-    auxProvider !== String(currentAux?.provider || 'auto') ||
-    auxModel !== String(currentAux?.model || '') ||
-    auxEffort !== String(currentAux?.reasoning_effort || '') ||
-    auxTimeout !== String(currentAux?.timeout ?? '')
-  ))
-  React.useEffect(() => { onDirtyChange(dirtyYaml || dirtyFields || dirtyAux) }, [dirtyYaml, dirtyFields, dirtyAux, onDirtyChange])
+  React.useEffect(() => { onDirtyChange(dirtyYaml || dirtyFields) }, [dirtyYaml, dirtyFields, onDirtyChange])
   function canDiscard() {
-    return !(dirtyYaml || dirtyFields || dirtyAux) || window.confirm(t("ui.you.have.unsaved.settings.discard.changes"))
+    return !(dirtyYaml || dirtyFields) || window.confirm(t("ui.you.have.unsaved.settings.discard.changes"))
   }
-  async function reload() { if (canDiscard() && await load()) { setEditingKey(null); setEditingTask(null) } }
+  async function reload() { if (canDiscard() && await load()) setEditingKey(null) }
 
   function editField(key: string) {
     if (dirtyFields && !canDiscard()) return
@@ -181,54 +144,22 @@ export function useAgentSettingsController({ connected, profile, epoch, storageP
     finally { setBusy(false) }
   }
 
-  function editAuxiliary(task: string) {
-    if (editingTask === task) return
-    if (!canDiscard()) return
-    const current = getField(config, `auxiliary.${task}`) as Record<string, unknown> | undefined
-    setAuxProvider(String(current?.provider || 'auto'))
-    setAuxModel(String(current?.model || ''))
-    setAuxEffort(String(current?.reasoning_effort || ''))
-    setAuxTimeout(String(current?.timeout ?? ''))
-    setEditingTask(task)
-  }
-
-  async function saveAuxiliary(task: string) {
-    if (auxTimeout && (!Number.isFinite(Number(auxTimeout)) || Number(auxTimeout) <= 0)) {
-      setStatus(language === 'zh-CN' ? '超时必须是正数' : 'Timeout must be positive')
-      return
-    }
-    setBusy(true)
-    try {
-      await agentSettings.saveAuxiliary(profileScope(), {
-        task, provider: auxProvider, model: auxProvider === 'auto' ? '' : auxModel,
-        effort: auxEffort, timeout: auxTimeout ? Number(auxTimeout) : null,
-      })
-      if (await load()) {
-        setEditingTask(null)
-        setStatus(language === 'zh-CN' ? '辅助模型配置已保存；新会话或下次调用时生效' : 'Auxiliary model saved; applies to a new session or the next call')
-      }
-    } catch (error) { setStatus(describeError(error, language)) }
-    finally { setBusy(false) }
-  }
-
   const entries = Object.entries(schema?.fields || {})
   const query = search.trim().toLowerCase()
   const scoped = entries.filter(([key]) => {
     if (section === 'advanced') return true
-    if (section === 'main') return ['agent.reasoning_overrides', 'agent.max_turns', 'model_context_length'].includes(key)
+    if (section === 'main') return ['agent.reasoning_overrides', 'agent.max_turns'].includes(key)
     if (section === 'approval') return key.startsWith('approvals.') || key.startsWith('security.')
     return false
   })
   const visible = scoped.filter(([key, field]) => !query ||
     `${key} ${field.description || ''} ${agentFieldTranslation(language, key)?.label || ''} ${agentFieldTranslation(language, key)?.description || ''}`.toLowerCase().includes(query))
-  const auxiliaryTasks = Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1])
   return {
     language, t, schema, config, raw, yamlDraft, setYamlDraft,
     drafts, setDrafts, editingKey, setEditingKey, expandedPaths, setExpandedPaths,
-    search, setSearch, mode, setMode, section, setSection, providers,
-    editingTask, setEditingTask, auxProvider, setAuxProvider, auxModel, setAuxModel,
-    auxEffort, setAuxEffort, auxTimeout, setAuxTimeout, busy, status, dirtyYaml,
+    search, setSearch, mode, setMode, section, setSection,
+    busy, status, dirtyYaml,
     canDiscard, reload, editField, cancelEdit, saveField, saveYaml,
-    editAuxiliary, saveAuxiliary, visible, query, auxiliaryTasks,
+    visible, query,
   }
 }

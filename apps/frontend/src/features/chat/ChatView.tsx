@@ -51,7 +51,6 @@ type Props = {
 
 export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, profiles, profileBusy, onSelectProfile }: Props) {
   const backend = connected
-  const openView = (view: 'runtime' | 'model') => view === 'runtime' ? onOpenRuntime() : onOpenModelSettings()
   const {
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice, sessionId, sessionWorkspacePath,
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
@@ -86,7 +85,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件与终端' : 'Files & terminal')
   const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
   return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`}>
-      {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={() => openView('runtime')}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
+      {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
         <div className="chat-workspace-actions"><button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>{panelToggle}</div></div>}
@@ -154,7 +153,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
         activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
-        onOpenSettings={() => { setModelPickerOpen(false); openView('model') }} />}
+        onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
       </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
       <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'

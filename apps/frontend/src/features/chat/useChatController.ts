@@ -17,7 +17,8 @@ type Options = {
   storagePath: string
   workspacePath: string
   t: (key: string, ...values: unknown[]) => string
-  openView: (view: 'chat' | 'model') => void
+  openChat: () => void
+  openModelSettings: () => void
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>
   setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
   setModelPickerOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -30,7 +31,7 @@ function selectedWorkspacePath(info?: ResumeResult['info']): string {
   return info?.launch_request?.cwd_explicit === true ? info.cwd || info.launch_request.cwd || '' : ''
 }
 
-export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openView, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
+export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
   const workspace = workspaceKey(backend?.replay_epoch, profile)
   let stateSlot = 0
@@ -474,8 +475,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         return
       }
       if (slash[1] === 'new') await newChat(false)
-      else if (slash[1] === 'sessions') { await loadSessions(true); openView('chat'); setSidebarOpen(true); setDraft('') }
-      else { openView('model'); setDraft('') }
+      else if (slash[1] === 'sessions') { await loadSessions(true); openChat(); setSidebarOpen(true); setDraft('') }
+      else { openModelSettings(); setDraft('') }
       return
     }
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
@@ -545,14 +546,14 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       }
       if (commandName === '/sessions' && isCommand) {
         await loadSessions(true)
-        openView('chat')
+        openChat()
         setSidebarOpen(true)
         setDraft('')
         setTurnBusy(false)
         return
       }
       if (commandName === '/model' && isCommand) {
-        openView('model')
+        openModelSettings()
         setDraft('')
         setTurnBusy(false)
         return
