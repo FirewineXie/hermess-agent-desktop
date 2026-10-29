@@ -80,6 +80,12 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 本项目由 Firewine 享有著作权的原创代码和文档采用 [PolyForm Strict 1.0.0](LICENSE)：允许非商业使用，包括安装和运行桌面软件；修改、制作衍生作品、分发或商业使用，均须事先取得 Firewine 的书面授权。详见[版权与使用说明](COPYRIGHT.md)。`upstream/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源遵循各自许可证。此前版本已按当时许可证授予的权利不因本次变更而撤销。
 
+## 联系与交流
+
+飞书交流群：请于 2026 年 11 月 5 日前扫描下方二维码入群。
+
+<img src="docs/screenshots/feishu-group-2026-11-05.png" alt="飞书交流群二维码" width="260">
+
 ## 安全问题
 
 发现安全漏洞请按 [安全问题报告说明](SECURITY.md) 私密提交；普通使用问题可通过 [Issues](https://github.com/FirewineXie/hermess-agent-desktop/issues) 反馈。
