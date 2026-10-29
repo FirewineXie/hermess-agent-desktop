@@ -11,6 +11,7 @@ export default function AboutView({ updateStatus }: { updateStatus: UpdateStatus
   const [tab, setTab] = React.useState<Tab>('license')
   const [copyState, setCopyState] = React.useState('')
   const { info, infoError, effectiveChannel } = updateStatus
+  const isWindows = navigator.userAgent.includes('Windows')
   async function copyEnvironment() {
     if (!info) return
     const lines = [
@@ -52,7 +53,7 @@ export default function AboutView({ updateStatus }: { updateStatus: UpdateStatus
     {tab === 'tools' && <div role="tabpanel" className="about-content">
       <h3>{t('ui.about.tab.tools')}</h3>
       <p>{t('ui.about.tools.explain')}</p>
-      <div className="about-card"><strong>Hermess PowerShell Tool</strong><p>{t('ui.about.tools.powershell')}</p></div>
+      {isWindows && <div className="about-card"><strong>Hermess PowerShell Tool</strong><p>{t('ui.about.tools.powershell')}</p></div>}
       <p>{t('ui.about.tools.system')}</p>
     </div>}
     {tab === 'feedback' && <div role="tabpanel" className="about-content">

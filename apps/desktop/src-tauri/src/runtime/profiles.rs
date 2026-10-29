@@ -434,7 +434,7 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         .arg(serde_json::to_string(&soul).map_err(|_| DesktopFailure::invalid_input())?)
         .env("HERMES_HOME", &home)
         .env("PYTHONIOENCODING", "utf-8")
-        .env("HERMES_GATEWAY_LOCK_DIR", lock_dir)
+        .env("HERMES_GATEWAY_LOCK_DIR", &lock_dir)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true);
@@ -455,11 +455,42 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
     let profile_name = result
         .get("name")
         .and_then(Value::as_str)
-        .ok_or_else(DesktopFailure::operation_failed)?;
+        .ok_or_else(DesktopFailure::operation_failed)?
+        .to_owned();
     if let Some(storage) = home.parent() {
+        #[cfg(windows)]
+        {
+            let _ = crate::diagnostics::append_client_event(
+                storage,
+                &format!("powershell_tool_profile_install_start profile={profile_name}"),
+            );
+            if let Err(error) = super::powershell_tool::install_new_profile(&home, &profile_name) {
+                let _ = crate::diagnostics::append_client_event(
+                storage,
+                &format!("powershell_tool_profile_install_failed profile={profile_name} error={error}"),
+            );
+                if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
+                    warnings.push(Value::String("powershell_tool".into()));
+                }
+            } else {
+                let _ = crate::diagnostics::append_client_event(
+                    storage,
+                    &format!("powershell_tool_profile_install_completed profile={profile_name}"),
+                );
+                let reloaded =
+                    reload_named_powershell_plugin(&hermes, &home, &lock_dir, &profile_name).await;
+                let _ = crate::diagnostics::append_client_event(
+                    storage,
+                    &format!(
+                        "powershell_tool_profile_reload_{} profile={profile_name}",
+                        if reloaded { "completed" } else { "pending" }
+                    ),
+                );
+            }
+        }
         let _ =
             crate::diagnostics::append_client_event(storage, "product_skill_profile_install_start");
-        if super::product_skill::install_new_profile(&home, profile_name).is_err() {
+        if super::product_skill::install_new_profile(&home, &profile_name).is_err() {
             let _ = crate::diagnostics::append_client_event(
                 storage,
                 "product_skill_profile_install_failed",
@@ -475,6 +506,46 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         }
     }
     Ok(result)
+}
+
+#[cfg(windows)]
+async fn reload_named_powershell_plugin(
+    hermes: &Path,
+    home: &Path,
+    lock_dir: &Path,
+    name: &str,
+) -> bool {
+    const SCRIPT: &str = r#"import json, sys
+from pathlib import Path
+from gateway.control_socket import reload_gateway_plugins
+result = reload_gateway_plugins(Path(sys.argv[1]), profile_home=Path(sys.argv[2]), timeout=5.0)
+print(json.dumps({'reloaded': bool(result and result.get('reloaded'))}))
+"#;
+    let Ok(mut command) = helper_python::command(hermes, SCRIPT) else {
+        return false;
+    };
+    command
+        .arg(hermes_process_path(home))
+        .arg(hermes_process_path(&home.join("profiles").join(name)))
+        .env("HERMES_HOME", hermes_process_path(home))
+        .env("HERMES_GATEWAY_LOCK_DIR", hermes_process_path(lock_dir))
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    command.creation_flags(0x08000000);
+    let Ok(Ok(output)) = timeout(
+        Duration::from_secs(8),
+        process_manager::output(&mut command, "powershell_plugin_reload"),
+    )
+    .await
+    else {
+        return false;
+    };
+    output.status.success()
+        && serde_json::from_slice::<Value>(&output.stdout)
+            .ok()
+            .and_then(|value| value.get("reloaded").and_then(Value::as_bool))
+            == Some(true)
 }
 
 #[tauri::command]

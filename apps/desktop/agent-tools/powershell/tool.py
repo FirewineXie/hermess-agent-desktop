@@ -14,6 +14,14 @@ import time
 
 _VERSION = re.compile(r"^(\d+)\.(\d+)(?:\.\d+){0,2}$")
 _MAX_OUTPUT_BYTES = 256 * 1024
+_UTF8_DEFAULTS = """$__hermess_utf8 = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = $__hermess_utf8
+[Console]::OutputEncoding = $__hermess_utf8
+foreach ($__hermess_command in @('Get-Content', 'Set-Content', 'Add-Content',
+    'Out-File', 'Import-Csv', 'Export-Csv', 'Select-String')) {
+    $PSDefaultParameterValues["${__hermess_command}:Encoding"] = 'utf8'
+}
+"""
 
 
 def _candidates():
@@ -121,12 +129,13 @@ def execute(args: dict, *, task_id: str | None = None):
     if is_interrupted():
         return _result(error="Command was interrupted before it started", exit_code=130)
 
-    # A UTF-8 BOM lets Windows PowerShell 5.1 read non-ASCII script text.
-    # Files, rather than shell interpolation, preserve quotes and newlines.
+    # The BOM lets Windows PowerShell 5.1 read the source; the prelude makes
+    # text file input/output and captured process output UTF-8 by default.
+    # An explicit -Encoding on a command still takes precedence.
     with tempfile.TemporaryDirectory(prefix="hermess-powershell-") as scratch:
         script = Path(scratch) / "command.ps1"
         script.write_text(
-            command + "\n$__hermess_ok = $?\n"
+            _UTF8_DEFAULTS + command + "\n$__hermess_ok = $?\n"
             "if (-not $__hermess_ok) {\n"
             "  if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\n"
             "  exit 1\n}\n",

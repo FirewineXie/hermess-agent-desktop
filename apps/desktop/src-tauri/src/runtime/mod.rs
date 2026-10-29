@@ -398,7 +398,17 @@ async fn launch_backend(
     let storage_lock = acquire_storage_lock(&storage)?;
     crate::diagnostics::set_client_log_storage(storage.clone());
     #[cfg(windows)]
-    powershell_tool::install(&storage)?;
+    {
+        let _ = append_client_event(&storage, "powershell_tool_install_start");
+        if let Err(error) = powershell_tool::install(&storage) {
+            let _ = append_client_event(
+                &storage,
+                &format!("powershell_tool_install_failed error={error}"),
+            );
+            return Err(error.into());
+        }
+        let _ = append_client_event(&storage, "powershell_tool_install_completed");
+    }
     let _ = append_client_event(&storage, "product_skill_install_start");
     if let Err(error) = product_skill::install(&storage) {
         let _ = append_client_event(&storage, "product_skill_install_failed");
