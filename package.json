@@ -4,7 +4,9 @@
   "packageManager": "pnpm@10.25.0",
   "scripts": {
     "dev": "pnpm --dir apps/desktop dev",
-    "build": "pnpm --dir apps/desktop build",
+    "build": "pnpm check:plugins && pnpm --dir apps/desktop build",
+    "generate:plugins": "node scripts/generate-hermes-plugin-catalog.mjs",
+    "check:plugins": "node scripts/generate-hermes-plugin-catalog.mjs --check",
     "check:architecture": "node --test tests/architecture-dependencies.test.mjs && node scripts/check-architecture-boundaries.mjs",
     "check:contracts": "node scripts/check-contract-schemas.mjs",
     "check:legal": "node scripts/check-legal.mjs",
@@ -24,6 +26,7 @@
     "verify:upstream": "node scripts/verify-upstream.mjs"
   },
   "devDependencies": {
-    "javascript-obfuscator": "5.9.0"
+    "javascript-obfuscator": "5.9.0",
+    "yaml": "^2.9.1"
   }
 }

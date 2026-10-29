@@ -2,11 +2,12 @@ import type { AgentConfigField, AgentConfigSchema } from '@hermess/contracts'
 import type { SettingsPage } from '../settings/model'
 import { isSensitiveConfigField, isSupportedConfigField, parseConfigFieldDraft } from '../agent-settings/memoryContextModel.ts'
 
-export type ConfigurationPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config'
-export const configurationPages: ConfigurationPage[] = ['security-approvals','security-privacy','security-checkpoints','advanced-runtime','advanced-tools','advanced-terminal','advanced-output','advanced-config']
+export type ConfigurationPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'browser'
+export const configurationPages: ConfigurationPage[] = ['security-approvals','security-privacy','security-checkpoints','advanced-runtime','advanced-tools','advanced-terminal','advanced-output','advanced-config','browser']
 export const isConfigurationPage = (page: SettingsPage): page is ConfigurationPage => configurationPages.includes(page as ConfigurationPage)
 
 export function fieldOwner(key: string): SettingsPage {
+  if (key === 'browser.use_real_profile') return 'browser'
   if (key === 'command_allowlist' || key.startsWith('approvals.') || key.startsWith('security.approval.')) return 'security-approvals'
   if (key.startsWith('security.') || key.startsWith('telemetry.shared_metrics.')) return 'security-privacy'
   if (key.startsWith('checkpoints.')) return 'security-checkpoints'

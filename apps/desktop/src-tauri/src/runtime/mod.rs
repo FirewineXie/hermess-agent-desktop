@@ -9,6 +9,7 @@ pub mod downloadable_tools;
 pub mod extensions;
 mod gateway_control;
 mod helper_python;
+mod hermes_plugins;
 mod jobs;
 mod location;
 mod mcp_registry;
@@ -154,6 +155,22 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
             .to_string_lossy()
             .into_owned(),
     })
+}
+
+fn hermes_process_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        // Rust canonicalize() adds an extended-length prefix. Hermes PM records paths
+        // without it and compares Path objects when validating its dependency lock.
+        let value = path.to_string_lossy();
+        if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{unc}"));
+        }
+        if let Some(local) = value.strip_prefix(r"\\?\") {
+            return PathBuf::from(local);
+        }
+    }
+    path.to_owned()
 }
 
 pub(crate) fn existing_client_log_storage(app: &AppHandle) -> Option<PathBuf> {
@@ -390,11 +407,15 @@ async fn launch_backend(
     });
     let hermes_home = storage.join("hermes-home");
     let gateway_locks = storage.join("control").join("gateway-locks");
+    let gateway_home = hermes_process_path(&hermes_home);
     let mut command = tokio::process::Command::new(&hermes);
     command
         .args(["gateway", "run"])
-        .env("HERMES_HOME", &hermes_home)
-        .env("HERMES_GATEWAY_LOCK_DIR", &gateway_locks)
+        .env("HERMES_HOME", &gateway_home)
+        .env(
+            "HERMES_GATEWAY_LOCK_DIR",
+            hermes_process_path(&gateway_locks),
+        )
         .env("HERMES_DESKTOP", "1")
         .env("HERMESS_DESKTOP_PRIVATE_API", "1")
         .env("HERMES_DASHBOARD_SESSION_TOKEN", &token)
@@ -430,7 +451,7 @@ async fn launch_backend(
             return Err("后端在发布就绪状态前退出；请查看开发者诊断中的 Hermess 日志".into());
         }
         if hermes_home.join("gateway.lock").is_file() {
-            if let Some(found) = discover_owned_gateway(&hermes_home, pid).await? {
+            if let Some(found) = discover_owned_gateway(&gateway_home, pid).await? {
                 break found;
             }
         }
@@ -451,7 +472,7 @@ async fn launch_backend(
         );
         return Err("后端在鉴权后退出".into());
     }
-    let ticket = mint_gateway_ticket(&hermes_home, &endpoint, pid).await?;
+    let ticket = mint_gateway_ticket(&gateway_home, &endpoint, pid).await?;
     let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
     let selected_profile =
         profiles::restore_selected_profile(&storage, &gateway, child.id(), port, &token).await;
@@ -688,10 +709,10 @@ pub async fn restart_backend_gracefully(
     }
     let mut stop = tokio::process::Command::new(&hermes);
     stop.args(["gateway", "stop"])
-        .env("HERMES_HOME", &home)
+        .env("HERMES_HOME", hermes_process_path(&home))
         .env(
             "HERMES_GATEWAY_LOCK_DIR",
-            storage.join("control").join("gateway-locks"),
+            hermes_process_path(&storage.join("control").join("gateway-locks")),
         )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -746,10 +767,13 @@ pub async fn stop_backend(
         {
             let mut stop = tokio::process::Command::new(&backend.hermes);
             stop.args(["gateway", "stop"])
-                .env("HERMES_HOME", backend.storage.join("hermes-home"))
+                .env(
+                    "HERMES_HOME",
+                    hermes_process_path(&backend.storage.join("hermes-home")),
+                )
                 .env(
                     "HERMES_GATEWAY_LOCK_DIR",
-                    backend.storage.join("control").join("gateway-locks"),
+                    hermes_process_path(&backend.storage.join("control").join("gateway-locks")),
                 )
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())

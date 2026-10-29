@@ -4,7 +4,7 @@ use super::models::{
     write_model_lists_file,
 };
 use super::payload::validate_payload;
-use super::{acquire_storage_lock, running_storage_matches};
+use super::{acquire_storage_lock, hermes_process_path, running_storage_matches};
 use super::{
     dev_backend_defaults, BackendInfo, BundledTool, BundledToolsInventory, GracefulRestartResult,
     PackedDefaults,
@@ -17,6 +17,21 @@ use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use uuid::Uuid;
+
+#[cfg(windows)]
+#[test]
+fn hermes_child_environment_uses_plain_windows_paths() {
+    let extended = std::path::Path::new(r"\\?\E:\Hermess Data\hermes-home");
+    let plain = hermes_process_path(extended);
+    assert_eq!(
+        plain,
+        std::path::PathBuf::from(r"E:\Hermess Data\hermes-home")
+    );
+    assert_eq!(
+        hermes_process_path(std::path::Path::new(r"\\?\UNC\host\share\hermes-home")),
+        std::path::PathBuf::from(r"\\host\share\hermes-home")
+    );
+}
 
 #[test]
 fn backend_info_serializes_contract_fields() {

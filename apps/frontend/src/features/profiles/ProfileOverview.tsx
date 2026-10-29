@@ -8,8 +8,9 @@ import type { LocalSkill, McpServer } from '../extensions/model'
 import LocalMcp from '../extensions/LocalMcp'
 import { labels } from '../extensions/labels'
 import ProfileDataView from './ProfileDataView'
+import ProfileHermesPlugins from './ProfileHermesPlugins'
 
-type Tab = 'overview' | 'tools' | 'skills' | 'mcp' | 'memory' | 'data'
+type Tab = 'overview' | 'tools' | 'skills' | 'plugins' | 'mcp' | 'memory' | 'data'
 type CardIconKind = 'tools' | 'settings' | 'skills' | 'mcp' | 'memory' | 'data' | 'channels' | 'usage'
 
 function CardIcon({ kind }: { kind: CardIconKind }) {
@@ -34,9 +35,10 @@ type Props = {
   onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
+  onOpenExtensions: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -104,8 +106,8 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
   }, [connected, epoch, profiles?.selected, extensions, personalFiles, profileApi, language])
 
   const tabs: Array<[Tab, string]> = zh
-    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['mcp', 'MCP'], ['memory', '记忆'], ['data', '数据目录']]
-    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['mcp', 'MCP'], ['memory', 'Memory'], ['data', 'Data directory']]
+    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['data', '数据目录']]
+    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['data', 'Data directory']]
   const enabledToolsets = toolsets?.filter(toolset => toolset.enabled) || []
   const skillNames = skills?.filter(skill => skill.enabled).map(skill => skill.name) || []
   const filteredSkills = skills?.filter(skill => `${skill.name} ${skill.description || ''}`.toLocaleLowerCase().includes(skillQuery.trim().toLocaleLowerCase())) || []
@@ -215,6 +217,8 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
       {card(zh ? '运行参数' : 'Runtime parameters', zh ? '查看配置' : 'View settings', () => onOpenConfiguration('advanced-runtime'),
         zh ? '管理此专家的运行参数；模型配置位于统一设置的模型分类。' : 'Manage runtime parameters. Model configuration is in the Models category of Settings.', 'settings')}
       {card(zh ? '技能' : 'Skills', zh ? '查看技能' : 'View skills', () => setTab('skills'), skillsContent, 'skills')}
+      {card(zh ? 'Hermes 插件' : 'Hermes plugins', zh ? '查看已安装' : 'View installed', () => setTab('plugins'),
+        zh ? '查看并管理此 Agent 已安装的 Hermes 插件。' : 'View and manage Hermes plugins installed for this Agent.', 'skills')}
       {card('MCP', zh ? '管理 MCP' : 'Manage MCP', () => setTab('mcp'), mcpContent, 'mcp')}
       {card(zh ? '记忆' : 'Memory', zh ? '查看记忆' : 'View memory', onOpenMemory, memoryContent, 'memory')}
       {card(zh ? '数据目录' : 'Data directory', zh ? '查看目录' : 'Browse folder', () => setTab('data'), dataContent, 'data', !served)}
@@ -249,6 +253,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
         </button>
       </li>)}</ul> : <p className="profile-skill-empty">{skillQuery.trim() ? (zh ? '没有匹配的技能。' : 'No matching skills.') : (zh ? '此 Profile 暂无技能。' : 'No skills in this profile.')}</p>)}
     </section>}
+    {tab === 'plugins' && <ProfileHermesPlugins key={workspace} profile={profiles?.selected || null} served={served} onOpenSources={onOpenExtensions} />}
     {tab === 'mcp' && <section className="profile-skills-panel profile-mcp-panel" aria-label={zh ? '此 Profile 的 MCP' : 'MCP in this profile'}>
       <div className="profile-skills-heading"><div><h3>{zh ? '此 Profile 的 MCP' : 'MCP in this profile'}</h3><p>{servers === null ? (zh ? '读取 MCP 中…' : 'Loading MCP…') : (zh ? `${servers.length} 个已配置 MCP` : `${servers.length} configured MCP servers`)}</p></div>
         <button type="button" disabled={!served || mcpBusy} onClick={() => void refreshMcp()}>{zh ? '刷新' : 'Refresh'}</button></div>

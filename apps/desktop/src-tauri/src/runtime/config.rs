@@ -56,7 +56,7 @@ async fn request_with_auth(
         .send()
         .await
         .map_err(|_| "配置请求失败".to_string())?;
-    const LIMIT: usize = 2 * 1024 * 1024;
+    const LIMIT: usize = 50 * 1024 * 1024;
     if response
         .content_length()
         .is_some_and(|size| size > LIMIT as u64)

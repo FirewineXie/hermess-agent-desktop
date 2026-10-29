@@ -1,6 +1,6 @@
 use super::{
-    config::config_request_for_scope, jobs, mcp_registry, modelscope, modelscope_mcp,
-    profile_scope::ResolvedProfileScope, BackendState,
+    config::config_request_for_scope, hermes_plugins, jobs, mcp_registry, modelscope,
+    modelscope_mcp, profile_scope::ResolvedProfileScope, BackendState,
 };
 use crate::errors::DesktopFailure;
 use reqwest::{Method, Url};
@@ -24,6 +24,9 @@ pub async fn extension_request(
     payload: Value,
 ) -> Result<Value, DesktopFailure> {
     let scope = state.resolve_profile(&profile).await?;
+    if operation.starts_with("hermesPlugins.") {
+        return hermes_plugins::request(&state, &scope, &operation, &payload).await;
+    }
     if operation.starts_with("jobs.") {
         return jobs::request(&state, &scope, &operation, &payload).await;
     }

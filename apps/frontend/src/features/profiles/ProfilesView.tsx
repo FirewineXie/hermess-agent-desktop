@@ -83,6 +83,7 @@ export default function ProfilesView(props: Props) {
       onOpenConfiguration={props.onOpenConfiguration}
       onOpenChannels={props.onOpenChannels}
       onOpenUsage={props.onOpenUsage}
+      onOpenExtensions={props.onOpenExtensions}
     />}</div>
   </section>
 }

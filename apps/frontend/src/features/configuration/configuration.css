@@ -8,6 +8,14 @@
 .configuration-settings .config-yaml { min-height: 440px; }
 .configuration-settings button { padding: 9px 13px; border: 1px solid #e3e8ef; border-radius: 9px; background: #fff; color: #243f65; font: inherit; cursor: pointer; }
 .configuration-settings button:disabled { opacity: .5; cursor: default; }
+.browser-control-settings { display: grid; justify-items: start; gap: 14px; margin-top: 24px; }
+.browser-control-settings fieldset { display: grid; gap: 12px; width: 100%; }
+.browser-control-settings legend { margin-bottom: 14px; font-size: 16px; font-weight: 650; }
+.configuration-settings .browser-control-option { display: flex; align-items: flex-start; gap: 12px; width: 100%; margin: 0; padding: 16px; border: 1px solid #dce3eb; border-radius: 10px; cursor: pointer; }
+.configuration-settings .browser-control-option input[type='radio'] { flex: none; width: 18px; min-width: 18px; height: 18px; margin-top: 3px; padding: 0; }
+.browser-control-option span { display: grid; gap: 6px; }
+.browser-control-option small { color: #64748b; line-height: 1.55; }
+.browser-control-settings > p { margin: 0; color: #64748b; }
 .configuration-settings .config-field-preview { display: flex; background: transparent; border: 0; border-radius: 0; text-align: left; }
 .configuration-settings .config-field-preview:hover { background: #f5f8fc; }
 .configuration-settings .config-field-actions button:first-child, .configuration-settings .configuration-mode button[aria-pressed=true] { background: #1b6ffd; color: #fff; }

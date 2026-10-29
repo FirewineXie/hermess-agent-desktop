@@ -1,5 +1,5 @@
-export type SettingsCategory = 'security' | 'advanced' | 'models' | 'memory' | 'notifications' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
-export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'delegation' | 'device' | 'quick-input' | 'providers' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'runtime' | 'diagnostics' | 'update' | 'about'
+export type SettingsCategory = 'security' | 'advanced' | 'models' | 'memory' | 'notifications' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
+export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'delegation' | 'device' | 'quick-input' | 'providers' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about'
 
 export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory; zh: string; en: string }> = [
   { id: 'security-approvals', category: 'security', zh: '审批与允许列表', en: 'Approvals & allowlist' },
@@ -22,6 +22,7 @@ export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory
   { id: 'memory-context', category: 'memory', zh: '上下文与压缩', en: 'Context & compression' },
   { id: 'notification-alerts', category: 'notifications', zh: '桌面提醒', en: 'Desktop alerts' },
   { id: 'notification-sounds', category: 'notifications', zh: '提示音', en: 'Sounds' },
+  { id: 'browser', category: 'browser', zh: '浏览器控制', en: 'Browser control' },
   { id: 'runtime', category: 'runtime', zh: '运行时与存储', en: 'Runtime & storage' },
   { id: 'diagnostics', category: 'diagnostics', zh: '开发者诊断', en: 'Developer diagnostics' },
   { id: 'update', category: 'update', zh: '软件更新', en: 'Software updates' },
@@ -40,6 +41,7 @@ export const settingsCategories: Array<{
   { id: 'models', page: 'providers', zh: '模型', en: 'Models', descriptionZh: '当前 Profile 的提供商与模型配置', descriptionEn: 'Providers and models for the selected Profile', profileScoped: true },
   { id: 'memory', page: 'memory-persistent', zh: '记忆与上下文', en: 'Memory & context', descriptionZh: '当前 Profile 的持久记忆、上下文和压缩配置', descriptionEn: 'Memory, context, and compression for the selected Profile', profileScoped: true },
   { id: 'notifications', page: 'notification-alerts', zh: '通知', en: 'Notifications', descriptionZh: '本机原生通知与完成提示音', descriptionEn: 'Native notifications and completion sounds on this device', profileScoped: false },
+  { id: 'browser', page: 'browser', zh: '浏览器', en: 'Browser', descriptionZh: '当前 Profile 的浏览器控制方式', descriptionEn: 'Browser control for the selected Profile', profileScoped: true },
   { id: 'security', page: 'security-approvals', zh: '安全', en: 'Security', descriptionZh: '当前 Profile 的审批、隐私与检查点', descriptionEn: 'Approvals, privacy, and checkpoints for this Profile', profileScoped: true },
   { id: 'advanced', page: 'advanced-runtime', zh: '高级', en: 'Advanced', descriptionZh: '当前 Profile 的运行参数与完整配置', descriptionEn: 'Runtime parameters and full configuration for this Profile', profileScoped: true },
   { id: 'desktop', page: 'device', zh: '桌面', en: 'Desktop', descriptionZh: '设备偏好与全局快捷输入', descriptionEn: 'Device preferences and global quick input', profileScoped: false },
