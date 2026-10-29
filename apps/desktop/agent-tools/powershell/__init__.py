@@ -28,7 +28,7 @@ SCHEMA = {
 def register(ctx):
     ctx.register_tool(
         name="powershell_execute",
-        toolset="terminal",
+        toolset="desktop_ui",
         schema=SCHEMA,
         handler=lambda args, **kwargs: execute(args, task_id=kwargs.get("task_id")),
         check_fn=available,

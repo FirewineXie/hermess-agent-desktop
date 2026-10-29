@@ -4,6 +4,8 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-30 修复 Windows 桌面会话中 `powershell_execute` 被延迟工具搜索收起，导致模型直接调用需 bash 的 `terminal` 时可能出现 `No shell found`：将产品插件归入直接展示的 `desktop_ui` 工具集，并把新建会话的来源值从 `gui` 统一为锁定 Gateway 识别的 `desktop`（恢复会话原已使用该值）；保留其他工具的延迟加载及各 Profile 的插件禁用选择。Windows 本地 `verify-powershell-tool.py`（含模型实际工具列表、PowerShell 5.1/7 执行和命名 Profile 注册）、Rust 格式与两项定向测试、架构检查、上游锁校验通过；真实模型会话、原生窗口和 macOS 原生行为未验收。未修改 Hermes fork。
+
 2026-10-30 Windows PowerShell Tool 补齐命名 Profile：启动时向已有有效命名 Profile 部署插件，新建 Profile 后立即部署并通知已运行 Gateway 重新扫描；每个 Profile 首次启用后可独立禁用，后续启动不覆盖禁用选择。工具脚本将常用 PowerShell 文本读写命令及进程输出默认设为 UTF-8，显式 `-Encoding` 仍优先；Windows PowerShell 5.1 写入时使用 UTF-8 BOM。“关于”页的工具卡片仅在 Windows 显示。Windows 本地根与隔离命名 Profile 的插件注册、PowerShell 5.1/7 中文文本读写、重定向、退出码验证，Rust 格式/编译检查、Rust 单测（111 通过、5 忽略）及架构检查通过；真实多 Profile 原生窗口操作、安装包和 macOS 原生行为未验收。macOS 不部署此 Windows 专用工具，锁定 Hermes fork 未修改。
 
 2026-10-29 专家管理新增非 `default` Profile 删除入口，输入内部标识确认后由桌面端核对产品自有 Gateway 与 Profile 名册，调用锁定 Hermes 的删除接口；删除当前 Profile 后切回 `default`，并区分身份清理待完成与完全完成。新增所有 Profile 的显示名称编辑，支持中文，内部标识和数据目录不变。修复 Windows 命名 Profile 申请本地 HTTP 凭据时传入 `\\?\` 路径而导致概览四项读取报“当前状态已变化”的问题。Windows 本地前端类型检查、生产构建、契约/生成契约/架构检查、Rust 格式与编译检查、Rust 单测（110 通过、5 忽略）、隔离临时 Profile 的中文显示名写入回读、差异检查通过；开发窗口已确认非默认 Profile 显示删除按钮，命名 Profile 概览读取恢复。实际删除和显示名保存未在真实 Profile 上执行，Windows/macOS 安装包及 macOS 原生行为仍待验收；WorkBuddy 导入窗口的中文显示名输入尚未接入，锁定 Hermes fork 未修改。

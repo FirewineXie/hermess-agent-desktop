@@ -32,18 +32,19 @@ def main() -> None:
 
         discover_plugins()
         entry = registry.get_entry("powershell_execute")
-        if entry is None or entry.toolset != "terminal":
-            raise RuntimeError("PowerShell Tool was not registered in the terminal toolset")
-        if "powershell_execute" not in resolve_toolset("terminal"):
-            raise RuntimeError("terminal toolset did not expose PowerShell Tool")
+        if entry is None or entry.toolset != "desktop_ui":
+            raise RuntimeError("PowerShell Tool was not registered in the desktop UI toolset")
+        if "powershell_execute" not in resolve_toolset("desktop_ui"):
+            raise RuntimeError("desktop UI toolset did not expose PowerShell Tool")
+        if "powershell_execute" in resolve_toolset("terminal"):
+            raise RuntimeError("PowerShell Tool leaked into non-desktop terminal sessions")
         if not entry.check_fn():
             raise RuntimeError("No usable PowerShell found in this Windows environment")
 
         from model_tools import get_tool_definitions
 
         definitions = get_tool_definitions(
-            enabled_toolsets=["terminal"], quiet_mode=True,
-            skip_tool_search_assembly=True,
+            enabled_toolsets=["desktop_ui", "terminal"], quiet_mode=True,
         )
         powershell_definition = next(
             (item["function"] for item in definitions
@@ -51,7 +52,10 @@ def main() -> None:
             None,
         )
         if powershell_definition is None:
-            raise RuntimeError("PowerShell Tool schema is unavailable to the model")
+            raise RuntimeError("PowerShell Tool is missing from the model-visible desktop tools")
+        terminal_definitions = get_tool_definitions(enabled_toolsets=["terminal"], quiet_mode=True)
+        if any(item["function"]["name"] == "powershell_execute" for item in terminal_definitions):
+            raise RuntimeError("PowerShell Tool is visible in a non-desktop terminal session")
         description = powershell_definition.get("description", "")
         if "use this instead of `terminal`" not in description or "requires bash" not in description:
             raise RuntimeError("PowerShell Tool schema does not explain Windows terminal routing")

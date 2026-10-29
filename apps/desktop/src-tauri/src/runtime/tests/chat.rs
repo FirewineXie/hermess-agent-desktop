@@ -51,6 +51,7 @@ fn selected_workspace_must_be_an_existing_absolute_directory() {
 #[test]
 fn default_workspace_leaves_cwd_out_of_the_gateway_request() {
     let default = session_create_params(None, None, None, None);
+    assert_eq!(default["source"], "desktop");
     assert!(default.get("cwd").is_none());
     assert!(default.get("cwd_explicit").is_none());
     let selected = session_create_params(Some("C:\\work".into()), None, None, None);
