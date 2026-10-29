@@ -1,3 +1,4 @@
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
 pub mod browser_bridge;
 pub mod channels;
@@ -90,7 +91,7 @@ struct RestartDrainGuard(PathBuf);
 
 impl Drop for RestartDrainGuard {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        let _ = fs::remove_file(filesystem_path(&self.0));
     }
 }
 
@@ -141,7 +142,7 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
     }
     let product = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     let build = product.join(".build");
     let python = build.join("hermes-venv-i1").join(if cfg!(windows) {
@@ -159,19 +160,7 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
 }
 
 fn hermes_process_path(path: &Path) -> PathBuf {
-    #[cfg(windows)]
-    {
-        // Rust canonicalize() adds an extended-length prefix. Hermes PM records paths
-        // without it and compares Path objects when validating its dependency lock.
-        let value = path.to_string_lossy();
-        if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
-            return PathBuf::from(format!(r"\\{unc}"));
-        }
-        if let Some(local) = value.strip_prefix(r"\\?\") {
-            return PathBuf::from(local);
-        }
-    }
-    path.to_owned()
+    plain_path(path)
 }
 
 pub(crate) fn existing_client_log_storage(app: &AppHandle) -> Option<PathBuf> {
@@ -278,11 +267,11 @@ pub async fn start_dev_backend(
         return Err("开发态后端启动仅在调试构建可用".into());
     }
     let python = PathBuf::from(python_path)
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::invalid_input())?;
     let product = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     if !python.starts_with(product.join(".build")) {
         return Err(DesktopFailure::invalid_input());
@@ -295,9 +284,15 @@ pub async fn start_dev_backend(
     if !hermes.is_file() {
         return Err(DesktopFailure::runtime_unavailable());
     }
-    launch_backend(app, &state, hermes, PathBuf::from(storage_path), false)
-        .await
-        .map_err(Into::into)
+    launch_backend(
+        app,
+        &state,
+        hermes,
+        plain_path(Path::new(&storage_path)),
+        false,
+    )
+    .await
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -312,6 +307,7 @@ pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, Desktop
         None => app
             .path()
             .app_local_data_dir()
+            .map(|path| plain_path(&path))
             .map_err(|_| "无法定位默认数据目录".to_string())?,
     };
     Ok(PackedDefaults {
@@ -332,17 +328,18 @@ pub async fn start_packed_backend(
     let resource = app
         .path()
         .resource_dir()
+        .map(|path| plain_path(&path))
         .map_err(|_| "无法定位应用资源目录".to_string())?;
-    let selected = PathBuf::from(storage_path);
+    let selected = plain_path(Path::new(&storage_path));
     if let Some(saved) = saved_storage_path(&app)? {
         if !saved.exists() {
             return Err(DesktopFailure::runtime_unavailable());
         }
         if saved
-            .canonicalize()
+            .canonicalize_plain()
             .map_err(|_| "无法解析已选存储位置".to_string())?
             != selected
-                .canonicalize()
+                .canonicalize_plain()
                 .map_err(|_| "主要存储位置与已保存位置不一致".to_string())?
         {
             return Err(DesktopFailure::conflict());
@@ -360,7 +357,7 @@ pub async fn start_packed_backend(
     let hermes = validate_payload(&resource.join("runtime/payload"))?;
     if saved_storage_path(&app)?.is_none() {
         let resolved = selected
-            .canonicalize()
+            .canonicalize_plain()
             .map_err(|_| "无法解析主要存储位置".to_string())?;
         save_storage_path(&app, &resolved)?;
     }
@@ -386,14 +383,15 @@ async fn launch_backend(
     if let Some(info) = reuse_owned_backend(&mut owned, app.clone(), &selected).await? {
         return Ok(info);
     }
-    fs::create_dir_all(&selected).map_err(|_| "无法创建存储位置".to_string())?;
+    fs::create_dir_all(filesystem_path(&selected)).map_err(|_| "无法创建存储位置".to_string())?;
     let storage = selected
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法解析存储位置".to_string())?
         .join("HermessAgentDesktop");
-    fs::create_dir_all(storage.join("control")).map_err(|_| "无法创建产品控制目录".to_string())?;
+    fs::create_dir_all(filesystem_path(&storage.join("control")))
+        .map_err(|_| "无法创建产品控制目录".to_string())?;
     let storage = storage
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法解析产品存储目录".to_string())?;
     let storage_lock = acquire_storage_lock(&storage)?;
     crate::diagnostics::set_client_log_storage(storage.clone());
@@ -569,7 +567,7 @@ fn backend_running(backend: &mut OwnedBackend) -> Result<bool, String> {
 }
 
 fn running_storage_matches(storage: &Path, selected: &Path) -> bool {
-    selected.canonicalize().ok().as_deref() == storage.parent()
+    selected.canonicalize_plain().ok().as_deref() == storage.parent()
 }
 
 #[tauri::command]

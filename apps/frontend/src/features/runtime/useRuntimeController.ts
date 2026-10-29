@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { activateWorkspaceEpoch } from '../../app/profile-scope/ProfileWorkspace'
+import { displayPath } from '../../shared/displayPath'
 
 type Options = {
   t: (key: string, ...values: unknown[]) => string
@@ -33,13 +34,13 @@ export function useRuntimeController({ t, onReset }: Options) {
         if (import.meta.env.DEV) {
           const defaults = await runtime.devDefaults()
           if (!active) return
-          setPythonPath(defaults.python_path)
-          setStoragePath(defaults.storage_path)
+          setPythonPath(displayPath(defaults.python_path))
+          setStoragePath(displayPath(defaults.storage_path))
           await startBackend(defaults.storage_path, defaults.python_path)
         } else {
           const defaults = await runtime.packedDefaults()
           if (!active) return
-          setStoragePath(defaults.storage_path)
+          setStoragePath(displayPath(defaults.storage_path))
           setStorageLocked(defaults.initialized)
           await startBackend(defaults.storage_path)
         }
@@ -76,7 +77,7 @@ export function useRuntimeController({ t, onReset }: Options) {
   async function chooseStoragePath() {
     try {
       const selected = await nativeFiles.choose({ directory: true, multiple: false, title: t("ui.choose.primary.storage.location") })
-      if (typeof selected === 'string') setStoragePath(selected)
+      if (typeof selected === 'string') setStoragePath(displayPath(selected))
     } catch (cause) { setBackendStatus(t("ui.failed.to.select.directory.arg", describeError(cause, language))) }
   }
 

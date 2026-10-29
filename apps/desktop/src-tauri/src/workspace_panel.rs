@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -55,30 +56,31 @@ impl WorkspaceScope {
             return Err(DesktopFailure::invalid_input());
         }
         let root = if self.path.is_empty() {
-            std::env::current_dir().map_err(|_| DesktopFailure::operation_failed())?
+            std::env::current_dir()
+                .map(|path| plain_path(&path))
+                .map_err(|_| DesktopFailure::operation_failed())?
         } else {
-            PathBuf::from(&self.path)
+            plain_path(Path::new(&self.path))
         };
-        if !root.is_absolute() || !root.is_dir() {
+        if !root.is_absolute() || !filesystem_path(&root).is_dir() {
             return Err(DesktopFailure::invalid_input());
         }
         Ok(root)
     }
 
     pub fn checked_path(&self, path: Option<&str>) -> Result<PathBuf, DesktopFailure> {
-        let root = self
-            .root()?
-            .canonicalize()
+        let root = filesystem_path(&self.root()?)
+            .canonicalize_plain()
             .map_err(|_| DesktopFailure::invalid_input())?;
         let target = path
             .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
+            .map(|value| plain_path(Path::new(value)))
             .unwrap_or_else(|| root.clone());
         if !target.is_absolute() {
             return Err(DesktopFailure::invalid_input());
         }
-        let target = target
-            .canonicalize()
+        let target = filesystem_path(&target)
+            .canonicalize_plain()
             .map_err(|_| DesktopFailure::invalid_input())?;
         if !target.starts_with(root) {
             return Err(DesktopFailure::invalid_input());
@@ -93,10 +95,10 @@ pub fn list_workspace_panel_directory(
     path: Option<String>,
 ) -> Result<PanelDirectory, DesktopFailure> {
     let directory = scope.checked_path(path.as_deref())?;
-    if !directory.is_dir() {
+    if !filesystem_path(&directory).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
-    let mut entries = fs::read_dir(&directory)
+    let mut entries = fs::read_dir(filesystem_path(&directory))
         .map_err(|_| DesktopFailure::operation_failed())?
         .map(|entry| {
             let entry = entry.map_err(|_| DesktopFailure::operation_failed())?;
@@ -105,7 +107,7 @@ pub fn list_workspace_panel_directory(
                 .map_err(|_| DesktopFailure::operation_failed())?;
             // Do not follow directory symlinks while expanding the workspace tree.
             Ok(PanelEntry {
-                path: entry.path().to_string_lossy().into_owned(),
+                path: plain_path(&entry.path()).to_string_lossy().into_owned(),
                 name: entry.file_name().to_string_lossy().into_owned(),
                 directory: file_type.is_dir(),
             })
@@ -145,8 +147,9 @@ pub struct LocalHtmlPreview {
 
 #[tauri::command]
 pub fn read_local_preview_html(path: String) -> Result<LocalHtmlPreview, DesktopFailure> {
-    let source = Path::new(&path);
-    if !source.is_absolute() || !source.is_file() {
+    let plain = plain_path(Path::new(&path));
+    let source = plain.as_path();
+    if !source.is_absolute() || !filesystem_path(source).is_file() {
         return Err(DesktopFailure::invalid_input());
     }
     let extension = source
@@ -157,14 +160,18 @@ pub fn read_local_preview_html(path: String) -> Result<LocalHtmlPreview, Desktop
     if extension != "html" && extension != "htm" {
         return Err(DesktopFailure::invalid_input());
     }
-    let size = fs::metadata(source)
+    let size = fs::metadata(filesystem_path(source))
         .map_err(|_| DesktopFailure::operation_failed())?
         .len();
     if size > 20 * 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let content = fs::read_to_string(source).map_err(|_| DesktopFailure::operation_failed())?;
-    Ok(LocalHtmlPreview { path, content })
+    let content = fs::read_to_string(filesystem_path(source))
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    Ok(LocalHtmlPreview {
+        path: plain.to_string_lossy().into_owned(),
+        content,
+    })
 }
 
 #[tauri::command]
@@ -174,10 +181,10 @@ pub fn read_workspace_panel_file(
 ) -> Result<PanelFile, DesktopFailure> {
     let checked = scope.checked_path(Some(&path))?;
     let source = Path::new(&checked);
-    if !source.is_file() {
+    if !filesystem_path(source).is_file() {
         return Err(DesktopFailure::invalid_input());
     }
-    let size = fs::metadata(source)
+    let size = fs::metadata(filesystem_path(source))
         .map_err(|_| DesktopFailure::operation_failed())?
         .len();
     let extension = source
@@ -197,13 +204,15 @@ pub fn read_workspace_panel_file(
         if size > 8 * 1024 * 1024 {
             return Err(DesktopFailure::invalid_input());
         }
-        let data = fs::read(source).map_err(|_| DesktopFailure::operation_failed())?;
+        let data =
+            fs::read(filesystem_path(source)).map_err(|_| DesktopFailure::operation_failed())?;
         (
             "image",
             format!("data:{mime};base64,{}", STANDARD.encode(data)),
         )
     } else if size <= 2 * 1024 * 1024 {
-        let data = fs::read(source).map_err(|_| DesktopFailure::operation_failed())?;
+        let data =
+            fs::read(filesystem_path(source)).map_err(|_| DesktopFailure::operation_failed())?;
         match String::from_utf8(data) {
             Ok(value) => ("text", value),
             Err(_) => ("unsupported", String::new()),
@@ -216,7 +225,7 @@ pub fn read_workspace_panel_file(
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     Ok(PanelFile {
-        path,
+        path: checked.to_string_lossy().into_owned(),
         name,
         kind,
         content,

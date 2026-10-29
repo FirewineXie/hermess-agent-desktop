@@ -1,4 +1,5 @@
 import React from 'react'
+import { displayPath } from '../../shared/displayPath'
 
 const storageKey = 'hermess.workspaces.v1'
 
@@ -7,8 +8,9 @@ type SavedWorkspaces = { paths: string[]; selected: string }
 function readSaved(): SavedWorkspaces {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey) || '{}') as Partial<SavedWorkspaces>
-    const paths = Array.isArray(value.paths) ? value.paths.filter((path): path is string => typeof path === 'string' && Boolean(path.trim())) : []
-    return { paths, selected: typeof value.selected === 'string' && paths.includes(value.selected) ? value.selected : '' }
+    const paths = Array.isArray(value.paths) ? value.paths.filter((path): path is string => typeof path === 'string' && Boolean(path.trim())).map(displayPath) : []
+    const selected = typeof value.selected === 'string' ? displayPath(value.selected) : ''
+    return { paths, selected: paths.includes(selected) ? selected : '' }
   } catch { return { paths: [], selected: '' } }
 }
 
@@ -24,6 +26,7 @@ export function useWorkspaces() {
   }, [saved])
 
   function add(path: string) {
+    path = displayPath(path)
     setSaved(current => {
       const existing = current.paths.find(item => samePath(item, path))
       return existing ? { ...current, selected: existing } : { paths: [...current.paths, path], selected: path }
@@ -31,10 +34,12 @@ export function useWorkspaces() {
   }
 
   function select(path: string) {
+    path = displayPath(path)
     setSaved(current => ({ ...current, selected: path === '' || current.paths.includes(path) ? path : current.selected }))
   }
 
   function remove(path: string) {
+    path = displayPath(path)
     setSaved(current => ({ paths: current.paths.filter(item => item !== path), selected: current.selected === path ? '' : current.selected }))
   }
 

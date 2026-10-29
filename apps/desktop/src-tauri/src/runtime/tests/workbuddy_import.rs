@@ -1,6 +1,35 @@
 use super::{copy_into_profile, inspect, valid_name};
 use std::fs;
 
+#[cfg(windows)]
+#[test]
+fn deep_package_scan_keeps_relative_paths_plain() {
+    use super::collect;
+    use crate::paths::filesystem_path;
+
+    let base = std::env::temp_dir().join(format!("workbuddy-deep-{}", uuid::Uuid::new_v4()));
+    let root = (0..5).fold(base.clone(), |path, index| {
+        path.join(format!("{index}-{}", "a".repeat(48)))
+    });
+    let nested = root.join("nested");
+    fs::create_dir_all(filesystem_path(&nested)).unwrap();
+    fs::write(filesystem_path(&nested.join("note.txt")), b"content").unwrap();
+
+    let mut files = Vec::new();
+    let mut total = 0;
+    collect(&root, &root, &mut files, &mut total).unwrap();
+    assert_eq!(
+        files,
+        [(
+            std::path::PathBuf::from("nested/note.txt"),
+            b"content".to_vec()
+        )]
+    );
+    assert_eq!(total, 7);
+
+    fs::remove_dir_all(filesystem_path(&base)).unwrap();
+}
+
 fn sample() -> std::path::PathBuf {
     let root = std::env::temp_dir().join(format!("workbuddy-import-test-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(root.join(".codebuddy-plugin")).unwrap();

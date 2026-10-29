@@ -1,5 +1,6 @@
 use super::{config::config_request_for_scope, profile_scope::ResolvedProfileScope, BackendState};
 use crate::errors::DesktopFailure;
+use crate::paths::filesystem_path;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -61,7 +62,7 @@ fn file_version(raw: Option<&[u8]>) -> String {
 }
 
 fn read_bytes(path: &Path) -> Result<Option<Vec<u8>>, DesktopFailure> {
-    let metadata = match fs::symlink_metadata(path) {
+    let metadata = match fs::symlink_metadata(filesystem_path(path)) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(DesktopFailure::operation_failed()),
@@ -69,7 +70,7 @@ fn read_bytes(path: &Path) -> Result<Option<Vec<u8>>, DesktopFailure> {
     if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_BYTES as u64 {
         return Err(DesktopFailure::invalid_input());
     }
-    let raw = fs::read(path).map_err(|_| DesktopFailure::operation_failed())?;
+    let raw = fs::read(filesystem_path(path)).map_err(|_| DesktopFailure::operation_failed())?;
     if raw.len() > MAX_FILE_BYTES {
         return Err(DesktopFailure::invalid_input());
     }
@@ -127,13 +128,14 @@ fn memory_config(config: &Value, kind: PersonalFileKind) -> (Option<bool>, Optio
 
 fn lock_file(lock_path: &Path) -> Result<File, DesktopFailure> {
     if let Some(parent) = lock_path.parent() {
-        fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
+        fs::create_dir_all(filesystem_path(parent))
+            .map_err(|_| DesktopFailure::operation_failed())?;
     }
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(lock_path)
+        .open(filesystem_path(lock_path))
         .map_err(|_| DesktopFailure::operation_failed())?;
     file.lock()
         .map_err(|_| DesktopFailure::operation_failed())?;
@@ -150,7 +152,7 @@ fn write_checked(
         return Err(DesktopFailure::invalid_input());
     }
     let parent = path.parent().ok_or_else(DesktopFailure::invalid_input)?;
-    fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
+    fs::create_dir_all(filesystem_path(parent)).map_err(|_| DesktopFailure::operation_failed())?;
     let _lock = lock_file(lock_path)?;
     let current = read_bytes(path)?;
     if file_version(current.as_deref()) != expected_version {
@@ -161,14 +163,14 @@ fn write_checked(
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&temp)?;
+            .open(filesystem_path(&temp))?;
         file.write_all(content.as_bytes())?;
         file.sync_all()?;
-        fs::rename(&temp, path)?;
+        fs::rename(filesystem_path(&temp), filesystem_path(path))?;
         Ok(())
     })();
     if result.is_err() {
-        let _ = fs::remove_file(&temp);
+        let _ = fs::remove_file(filesystem_path(&temp));
         return Err(DesktopFailure::operation_failed());
     }
     Ok(())

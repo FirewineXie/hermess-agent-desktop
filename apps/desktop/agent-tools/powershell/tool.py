@@ -14,6 +14,17 @@ import time
 
 _VERSION = re.compile(r"^(\d+)\.(\d+)(?:\.\d+){0,2}$")
 _MAX_OUTPUT_BYTES = 256 * 1024
+
+
+def _plain_windows_path(value: str) -> str:
+    value = value.replace("/", "\\")
+    if value.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + value[8:]
+    if value.startswith("\\\\?\\") and len(value) > 6 and value[5:7] == ":\\":
+        return value[4:]
+    return value
+
+
 _UTF8_DEFAULTS = """$__hermess_utf8 = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = $__hermess_utf8
 [Console]::OutputEncoding = $__hermess_utf8
@@ -39,7 +50,7 @@ def _candidates():
     for value in values:
         if not value:
             continue
-        path = Path(value)
+        path = Path(_plain_windows_path(value))
         key = str(path).casefold()
         if key not in seen and path.is_file():
             seen.add(key)
@@ -102,6 +113,8 @@ def execute(args: dict, *, task_id: str | None = None):
 
     workdir = (args.get("workdir") or (get_session_cwd(task_id) if task_id else None)
                or os.environ.get("TERMINAL_CWD") or os.getcwd())
+    if isinstance(workdir, str):
+        workdir = _plain_windows_path(workdir)
     if not isinstance(workdir, str) or not Path(workdir).is_absolute() or not Path(workdir).is_dir():
         return _result(error="workdir must be an existing absolute directory", exit_code=1)
     timeout = args.get("timeout", 120)

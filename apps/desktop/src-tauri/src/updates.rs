@@ -1,6 +1,7 @@
 //! Read public GitHub releases, verify an installer, and hand it to the OS.
 
 use crate::errors::DesktopFailure;
+use crate::paths::{filesystem_path, plain_path};
 use reqwest::{Client, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -361,7 +362,7 @@ async fn stream_installer(
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(temp)
+        .open(filesystem_path(temp))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     let mut hasher = Sha256::new();
@@ -463,13 +464,14 @@ pub async fn download_update(
     let downloads = app
         .path()
         .download_dir()
+        .map(|path| plain_path(&path))
         .map_err(|_| DesktopFailure::operation_failed())?;
     crate::diagnostics::log_client_event("update download directory resolved");
-    tokio::fs::create_dir_all(&downloads)
+    tokio::fs::create_dir_all(filesystem_path(&downloads))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     let destination = downloads.join(&selected.name);
-    if tokio::fs::try_exists(&destination)
+    if tokio::fs::try_exists(filesystem_path(&destination))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?
     {
@@ -483,14 +485,17 @@ pub async fn download_update(
     if let Err(error) =
         stream_installer(&app, &client, &tag_name, asset, &temp, &selected.sha256).await
     {
-        let _ = tokio::fs::remove_file(&temp).await;
+        let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
         return Err(error);
     }
-    if tokio::fs::hard_link(&temp, &destination).await.is_err() {
-        let _ = tokio::fs::remove_file(&temp).await;
+    if tokio::fs::hard_link(filesystem_path(&temp), filesystem_path(&destination))
+        .await
+        .is_err()
+    {
+        let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
         return Err(DesktopFailure::conflict());
     }
-    let _ = tokio::fs::remove_file(&temp).await;
+    let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
     Ok(destination.to_string_lossy().into_owned())
 }
 

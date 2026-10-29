@@ -27,8 +27,13 @@ mod windows_notification {
         key.set_string("IconBackgroundColor", "0")
             .map_err(|_| DesktopFailure::operation_failed())?;
         if let Ok(executable) = std::env::current_exe() {
-            key.set_string("IconUri", executable.to_string_lossy().as_ref())
-                .map_err(|_| DesktopFailure::operation_failed())?;
+            key.set_string(
+                "IconUri",
+                crate::paths::plain_path(&executable)
+                    .to_string_lossy()
+                    .as_ref(),
+            )
+            .map_err(|_| DesktopFailure::operation_failed())?;
         }
         Ok(())
     }

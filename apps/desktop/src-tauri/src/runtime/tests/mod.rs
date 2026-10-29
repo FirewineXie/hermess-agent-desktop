@@ -12,6 +12,7 @@ use super::{
 use crate::diagnostics::{
     append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
 };
+use crate::paths::CanonicalizePlain;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -73,7 +74,7 @@ fn runtime_defaults_and_tool_inventory_serialize_contract_fields() {
     let dev = dev_backend_defaults().unwrap();
     let build = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .unwrap()
         .join(".build");
     assert_eq!(
@@ -147,7 +148,10 @@ fn running_backend_rejects_a_different_storage_location() {
     let second = root.join("second");
     fs::create_dir_all(first.join("HermessAgentDesktop")).unwrap();
     fs::create_dir_all(&second).unwrap();
-    let running = first.join("HermessAgentDesktop").canonicalize().unwrap();
+    let running = first
+        .join("HermessAgentDesktop")
+        .canonicalize_plain()
+        .unwrap();
     assert!(running_storage_matches(&running, &first));
     assert!(!running_storage_matches(&running, &second));
     assert!(!running_storage_matches(&running, &root.join("missing")));

@@ -1,5 +1,6 @@
 use super::{profiles, BackendState};
 use crate::errors::DesktopFailure;
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -108,7 +109,7 @@ fn package_path(root: &Path, raw: &str) -> Result<PathBuf, DesktopFailure> {
     }
     let full = root.join(relative);
     if !full
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::invalid_input())?
         .starts_with(root)
     {
@@ -123,14 +124,15 @@ fn collect(
     files: &mut Vec<(PathBuf, Vec<u8>)>,
     total: &mut u64,
 ) -> Result<(), DesktopFailure> {
-    let mut entries = fs::read_dir(dir)
+    let mut entries = fs::read_dir(filesystem_path(dir))
         .map_err(|_| DesktopFailure::invalid_input())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| DesktopFailure::invalid_input())?;
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
-        let path = entry.path();
-        let metadata = fs::symlink_metadata(&path).map_err(|_| DesktopFailure::invalid_input())?;
+        let path = plain_path(&entry.path());
+        let metadata = fs::symlink_metadata(filesystem_path(&path))
+            .map_err(|_| DesktopFailure::invalid_input())?;
         #[cfg(windows)]
         let reparse_point = {
             use std::os::windows::fs::MetadataExt;
@@ -141,7 +143,7 @@ fn collect(
         if metadata.file_type().is_symlink()
             || reparse_point
             || !path
-                .canonicalize()
+                .canonicalize_plain()
                 .map_err(|_| DesktopFailure::invalid_input())?
                 .starts_with(root)
         {
@@ -156,7 +158,8 @@ fn collect(
             {
                 return Err(DesktopFailure::invalid_input());
             }
-            let bytes = fs::read(&path).map_err(|_| DesktopFailure::invalid_input())?;
+            let bytes =
+                fs::read(filesystem_path(&path)).map_err(|_| DesktopFailure::invalid_input())?;
             *total += bytes.len() as u64;
             files.push((
                 path.strip_prefix(root)
@@ -172,19 +175,22 @@ fn collect(
 }
 
 fn inspect(path: &str) -> Result<Inspected, DesktopFailure> {
-    let root = fs::canonicalize(path).map_err(|_| DesktopFailure::invalid_input())?;
-    if !root.is_dir() {
+    let root = Path::new(path)
+        .canonicalize_plain()
+        .map_err(|_| DesktopFailure::invalid_input())?;
+    if !filesystem_path(&root).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
     let manifest_file = package_path(&root, ".codebuddy-plugin/plugin.json")?;
-    if fs::metadata(&manifest_file)
+    if fs::metadata(filesystem_path(&manifest_file))
         .map_err(|_| DesktopFailure::invalid_input())?
         .len()
         > 256 * 1024
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let manifest_bytes = fs::read(manifest_file).map_err(|_| DesktopFailure::invalid_input())?;
+    let manifest_bytes =
+        fs::read(filesystem_path(&manifest_file)).map_err(|_| DesktopFailure::invalid_input())?;
     let raw_manifest: Value =
         serde_json::from_slice(&manifest_bytes).map_err(|_| DesktopFailure::invalid_input())?;
     if raw_manifest.get("mcp").is_some() || raw_manifest.get("mcpServers").is_some() {
@@ -207,14 +213,17 @@ fn inspect(path: &str) -> Result<Inspected, DesktopFailure> {
     let mut lead_meta = None;
     for raw in &manifest.agents {
         let file = package_path(&root, raw)?;
-        if !file.is_file() || file.extension().and_then(|s| s.to_str()) != Some("md") {
+        if !filesystem_path(&file).is_file()
+            || file.extension().and_then(|s| s.to_str()) != Some("md")
+        {
             return Err(DesktopFailure::invalid_input());
         }
         let id = file
             .file_stem()
             .and_then(|s| s.to_str())
             .ok_or_else(DesktopFailure::invalid_input)?;
-        let data = fs::read_to_string(&file).map_err(|_| DesktopFailure::invalid_input())?;
+        let data = fs::read_to_string(filesystem_path(&file))
+            .map_err(|_| DesktopFailure::invalid_input())?;
         let metadata = frontmatter(&data)?;
         if metadata.get("name").and_then(serde_yaml::Value::as_str) != Some(id) {
             return Err(DesktopFailure::invalid_input());
@@ -251,10 +260,11 @@ fn inspect(path: &str) -> Result<Inspected, DesktopFailure> {
     for raw in &manifest.skills {
         let dir = package_path(&root, raw)?;
         let skill_file = package_path(&root, &format!("{raw}/SKILL.md"))?;
-        if !dir.is_dir() || !skill_file.is_file() {
+        if !filesystem_path(&dir).is_dir() || !filesystem_path(&skill_file).is_file() {
             return Err(DesktopFailure::invalid_input());
         }
-        let data = fs::read_to_string(skill_file).map_err(|_| DesktopFailure::invalid_input())?;
+        let data = fs::read_to_string(filesystem_path(&skill_file))
+            .map_err(|_| DesktopFailure::invalid_input())?;
         let id = dir
             .file_name()
             .and_then(|s| s.to_str())
@@ -370,13 +380,13 @@ fn copy_into_profile(item: &Inspected, destination: &Path) -> Result<(), Desktop
     let record = destination
         .join("imports/workbuddy")
         .join(&item.preview.package_name);
-    if imported.exists() || record.exists() {
+    if filesystem_path(&imported).exists() || filesystem_path(&record).exists() {
         return Err(DesktopFailure::conflict());
     }
     let existing_skills = destination.join("skills");
-    if existing_skills.is_dir() {
-        for entry in
-            fs::read_dir(existing_skills).map_err(|_| DesktopFailure::operation_failed())?
+    if filesystem_path(&existing_skills).is_dir() {
+        for entry in fs::read_dir(filesystem_path(&existing_skills))
+            .map_err(|_| DesktopFailure::operation_failed())?
         {
             let entry = entry.map_err(|_| DesktopFailure::operation_failed())?;
             if item
@@ -392,13 +402,15 @@ fn copy_into_profile(item: &Inspected, destination: &Path) -> Result<(), Desktop
     for (relative, bytes) in &item.files {
         for target in [imported.join(relative), record.join(relative)] {
             if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
+                fs::create_dir_all(filesystem_path(parent))
+                    .map_err(|_| DesktopFailure::operation_failed())?;
             }
-            fs::write(target, bytes).map_err(|_| DesktopFailure::operation_failed())?;
+            fs::write(filesystem_path(&target), bytes)
+                .map_err(|_| DesktopFailure::operation_failed())?;
         }
     }
     fs::write(
-        record.join("import.json"),
+        filesystem_path(&record.join("import.json")),
         serde_json::to_vec_pretty(&item.preview).map_err(|_| DesktopFailure::operation_failed())?,
     )
     .map_err(|_| DesktopFailure::operation_failed())?;
@@ -440,7 +452,7 @@ pub async fn import_workbuddy_package(
             .join("hermes-home")
     };
     let destination = home.join("profiles").join(&profile_name);
-    if destination.exists() {
+    if filesystem_path(&destination).exists() {
         return Err(DesktopFailure::conflict());
     }
     let created =
@@ -448,7 +460,7 @@ pub async fn import_workbuddy_package(
             .await?;
     let result = tokio::task::spawn_blocking(move || {
         if let Err(error) = copy_into_profile(&item, &destination) {
-            let _ = fs::remove_dir_all(&destination);
+            let _ = fs::remove_dir_all(filesystem_path(&destination));
             return Err(error);
         }
         Ok(created)

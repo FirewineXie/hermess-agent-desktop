@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::paths::CanonicalizePlain;
 use crate::process_manager;
 use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
@@ -70,7 +71,7 @@ fn candidates(names: &[&str]) -> Vec<PathBuf> {
         for name in names {
             let candidate = directory.join(name);
             if candidate.is_file() {
-                if let Ok(real) = candidate.canonicalize() {
+                if let Ok(real) = candidate.canonicalize_plain() {
                     if !found.contains(&real) {
                         found.push(real);
                     }

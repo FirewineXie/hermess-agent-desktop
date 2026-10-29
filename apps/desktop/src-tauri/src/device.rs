@@ -1,3 +1,4 @@
+use crate::paths::plain_path;
 use crate::{device_power::WakeGuard, errors::DesktopFailure};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex};
@@ -47,6 +48,7 @@ fn path(app: &AppHandle) -> Result<PathBuf, DesktopFailure> {
     Ok(app
         .path()
         .app_config_dir()
+        .map(|path| plain_path(&path))
         .map_err(|_| DesktopFailure::operation_failed())?
         .join("desktop-preferences.json"))
 }

@@ -1,5 +1,6 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+use crate::paths::plain_path;
 use tauri::Manager;
 
 mod device;
@@ -9,6 +10,7 @@ mod errors;
 mod gateway;
 mod notifications;
 mod panel_terminal;
+mod paths;
 mod process_manager;
 mod quick_input;
 mod runtime;
@@ -53,7 +55,7 @@ fn main() {
                     app.path()
                         .app_local_data_dir()
                         .ok()
-                        .map(|path| path.join("HermessAgentDesktop"))
+                        .map(|path| plain_path(&path).join("HermessAgentDesktop"))
                 })
             {
                 diagnostics::set_client_log_storage(storage);

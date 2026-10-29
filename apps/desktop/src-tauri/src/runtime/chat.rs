@@ -1,5 +1,6 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -98,11 +99,11 @@ fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, Deskto
     let Some(path) = cwd.filter(|path| !path.trim().is_empty()) else {
         return Ok(None);
     };
-    let directory = PathBuf::from(&path);
-    if !directory.is_absolute() || !directory.is_dir() {
+    let directory = plain_path(PathBuf::from(&path).as_path());
+    if !directory.is_absolute() || !filesystem_path(&directory).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
-    Ok(Some(path))
+    Ok(Some(directory.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -233,10 +234,11 @@ fn inspect_attachment_path(
     if !source.is_absolute() {
         return Err(DesktopFailure::invalid_input());
     }
-    let source = source
-        .canonicalize()
+    let source = filesystem_path(&source)
+        .canonicalize_plain()
         .map_err(|_| "无法读取附件路径".to_string())?;
-    let metadata = fs::metadata(&source).map_err(|_| "无法读取附件信息".to_string())?;
+    let metadata =
+        fs::metadata(filesystem_path(&source)).map_err(|_| "无法读取附件信息".to_string())?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 20 * 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
@@ -258,7 +260,7 @@ fn inspect_attachment_path(
         Some("txt" | "md" | "json" | "yaml" | "yml" | "csv" | "tsv" | "py" | "js" | "ts" | "rs")
     );
     let preview = if is_text && metadata.len() <= 128 * 1024 {
-        fs::read_to_string(&source)
+        fs::read_to_string(filesystem_path(&source))
             .ok()
             .map(|content| content.chars().take(1000).collect::<String>())
     } else {
