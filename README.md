@@ -2,7 +2,7 @@
 
 Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 的中文桌面 AI 助手。它把聊天、文件工作区、独立的专家 Profile、Skill/MCP 扩展、工具和定时任务放在一个窗口中；用户可连接自己的模型，客户端负责管理独立的本地 Hermes Gateway 和数据目录。
 
-首个正式版 **v0.1.6** 提供 [Windows x64 安装包](https://github.com/FirewineXie/hermess-agent-desktop/releases/tag/v0.1.6)。macOS 和 Linux 安装包暂未随本版发布；安装、升级与真实模型的验证范围见下方路线图。
+最新正式版 **v0.1.7** 提供 [Windows x64 与 macOS Apple Silicon 安装包](https://github.com/FirewineXie/hermess-agent-desktop/releases/tag/v0.1.7)。安装、升级与真实模型的验证范围见下方路线图。
 
 ## 产品截图
 
@@ -12,7 +12,7 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 | --- | --- |
 | <img src="docs/screenshots/v0.1.6-new-chat.jpg" alt="新会话界面" width="400"> | <img src="docs/screenshots/v0.1.6-experts.jpg" alt="扩展中心的内置专家预设" width="400"> |
 
-**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。首个正式版 `v0.1.6` 已发布 Windows x64 安装包；macOS、Linux 安装包及 0.1.5 → 0.1.6 覆盖安装仍待验收。
+**[查看产品路线图（ROADMAP）](ROADMAP.md)**：按版本查看功能、验证状态和后续计划。`v0.1.7` 已发布 Windows x64 与 macOS Apple Silicon 安装包；原生安装、升级和真实模型的剩余验收范围见路线图。
 
 **[前端与桌面客户端架构演进方案](docs/architecture-frontend-desktop.md)**：目标项目边界、View 与组件拆分、客户端模块、接口契约和迁移验收。方案正在分阶段实施，当前开发与构建命令仍以本 README 为准。
 
@@ -42,7 +42,7 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 
 1. 如果 `feature/v0.1.5` 已存在，就在该分支继续开发；若它已由另一个工作区检出，则使用那个工作区。保留所有未提交改动，不强行切换或重建分支。
 2. 如果本地没有该分支，但远端已有，先检出并跟踪远端分支；如果本地和远端都没有，才从最新的 `origin/main` 创建 `feature/v0.1.5`。
-3. 开发期间如 `main` 有新的修复，将其同步到版本分支并重新验证。候选版可在版本分支的已提交且完成本地检查的提交上创建 RC tag（如 `v0.1.5-rc.1`），核对发行输入后推送。功能完成后通过 PR 合入 `main`；PR 检查及合并要求见 [贡献流程](CONTRIBUTING.md)。正式版从合并后的 `main` 精确提交构建，核对通过后由正式版工作流创建 `v0.1.5` tag。
+3. 开发期间如 `main` 有新的修复，将其同步到版本分支并重新验证。候选版可在版本分支的已提交且完成本地检查的提交上创建 RC tag（如 `v0.1.5-rc.1`），核对发行输入后推送。功能完成后通过 PR 合入 `main`；PR 检查及合并要求见 [贡献流程](CONTRIBUTING.md)。正式版在当前 `main` 提交通过必需检查并完成发布输入核对后，从该提交创建并推送 `vX.Y.Z` tag，自动触发构建与发布。
 
 紧急修复从最新的 `origin/main` 创建独立的 `fix/...` 分支，验证后通过 PR 合入 `main`，并将修复同步到仍在开发的版本分支。`feature/v0.1.5` 是可继续提交的开发分支；`v0.1.5-rc.1` 是候选版 tag，`v0.1.5` 是正式版 tag。若无法从计划确定下一个版本号，先明确版本号，不凭现有 tag 猜测。
 
@@ -74,7 +74,7 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 ## 版本构建
 
-推送预发布 tag（例如 `v0.1.5-rc.1`）触发 `.github/workflows/tagged-release.yml`；正式版从 Actions 的 `main` 分支运行 `.github/workflows/stable-release.yml`，输入 `vX.Y.Z` 和已通过 CI 的准确提交，构建及核对成功后才创建正式 tag。仓库只在 Cargo 清单保存开发态版本，发行构建从 tag 在临时工作区写入实际版本；每个 tag 须有 `releases/<tag>.md`。发布任务在 GitHub runner 上复用已有依赖缓存，缓存缺失时自行下载并构建，无需提前预热。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
+推送预发布 tag（例如 `v0.1.5-rc.1`）触发 `.github/workflows/tagged-release.yml`；从当前 `main` 提交推送正式版 `vX.Y.Z` tag 触发 `.github/workflows/stable-release.yml`，工作流核对 tag 指向 `main` HEAD 且该提交的最新必需检查成功，再构建并发布。仓库只在 Cargo 清单保存开发态版本，发行构建从 tag 在临时工作区写入实际版本；每个 tag 须有 `releases/<tag>.md`。发布任务在 GitHub runner 上复用已有依赖缓存，缓存缺失时自行下载并构建，无需提前预热。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
 
 ## 许可
 

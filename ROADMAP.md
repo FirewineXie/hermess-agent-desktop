@@ -32,7 +32,15 @@
 
 ## v0.1.7（已合入 main，未发布）
 
-2026-10-28 `feature/v0.1.7` 已由 PR #17 合入 `main`，这不等于正式版已发布。发行流程调整在独立 `fix/release-workflow` 分支准备：开发态版本统一由 Cargo 清单提供，RC 从版本分支的 tag 在临时工作区写入包版本；正式版将从通过必需检查的准确 `main` 提交构建并核对默认平台附件，然后才创建正式 tag。旧 `v0.1.7-rc.1` 仍指向旧提交，本次未移动该 tag 或发布新版本。Windows 本地 `pnpm install --frozen-lockfile`、`pnpm build`、架构/契约/生成契约检查、更新规则及版本写入测试、`cargo check --locked --offline` 通过；真实 Cargo 清单临时写入 `0.1.7-rc.1` 后的锁文件元数据检查通过并恢复为开发态。三个发行工作流通过 actionlint；`ci.yml` 的既有 `queue: max` 字段未被本机 actionlint 版本识别。新流程尚未经过 PR CI、GitHub Actions 发行构建或 Windows/macOS 安装包验收。
+2026-10-29 正式版发布触发方式调整：从 `main` 创建并推送 `vX.Y.Z` tag 后，工作流自动核对 tag 指向当前 `main` HEAD、版本说明与该提交的最新必需检查；Windows x64 和 macOS Apple Silicon 安装包及校验清单均完成后才发布 Release。构建失败会保留 tag，需核对后重跑同一任务或修复源码并使用新版本号。本改动不改变现有安装包功能。Windows 本机 `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/stable-release.yml` 与 `git diff --check` 通过；PR #20 的 CI、实际 tag 触发及新流程双平台构建仍待验证，不代表原生安装验收。
+
+## v0.1.7（已发布，原生安装与功能验收仍待完成）
+
+2026-10-29 `v0.1.7` 正式版已由 `Stable desktop release` 从 `main` 提交 `810b61466d305dda057dc55ef492cb8ec7af7794` 构建并发布。任务 `40719901348` 的校验、Windows x64、macOS Apple Silicon 构建及 Release 汇总均成功；正式 tag 解引用为该提交。Release 包含 Windows NSIS `.exe`、macOS Apple Silicon `.dmg` 与 `SHA256SUMS.txt`，清单中的两个摘要与 GitHub 附件摘要一致。构建及附件核对不代表原生安装、覆盖升级、后台清理、真实模型或 macOS 实机功能已验收；本次 tag 使用旧的手动发布工作流，后续版本的 tag 自动触发流程仍在 PR #20 中。
+
+2026-10-28 正式版发布准备：补充 `releases/v0.1.7.md`，依据已合入的实现与现有测试记录说明功能、实际验证范围和待验收项目。正式版仍须从通过必需检查的准确 `main` 提交运行发布任务，待 Windows x64 与 macOS Apple Silicon 附件及校验清单构建核对成功后，工作流才会创建 tag 和 Release；本条不代表已发布或完成跨平台实机验收。
+
+2026-10-28 `feature/v0.1.7` 已由 PR #17 合入 `main`，发行流程调整已由 PR #18 合入 `main`，这不等于正式版已发布。开发态版本统一由 Cargo 清单提供，RC 从版本分支的 tag 在临时工作区写入包版本；正式版将从通过必需检查的准确 `main` 提交构建并核对默认平台附件，然后才创建正式 tag。旧 `v0.1.7-rc.1` 仍指向旧提交，本次未移动该 tag 或发布新版本。Windows 本地 `pnpm install --frozen-lockfile`、`pnpm build`、架构/契约/生成契约检查、更新规则及版本写入测试、`cargo check --locked --offline` 通过；真实 Cargo 清单临时写入 `0.1.7-rc.1` 后的锁文件元数据检查通过并恢复为开发态。三个发行工作流通过 actionlint；`ci.yml` 的既有 `queue: max` 字段未被本机 actionlint 版本识别。PR #18 与对应 `main` 提交的必需检查已通过；正式版工作流构建及 Windows/macOS 安装包验收仍待进行。
 
 2026-10-27 发布流程改为由 tag 构建和可选平台补发任务在 GitHub runner 上自行获取缺失的 pnpm、Cargo、Python/uv 依赖，并缓存下载内容；移除独立预热工作流，发 tag 前不再需要手动预热。`v0.1.7-rc.1` 已推送，其原始工作流中 Windows 构建在 Cargo 缓存保存前恢复缓存失败，macOS 构建成功，Release job 被跳过。此项变更尚在版本分支，现有 tag 仍指向旧提交；新流程的云端构建和 Release 附件待后续新 tag 验证。
 
