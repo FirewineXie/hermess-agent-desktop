@@ -223,6 +223,8 @@
   "ui.go.to.runtime.storage": "Go to Runtime & Storage",
   "ui.hello.what.do.you.want.to.do.today": "Hello, what do you want to do today?",
   "ui.hermes.needs.additional.information": "Hermes needs additional information",
+  "ui.clarify.supplement": "Additional details or another answer (optional)",
+  "ui.clarify.supplement.hint": "Add details to a selection, or type your own answer without selecting one",
   "ui.hermes.requests.permission.to.run.a.tool": "Hermes requests permission to run a tool",
   "ui.image": "Image",
   "ui.items": " items",

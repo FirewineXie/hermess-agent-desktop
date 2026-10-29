@@ -400,10 +400,43 @@ pub async fn answer_gateway_request(
         return Err(DesktopFailure::invalid_input());
     }
     let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .answer(request_id, method, result, session_id)
-        .await
-        .map_err(Into::into)
+    if method == "clarify" {
+        let answers = result["answers"]
+            .as_object()
+            .ok_or_else(DesktopFailure::invalid_input)?;
+        if answers.is_empty() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        for (index, (question_id, answer)) in answers.iter().enumerate() {
+            let response = gateway
+                .request(
+                    "clarify.lock",
+                    json!({
+                        "request_id": request_id,
+                        "question_id": question_id,
+                        "answer": answer,
+                    }),
+                )
+                .await?;
+            if response.get("status").and_then(Value::as_str) != Some("ok") {
+                return Err(DesktopFailure::conflict());
+            }
+            if index + 1 == answers.len()
+                && !response
+                    .get("remaining")
+                    .and_then(Value::as_array)
+                    .is_some_and(Vec::is_empty)
+            {
+                return Err(DesktopFailure::conflict());
+            }
+        }
+        Ok(())
+    } else {
+        gateway
+            .answer(request_id, method, result, session_id)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[tauri::command]

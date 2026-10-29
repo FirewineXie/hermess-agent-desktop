@@ -7,6 +7,7 @@ import { commandSupported, commandChoices, composerTrigger, type PendingAttachme
 import { savedModelFromOptions, type ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool, type TimelineItem } from './timeline'
 import { mergeRecoveredRequests } from './requestRecovery'
+import { composeClarifyAnswer } from './clarifyAnswer'
 
 type Options = {
   backend: BackendInfo | null
@@ -221,7 +222,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
   }, [])
 
-  async function answerRequest(choice?: ApprovalChoice) {
+  async function answerRequest(choice?: ApprovalChoice, supplements: Record<string, string> = {}) {
     if (!serverRequest) return
     const request = serverRequest
     try {
@@ -229,7 +230,15 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         requestId: request.id,
         method: request.method,
         choice,
-        answers: request.method === 'clarify' ? clarifyAnswers : undefined,
+        answers: request.method === 'clarify'
+          ? Object.fromEntries(request.params.questions.map(question => [
+            question.qid, composeClarifyAnswer(
+              clarifyAnswers[question.qid] ?? request.params.answers?.[question.qid],
+              supplements[question.qid],
+              question.multi_select,
+            ),
+          ]))
+          : undefined,
       })
       setServerRequests(current => current.filter(item => item.id !== request.id))
       setClarifyDraft(current => current.requestId === request.id ? { requestId: '', answers: {} } : current)

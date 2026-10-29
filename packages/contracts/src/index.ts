@@ -342,7 +342,7 @@ export interface DesktopApi {
     attachImageBytes(scope: SessionScope, contentBase64: string, name: string): Promise<PendingAttachment>
     inspectFile(path: string): Promise<PendingAttachment>
     detachImage(scope: SessionScope, path: string): Promise<void>
-    answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
+    answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string | null> }): Promise<void>
   }
   events: {
     onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>

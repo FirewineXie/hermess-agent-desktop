@@ -729,6 +729,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .request-choice small { flex: none; margin-left: auto; padding: 2px 6px; border-radius: 99px; color: #155acb; background: #dceaff; font-size: 10px; font-weight: 650; }
 .request-card .request-freeform { display: block; width: 100%; min-height: 42px; margin-top: 5px; padding: 9px 11px; border: 1px solid #d5dee9; border-radius: 10px; outline: none; color: #20242d; background: #fff; }
 .request-card .request-freeform:focus { border-color: #1b6ffd; box-shadow: 0 0 0 3px rgba(27, 111, 253, .12); }
+.request-supplement { display: block; margin-top: 12px; color: #526176; font-size: 13px; }
+.request-supplement .request-freeform { min-height: 72px; resize: vertical; font: inherit; }
 .request-command { max-height: 180px; margin: 16px 0 0; padding: 12px 14px; overflow: auto; border: 1px solid #eadfcd; border-radius: 10px; color: #4d3c24; background: #fffaf1; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .request-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #edf0f4; }
 .chat-panel .request-card-actions button { min-height: 38px; padding: 8px 15px; border-radius: 9px; background: #1b6ffd; font-size: 13px; font-weight: 650; }

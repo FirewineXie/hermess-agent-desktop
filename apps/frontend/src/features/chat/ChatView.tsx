@@ -94,9 +94,9 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
       }}>
       {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
-      {serverRequest && <GatewayRequestCard request={serverRequest} answers={clarifyAnswers} t={t}
+      {serverRequest && <GatewayRequestCard key={serverRequest.id} request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={setClarifyAnswer}
-        onSubmit={choice => void answerRequest(choice)} />}
+        onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
       </div>
       <div className="composer-wrap"><div className="composer">
        <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}

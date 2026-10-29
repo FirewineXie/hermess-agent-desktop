@@ -76,6 +76,8 @@ Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码�
 
 推送预发布 tag（例如 `v0.1.5-rc.1`）触发 `.github/workflows/tagged-release.yml`；从当前 `main` 提交推送正式版 `vX.Y.Z` tag 触发 `.github/workflows/stable-release.yml`，工作流核对 tag 指向 `main` HEAD 且该提交的最新必需检查成功，再构建并发布。仓库只在 Cargo 清单保存开发态版本，发行构建从 tag 在临时工作区写入实际版本；每个 tag 须有 `releases/<tag>.md`。发布任务在 GitHub runner 上复用已有依赖缓存，缓存缺失时自行下载并构建，无需提前预热。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
 
+Release 正文只展示新增功能、修复问题和 Hermes fork 版本；验证记录与未完成项继续在 [路线图](ROADMAP.md) 中维护，版本说明格式见 [模板](releases/TEMPLATE.md)。
+
 ## 许可
 
 本项目由 Firewine 享有著作权的原创代码和文档采用 [PolyForm Strict 1.0.0](LICENSE)：允许非商业使用，包括安装和运行桌面软件；修改、制作衍生作品、分发或商业使用，均须事先取得 Firewine 的书面授权。详见[版权与使用说明](COPYRIGHT.md)。`upstream/hermes-agent` 由 `pnpm fetch:upstream` 按锁定 Release tag 单独克隆，不纳入产品仓库，仍遵循上游自己的 MIT 许可证。其他第三方组件和资源遵循各自许可证。此前版本已按当时许可证授予的权利不因本次变更而撤销。

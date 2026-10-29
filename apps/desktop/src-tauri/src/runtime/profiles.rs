@@ -136,6 +136,7 @@ fn accepts_profile(method: &str) -> bool {
             | "session.mutate"
             | "session.events.since"
             | "prompt.submit"
+            | "clarify.lock"
             | "commands.catalog"
             | "slash.exec"
             | "command.dispatch"

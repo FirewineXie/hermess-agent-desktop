@@ -33,6 +33,15 @@ fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
         scoped_params("writer", "cron.manage", json!({"action": "list"})).unwrap(),
         json!({"action": "list", "profile": "writer"})
     );
+    assert_eq!(
+        scoped_params(
+            "writer",
+            "clarify.lock",
+            json!({"request_id": "srq-1", "question_id": "q1", "answer": "choice"})
+        )
+        .unwrap(),
+        json!({"profile": "writer", "request_id": "srq-1", "question_id": "q1", "answer": "choice"})
+    );
     assert!(scoped_params("writer", "unreviewed.method", json!({})).is_err());
     assert_eq!(
         scoped_params("default", "session.list", json!({"limit": 50})).unwrap(),

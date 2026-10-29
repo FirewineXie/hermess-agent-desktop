@@ -223,6 +223,8 @@
   "ui.go.to.runtime.storage": "前往运行时与存储",
   "ui.hello.what.do.you.want.to.do.today": "你好，今天想做什么？",
   "ui.hermes.needs.additional.information": "Hermes 需要补充信息",
+  "ui.clarify.supplement": "补充说明或其他想法（可选）",
+  "ui.clarify.supplement.hint": "选了选项也可以补充要求；不选时可直接填写自己的答案",
   "ui.hermes.requests.permission.to.run.a.tool": "Hermes 请求执行工具",
   "ui.image": "图片",
   "ui.items": "项",

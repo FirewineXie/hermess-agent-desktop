@@ -1,3 +1,4 @@
+import React from 'react'
 import type { ApprovalChoice, GatewayRequest } from '@hermess/contracts'
 
 type Props = {
@@ -5,7 +6,7 @@ type Props = {
   answers: Record<string, string>
   t: (key: string, ...values: unknown[]) => string
   onAnswerChange: (qid: string, value: string) => void
-  onSubmit: (choice?: ApprovalChoice) => void
+  onSubmit: (choice?: ApprovalChoice, supplements?: Record<string, string>) => void
 }
 
 function selectedChoices(value: string, choices: string[]): string[] {
@@ -23,6 +24,13 @@ function choicePresentation(choice: string): { label: string; recommended: boole
 }
 
 export default function GatewayRequestCard({ request, answers, t, onAnswerChange, onSubmit }: Props) {
+  const [supplements, setSupplements] = React.useState<Record<string, string>>({})
+  const supplement = (qid: string) => <label className="request-supplement">
+    <span>{t('ui.clarify.supplement')}</span>
+    <textarea className="request-freeform" value={supplements[qid] || ''} maxLength={600}
+      placeholder={t('ui.clarify.supplement.hint')}
+      onChange={event => setSupplements(current => ({ ...current, [qid]: event.target.value }))} />
+  </label>
   if (request.method === 'approval') return <div className="request-card request-card-approval" role="alertdialog" aria-label={t('ui.tool.execution.approval')}>
     <header className="request-card-header"><span className="request-card-icon request-card-icon-approval" aria-hidden="true">!</span><div>
       <strong>{t('ui.tool.execution.approval')}</strong>
@@ -52,6 +60,7 @@ export default function GatewayRequestCard({ request, answers, t, onAnswerChange
               <span>{presentation.label}</span>{presentation.recommended && <small>{t('ui.recommended')}</small>}
             </label>
           })}</div>
+          {supplement(question.qid)}
         </fieldset>
       }
       return <fieldset className="request-question" key={question.qid}><legend>{question.question}</legend>
@@ -63,9 +72,10 @@ export default function GatewayRequestCard({ request, answers, t, onAnswerChange
             <span>{presentation.label}</span>{presentation.recommended && <small>{t('ui.recommended')}</small>}
           </label>
         })}</div> : <input className="request-freeform" value={answer} onChange={event => onAnswerChange(question.qid, event.target.value)} />}
+        {question.choices?.length ? supplement(question.qid) : null}
       </fieldset>
     })}
     </div>
-    <div className="request-card-actions"><button onClick={() => onSubmit()}>{t('ui.submit.answer')}</button></div>
+    <div className="request-card-actions"><button onClick={() => onSubmit(undefined, supplements)}>{t('ui.submit.answer')}</button></div>
   </div>
 }

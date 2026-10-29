@@ -12,6 +12,8 @@ RC 工作流只监听 `vX.Y.Z-rc.N` 形式的 tag 推送；正式版工作流监
 
 发布 RC 前，在版本分支提交 `releases/<tag>.md`，核对内容及构建输入，并执行 `node scripts/release-version.mjs check <tag>`。在已推送、已本地检查的目标提交上创建并推送同名 RC tag：
 
+Release 页面正文只写三个部分：`新增功能`、`修复问题`、`Hermes fork 版本`，格式见 [版本说明模板](../releases/TEMPLATE.md)。前两部分只列用户可见的变化，没有内容时写 `- 无`；第三部分按 `runtime/upstream.lock.json` 写官方基线 tag、fork 维护分支和完整提交 SHA。构建过程、测试记录、未验收范围和下载说明保留在路线图或发行流程文档，不写进 Release 正文。发布前的版本检查会拒绝额外章节或与锁文件不符的 fork 版本。
+
 ```sh
 git tag -a vX.Y.Z-rc.N -m "Hermess Agent Desktop vX.Y.Z-rc.N"
 git push origin vX.Y.Z-rc.N
