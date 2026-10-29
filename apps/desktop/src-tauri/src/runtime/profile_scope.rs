@@ -201,7 +201,7 @@ impl BackendState {
     }
 }
 
-fn valid_profile_name(profile: &str) -> bool {
+pub(super) fn valid_profile_name(profile: &str) -> bool {
     !profile.is_empty()
         && profile.len() <= 64
         && profile.bytes().all(|byte| {

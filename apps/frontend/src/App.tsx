@@ -205,6 +205,8 @@ function App() {
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
       onCreateProfile={profileController.create} onImportProfile={profileController.importPackage} />}
     {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot}
+      onDeleteProfile={profileController.deleteProfile}
+      onRenameProfile={profileController.renameProfile}
       profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} onSelectProfile={name => {
         if (profileMemoryOpen && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return Promise.resolve()
         setPersonalFilesDirty(false)

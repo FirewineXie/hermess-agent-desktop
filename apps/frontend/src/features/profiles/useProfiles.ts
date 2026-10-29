@@ -141,6 +141,54 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     }
   }
 
+  const deleteProfile = async (name: string) => {
+    if (busy || name === 'default') throw new Error('Profile cannot be deleted now')
+    setBusy(true)
+    setError('')
+    try {
+      const result = await profiles.delete(name)
+      if (viewed === name) {
+        setViewed('default')
+        try { localStorage.setItem('hermess:viewed-profile', 'default') } catch { /* optional preference */ }
+      }
+      let refreshed = true
+      try {
+        await refresh()
+      } catch (cause) {
+        refreshed = false
+        setError(describeError(cause, language))
+      }
+      return { ...result, refreshed }
+    } catch (cause) {
+      setError(describeError(cause, language))
+      throw cause
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const renameProfile = async (name: string, displayName: string) => {
+    if (busy) throw new Error('Profile is busy')
+    setBusy(true)
+    setError('')
+    try {
+      const result = await profiles.setDisplayName(name, displayName.trim())
+      let refreshed = true
+      try {
+        await refresh()
+      } catch (cause) {
+        refreshed = false
+        setError(describeError(cause, language))
+      }
+      return { ...result, refreshed }
+    } catch (cause) {
+      setError(describeError(cause, language))
+      throw cause
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const retryPending = async () => {
     if (busy || !pendingName) return
     setBusy(true)
@@ -166,5 +214,5 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
     }
   }
 
-  return { snapshot, busy, error, pendingRestart: Boolean(pendingName), refresh, select, create, importPackage, retryPending }
+  return { snapshot, busy, error, pendingRestart: Boolean(pendingName), refresh, select, create, importPackage, deleteProfile, renameProfile, retryPending }
 }

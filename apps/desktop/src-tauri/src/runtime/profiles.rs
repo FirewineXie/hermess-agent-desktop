@@ -1,4 +1,8 @@
-use super::{helper_python, profile_scope::SessionOwners, BackendState};
+use super::{
+    helper_python, hermes_process_path,
+    profile_scope::{valid_profile_name, SessionOwners},
+    BackendState,
+};
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
 use crate::process_manager;
@@ -514,6 +518,247 @@ pub async fn select_profile(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn delete_profile(
+    state: State<'_, BackendState>,
+    name: String,
+) -> Result<Value, DesktopFailure> {
+    if name == "default" || !valid_profile_name(&name) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let (client, storage, port, token) = {
+        let owned = state.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        (
+            Arc::clone(&backend.gateway),
+            backend.storage.clone(),
+            backend.port,
+            backend.token.clone(),
+        )
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_delete_start profile={name}"),
+    );
+    let result =
+        delete_profile_from_owned_gateway(&state, &name, &client, &storage, port, &token).await;
+    let outcome = match &result {
+        Ok(value) if value.get("settlement_pending").and_then(Value::as_bool) == Some(true) => {
+            "pending"
+        }
+        Ok(_) => "completed",
+        Err(_) => "failed",
+    };
+    let detail = result
+        .as_ref()
+        .err()
+        .map(|error| format!(" error={error:?}"))
+        .unwrap_or_default();
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_delete_{outcome} profile={name}{detail}"),
+    );
+    result
+}
+
+async fn delete_profile_from_owned_gateway(
+    state: &State<'_, BackendState>,
+    name: &str,
+    client: &Arc<GatewayClient>,
+    storage: &Path,
+    port: u16,
+    token: &str,
+) -> Result<Value, DesktopFailure> {
+    let roster = client
+        .request("profiles.list", json!({"include_sessions": false}))
+        .await?;
+    if !roster_contains(&roster, name) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    {
+        let owned = state.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        if backend.storage != storage
+            || backend.port != port
+            || !Arc::ptr_eq(&backend.gateway, client)
+        {
+            return Err(DesktopFailure::conflict());
+        }
+    }
+    let url = format!("http://127.0.0.1:{port}/api/profiles/{name}");
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(100))
+        .build()
+        .map_err(|_| DesktopFailure::operation_failed())?
+        .delete(url)
+        .header("X-Hermes-Session-Token", token)
+        .send()
+        .await
+        .map_err(|error| {
+            if error.is_timeout() {
+                DesktopFailure::timeout()
+            } else {
+                DesktopFailure::operation_failed()
+            }
+        })?;
+    if !response.status().is_success() {
+        return Err(DesktopFailure::operation_failed());
+    }
+    let result: Value = response
+        .json()
+        .await
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    if result.get("ok").and_then(Value::as_bool) != Some(true) {
+        return Err(DesktopFailure::operation_failed());
+    }
+    {
+        let mut owned = state.0.lock().await;
+        if let Some(backend) = owned.as_mut() {
+            if backend.storage == storage
+                && Arc::ptr_eq(&backend.gateway, client)
+                && backend.selected_profile == name
+            {
+                backend.selected_profile = "default".into();
+                if fs::write(storage.join("control").join(SELECTED_FILE), b"default").is_err() {
+                    let _ = crate::diagnostics::append_client_event(
+                        storage,
+                        &format!("profile_delete_selection_persist_failed profile={name}"),
+                    );
+                }
+            }
+        }
+    }
+    state.2.lock().await.take();
+    Ok(
+        json!({"settlement_pending": result.get("settlement_pending").and_then(Value::as_bool) == Some(true)}),
+    )
+}
+
+#[tauri::command]
+pub async fn set_profile_display_name(
+    state: State<'_, BackendState>,
+    name: String,
+    display_name: String,
+) -> Result<Value, DesktopFailure> {
+    let label = display_name.trim();
+    if !valid_profile_name(&name) || !valid_display_name(label) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let (client, hermes, storage) = {
+        let owned = state.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        (
+            Arc::clone(&backend.gateway),
+            backend.hermes.clone(),
+            backend.storage.clone(),
+        )
+    };
+    let roster = client
+        .request("profiles.list", json!({"include_sessions": false}))
+        .await?;
+    if !roster_contains(&roster, &name) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    {
+        let owned = state.0.lock().await;
+        let backend = owned
+            .as_ref()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        if backend.storage != storage || !Arc::ptr_eq(&backend.gateway, &client) {
+            return Err(DesktopFailure::conflict());
+        }
+    }
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_display_name_start profile={name}"),
+    );
+    const SCRIPT: &str = r#"import json, sys
+from hermes_cli.profiles import set_profile_display_name
+print(json.dumps({'display_name': set_profile_display_name(sys.argv[1], sys.argv[2])}))
+"#;
+    let mut command = helper_python::command(&hermes, SCRIPT).map_err(DesktopFailure::from)?;
+    command
+        .arg(&name)
+        .arg(label)
+        .env(
+            "HERMES_HOME",
+            hermes_process_path(&storage.join("hermes-home")),
+        )
+        .env(
+            "HERMES_GATEWAY_LOCK_DIR",
+            hermes_process_path(&storage.join("control").join("gateway-locks")),
+        )
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let output = timeout(
+        Duration::from_secs(12),
+        process_manager::output(&mut command, "profile_display_name"),
+    )
+    .await;
+    let output = match output {
+        Ok(Ok(output)) => output,
+        Ok(Err(_)) => {
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!("profile_display_name_failed profile={name}"),
+            );
+            return Err(DesktopFailure::operation_failed());
+        }
+        Err(_) => {
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!("profile_display_name_timeout profile={name}"),
+            );
+            return Err(DesktopFailure::timeout());
+        }
+    };
+    if !output.status.success() {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("profile_display_name_failed profile={name}"),
+        );
+        return Err(DesktopFailure::operation_failed());
+    }
+    let result: Value = match serde_json::from_slice(&output.stdout) {
+        Ok(value) => value,
+        Err(_) => {
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!("profile_display_name_invalid_response profile={name}"),
+            );
+            return Err(DesktopFailure::operation_failed());
+        }
+    };
+    if result.get("display_name").and_then(Value::as_str) != Some(label) {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("profile_display_name_mismatch profile={name}"),
+        );
+        return Err(DesktopFailure::operation_failed());
+    }
+    state.2.lock().await.take();
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_display_name_completed profile={name}"),
+    );
+    Ok(result)
+}
+
+fn valid_display_name(label: &str) -> bool {
+    !label.is_empty() && label.chars().count() <= 64 && !label.chars().any(char::is_control)
+}
+
 /// A one-use HTTP grant bound to the selected profile, issued by this product's own Gateway.
 pub(super) async fn native_http_ticket(
     hermes: &Path,
@@ -536,10 +781,10 @@ print(_session_ticket(home, endpoint, purpose='native-http'))
 "#;
     let mut command = helper_python::command(hermes, SCRIPT).map_err(DesktopFailure::from)?;
     command
-        .arg(home)
+        .arg(hermes_process_path(home))
         .arg(expected_port.to_string())
-        .env("HERMES_HOME", home)
-        .env("HERMES_GATEWAY_LOCK_DIR", lock_dir)
+        .env("HERMES_HOME", hermes_process_path(home))
+        .env("HERMES_GATEWAY_LOCK_DIR", hermes_process_path(lock_dir))
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true);

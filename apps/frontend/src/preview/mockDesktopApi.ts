@@ -37,6 +37,8 @@ export const previewDesktopApi: DesktopApi = {
     async listDataDirectory() { throw previewOnly() },
     async openDataDirectory() { throw previewOnly() },
     async create() { throw previewOnly() },
+    async delete() { throw previewOnly() },
+    async setDisplayName() { throw previewOnly() },
     async inspectImport() { throw previewOnly() },
     async importPackage() { throw previewOnly() },
     async select() { throw previewOnly() },

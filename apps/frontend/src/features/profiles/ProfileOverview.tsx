@@ -31,6 +31,9 @@ type Props = {
   epoch: string | null
   profiles: ProfilesSnapshot | null
   onNewChat: () => void
+  onDeleteProfile: () => void
+  onRenameProfile: () => void
+  profileBusy: boolean
   onOpenMemory: () => void
   onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
@@ -38,7 +41,7 @@ type Props = {
   onOpenExtensions: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onDeleteProfile, onRenameProfile, profileBusy, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -197,7 +200,11 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
     <div className="profile-breadcrumb">{zh ? '专家管理' : 'Manage experts'} <span aria-hidden="true">/</span> <strong>{name}</strong></div>
     <div className="profile-heading">
       <div className="profile-identity"><span className="profile-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span><div><h1>{name}</h1><p><span className={`status-dot ${served ? 'ready' : ''}`} />{!connected ? (zh ? '本地 · 未连接' : 'Local · Disconnected') : served ? (zh ? '本地 Agent · 已运行' : 'Local agent · Running') : (zh ? '等待 Gateway 启用' : 'Waiting for Gateway')}</p></div></div>
-      <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}>{zh ? '＋ 新建会话' : '＋ New chat'}</button>
+      <div className="profile-heading-actions">
+        {profile && <button className="profile-rename" type="button" disabled={!connected || profileBusy} onClick={onRenameProfile}>{zh ? '重命名' : 'Rename'}</button>}
+        {profile && profile.name !== 'default' && <button className="profile-delete" type="button" disabled={!connected || profileBusy} onClick={onDeleteProfile}>{zh ? '删除专家' : 'Delete expert'}</button>}
+        <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}>{zh ? '＋ 新建会话' : '＋ New chat'}</button>
+      </div>
     </div>
     <div className="profile-tabs" role="tablist" aria-label={zh ? 'Profile 内容' : 'Profile content'}>{tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}{id === 'skills' && skills !== null ? ` (${skills.length})` : ''}</button>)}</div>
     {errors.length > 0 && <p className="profile-load-error" role="alert">{zh ? '部分资料读取失败：' : 'Some details could not be loaded: '}{errors.join('；')}</p>}

@@ -100,6 +100,8 @@ fn main() {
             runtime::stop_backend,
             runtime::profiles::list_profiles,
             runtime::profiles::create_profile,
+            runtime::profiles::delete_profile,
+            runtime::profiles::set_profile_display_name,
             runtime::workbuddy_import::inspect_workbuddy_import,
             runtime::workbuddy_import::import_workbuddy_package,
             runtime::profiles::select_profile,

@@ -4,6 +4,8 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-29 专家管理新增非 `default` Profile 删除入口，输入内部标识确认后由桌面端核对产品自有 Gateway 与 Profile 名册，调用锁定 Hermes 的删除接口；删除当前 Profile 后切回 `default`，并区分身份清理待完成与完全完成。新增所有 Profile 的显示名称编辑，支持中文，内部标识和数据目录不变。修复 Windows 命名 Profile 申请本地 HTTP 凭据时传入 `\\?\` 路径而导致概览四项读取报“当前状态已变化”的问题。Windows 本地前端类型检查、生产构建、契约/生成契约/架构检查、Rust 格式与编译检查、Rust 单测（110 通过、5 忽略）、隔离临时 Profile 的中文显示名写入回读、差异检查通过；开发窗口已确认非默认 Profile 显示删除按钮，命名 Profile 概览读取恢复。实际删除和显示名保存未在真实 Profile 上执行，Windows/macOS 安装包及 macOS 原生行为仍待验收；WorkBuddy 导入窗口的中文显示名输入尚未接入，锁定 Hermes fork 未修改。
+
 2026-10-29 通知设置中的“发送测试通知”按钮仅在 Vite 开发模式显示，正式构建的“桌面提醒”和“提示音”页不再展示；系统通知设置及正常通知投递逻辑未改。Windows 本地 `pnpm --dir apps/frontend typecheck`、`pnpm build` 与 `git diff --check` 通过，桌面生产构建产物未检出中英文按钮文案；Windows/macOS 原生安装包页面尚未实机验收。
 
 2026-10-29 修复新会话输入 `@` 或 `/` 不弹技能与命令候选：前端原先仅在已有 `sessionId` 时读取并显示目录，空白新会话因此始终被拦住。现在未建会话时按当前 Profile 向锁定 Gateway 请求 `commands.catalog`，已有会话继续按会话读取，创建会话后清除旧目录以重新核对工作区相关 Skill；`@` 只显示 Skill，`/` 显示命令和 Skill。Windows 本地前端类型检查、生产构建、契约/架构/生成契约检查、Rust 格式与定向测试通过。锁定 Gateway 的无会话测试在当前 Python 环境中未完整通过：异步测试缺少 pytest 插件，另一个 Profile 路由测试已读到预期 Skill，但测试要求的 quick command 在此 Windows 环境未出现；未将其计作 Gateway 测试通过。Windows/macOS 原生弹层操作及真实 Profile/工作区目录仍待验收。

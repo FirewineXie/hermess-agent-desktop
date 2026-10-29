@@ -253,6 +253,8 @@ export interface DesktopApi {
     listDataDirectory(scope: ProfileScope, relativePath?: string): Promise<ProfileDataListing>
     openDataDirectory(scope: ProfileScope): Promise<void>
     create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
+    delete(name: string): Promise<{ settlement_pending: boolean }>
+    setDisplayName(name: string, displayName: string): Promise<{ display_name: string }>
     inspectImport(path: string): Promise<WorkBuddyImportPreview>
     importPackage(path: string, profileName: string, expectedDigest: string): Promise<ProfileCreateResult>
     select(name: string): Promise<void>

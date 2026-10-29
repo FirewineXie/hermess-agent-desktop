@@ -1,6 +1,14 @@
-use super::{is_served, live_served_profiles, roster_contains, scoped_params};
+use super::{is_served, live_served_profiles, roster_contains, scoped_params, valid_display_name};
 use serde_json::json;
 use std::fs;
+
+#[test]
+fn display_name_accepts_chinese_and_rejects_control_or_overlong_input() {
+    assert!(valid_display_name("公众号运营专家"));
+    assert!(!valid_display_name(""));
+    assert!(!valid_display_name("名字\n下一行"));
+    assert!(!valid_display_name(&"中".repeat(65)));
+}
 
 #[test]
 fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
