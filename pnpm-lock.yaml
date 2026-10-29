@@ -87,6 +87,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@types/qrcode':
         specifier: 1.5.5

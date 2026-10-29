@@ -66,7 +66,7 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
     finally{if(current===request.current){inFlight.current=false;setBusy(false)}}
   }
   const saveYaml=async()=>{
-    if(!scope||!raw||!dirty||inFlight.current||!window.confirm(language==='zh-CN'?'将替换此 Profile 的完整配置。确认保存？':'Replace the full configuration of this Profile?'))return
+    if(!scope||!raw||!dirty||inFlight.current)return
     const current=++request.current
     inFlight.current=true;setBusy(true);setStatus('')
     try{

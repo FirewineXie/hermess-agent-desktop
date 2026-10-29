@@ -143,14 +143,23 @@ pub async fn list_composer_commands(
     profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
-        return Err(DesktopFailure::invalid_input());
-    }
+    let params = composer_catalog_params(&session_id)?;
     let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
-        .request("commands.catalog", json!({"session_id": session_id}))
+        .request("commands.catalog", params)
         .await
         .map_err(Into::into)
+}
+
+fn composer_catalog_params(session_id: &str) -> Result<Value, DesktopFailure> {
+    if session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(if session_id.is_empty() {
+        json!({})
+    } else {
+        json!({"session_id": session_id})
+    })
 }
 
 #[tauri::command]

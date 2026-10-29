@@ -277,6 +277,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       const id = created.session_id
       sessionProfileRef.current = owner.profile
       sessionRef.current = id
+      setCommandCatalog(null)
+      setCommandCatalogError('')
+      commandCatalogPromiseRef.current = null
       epochRef.current[id] = backend?.replay_epoch || ''
       lastSeqRef.current[id] = 0
       storedSessionRef.current = created.stored_session_id
@@ -367,9 +370,11 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     if (commandCatalog) return Promise.resolve(commandCatalog)
     if (!commandCatalogPromiseRef.current) {
       let request: Promise<CommandCatalog>
-      request = ensureChatSession()
-        .then(async id => {
-          const catalog = await chat.commands(sessionScope(id))
+      const id = sessionRef.current
+      const scope = id ? sessionScope(id) : profileScope()
+      setCommandCatalogError('')
+      request = chat.commands(scope)
+        .then(catalog => {
           if (sessionRef.current === id) {
             setCommandCatalog(catalog)
             setCommandCatalogError(catalog.warning || '')
@@ -389,10 +394,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }
 
   React.useEffect(() => {
-    if (backend && sessionRef.current && composerTrigger(draft, draftCaret) && !commandCatalog) {
+    if (backend && profile && composerTrigger(draft, draftCaret) && !commandCatalog) {
       void loadCommandCatalog().catch(() => {})
     }
-  }, [backend, sessionId, draft, draftCaret, commandCatalog])
+  }, [backend, profile, sessionId, draft, draftCaret, commandCatalog])
 
   const trigger = composerTrigger(draft, draftCaret)
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []

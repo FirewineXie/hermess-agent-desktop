@@ -288,7 +288,7 @@ export const tauriDesktopApi: DesktopApi = {
     usage: scope => invoke('get_chat_usage', { profile: scope.profile, sessionId: scope.sessionId }),
     reasoning: scope => invoke('get_chat_reasoning', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
     setReasoning: (scope, value) => invoke('set_chat_reasoning', { profile: scope.profile, sessionId: scope.sessionId, value }),
-    commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.sessionId }),
+    commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
     dispatchSkill: (scope, name, arg) => invoke('dispatch_composer_skill', { profile: scope.profile, sessionId: scope.sessionId, name, arg }),
     attachFile: (scope, path) => invoke('attach_chat_file', { profile: scope.profile, sessionId: scope.sessionId, path }),

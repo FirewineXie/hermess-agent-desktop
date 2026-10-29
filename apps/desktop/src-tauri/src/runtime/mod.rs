@@ -22,6 +22,7 @@ pub mod personal_files;
 pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
+mod product_skill;
 pub mod profile_data;
 mod profile_scope;
 pub mod profiles;
@@ -398,6 +399,12 @@ async fn launch_backend(
     crate::diagnostics::set_client_log_storage(storage.clone());
     #[cfg(windows)]
     powershell_tool::install(&storage)?;
+    let _ = append_client_event(&storage, "product_skill_install_start");
+    if let Err(error) = product_skill::install(&storage) {
+        let _ = append_client_event(&storage, "product_skill_install_failed");
+        return Err(error.into());
+    }
+    let _ = append_client_event(&storage, "product_skill_install_completed");
     let _ = append_client_event(&storage, "backend_starting");
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let bundled_tools_root = hermes.parent().and_then(Path::parent).and_then(|root| {

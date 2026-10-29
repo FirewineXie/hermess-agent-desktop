@@ -1,8 +1,18 @@
 use super::{
-    merge_session_lists, prompt_submit_params, session_create_params, validate_workspace_path,
-    ReplayResult,
+    composer_catalog_params, merge_session_lists, prompt_submit_params, session_create_params,
+    validate_workspace_path, ReplayResult,
 };
 use serde_json::json;
+
+#[test]
+fn command_catalog_uses_profile_scope_before_a_session_exists() {
+    assert_eq!(composer_catalog_params("").unwrap(), json!({}));
+    assert_eq!(
+        composer_catalog_params("session-1").unwrap(),
+        json!({"session_id": "session-1"})
+    );
+    assert!(composer_catalog_params(&"x".repeat(257)).is_err());
+}
 
 #[test]
 fn recent_sessions_include_stored_rows_after_gateway_restart() {

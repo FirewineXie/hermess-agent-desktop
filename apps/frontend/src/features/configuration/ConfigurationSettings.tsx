@@ -42,7 +42,7 @@ export default function ConfigurationSettings({connected,profile,page,language,o
     {page==='advanced-config'&&<nav className="configuration-mode"><button aria-pressed={editor.mode==='schema'} disabled={busy} onClick={()=>editor.switchMode('schema')}>Schema</button><button aria-pressed={editor.mode==='yaml'} disabled={busy} onClick={()=>editor.switchMode('yaml')}>YAML</button></nav>}
     {editor.mode==='yaml'?<>
       <p>{zh?'这是完整配置原文。保存会替换整份配置，运行时可能重写格式和注释；外部修改后需要重新读取。':'This is the full configuration document. Saving replaces it; the runtime may rewrite formatting and comments. Reload after external changes.'}</p>
-      <YamlEditor path={editor.raw?.path} draft={editor.yaml} dirty={editor.dirty} busy={busy} t={t} onChange={editor.setYaml} onSave={()=>void editor.saveYaml()}/>
+      <YamlEditor path={editor.raw?.path} draft={editor.yaml} dirty={editor.dirty} busy={busy} zh={zh} t={t} onChange={editor.setYaml} onSave={()=>void editor.saveYaml()}/>
     </>:<>
       {page!=='browser'&&<label>{zh?'搜索当前配置页':'Search this configuration page'}<input type="search" value={editor.query} onChange={e=>editor.setQuery(e.target.value)} placeholder={zh?'字段名或说明':'Field name or description'}/></label>}
       {!editor.schema?<p>{editor.status||(zh?'正在读取配置…':'Loading configuration…')}</p>:<>

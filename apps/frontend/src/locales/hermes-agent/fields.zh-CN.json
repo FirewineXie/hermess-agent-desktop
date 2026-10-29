@@ -1634,13 +1634,13 @@
     "label": "任务委派 / 后端"
   },
   "delegation.model": {
-    "label": "任务委派 / 模特"
+    "label": "任务委派 / 子 Agent 模型"
   },
   "delegation.provider": {
     "label": "任务委派 / 提供方"
   },
   "delegation.fallback_providers": {
-    "label": "任务委派 / 备用提供方"
+    "label": "任务委派 / 回退模型列表"
   },
   "delegation.base_url": {
     "label": "任务委派 / API 基础地址"
@@ -1651,8 +1651,11 @@
   "delegation.api_mode": {
     "label": "任务委派 / API 模式"
   },
+  "delegation.request_overrides": {
+    "label": "任务委派 / 请求覆盖参数"
+  },
   "delegation.compression_threshold_tokens": {
-    "label": "任务委派 / 压缩阈值Token"
+    "label": "任务委派 / 压缩触发阈值（Token）"
   },
   "delegation.inherit_mcp_toolsets": {
     "label": "任务委派 / 继承 MCP 工具集"
@@ -1661,35 +1664,35 @@
     "label": "任务委派 / 最大迭代次数"
   },
   "delegation.max_summary_chars": {
-    "label": "任务委派 / 最大摘要字符"
+    "label": "任务委派 / 结果摘要最大字符数"
   },
   "delegation.child_timeout_seconds": {
-    "label": "任务委派 / 子超时秒数"
+    "label": "任务委派 / 子 Agent 无进展超时（秒）"
   },
   "delegation.reasoning_effort": {
     "label": "任务委派 / 推理强度",
     "description": "委派给子 Agent 时使用的推理强度。"
   },
   "delegation.max_concurrent_children": {
-    "label": "任务委派 / 最大并发子进程"
+    "label": "任务委派 / 最大并发子 Agent 数"
   },
   "delegation.independent_completions": {
-    "label": "任务委派 / 独立完成"
+    "label": "任务委派 / 子任务分别返回结果"
   },
   "delegation.max_spawn_depth": {
-    "label": "任务委派 / 最大生成深度"
+    "label": "任务委派 / 最大委派层级"
   },
   "delegation.orchestrator_enabled": {
     "label": "任务委派 / 协调器"
   },
   "delegation.oneshot_max_children": {
-    "label": "任务委派 / 一次性最大子项"
+    "label": "任务委派 / 单次运行最多创建子 Agent 数"
   },
   "delegation.subagent_auto_approve": {
     "label": "任务委派 / 子代理自动审批"
   },
   "delegation.surface_child_process_notifications": {
-    "label": "任务委派 / 表面子进程通知"
+    "label": "任务委派 / 向主 Agent 显示子进程通知"
   },
   "prefill_messages_file": {
     "label": "预填消息文件"

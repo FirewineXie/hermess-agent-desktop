@@ -339,7 +339,7 @@ export interface DesktopApi {
     usage(scope: SessionScope): Promise<ChatUsage>
     reasoning(scope: ProfileScope | SessionScope): Promise<{ value?: string }>
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
-    commands(scope: SessionScope): Promise<CommandCatalog>
+    commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>

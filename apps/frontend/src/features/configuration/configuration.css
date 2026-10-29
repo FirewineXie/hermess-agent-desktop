@@ -6,6 +6,10 @@
 .configuration-settings :is(input:not([type=checkbox]),select,textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #dce3eb; border-radius: 9px; background: #fff; color: #172235; font: inherit; }
 .configuration-settings textarea { min-height: 90px; resize: vertical; font-family: Consolas, monospace; }
 .configuration-settings .config-yaml { min-height: 440px; }
+.configuration-settings .config-yaml-help { margin: 8px 0; color: #64748b; font-size: 13px; }
+.configuration-settings .config-yaml-error { margin: 8px 0; color: #b42318; font-size: 13px; }
+.configuration-settings .config-yaml-confirm { margin: 12px 0; padding: 14px; border: 1px solid #dce3eb; border-radius: 9px; }
+.configuration-settings .config-yaml-confirm p { margin: 0 0 12px; }
 .configuration-settings button { padding: 9px 13px; border: 1px solid #e3e8ef; border-radius: 9px; background: #fff; color: #243f65; font: inherit; cursor: pointer; }
 .configuration-settings button:disabled { opacity: .5; cursor: default; }
 .browser-control-settings { display: grid; justify-items: start; gap: 14px; margin-top: 24px; }

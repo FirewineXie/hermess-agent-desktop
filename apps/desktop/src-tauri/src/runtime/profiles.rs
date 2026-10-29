@@ -428,7 +428,7 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         .arg(name)
         .arg(serde_json::to_string(&preset).map_err(|_| DesktopFailure::invalid_input())?)
         .arg(serde_json::to_string(&soul).map_err(|_| DesktopFailure::invalid_input())?)
-        .env("HERMES_HOME", home)
+        .env("HERMES_HOME", &home)
         .env("PYTHONIOENCODING", "utf-8")
         .env("HERMES_GATEWAY_LOCK_DIR", lock_dir)
         .stdin(std::process::Stdio::null())
@@ -446,10 +446,29 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
     if !output.status.success() {
         return Err(DesktopFailure::operation_failed());
     }
-    let result: Value =
+    let mut result: Value =
         serde_json::from_slice(&output.stdout).map_err(|_| DesktopFailure::operation_failed())?;
-    if result.get("name").and_then(Value::as_str).is_none() {
-        return Err(DesktopFailure::operation_failed());
+    let profile_name = result
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    if let Some(storage) = home.parent() {
+        let _ =
+            crate::diagnostics::append_client_event(storage, "product_skill_profile_install_start");
+        if super::product_skill::install_new_profile(&home, profile_name).is_err() {
+            let _ = crate::diagnostics::append_client_event(
+                storage,
+                "product_skill_profile_install_failed",
+            );
+            if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
+                warnings.push(Value::String("product_skill".into()));
+            }
+        } else {
+            let _ = crate::diagnostics::append_client_event(
+                storage,
+                "product_skill_profile_install_completed",
+            );
+        }
     }
     Ok(result)
 }

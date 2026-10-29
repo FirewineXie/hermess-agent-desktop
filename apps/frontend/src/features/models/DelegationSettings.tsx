@@ -4,7 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import type { Language } from '../../i18n'
 import { parseConfigFieldDraft } from '../agent-settings/memoryContextModel'
-import { getField, fieldText } from '../agent-settings/model'
+import { getField, fieldText, leafLabel } from '../agent-settings/model'
 import { delegationError, parseOverrides, routesMatch } from './delegationModel'
 import './delegation.css'
 
@@ -75,6 +75,11 @@ export default function DelegationSettings({ connected, profile, language, provi
   const modelMode = draft.configured === 'model_map'
   const defaultValue = modelMode ? draft.model_map.default : draft.profile_routes.default
   const rows = modelMode ? draft.model_map.options : draft.profile_routes.profiles
+  const defaultFields = Object.entries(schema?.fields || {}).filter(([key, field]) => key.startsWith('delegation.') && key !== 'delegation.backend' && !key.startsWith('delegation.backends.') && !/(api_key|key_env)/.test(key) && ['string','boolean','number','list','object'].includes(field.type))
+  const changeDefault = (key: string, value: string) => { setDefaults(previous => ({ ...previous, [key]: value })); setDirty(true) }
+  const placeholder = (type: string) => zh
+    ? ({ string: '请输入文本', number: '请输入数字', list: '请输入 JSON 数组', object: '请输入 JSON 对象' } as Record<string, string>)[type]
+    : ({ string: 'Enter text', number: 'Enter a number', list: 'Enter a JSON array', object: 'Enter a JSON object' } as Record<string, string>)[type]
   return <section className="delegation-settings settings-form-page">
     <div className="row"><h2>{zh ? '委派路由' : 'Delegation routing'}</h2><button disabled={busy} onClick={() => { if (!dirty || window.confirm(zh ? '放弃未保存修改？' : 'Discard changes?')) void load() }}>{zh ? '重新读取' : 'Reload'}</button></div>
     <p>{zh ? '决定子 Agent 使用默认模型、指定模型路由，或其他 Profile。编辑后保存才生效。' : 'Route subagents through default settings, model routes, or other Profiles. Changes apply after saving.'}</p>
@@ -83,7 +88,18 @@ export default function DelegationSettings({ connected, profile, language, provi
       {draft.backends.filter(b => ['default', 'model_map', 'profile_routes'].includes(b.name)).map(b => <option key={b.name} value={b.name} disabled={!b.available}>{({ default: zh ? '默认策略' : 'Default', model_map: zh ? '按模型路由' : 'Model routes', profile_routes: zh ? '按 Profile 路由' : 'Profile routes' } as Record<string,string>)[b.name]}{!b.available ? ` · ${b.reason || '不可用'}` : ''}</option>)}
     </select></label>
     {draft.blocked_reason && <p role="alert">{draft.blocked_reason}</p>}
-    {draft.configured === 'default' ? <div className="delegation-defaults">{Object.entries(schema?.fields || {}).filter(([key, field]) => key.startsWith('delegation.') && key !== 'delegation.backend' && !key.startsWith('delegation.backends.') && !/(api_key|key_env)/.test(key) && ['string','boolean','number','list','object'].includes(field.type)).map(([key, field]) => <label key={key}>{key}<input value={defaults[key] ?? fieldText(getField(config, key), field.type)} onChange={e => { setDefaults(previous => ({ ...previous, [key]: e.target.value })); setDirty(true) }} placeholder={field.type === 'boolean' ? 'true / false' : field.type} /></label>)}</div> : <>
+    {draft.configured === 'default' ? <div className="delegation-defaults">{defaultFields.map(([key, field]) => {
+      const value = defaults[key] ?? fieldText(getField(config, key), field.type)
+      return <label key={key} title={key}>{leafLabel(language, key)}
+        {field.type === 'boolean'
+          ? <select value={value} onChange={e => changeDefault(key, e.target.value)}>
+            {value === '' && <option value="">{zh ? '未设置' : 'Not set'}</option>}
+            <option value="true">{zh ? '开启' : 'On'}</option>
+            <option value="false">{zh ? '关闭' : 'Off'}</option>
+          </select>
+          : <input type={field.type === 'number' ? 'number' : 'text'} value={value} onChange={e => changeDefault(key, e.target.value)} placeholder={placeholder(field.type)} />}
+      </label>
+    })}</div> : <>
       <label>{zh ? '默认路由' : 'Default route'}<select value={defaultValue || ''} onChange={e => update(modelMode ? { ...draft, model_map: { ...draft.model_map, default: e.target.value || null } } : { ...draft, profile_routes: { ...draft.profile_routes, default: e.target.value || null } })}><option value="">{zh ? '由运行时选择' : 'Runtime choice'}</option>{rows.map((r,i) => <option key={i} value={r.name}>{r.name}</option>)}</select></label>
       {modelMode ? draft.model_map.options.map((route, index) => <article className="delegation-route" key={index}>
         <div className="row"><strong>{zh ? `模型路由 ${index + 1}` : `Model route ${index + 1}`}</strong><button onClick={() => { update({ ...draft, model_map: { ...draft.model_map, default: draft.model_map.default === route.name ? null : draft.model_map.default, options: draft.model_map.options.filter((_,i) => i !== index) } }); setOverrides(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => Number(key) !== index).map(([key,value]) => [Number(key) > index ? Number(key)-1 : Number(key), value]))) }}>{zh ? '删除路由' : 'Remove'}</button></div>
