@@ -5,8 +5,8 @@ import App from './App'
 import { DesktopProvider } from './app/DesktopContext'
 import { LanguageProvider } from './i18n'
 
-export function mountApp(element: HTMLElement, api: DesktopApi): Root {
-  const root = ReactDOM.createRoot(element)
+export function mountApp(element: HTMLElement, api: DesktopApi, onRenderError?: (error: unknown) => void): Root {
+  const root = ReactDOM.createRoot(element, onRenderError ? { onUncaughtError: onRenderError } : undefined)
   root.render(<React.StrictMode><DesktopProvider api={api}><LanguageProvider><App /></LanguageProvider></DesktopProvider></React.StrictMode>)
   return root
 }

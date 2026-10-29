@@ -10,7 +10,8 @@ React 界面代码位于 `src/`。桌面客户端通过 `mountApp(root, api)` �
 - `src/app/DesktopContext.tsx`：宿主能力注入。
 - `src/features/models/components/ProviderCard.tsx`：提供方模型清单和本地编辑状态。
 - `src/features/agent-settings/components/`：配置字段、分组树、辅助模型任务卡片与完整 YAML 编辑器；View 组合组件并呈现控制器状态。
-- `src/features/about/`：「关于」四个 Tab、RC/正式版渠道偏好及纯版本比较规则；无可信发行源时不报告更新结果。
+- `src/features/about/`：「关于」三个 Tab，以及左侧独立的「软件更新」页、RC/正式版渠道偏好和纯版本比较规则；无可信发行源时不报告更新结果。
+- `src/features/runtime/`：运行时与存储设置、独立的开发者诊断页。诊断页默认隐藏入口，在主聊天页面空白区域连续点击五次后打开。
 - `src/features/channels/`：飞书和微信二维码、扫码状态及接入后的排空重启；其他 Hermes 消息渠道显示只读状态。超时后提供继续等待和确认强制重启，凭据不进入前端状态。
 - `src/features/workspaces/`：本地工作区目录快捷入口、当前新会话目录选择；选中的目录在创建新会话时传给桌面宿主，恢复旧会话不改其原目录。
 - `src/preview/`：浏览器预览的模拟宿主。

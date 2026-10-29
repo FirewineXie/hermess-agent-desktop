@@ -169,8 +169,8 @@ export type UpdateRelease = {
   eligible: boolean
   asset: UpdateAsset | null
 }
-export type UpdateLookup = { status: 'available' | 'unavailable'; releases: UpdateRelease[] }
-export type UpdateDownloadProgress = { tagName: string; downloaded: number; total: number }
+export type UpdateLookup = { status: 'available' | 'unavailable' | 'rate_limited'; releases: UpdateRelease[] }
+export type UpdateDownloadStatus = { state: 'idle' | 'downloading' | 'completed' | 'failed'; tagName: string; assetId: number; downloaded: number; total: number; path: string | null; error: DesktopFailure | null }
 
 export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
@@ -217,6 +217,9 @@ export interface DesktopApi {
     closeTerminal(scope: WorkspaceScope, id: string): Promise<void>
     onTerminalOutput(handler: (event: { id: string; scope: WorkspaceScope; data: string; closed: boolean }) => void): Promise<Unsubscribe>
   }
+  localPreview: {
+    readHtml(path: string): Promise<{ path: string; content: string }>
+  }
   channels: {
     status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
@@ -226,8 +229,9 @@ export interface DesktopApi {
   about: {
     productInfo(): Promise<ProductInfo>
     checkUpdates(): Promise<UpdateLookup>
-    downloadUpdate(tagName: string, assetId: number): Promise<string>
-    onDownloadProgress(handler: (progress: UpdateDownloadProgress) => void): Promise<Unsubscribe>
+    startUpdateDownload(tagName: string, assetId: number): Promise<UpdateDownloadStatus>
+    getUpdateDownloadStatus(): Promise<UpdateDownloadStatus>
+    onUpdateDownloadStatus(handler: (status: UpdateDownloadStatus) => void): Promise<Unsubscribe>
   }
   extensions: {
     request<T>(scope: ProfileScope, operation: string, payload?: Record<string, unknown>): Promise<T>

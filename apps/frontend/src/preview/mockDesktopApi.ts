@@ -28,6 +28,9 @@ export const previewDesktopApi: DesktopApi = {
     async closeTerminal() {},
     async onTerminalOutput() { return () => {} },
   },
+  localPreview: {
+    async readHtml() { throw previewOnly() },
+  },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
     async dataDirectory() { throw previewOnly() },
@@ -50,8 +53,9 @@ export const previewDesktopApi: DesktopApi = {
   about: {
     async productInfo() { return { version: '0.1.6', hermesVersion: 'v0.22.5', hermesCommit: '882037eb8745b505db438217513c4c94f95c93c1', productLicense: 'Preview only. The desktop build reads the bundled license.', hermesLicense: 'Preview only. The desktop build reads the bundled Hermes Agent license.' } },
     async checkUpdates() { return { status: 'unavailable', releases: [] } },
-    async downloadUpdate() { throw previewOnly() },
-    async onDownloadProgress() { return () => {} },
+    async startUpdateDownload() { throw previewOnly() },
+    async getUpdateDownloadStatus() { return { state: 'idle', tagName: '', assetId: 0, downloaded: 0, total: 0, path: null, error: null } as const },
+    async onUpdateDownloadStatus() { return () => {} },
   },
   extensions: {
     async request() { throw previewOnly() },

@@ -1,5 +1,5 @@
-export type SettingsCategory = 'security' | 'advanced' | 'models' | 'memory' | 'notifications' | 'runtime' | 'about' | 'desktop'
-export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'delegation' | 'device' | 'quick-input' | 'providers' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'runtime' | 'about'
+export type SettingsCategory = 'security' | 'advanced' | 'models' | 'memory' | 'notifications' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
+export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'delegation' | 'device' | 'quick-input' | 'providers' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'runtime' | 'diagnostics' | 'update' | 'about'
 
 export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory; zh: string; en: string }> = [
   { id: 'security-approvals', category: 'security', zh: '审批与允许列表', en: 'Approvals & allowlist' },
@@ -23,6 +23,8 @@ export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory
   { id: 'notification-alerts', category: 'notifications', zh: '桌面提醒', en: 'Desktop alerts' },
   { id: 'notification-sounds', category: 'notifications', zh: '提示音', en: 'Sounds' },
   { id: 'runtime', category: 'runtime', zh: '运行时与存储', en: 'Runtime & storage' },
+  { id: 'diagnostics', category: 'diagnostics', zh: '开发者诊断', en: 'Developer diagnostics' },
+  { id: 'update', category: 'update', zh: '软件更新', en: 'Software updates' },
   { id: 'about', category: 'about', zh: '关于', en: 'About' },
 ]
 
@@ -42,5 +44,7 @@ export const settingsCategories: Array<{
   { id: 'advanced', page: 'advanced-runtime', zh: '高级', en: 'Advanced', descriptionZh: '当前 Profile 的运行参数与完整配置', descriptionEn: 'Runtime parameters and full configuration for this Profile', profileScoped: true },
   { id: 'desktop', page: 'device', zh: '桌面', en: 'Desktop', descriptionZh: '设备偏好与全局快捷输入', descriptionEn: 'Device preferences and global quick input', profileScoped: false },
   { id: 'runtime', page: 'runtime', zh: '运行时与存储', en: 'Runtime & storage', descriptionZh: '', descriptionEn: '', profileScoped: false },
+  { id: 'diagnostics', page: 'diagnostics', zh: '开发者诊断', en: 'Developer diagnostics', descriptionZh: '', descriptionEn: '', profileScoped: false },
+  { id: 'update', page: 'update', zh: '软件更新', en: 'Software updates', descriptionZh: '', descriptionEn: '', profileScoped: false },
   { id: 'about', page: 'about', zh: '关于', en: 'About', descriptionZh: '', descriptionEn: '', profileScoped: false },
 ]

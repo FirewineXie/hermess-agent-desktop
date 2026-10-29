@@ -137,6 +137,36 @@ pub struct PanelFile {
     mime: Option<&'static str>,
 }
 
+#[derive(Serialize)]
+pub struct LocalHtmlPreview {
+    path: String,
+    content: String,
+}
+
+#[tauri::command]
+pub fn read_local_preview_html(path: String) -> Result<LocalHtmlPreview, DesktopFailure> {
+    let source = Path::new(&path);
+    if !source.is_absolute() || !source.is_file() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let extension = source
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if extension != "html" && extension != "htm" {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let size = fs::metadata(source)
+        .map_err(|_| DesktopFailure::operation_failed())?
+        .len();
+    if size > 20 * 1024 * 1024 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let content = fs::read_to_string(source).map_err(|_| DesktopFailure::operation_failed())?;
+    Ok(LocalHtmlPreview { path, content })
+}
+
 #[tauri::command]
 pub fn read_workspace_panel_file(
     scope: WorkspaceScope,

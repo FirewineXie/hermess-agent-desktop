@@ -46,9 +46,13 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main_window(app),
             "quit" => {
+                crate::diagnostics::log_client_event("tray quit requested");
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let Ok(processes) = crate::process_manager::ProcessManager::current() else {
+                        crate::diagnostics::log_client_event(
+                            "ERROR tray quit: process manager unavailable",
+                        );
                         app.exit(1);
                         return;
                     };
@@ -72,6 +76,11 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     if !remaining.is_empty() {
                         eprintln!("Force-closed remaining desktop processes: {remaining:?}");
                     }
+                    crate::diagnostics::log_client_event(if matches!(stopped, Ok(Ok(()))) {
+                        "tray quit completed"
+                    } else {
+                        "ERROR tray quit: backend stop failed or timed out"
+                    });
                     app.exit(if matches!(stopped, Ok(Ok(()))) { 0 } else { 1 });
                 });
             }

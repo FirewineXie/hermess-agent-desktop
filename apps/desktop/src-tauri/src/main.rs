@@ -1,5 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+use tauri::Manager;
+
 mod device;
 mod device_power;
 mod diagnostics;
@@ -21,6 +23,7 @@ fn main() {
     if process_manager::maybe_run_watchdog() {
         return;
     }
+    diagnostics::install_panic_logger();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app);
@@ -43,7 +46,18 @@ fn main() {
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
         .manage(panel_terminal::TerminalState::default())
+        .manage(updates::UpdateDownloadState::default())
         .setup(|app| {
+            if let Some(storage) =
+                runtime::existing_client_log_storage(app.handle()).or_else(|| {
+                    app.path()
+                        .app_local_data_dir()
+                        .ok()
+                        .map(|path| path.join("HermessAgentDesktop"))
+                })
+            {
+                diagnostics::set_client_log_storage(storage);
+            }
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
             device::setup(app.handle())?;
@@ -70,6 +84,7 @@ fn main() {
             webview_cache::clear_webview_cache_now,
             workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
+            workspace_panel::read_local_preview_html,
             panel_terminal::start_panel_terminal,
             panel_terminal::activate_panel_terminal,
             panel_terminal::write_panel_terminal,
@@ -95,9 +110,11 @@ fn main() {
             runtime::personalities::apply_personality,
             diagnostics::read_diagnostic_logs,
             diagnostics::record_client_event,
+            diagnostics::record_client_error,
             runtime::about::get_product_info,
             updates::check_updates,
-            updates::download_update,
+            updates::start_update_download,
+            updates::get_update_download_status,
             runtime::channels::channel_status,
             runtime::channels::channel_qr_start,
             runtime::channels::channel_qr_poll,

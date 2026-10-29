@@ -1,6 +1,15 @@
 use super::RuntimeProbe;
 
 #[test]
+fn client_error_detail_stays_on_one_bounded_log_line() {
+    let detail = format!("错误\n{}", "x".repeat(3000));
+    let logged = super::bounded_error_detail(&detail);
+    assert!(!logged.contains('\n'));
+    assert_eq!(logged.chars().count(), 2048);
+    assert!(logged.starts_with("错误 "));
+}
+
+#[test]
 fn npm_version_probe_accepts_only_numeric_versions() {
     assert!(super::is_numeric_version("10.9.2"));
     assert!(super::is_numeric_version("11.0.0-rc.1"));

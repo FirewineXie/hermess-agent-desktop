@@ -58,3 +58,9 @@ fn installer_download_must_use_the_expected_github_release_path() {
     renamed.browser_download_url.push_str("?download=1");
     assert!(!trusted_download_url(&renamed, "v0.1.5-rc.2"));
 }
+
+#[test]
+fn file_checksum_future_does_not_reserve_a_large_stack_buffer() {
+    let future = sha256_file(Path::new("unused"));
+    assert!(std::mem::size_of_val(&future) < 4096);
+}

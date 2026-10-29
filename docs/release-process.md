@@ -45,7 +45,7 @@ git push origin vX.Y.Z
 | macOS Intel | `macos-15-intel` | `.dmg` | 按需手动补发 |
 | Linux x64 | `ubuntu-22.04` | AppImage 与 `.deb` | 按需手动补发 |
 
-每个原生 runner 复用缓存或自行获取 Python/uv 工具及 uv 下载依赖，再验证 payload 与上游提交。Windows 将 payload 归档并计算摘要交给 Tauri 打包，NSIS 使用 zlib 压缩。安装器将新 payload 解到 `runtime/payload.next`，必要文件校验后再切换到固定的 `runtime/payload`；若安装器记录的旧 payload 归档摘要与新包一致，则跳过解包和目录切换。不同摘要时，旧目录改名为带时间戳的 `payload.old-*`；新 Gateway 启动成功后，客户端在后台只清理带本产品标记的旧目录，未清理完的目录在后续成功启动时重试，卸载时也予以清理。安装器仍会复制新包中的归档资源；这里的复用不等于跳过资源复制。macOS/Linux 将已验证的展开后 payload 直接作为应用资源打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
+每个原生 runner 复用缓存或自行获取 Python/uv 工具及 uv 下载依赖，再验证 payload 与上游提交。Windows 将 payload 归档并计算摘要交给 Tauri 打包，NSIS 使用 zlib 压缩。交互安装时，已有同产品 NSIS 版本较低则直接覆盖升级，同版本要求确认重装，已有版本较高则要求确认降级覆盖；`/P` 被动安装的升级和同版本重装直接覆盖，降级因无法确认而中止；旧 WiX 安装仍走原有卸载迁移流程。安装器将新 payload 解到 `runtime/payload.next`，必要文件校验后再切换到固定的 `runtime/payload`；若安装器记录的旧 payload 归档摘要与新包一致，则跳过解包和目录切换。不同摘要时，旧目录改名为带时间戳的 `payload.old-*`；新 Gateway 启动成功后，客户端在后台只清理带本产品标记的旧目录，未清理完的目录在后续成功启动时重试，卸载时也予以清理。安装器仍会复制新包中的归档资源；这里的复用不等于跳过资源复制。macOS/Linux 将已验证的展开后 payload 直接作为应用资源打包。安装包应包含匹配目标平台的运行时；两个默认目标都成功后，汇总两个安装包和 `SHA256SUMS.txt` 到对应 Release，任一默认目标失败则不创建 Release。正文取对应版本说明：`vX.Y.Z` 创建正式 Release，带预发布后缀的 tag 创建预发布 Release。安装包在上传前统一为无空格文件名，使 GitHub 附件名和校验清单一致。
 
 覆盖安装时若旧 `payload` 暂时被占用，Windows 安装器会短时重试；交互安装允许关闭占用程序后再次尝试。切换失败时保留旧目录和已完整解压的 `payload.next`，下一次运行在摘要及必要文件匹配时直接复用暂存目录。
 

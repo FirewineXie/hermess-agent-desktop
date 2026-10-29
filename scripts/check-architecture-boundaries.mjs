@@ -99,7 +99,7 @@ if ([...profileDataSource.matchAll(/\.spawn\s*\(/g)].length !== 1 || !profileDat
 }
 
 const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
-const adapter = [readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/quick-input.tsx'), 'utf8')].join('\n')
+const adapter = [readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/adapter/errorLogging.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/quick-input.tsx'), 'utf8')].join('\n')
 const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')
 const registeredBlock = main.match(/generate_handler!\[([\s\S]*?)\]/)?.[1]
 if (!registeredBlock) failures.push('apps/desktop/src-tauri/src/main.rs: command registration not found')

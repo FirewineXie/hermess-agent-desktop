@@ -21,8 +21,10 @@ import SettingsView from './features/settings/SettingsView'
 import type { SettingsPage } from './features/settings/model'
 import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
+import DiagnosticsView from './features/runtime/DiagnosticsView'
 import PersonalFilesView from './features/personal-files/PersonalFilesView'
 import AboutView from './features/about/AboutView'
+import UpdateView from './features/about/UpdateView'
 import { useUpdateStatus } from './features/about/useUpdateStatus'
 import ChannelsView from './features/channels/ChannelsView'
 import UsageView from './features/usage/UsageView'
@@ -58,8 +60,7 @@ function App() {
   const [profileMemoryOpen, setProfileMemoryOpen] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
-  const [aboutInitialTab, setAboutInitialTab] = React.useState<'license' | 'update'>('license')
-  const [updateTabRequest, setUpdateTabRequest] = React.useState(0)
+  const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
   const updateStatus = useUpdateStatus()
   const workspaces = useWorkspaces()
   const {
@@ -108,7 +109,6 @@ function App() {
     if ((view === 'memory' || (view === 'profiles' && profileMemoryOpen)) && next !== view && personalFilesDirty && !window.confirm(t('ui.unsaved.personal.files.leave'))) return false
     if (next !== 'memory') setPersonalFilesDirty(false)
     if (next !== 'profiles') setProfileMemoryOpen(false)
-    if (next === 'about') setAboutInitialTab('license')
     setView(next)
     setSidebarOpen(false)
     return true
@@ -125,6 +125,9 @@ function App() {
     setSettingsPage(page)
     setSidebarOpen(false)
     return true
+  }
+  const openDiagnostics = () => {
+    if (openSettings('diagnostics')) setDiagnosticsUnlocked(true)
   }
   useQuickInputBridge({
     target: backend && viewedProfile ? { profile: viewedProfile, sessionId: storedSessionRef.current || '', epoch: backend.replay_epoch, busy: turnBusy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || settingsBusy || settingsDirty || personalFilesDirty || Boolean(chatController.draft.trim()) || chatController.attachments.length > 0 } : null,
@@ -185,7 +188,7 @@ function App() {
     return Boolean(restarted)
   }
   return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
-    <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else openView(next) }} onOpenUpdate={() => { if (openSettings('about')) { setAboutInitialTab('update'); setUpdateTabRequest(value => value + 1) } }} />
+    <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else openView(next) }} onOpenUpdate={() => { openSettings('update') }} />
     {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else openView(next) }} onNewChat={() => { if (openView('chat')) void newChat() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
@@ -218,11 +221,11 @@ function App() {
       }}
       onOpenConfiguration={page => { openSettings(page) }} onOpenChannels={() => { openView('channels') }} onOpenUsage={() => { openView('usage') }} onNewChat={() => { if (openView('chat')) void newChat() }} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
-    {view === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
+    {view === 'about' && <AboutView updateStatus={updateStatus} />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onDirtyChange={setPersonalFilesDirty} />}
-    {view === 'settings' && <SettingsView language={language} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot?.profiles || []} profileBusy={profileController.busy || settingsBusy}
+    {view === 'settings' && <SettingsView language={language} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot?.profiles || []} profileBusy={profileController.busy || settingsBusy} diagnosticsUnlocked={diagnosticsUnlocked}
       onSelectProfile={async name => { if (name === viewedProfile) return true; if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); await profileController.select(name); setSettingsDirty(false); return true }}
-      onNavigate={page => { if (!openSettings(page)) return false; if (page === 'about') setAboutInitialTab('license'); return true }}
+      onNavigate={page => openSettings(page)}
       onExit={() => { if (openView(settingsReturnView)) setSettingsDirty(false) }}>
       {isConfigurationPage(settingsPage) && <ConfigurationSettings key={backend?.replay_epoch + ':' + viewedProfile + ':' + settingsPage} connected={Boolean(backend)} profile={viewedProfile} page={settingsPage} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onNavigate={page => { openSettings(page) }} />}
       {(settingsPage === 'device' || settingsPage === 'quick-input') && <DeviceSettings page={settingsPage} language={language} />}
@@ -241,7 +244,9 @@ function App() {
         onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {(settingsPage === 'notification-alerts' || settingsPage === 'notification-sounds') && <NotificationsSettings page={settingsPage === 'notification-alerts' ? 'alerts' : 'sounds'} language={language} />}
       {settingsPage === 'runtime' && <RuntimeView storagePath={storagePath} onStoragePathChange={setStoragePath} storageLocked={storageLocked} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onChooseStoragePath={chooseStoragePath} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
-      {settingsPage === 'about' && <AboutView initialTab={aboutInitialTab} updateTabRequest={updateTabRequest} updateStatus={updateStatus} />}
+      {settingsPage === 'diagnostics' && <DiagnosticsView storagePath={storagePath} pythonPath={pythonPath} onPythonPathChange={setPythonPath} backend={backend} backendStatus={backendStatus} busy={busy} onStart={startBackend} onPing={pingBackend} onReconnect={reconnectBackend} onStop={stopBackend} />}
+      {settingsPage === 'update' && <UpdateView updateStatus={updateStatus} />}
+      {settingsPage === 'about' && <AboutView updateStatus={updateStatus} />}
     </SettingsView>}
     <div className="chat-workspace-layout" style={view === 'chat' ? undefined : { display: 'none' }}><ChatView connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
       controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
@@ -249,7 +254,7 @@ function App() {
       profiles={profileController.snapshot} profileBusy={profileController.busy} onSelectProfile={name => { void profileController.select(name).catch(() => {}) }} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
-      onOpenRuntime={() => openSettings('runtime')} onOpenModelSettings={() => openSettings('main')} />
+      onOpenRuntime={() => openSettings('runtime')} onOpenModelSettings={() => openSettings('main')} onOpenDiagnostics={openDiagnostics} />
       <WorkspacePanel open={view === 'chat' && panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionCurrentDirectory : workspaces.selected} profile={viewedProfile} epoch={backend?.replay_epoch || null} ownerSessionId={sessionId}
       /></div>
     </main>

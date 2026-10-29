@@ -81,6 +81,7 @@ struct OwnedBackend {
     selected_profile: String,
     bundled_tools_root: Option<PathBuf>,
     disable_lazy_installs: bool,
+    exit_recorded: bool,
 }
 
 struct RestartDrainGuard(PathBuf);
@@ -153,6 +154,15 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
             .to_string_lossy()
             .into_owned(),
     })
+}
+
+pub(crate) fn existing_client_log_storage(app: &AppHandle) -> Option<PathBuf> {
+    let selected = if cfg!(debug_assertions) {
+        PathBuf::from(dev_backend_defaults().ok()?.storage_path)
+    } else {
+        saved_storage_path(app).ok()??
+    };
+    crate::storage::product_storage(&selected).ok()
 }
 
 async fn ping(port: u16, token: &str) -> Result<(), String> {
@@ -368,6 +378,7 @@ async fn launch_backend(
         .canonicalize()
         .map_err(|_| "无法解析产品存储目录".to_string())?;
     let storage_lock = acquire_storage_lock(&storage)?;
+    crate::diagnostics::set_client_log_storage(storage.clone());
     #[cfg(windows)]
     powershell_tool::install(&storage)?;
     let _ = append_client_event(&storage, "backend_starting");
@@ -408,11 +419,14 @@ async fn launch_backend(
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let deadline = Instant::now() + Duration::from_secs(60);
     let (port, endpoint) = loop {
-        if child
+        if let Some(status) = child
             .try_wait()
             .map_err(|_| "后端进程状态读取失败".to_string())?
-            .is_some()
         {
+            let _ = append_client_event(
+                &storage,
+                &format!("ERROR backend_exited_before_ready status={status}"),
+            );
             return Err("后端在发布就绪状态前退出；请查看开发者诊断中的 Hermess 日志".into());
         }
         if hermes_home.join("gateway.lock").is_file() {
@@ -427,11 +441,14 @@ async fn launch_backend(
     };
     ping(port, &token).await?;
     verify_private_api(port, &token).await?;
-    if child
+    if let Some(status) = child
         .try_wait()
         .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
     {
+        let _ = append_client_event(
+            &storage,
+            &format!("ERROR backend_exited_after_auth status={status}"),
+        );
         return Err("后端在鉴权后退出".into());
     }
     let ticket = mint_gateway_ticket(&hermes_home, &endpoint, pid).await?;
@@ -453,6 +470,7 @@ async fn launch_backend(
         selected_profile,
         bundled_tools_root,
         disable_lazy_installs,
+        exit_recorded: false,
     });
     Ok(BackendInfo {
         port,
@@ -467,12 +485,7 @@ async fn reuse_owned_backend(
     selected: &Path,
 ) -> Result<Option<BackendInfo>, DesktopFailure> {
     if let Some(existing) = owned.as_mut() {
-        if existing
-            .child
-            .try_wait()
-            .map_err(|_| "进程状态读取失败".to_string())?
-            .is_none()
-        {
+        if backend_running(existing).map_err(DesktopFailure::from)? {
             if !running_storage_matches(&existing.storage, selected) {
                 return Err(DesktopFailure::conflict());
             }
@@ -497,6 +510,26 @@ async fn reuse_owned_backend(
     Ok(None)
 }
 
+fn backend_running(backend: &mut OwnedBackend) -> Result<bool, String> {
+    match backend
+        .child
+        .try_wait()
+        .map_err(|_| "后端进程状态读取失败".to_string())?
+    {
+        None => Ok(true),
+        Some(status) => {
+            if !backend.exit_recorded {
+                let _ = append_client_event(
+                    &backend.storage,
+                    &format!("ERROR backend_exited status={status}"),
+                );
+                backend.exit_recorded = true;
+            }
+            Ok(false)
+        }
+    }
+}
+
 fn running_storage_matches(storage: &Path, selected: &Path) -> bool {
     selected.canonicalize().ok().as_deref() == storage.parent()
 }
@@ -507,12 +540,7 @@ pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
     let backend = owned
         .as_mut()
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    if backend
-        .child
-        .try_wait()
-        .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
-    {
+    if !backend_running(backend).map_err(DesktopFailure::from)? {
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
@@ -530,12 +558,7 @@ pub async fn reconnect_backend(
     let backend = owned
         .as_mut()
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    if backend
-        .child
-        .try_wait()
-        .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
-    {
+    if !backend_running(backend).map_err(DesktopFailure::from)? {
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
@@ -772,6 +795,6 @@ impl BackendState {
             .lock()
             .await
             .as_mut()
-            .is_some_and(|backend| matches!(backend.child.try_wait(), Ok(None)))
+            .is_some_and(|backend| backend_running(backend).unwrap_or(false))
     }
 }

@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
-import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe, type UpdateDownloadProgress } from '@hermess/contracts'
+import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
 import { notificationApprovalChoice } from './notificationActions'
 
 const notificationTargets = new Map<number, NotificationTarget>()
@@ -160,6 +160,9 @@ export const tauriDesktopApi: DesktopApi = {
     closeTerminal: (scope, id) => invoke('close_panel_terminal', { scope, id }),
     onTerminalOutput: handler => listenPayload('panel-terminal-output', handler),
   },
+  localPreview: {
+    readHtml: path => invoke('read_local_preview_html', { path }),
+  },
   profiles: {
     list: () => invoke('list_profiles'),
     dataDirectory: scope => invoke('get_profile_data_directory', { profile: scope.profile }),
@@ -182,8 +185,9 @@ export const tauriDesktopApi: DesktopApi = {
   about: {
     productInfo: () => invoke('get_product_info'),
     checkUpdates: () => invoke('check_updates'),
-    downloadUpdate: (tagName, assetId) => invoke('download_update', { tagName, assetId }),
-    onDownloadProgress: handler => listenPayload<UpdateDownloadProgress>('update-download-progress', handler),
+    startUpdateDownload: (tagName, assetId) => invoke('start_update_download', { tagName, assetId }),
+    getUpdateDownloadStatus: () => invoke('get_update_download_status'),
+    onUpdateDownloadStatus: handler => listenPayload('update-download-status', handler),
   },
   extensions: {
     request: (scope, operation, payload = {}) => invoke('extension_request', { profile: scope.profile, operation, payload }),

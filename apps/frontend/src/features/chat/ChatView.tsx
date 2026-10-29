@@ -44,13 +44,25 @@ type Props = {
   picker: Picker
   onOpenRuntime: () => void
   onOpenModelSettings: () => void
+  onOpenDiagnostics: () => void
   profiles: ProfilesSnapshot | null
   profileBusy: boolean
   onSelectProfile: (name: string) => void
 }
 
-export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, profiles, profileBusy, onSelectProfile }: Props) {
+export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile }: Props) {
   const backend = connected
+  const blankClicks = React.useRef({ count: 0, last: 0 })
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    const blank = event.target === event.currentTarget || (event.target instanceof HTMLElement && event.target.classList.contains('chat-content'))
+    if (!blank) { blankClicks.current = { count: 0, last: 0 }; return }
+    const now = Date.now()
+    const count = now - blankClicks.current.last <= 1200 ? blankClicks.current.count + 1 : 1
+    blankClicks.current = { count, last: now }
+    if (count !== 5) return
+    blankClicks.current = { count: 0, last: 0 }
+    onOpenDiagnostics()
+  }
   const {
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice, sessionId, sessionWorkspacePath,
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
@@ -84,7 +96,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件与终端' : 'Files & terminal')
   const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
-  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`}>
+  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
