@@ -79,7 +79,7 @@ fn session_create_params(
     reasoning: Option<String>,
 ) -> Value {
     let mut params = json!({
-        "source": "desktop", "request_id": Uuid::new_v4().to_string()
+        "source": "gui", "request_id": Uuid::new_v4().to_string()
     });
     if let Some(cwd) = cwd {
         params["cwd"] = json!(cwd);

@@ -4,9 +4,11 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-30 修复 RC.5 新建聊天会话立即失败：客户端曾把会话创建来源发为 `desktop`，但锁定 Gateway 的创建入口只接受 `gui` 等来源；现恢复为 `gui`，由 Gateway 将其映射为桌面会话。既有会话恢复接口未改。Windows 本地 `pnpm verify:upstream`、`pnpm check:architecture`、`pnpm build`、`cargo fmt --all -- --check`、`cargo check` 和 `cargo test` 通过（Rust 单测 116 通过、5 忽略）；未做真实 Gateway 会话、原生窗口或安装包验证，macOS 原生行为未验收。已安装的 RC.5 尚不包含此修复。未修改 Hermes fork。
+
 2026-10-30 统一产品自有 Windows 路径写法：Rust 规范化读取后返回普通盘符或 UNC 路径，存储定位、Gateway 启停与控制管道、工作区文件与终端、附件和下载目录使用同一规则；前端持久化的工作区路径也统一为普通写法。已抽出公共路径函数；深路径仅在客户端内部文件系统调用时临时转换，不保存或传出扩展写法，macOS 与 Linux 分支保持原样。复审后修复深目录导入扫描的路径前缀不一致，并避免对含 `.`、`..` 的路径加扩展前缀。不迁移历史 Hermes 会话收据，也未修改锁定 fork。Windows 本地 Rust 单测 116 通过、5 忽略，前端类型检查与生产构建、桌面前端生产构建、架构检查、普通及深路径读写与目录扫描单测及 PowerShell 5.1/7 隔离验证通过；原生窗口、安装包及 macOS/Linux 原生行为未验收。锁定 fork 内部文件操作仍由 fork 自行管理。
 
-2026-10-30 修复 Windows 桌面会话中 `powershell_execute` 被延迟工具搜索收起，导致模型直接调用需 bash 的 `terminal` 时可能出现 `No shell found`：将产品插件归入直接展示的 `desktop_ui` 工具集，并把新建会话的来源值从 `gui` 统一为锁定 Gateway 识别的 `desktop`（恢复会话原已使用该值）；保留其他工具的延迟加载及各 Profile 的插件禁用选择。Windows 本地 `verify-powershell-tool.py`（含模型实际工具列表、PowerShell 5.1/7 执行和命名 Profile 注册）、Rust 格式与两项定向测试、架构检查、上游锁校验通过；真实模型会话、原生窗口和 macOS 原生行为未验收。未修改 Hermes fork。
+2026-10-30 修复 Windows 桌面会话中 `powershell_execute` 被延迟工具搜索收起，导致模型直接调用需 bash 的 `terminal` 时可能出现 `No shell found`：将产品插件归入直接展示的 `desktop_ui` 工具集；当时把新建会话来源从 `gui` 改为 `desktop` 的改动已确认不符合锁定 Gateway 的创建契约，并在上方修复。保留其他工具的延迟加载及各 Profile 的插件禁用选择。Windows 本地 `verify-powershell-tool.py`（含模型实际工具列表、PowerShell 5.1/7 执行和命名 Profile 注册）、Rust 格式与两项定向测试、架构检查、上游锁校验通过；真实模型会话、原生窗口和 macOS 原生行为未验收。未修改 Hermes fork。
 
 2026-10-30 Windows PowerShell Tool 补齐命名 Profile：启动时向已有有效命名 Profile 部署插件，新建 Profile 后立即部署并通知已运行 Gateway 重新扫描；每个 Profile 首次启用后可独立禁用，后续启动不覆盖禁用选择。工具脚本将常用 PowerShell 文本读写命令及进程输出默认设为 UTF-8，显式 `-Encoding` 仍优先；Windows PowerShell 5.1 写入时使用 UTF-8 BOM。“关于”页的工具卡片仅在 Windows 显示。Windows 本地根与隔离命名 Profile 的插件注册、PowerShell 5.1/7 中文文本读写、重定向、退出码验证，Rust 格式/编译检查、Rust 单测（111 通过、5 忽略）及架构检查通过；真实多 Profile 原生窗口操作、安装包和 macOS 原生行为未验收。macOS 不部署此 Windows 专用工具，锁定 Hermes fork 未修改。
 
