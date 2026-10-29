@@ -1,7 +1,6 @@
 import React from 'react'
 import type { ProfilesSnapshot } from '@hermess/contracts'
 import { useLanguage } from '../../i18n'
-import AgentSettingsView from '../agent-settings/AgentSettingsView'
 import PersonalFilesView from '../personal-files/PersonalFilesView'
 import ProfileOverview from './ProfileOverview'
 import './ProfilesView.css'
@@ -13,15 +12,11 @@ type Props = {
   profileBusy: boolean
   onSelectProfile: (name: string) => Promise<unknown>
   memoryOpen: boolean
-  agentSettingsOpen: boolean
-  onAgentDirtyChange: (dirty: boolean) => void
-  onCloseAgentSettings: () => void
-  onOpenModelSettings: () => void
   onMemoryDirtyChange: (dirty: boolean) => void
   onCloseMemory: () => void
   onOpenExtensions: () => void
   onOpenMemory: () => void
-  onOpenAgentSettings: () => void
+  onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
   onNewChat: () => void
@@ -77,14 +72,7 @@ export default function ProfilesView(props: Props) {
       </div>
       <button type="button" className="profile-directory-create" onClick={props.onOpenExtensions}>{zh ? '前往「扩展中心」' : 'Open Extension Hub'} <span aria-hidden="true">›</span></button>
     </aside>
-    <div className="profile-detail-scroll" onKeyDown={event => { if (props.agentSettingsOpen && event.key === 'Escape') { event.stopPropagation(); props.onCloseAgentSettings() } }}>{props.agentSettingsOpen ? <div className="profile-agent-settings">
-      <div className="profile-agent-settings-heading">
-        <div><span>{zh ? '专家管理' : 'Manage experts'} / {props.profiles?.selected || ''}</span><h2>{zh ? 'Agent 配置' : 'Agent settings'}</h2></div>
-        <button type="button" className="profile-agent-settings-close" aria-label={zh ? '关闭 Agent 配置' : 'Close Agent settings'} title={zh ? '关闭' : 'Close'} onClick={props.onCloseAgentSettings}>×</button>
-      </div>
-      <AgentSettingsView key={props.profiles?.selected || ''} connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
-        onDirtyChange={props.onAgentDirtyChange} onOpenModelSettings={props.onOpenModelSettings} embedded />
-    </div> : props.memoryOpen ? <PersonalFilesView
+    <div className="profile-detail-scroll">{props.memoryOpen ? <PersonalFilesView
       connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
       initialTab="memory" onDirtyChange={props.onMemoryDirtyChange} onClose={props.onCloseMemory} /> : <ProfileOverview
       connected={props.connected}
@@ -92,7 +80,7 @@ export default function ProfilesView(props: Props) {
       profiles={props.profiles}
       onNewChat={props.onNewChat}
       onOpenMemory={props.onOpenMemory}
-      onOpenAgentSettings={props.onOpenAgentSettings}
+      onOpenConfiguration={props.onOpenConfiguration}
       onOpenChannels={props.onOpenChannels}
       onOpenUsage={props.onOpenUsage}
     />}</div>

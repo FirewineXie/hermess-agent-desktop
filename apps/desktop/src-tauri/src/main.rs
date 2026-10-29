@@ -1,11 +1,14 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+mod device;
+mod device_power;
 mod diagnostics;
 mod errors;
 mod gateway;
 mod notifications;
 mod panel_terminal;
 mod process_manager;
+mod quick_input;
 mod runtime;
 mod storage;
 mod tray;
@@ -25,6 +28,17 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        quick_input::show(app);
+                    }
+                })
+                .build(),
+        )
+        .manage(device::DeviceState::default())
+        .manage(quick_input::QuickState::default())
         .manage(runtime::BackendState::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
@@ -32,13 +46,24 @@ fn main() {
         .setup(|app| {
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
+            device::setup(app.handle())?;
             webview_cache::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
+            device::get_device_status,
+            device::save_device_preferences,
+            quick_input::set_quick_target,
+            quick_input::get_quick_target,
+            quick_input::submit_quick_input,
+            quick_input::take_quick_submission,
+            quick_input::finish_quick_submission,
+            runtime::delegation::get_delegation_routing,
+            runtime::delegation::save_delegation_routing,
+            runtime::provider_copy::preview_provider_copy,
+            runtime::provider_copy::copy_provider,
             diagnostics::probe_local_tools,
-            diagnostics::set_frontend_debug_enabled,
             notifications::show_native_notification,
             webview_cache::get_webview_cache_settings,
             webview_cache::set_webview_cache_settings,
@@ -83,6 +108,7 @@ fn main() {
             runtime::chat::execute_composer_command,
             runtime::chat::dispatch_composer_skill,
             runtime::chat::attach_chat_file,
+            runtime::chat::attach_chat_image_bytes,
             runtime::chat::inspect_chat_file,
             runtime::chat::detach_chat_image,
             runtime::chat::answer_gateway_request,
@@ -98,6 +124,9 @@ fn main() {
             runtime::models::get_moa_config,
             runtime::models::save_moa_config,
             runtime::models::get_saved_model_config,
+            runtime::security::get_shared_metrics_consent,
+            runtime::security::save_shared_metrics_consent,
+            runtime::security::get_checkpoint_inventory,
             runtime::config::get_agent_config,
             runtime::config::get_agent_config_schema,
             runtime::config::get_agent_config_raw,

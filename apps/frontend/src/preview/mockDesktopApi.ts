@@ -11,7 +11,6 @@ export const previewDesktopApi: DesktopApi = {
     async minimize() {},
     async toggleMaximize() {},
     async close() {},
-    async setFrontendDebugEnabled() {},
   },
   notifications: {
     async permission() { return false },
@@ -88,6 +87,7 @@ export const previewDesktopApi: DesktopApi = {
     async saveRaw() { throw previewOnly() },
     async saveAuxiliary() { throw previewOnly() },
   },
+  security: { async consent() { throw previewOnly() }, async saveConsent() { throw previewOnly() }, async checkpoints() { throw previewOnly() } },
   memory: {
     async providers() { throw previewOnly() },
     async config() { throw previewOnly() },
@@ -99,7 +99,14 @@ export const previewDesktopApi: DesktopApi = {
     async read() { throw previewOnly() },
     async save() { throw previewOnly() },
   },
+  delegation: { async read() { throw previewOnly() }, async save() { throw previewOnly() } },
+  device: {
+    async status() { return { preferences: {keepAwake:false, f12Devtools:false, quickEnabled:false, shortcut:'CommandOrControl+Shift+Space'}, registered:false, awake:false, f12Supported:false, error:'PREVIEW_ONLY' } },
+    async save() { throw previewOnly() }, async setQuickTarget() {}, async onQuickSubmit() { return () => {} },
+    async takeQuickSubmission() { throw previewOnly() }, async finishQuickSubmission() {},
+  },
   models: {
+    async previewCopy() { throw previewOnly() }, async copy() { throw previewOnly() },
     async options() { throw previewOnly() },
     async savedConfig() { throw previewOnly() },
     async endpoints() { throw previewOnly() },
@@ -132,6 +139,7 @@ export const previewDesktopApi: DesktopApi = {
     async executeCommand() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },
     async attachFile() { throw previewOnly() },
+    async attachImageBytes() { throw previewOnly() },
     async inspectFile() { throw previewOnly() },
     async detachImage() { throw previewOnly() },
     async answerRequest() { throw previewOnly() },

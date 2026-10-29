@@ -3,6 +3,8 @@ pub mod browser_bridge;
 pub mod channels;
 pub mod chat;
 pub mod config;
+mod config_document;
+pub mod delegation;
 pub mod downloadable_tools;
 pub mod extensions;
 mod gateway_control;
@@ -22,8 +24,10 @@ mod powershell_tool;
 pub mod profile_data;
 mod profile_scope;
 pub mod profiles;
+pub mod provider_copy;
 #[cfg(windows)]
 mod retired_payload;
+pub mod security;
 pub mod tools;
 pub mod usage;
 pub mod workbuddy_import;
@@ -761,3 +765,13 @@ pub async fn stop_backend(
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
+
+impl BackendState {
+    pub(crate) async fn owned_process_running(&self) -> bool {
+        self.0
+            .lock()
+            .await
+            .as_mut()
+            .is_some_and(|backend| matches!(backend.child.try_wait(), Ok(None)))
+    }
+}

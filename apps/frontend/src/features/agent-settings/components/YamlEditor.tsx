@@ -14,7 +14,7 @@ export default function YamlEditor({ path, draft, dirty, busy, t, onChange, onSa
   return <>
     <p>{t('ui.file')}<code>{path ? displayPath(path) : t('ui.loading')}</code></p>
     <label htmlFor="agent-config-yaml">{t('ui.full.config.yaml')}</label>
-    <textarea id="agent-config-yaml" className="config-yaml" value={draft} onChange={event => onChange(event.target.value)} spellCheck={false} />
+    <textarea id="agent-config-yaml" className="config-yaml" value={draft} disabled={busy} onChange={event => onChange(event.target.value)} spellCheck={false} />
     <div className="actions"><button disabled={busy || !dirty} onClick={onSave}>{t('ui.save.full.yaml')}</button></div>
   </>
 }

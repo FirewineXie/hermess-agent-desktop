@@ -1,5 +1,6 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
@@ -293,6 +294,45 @@ pub async fn attach_chat_file(
         "source_path": source.to_string_lossy(), "bytes": bytes, "preview": preview,
         "ref_text": result.get("ref_text"),
         "path": result.get("path")}),
+    )
+}
+
+#[tauri::command]
+pub async fn attach_chat_image_bytes(
+    state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
+    content_base64: String,
+    name: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 || name.is_empty() || name.len() > 128 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    // Keep the desktop attachment limit aligned with path-based attachments.
+    if content_base64.is_empty() || content_base64.len() > 28 * 1024 * 1024 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let image = base64::engine::general_purpose::STANDARD
+        .decode(&content_base64)
+        .map_err(|_| DesktopFailure::invalid_input())?;
+    if image.is_empty() || image.len() > 20 * 1024 * 1024 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let result = gateway
+        .request(
+            "image.attach_bytes",
+            json!({"session_id": session_id, "content_base64": content_base64, "filename": name}),
+        )
+        .await?;
+    if result.get("attached").and_then(Value::as_bool) != Some(true)
+        || result.get("path").and_then(Value::as_str).is_none()
+    {
+        return Err("后端未接受图片附件".into());
+    }
+    Ok(
+        json!({"kind": "image", "name": name, "source_path": "clipboard",
+        "bytes": image.len(), "path": result.get("path")}),
     )
 }
 

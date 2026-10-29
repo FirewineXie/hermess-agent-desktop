@@ -13,6 +13,11 @@ pub fn show_main_window(app: &AppHandle) {
 }
 
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    if window.label() == "quick-input" {
+        if let WindowEvent::Focused(false) = event {
+            let _ = window.hide();
+        }
+    }
     if let WindowEvent::CloseRequested { api, .. } = event {
         api.prevent_close();
         let _ = window.hide();
@@ -50,6 +55,7 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     if !processes.begin_shutdown() {
                         return;
                     }
+                    crate::device::shutdown(&app);
                     crate::panel_terminal::close_all_panel_terminals(
                         app.state::<crate::panel_terminal::TerminalState>(),
                     );

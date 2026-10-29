@@ -1,3 +1,6 @@
+import type { ProviderCopyPreview, ProviderCopyResult, DelegationRouting, DevicePreferences, DeviceStatus, QuickTarget, QuickSubmission } from './settings-capabilities'
+import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult } from './configuration'
+export * from './configuration'
 export type Unsubscribe = () => void
 
 /** Every profile-owned operation carries its owner explicitly. */
@@ -57,6 +60,7 @@ export type ProfileToolset = {
 export type AgentConfigField = { type: string; description?: string; category?: string; options?: unknown[] }
 export type AgentConfigSchema = { fields: Record<string, AgentConfigField>; category_order: string[] }
 export type AgentRawConfig = { yaml: string; path: string }
+export * from './settings-capabilities'
 export type PersonalFileKind = 'soul' | 'memory' | 'user'
 export type PersonalFile = {
   kind: PersonalFileKind; path: string; exists: boolean; content: string; entries: string[]
@@ -87,7 +91,7 @@ export type MoaConfig = MoaPreset & { default_preset: string; active_preset: str
 export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
-export type SessionRow = { id: string; title?: string; preview?: string; source?: string; message_count?: number }
+export type SessionRow = { id: string; session_id?: string; title?: string; preview?: string; source?: string; message_count?: number; running?: boolean }
 export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null }
 export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
@@ -107,7 +111,7 @@ export type WorkBuddyImportPreview = {
   scriptCount: number; fileCount: number; totalBytes: number; digest: string; soul: string
   notices: string[]
 }
-export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
+export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; image_preview?: string; path?: string; ref_text?: string; content_base64?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
   skills: Record<string, { usage: number; origin: string }>
@@ -196,7 +200,6 @@ export interface DesktopApi {
     minimize(): Promise<void>
     toggleMaximize(): Promise<void>
     close(): Promise<void>
-    setFrontendDebugEnabled(enabled: boolean): Promise<void>
   }
   notifications: {
     permission(): Promise<boolean>
@@ -270,8 +273,13 @@ export interface DesktopApi {
     config(scope: ProfileScope): Promise<Record<string, unknown>>
     raw(scope: ProfileScope): Promise<AgentRawConfig>
     saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
-    saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<void>
+    saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<RawConfigWriteResult>
     saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<void>
+  }
+  security: {
+    consent(scope: ProfileScope): Promise<SharedMetricsConsent>
+    saveConsent(scope: ProfileScope, enabled: boolean, send: boolean): Promise<SharedMetricsConsent>
+    checkpoints(scope: ProfileScope): Promise<CheckpointInventory>
   }
   memory: {
     providers(scope: ProfileScope): Promise<{ active: string; providers: MemoryProviderSummary[] }>
@@ -285,6 +293,8 @@ export interface DesktopApi {
     save(scope: ProfileScope, args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
   }
   models: {
+    previewCopy(scope: ProfileScope, endpointId: string, target: string): Promise<ProviderCopyPreview>
+    copy(scope: ProfileScope, preview: ProviderCopyPreview): Promise<ProviderCopyResult>
     options(scope: ProfileScope | SessionScope, args: { refresh: boolean; includeUnconfigured?: boolean }): Promise<ModelOptions>
     savedConfig(scope: ProfileScope): Promise<SavedModelConfig>
     endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
@@ -299,6 +309,18 @@ export interface DesktopApi {
     selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
     moa(scope: ProfileScope): Promise<MoaConfig>
     saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig>
+  }
+  delegation: {
+    read(scope: ProfileScope): Promise<DelegationRouting>
+    save(scope: ProfileScope, draft: DelegationRouting): Promise<{ routing: DelegationRouting; activated: boolean }>
+  }
+  device: {
+    status(): Promise<DeviceStatus>
+    save(preferences: DevicePreferences): Promise<DeviceStatus>
+    setQuickTarget(target: QuickTarget | null): Promise<void>
+    onQuickSubmit(handler: (submission: QuickSubmission) => void): Promise<Unsubscribe>
+    takeQuickSubmission(requestId: string): Promise<QuickSubmission>
+    finishQuickSubmission(requestId: string, error: string | null): Promise<void>
   }
   usage: {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
@@ -317,6 +339,7 @@ export interface DesktopApi {
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
+    attachImageBytes(scope: SessionScope, contentBase64: string, name: string): Promise<PendingAttachment>
     inspectFile(path: string): Promise<PendingAttachment>
     detachImage(scope: SessionScope, path: string): Promise<void>
     answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>

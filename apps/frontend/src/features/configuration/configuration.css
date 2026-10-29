@@ -1,0 +1,25 @@
+.configuration-settings { max-width: 1100px; min-width: 0; padding-bottom: 24px; }
+.configuration-settings h2 { margin: 0; font-size: 24px; }
+.configuration-settings > p, .configuration-subsection > p { color: #64748b; line-height: 1.65; }
+.configuration-settings label { display: grid; gap: 8px; margin: 14px 0; font-size: 14px; }
+.configuration-settings fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.configuration-settings :is(input:not([type=checkbox]),select,textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #dce3eb; border-radius: 9px; background: #fff; color: #172235; font: inherit; }
+.configuration-settings textarea { min-height: 90px; resize: vertical; font-family: Consolas, monospace; }
+.configuration-settings .config-yaml { min-height: 440px; }
+.configuration-settings button { padding: 9px 13px; border: 1px solid #e3e8ef; border-radius: 9px; background: #fff; color: #243f65; font: inherit; cursor: pointer; }
+.configuration-settings button:disabled { opacity: .5; cursor: default; }
+.configuration-settings .config-field-preview { display: flex; background: transparent; border: 0; border-radius: 0; text-align: left; }
+.configuration-settings .config-field-preview:hover { background: #f5f8fc; }
+.configuration-settings .config-field-actions button:first-child, .configuration-settings .configuration-mode button[aria-pressed=true] { background: #1b6ffd; color: #fff; }
+.configuration-subsection { margin: 22px 0; padding: 18px 0; border-top: 1px solid #e3e8ef; }
+.configuration-settings .configuration-toggle { display: flex; align-items: center; gap: 10px; }
+.configuration-toggle input { width: 18px; height: 18px; flex: none; }
+.configuration-list-row { display: flex; gap: 10px; margin: 10px 0; }
+.configuration-list-row button { flex: none; }
+.configuration-mode, .configuration-settings .actions { display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
+.configuration-links > div { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid #e3e8ef; }
+.configuration-links code { flex: 1; overflow-wrap: anywhere; min-width: 0; }
+.configuration-links small { flex: 1; color: #64748b; }
+.configuration-inventory > div { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; border-top: 1px solid #e3e8ef; padding: 12px 0; }
+.configuration-inventory code { overflow-wrap: anywhere; }
+@media(max-width:720px) { .configuration-links > div { flex-wrap: wrap; } .configuration-links code { flex-basis: 100%; } .configuration-inventory > div { gap: 8px; font-size: 12px; } }

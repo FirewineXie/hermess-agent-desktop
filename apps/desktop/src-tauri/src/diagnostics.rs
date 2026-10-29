@@ -4,8 +4,7 @@ use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
 
-#[tauri::command]
-pub async fn set_frontend_debug_enabled(
+pub async fn apply_frontend_debug(
     window: tauri::WebviewWindow,
     enabled: bool,
 ) -> Result<(), DesktopFailure> {

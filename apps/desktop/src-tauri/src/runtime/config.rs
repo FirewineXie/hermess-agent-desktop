@@ -4,6 +4,8 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
 
+pub(super) static CONFIG_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub(super) async fn config_request_to_profile(
     state: &State<'_, BackendState>,
     profile: &str,
@@ -203,6 +205,7 @@ pub async fn save_agent_config_field(
     key: String,
     value: Value,
 ) -> Result<Value, DesktopFailure> {
+    let _guard = CONFIG_WRITE_LOCK.lock().await;
     if key.is_empty()
         || key.len() > 256
         || !key.split('.').all(|part| {
@@ -243,6 +246,32 @@ pub async fn save_agent_config_field(
             return Err(DesktopFailure::invalid_input());
         }
     }
+    if value.is_object() {
+        let current = config_request_for_scope(
+            &state,
+            &scope,
+            reqwest::Method::GET,
+            "/api/config/raw",
+            None,
+        )
+        .await?;
+        let original = current["yaml"]
+            .as_str()
+            .ok_or_else(DesktopFailure::operation_failed)?;
+        let mut document = if original.trim().is_empty() {
+            json!({})
+        } else {
+            super::config_document::parse_document(original)?
+        };
+        super::config_document::replace_field(&mut document, &key, value)?;
+        let text = serde_yaml::to_string(&document).map_err(|_| DesktopFailure::invalid_input())?;
+        let result =
+            super::config_document::write_document(&state, &scope, &text, original).await?;
+        if result["verified"] != true {
+            return Err(DesktopFailure::operation_failed());
+        }
+        return Ok(json!({"ok":true}));
+    }
     let mut patch = value;
     for part in key.split('.').rev() {
         let mut object = serde_json::Map::new();
@@ -266,27 +295,10 @@ pub async fn save_agent_config_raw(
     yaml_text: String,
     expected_yaml: String,
 ) -> Result<Value, DesktopFailure> {
+    let _guard = CONFIG_WRITE_LOCK.lock().await;
     if yaml_text.len() > 256 * 1024 || expected_yaml.len() > 256 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
     let scope = state.resolve_profile(&profile).await?;
-    let current = config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::GET,
-        "/api/config/raw",
-        None,
-    )
-    .await?;
-    if current.get("yaml").and_then(Value::as_str) != Some(expected_yaml.as_str()) {
-        return Err(DesktopFailure::conflict());
-    }
-    config_request_for_scope(
-        &state,
-        &scope,
-        reqwest::Method::PUT,
-        "/api/config/raw",
-        Some(json!({"yaml_text": yaml_text})),
-    )
-    .await
+    super::config_document::write_document(&state, &scope, &yaml_text, &expected_yaml).await
 }

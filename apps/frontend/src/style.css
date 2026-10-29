@@ -89,6 +89,11 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .sidebar-profile-row[aria-expanded="false"] .sidebar-profile-chevron { transform: rotate(-90deg); }
 .sidebar-sessions .sidebar-profile-manage { flex: none; justify-content: center; width: 32px; min-height: 36px; padding: 4px; color: #66758c; font-size: 15px; }
 .sidebar-sessions .sidebar-profile-session { min-height: 32px; margin-left: 26px; width: calc(100% - 26px); padding: 5px 8px 5px 12px; color: #425066; font-size: 12px; }
+.sidebar-profile-session .session-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-activity { flex: none; margin-left: auto; padding: 2px 5px; border-radius: 5px; font-size: 10px; font-weight: 600; white-space: nowrap; color: #2563a6; background: #dbeafe; }
+.session-activity.running { color: #9a5b08; background: #fef0c7; }
+.session-activity.approval, .session-activity.suggestion { color: #9a5b08; background: #fef0c7; }
+.session-activity.failed { color: #b42318; background: #fee4e2; }
 .sidebar-sessions .sidebar-profile-more { min-height: 32px; margin-left: 26px; width: calc(100% - 26px); padding: 5px 8px 5px 12px; color: #66758c; font-size: 12px; }
 .sidebar-sessions .sidebar-profile-more:focus-visible { outline: 2px solid #1b6ffd; outline-offset: -2px; }
 .settings-panel.flat-settings-panel.profile-management { flex: 1; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 28px 36px 48px; overflow-y: auto; }
@@ -380,7 +385,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .settings-panel p { color: #68717d; line-height: 1.55; }
 .settings-panel label { display: block; margin: 19px 0; font-weight: 600; font-size: 13px; }
 .settings-panel input, .settings-panel select { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; color: #20242d; background: #fff; border: 1px solid #cbd3dc; border-radius: 9px; }
-.agent-settings { width: min(1000px, calc(100% - 64px)); }
 .personal-files-panel { width: min(1000px, calc(100% - 64px)); }
 .workspaces-panel { width: min(1000px, calc(100% - 64px)); }
 .workspace-list { display: grid; gap: 10px; margin: 22px 0; }
@@ -406,9 +410,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .memory-entry label { margin: 0 0 8px; }
 .memory-entry button { margin-top: 8px; }
 .personal-actions { display: flex; gap: 12px; align-items: center; margin: 20px 0; color: #68717d; font-size: 12px; }
-.config-mode-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0; }
-.agent-settings .config-mode-tabs button { color: #415269; background: #eef1f5; }
-.agent-settings .config-mode-tabs button.selected { color: #fff; background: #315c91; }
 .default-reasoning-field { max-width: 520px; margin: 18px 0; padding: 16px 18px; border: 1px solid #dce5f0; border-radius: 10px; background: #f8fafc; }
 .default-reasoning-field h3 { margin: 0 0 8px; font-size: 15px; }
 .default-reasoning-field p { margin: 0 0 12px; }
@@ -426,8 +427,6 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .config-tree-children { margin-left: 9px; padding-left: 15px; border-left: 1px solid #dce5f0; }
 .config-field { min-width: 0; border-top: 1px solid #edf0f4; }
 .config-field-preview { display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; padding: 10px 4px; text-align: left; }
-.agent-settings .config-field-preview { color: #20242d; background: transparent; border-radius: 0; }
-.agent-settings .config-field-preview:hover { background: #f5f8fc; }
 .config-field-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
 .config-field-value { max-width: 45%; overflow: hidden; color: #657286; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .config-field-edit { flex: none; color: #315c91; font-size: 12px; }
@@ -435,10 +434,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .config-field label { margin: 0 0 7px; font-size: 14px; overflow-wrap: anywhere; }
 .config-field .config-field-key { display: block; margin-bottom: 7px; color: #84909e; font-size: 11px; overflow-wrap: anywhere; }
 .config-field small { margin-bottom: 10px; }
-.agent-settings textarea { display: block; width: 100%; margin: 8px 0; padding: 10px 12px; border: 1px solid #cbd3dc; border-radius: 9px; resize: vertical; font-family: Consolas, monospace; font-size: 12px; }
 .config-field-actions { display: flex; gap: 8px; margin-top: 9px; }
-.agent-settings .config-field-cancel { color: #415269; background: #e9eef4; }
-.agent-settings .config-yaml { min-height: 420px; }
 .auxiliary-list { display: grid; gap: 12px; margin-top: 18px; }
 .auxiliary-card { padding: 16px 18px; border: 1px solid #e1e7ef; border-radius: 10px; }
 .auxiliary-card .row button { padding: 5px 10px; color: #315c91; background: #eef2f7; }

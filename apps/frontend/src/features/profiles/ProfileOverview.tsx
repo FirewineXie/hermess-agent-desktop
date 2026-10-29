@@ -31,12 +31,12 @@ type Props = {
   profiles: ProfilesSnapshot | null
   onNewChat: () => void
   onOpenMemory: () => void
-  onOpenAgentSettings: () => void
+  onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenAgentSettings, onOpenChannels, onOpenUsage }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -201,7 +201,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
     {errors.length > 0 && <p className="profile-load-error" role="alert">{zh ? '部分资料读取失败：' : 'Some details could not be loaded: '}{errors.join('；')}</p>}
     {tab === 'overview' && <>
       <section className="profile-info-panel" aria-label={zh ? '基本信息' : 'Basic information'}>
-        <div className="profile-info-panel-heading"><h3>{zh ? '基本信息' : 'Basic information'}</h3><button type="button" onClick={onOpenAgentSettings}>{zh ? '查看配置' : 'View settings'} <span aria-hidden="true">›</span></button></div>
+        <div className="profile-info-panel-heading"><h3>{zh ? '基本信息' : 'Basic information'}</h3><button type="button" onClick={() => onOpenConfiguration('advanced-runtime')}>{zh ? '查看配置' : 'View settings'} <span aria-hidden="true">›</span></button></div>
         <dl className="profile-info-list">
           <div><dt>{zh ? '名称' : 'Name'}</dt><dd>{name}</dd></div>
           <div><dt>{zh ? 'Profile 标识' : 'Profile ID'}</dt><dd>{profile?.name || '—'}</dd></div>
@@ -212,8 +212,8 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
       <div className="profile-section-heading"><h3>{zh ? '能力与数据' : 'Capabilities and data'}</h3><p>{zh ? '当前专家的配置和资料' : 'Settings and information for this expert'}</p></div>
       <div className="profile-overview-grid">
       {card(zh ? 'Agent 工具集' : 'Agent toolsets', zh ? '查看工具集' : 'View toolsets', () => setTab('tools'), toolsContent, 'tools')}
-      {card(zh ? 'Agent 配置' : 'Agent settings', zh ? '查看配置' : 'View settings', onOpenAgentSettings,
-        zh ? '管理此专家的模型、行为及运行相关设置。' : 'Manage this expert’s model, behavior, and runtime settings.', 'settings')}
+      {card(zh ? '运行参数' : 'Runtime parameters', zh ? '查看配置' : 'View settings', () => onOpenConfiguration('advanced-runtime'),
+        zh ? '管理此专家的运行参数；模型配置位于统一设置的模型分类。' : 'Manage runtime parameters. Model configuration is in the Models category of Settings.', 'settings')}
       {card(zh ? '技能' : 'Skills', zh ? '查看技能' : 'View skills', () => setTab('skills'), skillsContent, 'skills')}
       {card('MCP', zh ? '管理 MCP' : 'Manage MCP', () => setTab('mcp'), mcpContent, 'mcp')}
       {card(zh ? '记忆' : 'Memory', zh ? '查看记忆' : 'View memory', onOpenMemory, memoryContent, 'memory')}
@@ -224,7 +224,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
         zh ? '查看此专家的使用量和模型统计。' : 'View usage and model statistics for this expert.', 'usage')}
       </div>
     </>}
-    {tab === 'tools' && card(zh ? '此 Profile 的工具集配置' : 'Toolset settings for this profile', zh ? '打开 Agent 设置' : 'Open Agent settings', onOpenAgentSettings,
+    {tab === 'tools' && card(zh ? '此 Profile 的工具集配置' : 'Toolset settings for this profile', zh ? '打开工具设置' : 'Open tool settings', () => onOpenConfiguration('advanced-tools'),
       <><p>{zh ? '这里显示当前 Profile 的配置，不代表某个已有会话实际可调用的工具。' : 'These are this Profile’s settings, not the tools available to a particular existing session.'}</p>
         {toolsets === null ? toolsContent : toolsets.length === 0 ? (zh ? '没有可配置的工具集。' : 'No configurable toolsets.')
           : <div className="toolset-list">{toolsets.map(item => <details key={item.name} className="tool-item">

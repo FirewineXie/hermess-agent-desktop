@@ -12,6 +12,9 @@ export const defaultNotificationPreferences: NotificationPreferences = {
   input: true,
   turnDone: true,
   turnError: true,
+  backgroundDone: true,
+  credits: true,
+  plugin: true,
   sound: true,
 }
 

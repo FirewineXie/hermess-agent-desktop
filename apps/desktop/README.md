@@ -47,3 +47,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
 离线安装包和发布仍按根目录 [发行流程](../../docs/release-process.md) 构建；普通前端构建不等于原生窗口或安装包验收。
 
 `pnpm build` 会混淆桌面发行前端的 JavaScript，并检查产物未携带 source map；`pnpm tauri:dev` 的开发服务器仍使用可调试代码。Rust release 构建裁剪符号。Hermes 离线载荷按锁定提交原样归档，见 [发行流程](../../docs/release-process.md)。
+
+## 设备偏好与快捷输入
+
+宿主将设备偏好保存在产品应用配置目录的 `desktop-preferences.json`；全局快捷键由同一 Tauri 进程注册，独立输入窗通过一次性请求交给主聊天控制器。Windows/macOS 保持唤醒分别使用原生 Power Request/IOKit，不启动辅助进程。托盘退出先释放这些资源，再按既有进程管理顺序关闭产品进程。功能及验收限制见 [本批设置能力记录](../../docs/settings-models-desktop-capabilities.md)。

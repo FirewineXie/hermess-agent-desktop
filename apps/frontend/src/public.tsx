@@ -10,3 +10,5 @@ export function mountApp(element: HTMLElement, api: DesktopApi): Root {
   root.render(<React.StrictMode><DesktopProvider api={api}><LanguageProvider><App /></LanguageProvider></DesktopProvider></React.StrictMode>)
   return root
 }
+
+export { default as QuickInputView, type QuickInputApi } from './features/desktop/QuickInputView'

@@ -1,9 +1,12 @@
-export type NotificationKind = 'approval' | 'input' | 'turnDone' | 'turnError'
+export type NotificationKind = 'approval' | 'input' | 'turnDone' | 'turnError' | 'backgroundDone' | 'credits' | 'plugin'
 export type NotificationSession = { profile: string; sessionId: string }
 
 export function shouldNotify(kind: NotificationKind, backgrounded: boolean, target: NotificationSession | undefined, active: NotificationSession | undefined): boolean {
   const sameSession = Boolean(target && active && target.profile === active.profile && target.sessionId === active.sessionId)
-  if (kind === 'approval' || kind === 'input') return backgrounded || Boolean(target && !sameSession)
+  // Non-blocking notices follow the existing native-notification background
+  // rule, but can belong to any known session, not just the selected one.
+  if (['backgroundDone', 'credits', 'plugin'].includes(kind)) return backgrounded && Boolean(target)
+  if (kind === 'approval' || kind === 'input') return Boolean(target) && (backgrounded || !sameSession)
   return backgrounded && sameSession
 }
 

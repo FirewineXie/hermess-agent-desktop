@@ -435,7 +435,6 @@
   "ui.the.storage.directory.creates.product.specific.subdirectories": "The storage directory creates product-specific subdirectories.",
   "ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i": "The storage location has been saved; automatic relocation is not available in the current version. If the location is unavailable, restore the disk or directory first.",
   "ui.there.are.currently.no.tasks.running": "There are currently no tasks running",
-  "ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave": "There are unsaved Agent configurations. Are you sure you want to leave?",
   "ui.this.command.does.not.exist.for.the.current.session.arg": "This command does not exist for the current session: {0}",
   "ui.this.command.return.type.is.not.supported.yet.arg": "This command return type is not supported yet: {0}",
   "ui.this.is.a.development.environment.or.there.is.no.payload.tool.list.that.can": "This is a development environment, or there is no payload tool list that can be read at runtime.",
@@ -471,5 +470,6 @@
   "ui.desktop.error.conflict": "The state changed. Refresh and try again.",
   "ui.desktop.error.invalid_input": "The input is invalid. Check it and try again.",
   "ui.desktop.error.session_owner_unknown": "This session's Profile has not been confirmed. Reopen it in its Profile and try again.",
-  "ui.desktop.error.session_profile_mismatch": "This session belongs to another Profile. Switch to its Profile and try again."
+  "ui.desktop.error.session_profile_mismatch": "This session belongs to another Profile. Switch to its Profile and try again.",
+  "ui.copy.provider.to.profile": "Copy to other Profiles"
 }

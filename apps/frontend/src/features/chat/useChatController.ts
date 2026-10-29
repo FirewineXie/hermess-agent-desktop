@@ -427,6 +427,31 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     } catch (cause) { setChatStatus(t("ui.failed.to.select.attachment.arg", describeError(cause, language))) }
   }
 
+  async function pasteImages(images: File[]) {
+    if (!backend || turnBusy || attachmentBusy || navigationBusy || !images.length) return
+    if (images.length + attachments.length > 10) { setChatStatus(t('ui.up.to.10.attachments.can.be.temporarily.saved.per.round')); return }
+    setAttachmentBusy(true)
+    try {
+      for (const image of images) {
+        if (!image.size || image.size > 20 * 1024 * 1024) throw new Error(language === 'zh-CN' ? '图片不能为空，且不能超过 20 MiB' : 'Image must be between 1 byte and 20 MiB')
+        const contentBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(image)
+        })
+        const name = image.name || 'pasted-image.png'
+        const attached: PendingAttachment = sessionRef.current
+          ? await chat.attachImageBytes(sessionScope(sessionRef.current), contentBase64, name)
+          : { kind: 'image', name, source_path: 'clipboard', bytes: image.size, content_base64: contentBase64 }
+        attached.image_preview = `data:${image.type || 'image/png'};base64,${contentBase64}`
+        setAttachments(current => [...current, attached])
+      }
+      setChatStatus(t('ui.arg.attachments.staged.they.will.be.included.with.the.next.message', images.length))
+    } catch (cause) { setChatStatus(t('ui.failed.to.temporarily.save.attachment.arg', describeError(cause, language))) }
+    finally { setAttachmentBusy(false) }
+  }
+
   React.useEffect(() => {
     if (!backend) return
     let active = true
@@ -457,9 +482,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     finally { setAttachmentBusy(false) }
   }
 
-  async function sendMessage(overrideText?: string) {
+  async function sendMessage(overrideText?: string, quickInput = false) {
+    if (quickInput && (draft.trim() || attachments.length || navigationBusyRef.current || sessionCreationRef.current)) return false
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
-    const typed = draft.trim() || overrideText?.trim() || ''
+    const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
@@ -477,7 +503,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       if (slash[1] === 'new') await newChat(false)
       else if (slash[1] === 'sessions') { await loadSessions(true); openChat(); setSidebarOpen(true); setDraft('') }
       else { openModelSettings(); setDraft('') }
-      return
+      return true
     }
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
     let catalog: CommandCatalog | null = null
@@ -566,7 +592,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         for (const attachment of attachments) {
           prepared.push(attachment.path || attachment.ref_text
             ? attachment
-            : await chat.attachFile(sessionScope(id), attachment.source_path))
+            : attachment.content_base64
+              ? { ...await chat.attachImageBytes(sessionScope(id), attachment.content_base64, attachment.name), image_preview: attachment.image_preview }
+              : await chat.attachFile(sessionScope(id), attachment.source_path))
           setAttachments([...prepared, ...attachments.slice(prepared.length)])
         }
         refs = prepared.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text!)
@@ -583,13 +611,13 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           setDraft(result.message || '')
           setChatStatus(result.notice || t("ui.the.command.has.been.filled.in.the.input.box"))
           setTurnBusy(false)
-          return
+          return true
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
           setConversation(rows => appendMessage(appendMessage(rows, 'user', typed), 'assistant', result.output || result.notice || t("ui.command.execution.completed")))
           setDraft('')
           setChatStatus(t("ui.command.execution.completed"))
           setTurnBusy(false)
-          return
+          return true
         } else {
           throw new Error(t("ui.this.command.return.type.is.not.supported.yet.arg", result.type))
         }
@@ -619,6 +647,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           setChatStatus(previous => previous === t("ui.response.complete") ? previous : t("ui.received.arg", result.status || t('ui.waiting.for.events')))
         }
       }
+      return true
     } catch (cause) {
       if (!stopRequestedRef.current && (!sessionRef.current || sessionRef.current === idForSubmission)) {
         if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
@@ -689,7 +718,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }
 
   async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current) {
-    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || (!force && id === storedSessionRef.current)) return
+    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || (!force && id === storedSessionRef.current)) return false
     navigationBusyRef.current = true
     setNavigationBusy(true)
     setChatStatus(t("ui.resuming.session"))
@@ -723,7 +752,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       setAssistant(assistantRef.current)
       setTurnBusy(Boolean(result.running))
       setChatStatus(result.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
-    } catch (cause) { setChatStatus(t("ui.restore.failed.arg", describeError(cause, language))) }
+      return true
+    } catch (cause) { setChatStatus(t("ui.restore.failed.arg", describeError(cause, language))); return false }
     finally { navigationBusyRef.current = false; setNavigationBusy(false) }
   }
 
@@ -885,9 +915,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, sessionProfileRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
-    turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
+    turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, serverRequests, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
     attachmentBusy, draggingFiles, trigger, choices, answerRequest,
-    changeReasoning, chooseCommand, chooseAttachments, removeAttachment, sendMessage,
+    changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,
   }
 }

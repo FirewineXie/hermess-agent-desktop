@@ -46,6 +46,9 @@ export default function NotificationsSettings({ page, language }: Props) {
     ['input', zh ? '补充信息' : 'Input requests', zh ? 'Hermess 有问题需要回答。' : 'Hermess needs an answer.'],
     ['turnDone', zh ? '任务完成' : 'Turn completed', zh ? '当前会话在后台完成时提醒。' : 'Notify when the active turn completes in the background.'],
     ['turnError', zh ? '任务失败' : 'Turn failed', zh ? '当前会话在后台失败时提醒。' : 'Notify when the active turn fails in the background.'],
+    ['backgroundDone', zh ? '后台任务与其他会话' : 'Background tasks and other conversations', zh ? '窗口在后台时，子任务完成或其他会话结束会提醒。' : 'Notify about side tasks and other conversations while the window is backgrounded.'],
+    ['credits', zh ? '额度提醒' : 'Credits notices', zh ? '窗口在后台时，提醒运行时报告的额度不足、用量预警或恢复。' : 'Notify about runtime credit warnings, limits, and recovery while backgrounded.'],
+    ['plugin', zh ? '插件消息' : 'Plugin messages', zh ? '窗口在后台时，提醒已安装插件发给会话的消息。' : 'Notify about installed plugins’ messages while the window is backgrounded.'],
   ]
   return <div className="notification-settings settings-form-page">
     <div className="settings-form-heading"><div><h2>{page === 'alerts' ? (zh ? '桌面提醒' : 'Desktop alerts') : (zh ? '完成提示音' : 'Completion sound')}</h2><p>{zh ? '偏好只保存在这台设备，不写入 Profile。' : 'Preferences stay on this device and are not written to a Profile.'}</p></div><button type="button" disabled={busy} onClick={() => void test()}>{zh ? '发送测试通知' : 'Send test notification'}</button></div>

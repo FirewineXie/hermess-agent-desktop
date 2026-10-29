@@ -56,7 +56,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
-    chooseAttachments, removeAttachment, sendMessage, interruptSession, reasoningEffort,
+    chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, reasoningEffort,
     reasoningBusy, reasoningLoadFailed, chatUsage,
   } = controller
   const {
@@ -100,6 +100,22 @@ export default function ChatView({ connected, backendStatus, language, t, contro
       </div>
       <div className="composer-wrap"><div className="composer">
        <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
+         onPaste={event => {
+           const images = Array.from(event.clipboardData.items).filter(item => item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => Boolean(file))
+           if (!images.length) return
+           event.preventDefault()
+           const text = event.clipboardData.getData('text/plain')
+           if (text) {
+             const input = event.currentTarget
+             const start = input.selectionStart
+             const end = input.selectionEnd
+             const caret = start + text.length
+             setDraft(value => `${value.slice(0, start)}${text}${value.slice(end)}`)
+             setDraftCaret(caret)
+             requestAnimationFrame(() => input.setSelectionRange(caret, caret))
+           }
+           void pasteImages(images)
+         }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return

@@ -3,6 +3,7 @@ import { useLanguage, translateApp } from '../i18n'
 import type { ProfilesSnapshot } from '@hermess/contracts'
 import type { SessionRow, View } from './types'
 import { sessionSourceLabel } from '../features/chat/sessionSource'
+import type { SessionActivity } from '../features/chat/useSessionActivity'
 
 type Props = {
   view: View
@@ -11,6 +12,8 @@ type Props = {
   busy: boolean
   sessions: SessionRow[]
   otherProfileSessions: Record<string, SessionRow[]>
+  sessionActivity: Record<string, SessionActivity>
+  activityKey: (profile: string, id: string) => string
   sessionsState: 'loading' | 'ready' | 'error'
   activeSessionId: string
   onClose: () => void
@@ -25,7 +28,7 @@ type Props = {
   onOpenProfile: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile }: Props) {
+export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -87,7 +90,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
           {connected && !collapsedProfiles.has(profile.name) && profileSessions.slice(0, visibleCount).map(session => <button key={session.id}
             className={`sidebar-profile-session ${view === 'chat' && profiles?.selected === profile.name && session.id === activeSessionId ? 'active' : ''} ${pendingSession?.profile === profile.name && pendingSession.id === session.id ? 'pending' : ''}`}
             aria-busy={pendingSession?.profile === profile.name && pendingSession.id === session.id} title={session.title || session.preview || session.id}
-            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button>)}
+            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button>)}
           {connected && !collapsedProfiles.has(profile.name) && profileSessions.length > 5 && <button type="button" className="sidebar-profile-more" onClick={() => toggleMoreSessions(profile.name, profileSessions.length)}>{allVisible ? (zh ? '收起' : 'Show less') : (zh ? '展示更多' : 'Show more')}</button>}
         </div>})}
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}

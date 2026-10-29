@@ -152,7 +152,27 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "tool.complete"
             | "status.update"
             | "request.cancel"
+            | "background.complete"
+            | "notification.show"
+            | "notification.clear"
     )
+}
+
+fn bound_notification_text(kind: &str, payload: &mut Value) {
+    if !matches!(kind, "background.complete" | "notification.show") {
+        return;
+    }
+    // These events feed native notices, not the chat transcript. Keep an
+    // excerpt before the transport size gate so a long task/plugin result
+    // cannot silently discard its completion notification.
+    if let Some(object) = payload.as_object_mut() {
+        for key in ["text", "detail", "question"] {
+            if let Some(text) = object.get(key).and_then(Value::as_str) {
+                let excerpt: String = text.chars().take(1024).collect();
+                object.insert(key.to_owned(), Value::String(excerpt));
+            }
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -491,6 +511,7 @@ impl GatewayClient {
                         if let (Some(id), Some(object)) = (settled_request_id, payload.as_object_mut()) {
                             object.insert("id".into(), Value::String(id));
                         }
+                        bound_notification_text(forwarded_kind, &mut payload);
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
                             kind: forwarded_kind.into(),

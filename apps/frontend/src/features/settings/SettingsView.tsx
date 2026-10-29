@@ -52,7 +52,7 @@ export default function SettingsView({ language, page, connected, profile, profi
           {error && <small role="alert">{error}</small>}
         </label>}
       </header>
-      {(category === 'models' || category === 'memory' || category === 'notifications') && <nav className="settings-subpage-nav" aria-label={zh ? `${categoryDefinition.zh}设置子页` : `${categoryDefinition.en} settings pages`}>
+      {settingsPages.filter(item => item.category === category).length > 1 && <nav className="settings-subpage-nav" aria-label={zh ? `${categoryDefinition.zh}设置子页` : `${categoryDefinition.en} settings pages`}>
         {settingsPages.filter(item => item.category === category).map(item => <button key={item.id} type="button" className={page === item.id ? 'selected' : ''} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{zh ? item.zh : item.en}</button>)}
       </nav>}
       <div ref={contentRef} className="settings-content-scroll">{children}</div>

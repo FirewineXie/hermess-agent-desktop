@@ -435,7 +435,6 @@
   "ui.the.storage.directory.creates.product.specific.subdirectories": "存储目录会创建产品专用子目录。",
   "ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i": "已保存存储位置；当前版本不提供自动搬迁。若该位置不可用，请先恢复磁盘或目录。",
   "ui.there.are.currently.no.tasks.running": "当前没有运行中的任务",
-  "ui.there.are.unsaved.agent.configurations.are.you.sure.you.want.to.leave": "有未保存的 Agent 配置，确定离开吗？",
   "ui.this.command.does.not.exist.for.the.current.session.arg": "当前会话没有此命令：{0}",
   "ui.this.command.return.type.is.not.supported.yet.arg": "暂不支持此命令返回类型：{0}",
   "ui.this.is.a.development.environment.or.there.is.no.payload.tool.list.that.can": "当前是开发环境，或运行时没有可读取的载荷工具清单。",
@@ -471,5 +470,6 @@
   "ui.desktop.error.conflict": "当前状态已变化，请刷新后重试。",
   "ui.desktop.error.invalid_input": "输入无效，请检查后重试。",
   "ui.desktop.error.session_owner_unknown": "尚未确认会话归属，请在所属 Profile 中重新打开该会话后重试。",
-  "ui.desktop.error.session_profile_mismatch": "会话与当前 Profile 不匹配，请切回会话所属的 Profile。"
+  "ui.desktop.error.session_profile_mismatch": "会话与当前 Profile 不匹配，请切回会话所属的 Profile。",
+  "ui.copy.provider.to.profile": "同步到其他 Profile"
 }

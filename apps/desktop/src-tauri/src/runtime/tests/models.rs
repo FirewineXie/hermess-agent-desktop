@@ -1,6 +1,33 @@
 use super::valid_moa_config;
 use serde_json::json;
 
+#[cfg(windows)]
+#[test]
+fn failed_catalogue_replace_preserves_the_existing_file() {
+    use std::{collections::HashMap, fs, os::windows::fs::OpenOptionsExt};
+    let root = std::env::temp_dir().join(format!("hermess-catalogue-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&root).unwrap();
+    let file = root.join("models.json");
+    let old = HashMap::from([("provider".to_string(), vec!["old".to_string()])]);
+    super::write_model_lists_file(&file, &old).unwrap();
+    let held = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(&file)
+        .unwrap();
+    let replacement = HashMap::from([("provider".to_string(), vec!["new".to_string()])]);
+    assert!(super::write_model_lists_file(&file, &replacement).is_err());
+    assert_eq!(super::read_model_lists_file(&file).unwrap(), Some(old));
+    assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+    drop(held);
+    super::write_model_lists_file(&file, &replacement).unwrap();
+    assert_eq!(
+        super::read_model_lists_file(&file).unwrap(),
+        Some(replacement)
+    );
+    fs::remove_dir_all(&root).unwrap();
+}
+
 fn config() -> serde_json::Value {
     let preset = json!({
         "enabled": true,

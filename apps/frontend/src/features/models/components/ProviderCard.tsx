@@ -12,6 +12,7 @@ type Props = {
   modelListLoading: boolean
   discoveryBusy: boolean
   t: (key: string, ...values: unknown[]) => string
+  onCopyProvider: (endpoint: CustomEndpoint) => void
   onDeleteProvider: (endpoint: CustomEndpoint) => void
   onEditProvider: (provider: ModelProvider, endpoint?: CustomEndpoint) => void
   onSaveModels: (provider: string, models: string[]) => Promise<boolean>
@@ -20,7 +21,7 @@ type Props = {
   onDirtyChange: (key: string, dirty: boolean) => void
 }
 
-export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, discoveryBusy, t, onDeleteProvider, onEditProvider, onSaveModels, onSetDiscovery, onSyncModels, onDirtyChange }: Props) {
+export default function ProviderCard({ provider, endpoint, models, modelListKey, savedModel, modelBusy, modelListBusy, modelListLoading, discoveryBusy, t, onDeleteProvider, onCopyProvider, onEditProvider, onSaveModels, onSetDiscovery, onSyncModels, onDirtyChange }: Props) {
   const [editingModel, setEditingModel] = React.useState<{ original: string; value: string } | null>(null)
   const [newModelId, setNewModelId] = React.useState<string | null>(null)
   const [editingModels, setEditingModels] = React.useState(false)
@@ -68,6 +69,7 @@ export default function ProviderCard({ provider, endpoint, models, modelListKey,
     {isDefault && <span className="saved-badge">{t('ui.current.default')}</span>}
     <div className="provider-card-heading"><strong>{providerName}</strong><div className="provider-card-actions"><small>{models.length} {t('ui.models.count.unit')}</small><button type="button" disabled={modelBusy} aria-haspopup="dialog" onClick={openModelEditor}>{t('ui.edit.models')}</button><button type="button" disabled={modelBusy} onClick={() => onEditProvider(provider, endpoint)}>{t(!endpoint || endpoint.source === 'direct-config' ? 'ui.save.default.model' : 'ui.edit.configuration')}</button></div></div>
     {endpoint && <div className="provider-card-meta"><small>{providerPreset ? t('ui.preset.endpoint.via.custom') : t('ui.custom.endpoint')}：{endpoint.base_url}</small><button type="button" disabled={modelBusy} onClick={() => onDeleteProvider(endpoint)}>{t('ui.delete.provider')}</button></div>}
+    {endpoint && endpoint.source !== 'direct-config' && <button type="button" disabled={modelBusy || modelListBusy} onClick={() => onCopyProvider(endpoint)}>{t('ui.copy.provider.to.profile')}</button>}
     {endpoint && endpoint.source !== 'direct-config' && <div className="provider-card-discovery">
       <label><input type="checkbox" checked={endpoint.discover_models !== false} disabled={modelBusy || modelListBusy || discoveryBusy} onChange={event => onSetDiscovery(endpoint, event.target.checked)} />{t('ui.provider.discover.models')}</label>
       <button type="button" disabled={modelBusy || modelListBusy || modelListLoading || discoveryBusy || endpoint.discover_models === false} onClick={onSyncModels}>{t('ui.provider.sync.models')}</button>

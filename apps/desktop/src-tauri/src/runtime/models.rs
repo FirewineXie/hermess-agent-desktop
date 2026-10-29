@@ -105,7 +105,22 @@ pub(super) fn write_model_lists_file(
     if bytes.len() > 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    fs::write(file, bytes).map_err(|_| DesktopFailure::operation_failed())
+    let temporary = file.with_extension(format!("{}.tmp", Uuid::new_v4()));
+    let result = (|| {
+        use std::io::Write;
+        let mut pending = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        pending.write_all(&bytes)?;
+        pending.sync_all()?;
+        drop(pending);
+        fs::rename(&temporary, file)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[tauri::command]

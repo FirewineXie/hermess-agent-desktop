@@ -5,6 +5,7 @@ import { localizeAppMessage } from '../../i18n'
 import { getField } from '../agent-settings/model'
 import { endpointForProvider, VOLCENGINE_PRESETS } from './model'
 import ProviderCard from './components/ProviderCard'
+import ProviderCopyDialog from './ProviderCopyDialog'
 import type { useModelController } from './useModelController'
 
 type Props = {
@@ -31,6 +32,9 @@ export default function ModelSettingsView({ connected, profile, language, t, con
     loadModelOptions, saveProviderModels, setProviderDiscovery, syncProviderModels,
     addProvider, updateProvider, openProviderEditor, chooseProviderPreset, deleteProvider,
   } = controller
+  const [copyTarget, setCopyTarget] = React.useState<string | null>(null)
+  const [copyBusy, setCopyBusy] = React.useState(false)
+  React.useEffect(() => { setCopyTarget(null) }, [profile])
   const { agentSettings } = useDesktop()
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null)
   const [deleteReferences, setDeleteReferences] = React.useState('')
@@ -46,7 +50,7 @@ export default function ModelSettingsView({ connected, profile, language, t, con
     : Boolean(newProviderName || newProviderUrl || newProviderModel || newProviderKey))
   const dirty = editorDirty || Object.values(cardDrafts).some(Boolean)
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) }, [dirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(modelBusy || modelListBusy || Boolean(discoveryBusy)); return () => onBusyChange(false) }, [modelBusy, modelListBusy, discoveryBusy, onBusyChange])
+  React.useEffect(() => { onBusyChange(copyBusy || modelBusy || modelListBusy || Boolean(discoveryBusy)); return () => onBusyChange(false) }, [copyBusy, modelBusy, modelListBusy, discoveryBusy, onBusyChange])
   const closeEditor = () => { setAddingProvider(false); setEditingEndpoint(null); setProviderFormError('') }
   const openEditor = () => {
     editorOrigin.current = document.activeElement as HTMLElement
@@ -94,7 +98,7 @@ export default function ModelSettingsView({ connected, profile, language, t, con
         <div className="provider-grid">{providerCards.map(provider => {
           const endpoint = endpointForProvider(provider, customEndpoints)
           const modelListKey = endpoint?.id || provider.slug
-          return <ProviderCard key={`${profile}:${provider.slug}`} provider={provider} endpoint={endpoint} models={visibleModels(provider.slug)} modelListKey={modelListKey}
+          return <ProviderCard onCopyProvider={endpoint => setCopyTarget(endpoint.id)} key={`${profile}:${provider.slug}`} provider={provider} endpoint={endpoint} models={visibleModels(provider.slug)} modelListKey={modelListKey}
             savedModel={savedModel} modelBusy={modelBusy} modelListBusy={modelListBusy} modelListLoading={modelListLoading} discoveryBusy={Boolean(discoveryBusy)} t={t}
             onDeleteProvider={item => { void askDelete(item.id) }}
             onEditProvider={(_, item) => { if (item && item.source !== 'direct-config') { editorOrigin.current = document.activeElement as HTMLElement; openProviderEditor(item) } else onOpenMain() }}
@@ -124,5 +128,5 @@ export default function ModelSettingsView({ connected, profile, language, t, con
       </div></div>}
       {modelStatus && <p role="status">{localizeAppMessage(language, modelStatus)}</p>}
     </>}
-  </section>
+  {copyTarget && profile && <ProviderCopyDialog key={profile + ':' + copyTarget} profile={profile} endpointId={copyTarget} language={language} onClose={() => setCopyTarget(null)} onBusyChange={setCopyBusy} />}</section>
 }

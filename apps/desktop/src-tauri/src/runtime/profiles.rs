@@ -361,14 +361,18 @@ async fn create_profile_with_options(
             backend.storage.join("control").join("gateway-locks"),
         )
     };
-    // Use the bundled profile API with no_alias and no credential mirroring. The WS create
-    // method defaults to mirroring credentials, which this product must not do implicitly.
+    // Keep the bundled profile creation atomic, but disable its implicit model/provider seed
+    // in this short-lived helper process. A fresh desktop Profile owns an empty model setup.
     const SCRIPT: &str = r#"import json, sys
-from hermes_cli.profiles import create_profile, normalize_profile_name, seed_profile_skills
+from hermes_cli import profiles as profile_api
+from hermes_cli.profiles import normalize_profile_name, seed_profile_skills
 name = normalize_profile_name(sys.argv[1])
 preset = json.loads(sys.argv[2])
 soul = json.loads(sys.argv[3])
-path = create_profile(name, no_alias=True, clone_channels=False, no_skills=soul is not None, soul=soul)
+if not callable(getattr(profile_api, '_seed_model_config', None)):
+    raise RuntimeError('Hermes profile model seeding hook is unavailable')
+profile_api._seed_model_config = lambda _path: None
+path = profile_api.create_profile(name, no_alias=True, clone_channels=False, no_skills=soul is not None, soul=soul)
 seed_profile_skills(path, quiet=True)
 warnings = []
 personality_applied = False

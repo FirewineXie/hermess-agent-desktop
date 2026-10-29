@@ -114,7 +114,6 @@ export const tauriDesktopApi: DesktopApi = {
     minimize: () => nativeCall(() => getCurrentWindow().minimize()),
     toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
     close: () => nativeCall(() => getCurrentWindow().close()),
-    setFrontendDebugEnabled: enabled => invoke('set_frontend_debug_enabled', { enabled }),
   },
   notifications: {
     permission: () => nativeCall(isPermissionGranted),
@@ -220,6 +219,11 @@ export const tauriDesktopApi: DesktopApi = {
     saveRaw: (scope, yamlText, expectedYaml) => invoke('save_agent_config_raw', { profile: scope.profile, yamlText, expectedYaml }),
     saveAuxiliary: (scope, route) => invoke('save_auxiliary_route', { profile: scope.profile, ...route }),
   },
+  security: {
+    consent: scope => invoke('get_shared_metrics_consent', { profile: scope.profile }),
+    saveConsent: (scope, enabled, send) => invoke('save_shared_metrics_consent', { profile: scope.profile, enabled, send }),
+    checkpoints: scope => invoke('get_checkpoint_inventory', { profile: scope.profile }),
+  },
   memory: {
     providers: scope => invoke('get_memory_providers', { profile: scope.profile }),
     config: (scope, provider) => invoke('get_memory_provider_config', { profile: scope.profile, provider }),
@@ -231,7 +235,21 @@ export const tauriDesktopApi: DesktopApi = {
     read: (scope, kind) => invoke('read_personal_file', { profile: scope.profile, kind }),
     save: (scope, args) => invoke('save_personal_file', { profile: scope.profile, ...args }),
   },
+  delegation: {
+    read: scope => invoke('get_delegation_routing', { profile: scope.profile }),
+    save: (scope, draft) => invoke('save_delegation_routing', { profile: scope.profile, draft }),
+  },
+  device: {
+    status: () => invoke('get_device_status'),
+    save: preferences => invoke('save_device_preferences', { preferences }),
+    setQuickTarget: target => invoke('set_quick_target', { target }),
+    onQuickSubmit: handler => listenPayload('quick-input-submit', handler),
+    takeQuickSubmission: requestId => invoke('take_quick_submission', { requestId }),
+    finishQuickSubmission: (requestId, error) => invoke('finish_quick_submission', { requestId, error }),
+  },
   models: {
+    previewCopy: (scope, endpointId, target) => invoke('preview_provider_copy', { profile: scope.profile, endpointId, target }),
+    copy: (scope, preview) => invoke('copy_provider', { profile: scope.profile, endpointId: preview.endpointId, target: preview.target, expectedDigest: preview.digest }),
     options: (scope, args) => invoke('list_model_options', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : undefined, ...args }),
     savedConfig: scope => invoke('get_saved_model_config', { profile: scope.profile }),
     endpoints: scope => invoke('list_custom_endpoints', { profile: scope.profile }),
@@ -270,6 +288,7 @@ export const tauriDesktopApi: DesktopApi = {
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
     dispatchSkill: (scope, name, arg) => invoke('dispatch_composer_skill', { profile: scope.profile, sessionId: scope.sessionId, name, arg }),
     attachFile: (scope, path) => invoke('attach_chat_file', { profile: scope.profile, sessionId: scope.sessionId, path }),
+    attachImageBytes: (scope, contentBase64, name) => invoke('attach_chat_image_bytes', { profile: scope.profile, sessionId: scope.sessionId, contentBase64, name }),
     inspectFile: path => invoke('inspect_chat_file', { path }),
     detachImage: (scope, path) => invoke('detach_chat_image', { profile: scope.profile, sessionId: scope.sessionId, path }),
     answerRequest: (scope, args) => invoke('answer_gateway_request', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
