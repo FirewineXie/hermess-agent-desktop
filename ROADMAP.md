@@ -4,6 +4,8 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-29 准备 v0.1.8-rc.2：候选版说明汇总 rc.1 之后的安全/高级设置、委派与提供商同步、设备偏好与快捷输入、通知扩展、截图附件、侧栏状态及 Profile 隔离修复，并明确尚未完成和双平台原生待验收项。发布输入沿用锁定 Hermes fork，开发版本保持 0.0.0，仅由发行 runner 按 tag 写入版本。tag 推送将触发 Windows x64 与 macOS Apple Silicon 构建；此记录不代表安装包构建成功、正式发布或实机验收。见 [RC2 说明](releases/v0.1.8-rc.2.md)。
+
 2026-10-29 通知 N01 扩展事件接入：补齐后台子任务、其他会话结束、额度及插件消息的真实事件消费，通知设置收齐七类独立开关。锁定 Gateway 实际已有 background.complete 和带 credits./plugin-message: 键的 notification.show，本批补齐 Rust 白名单与前端映射，纠正此前“上游没有事件”的判断；按连接/Profile/会话及任务或通知键去重，支持通知清除后的新状态、拒绝乱序和未知所有者，点击沿用原会话定位。扩展消息在窗口隐藏/失焦时投递，中断不报完成。Windows 前端59项、Rust100项通过及5项环境忽略，插件真实生产函数2项、上游定向8项及经本地asyncio适配执行的插件5项通过；类型/桌面构建、架构/契约/生成契约、格式、锁定上游和Gateway冒烟通过，PREVIEW_ONLY生产Hook交互已核对。开发版已运行，Windows/macOS原生横幅、真实额度/插件和点击仍待实机验收。详见 [通知扩展事件记录](docs/settings-notification-events.md)。未修改 Hermes fork。
 
 2026-10-29 会话侧栏完成判定修正：思考预览结束或会话列表短暂返回空闲时继续显示“正在运行”，仅收到 Gateway `message.complete` 或 `error` 事件才切换为完成或失败；待审批、待建议仍保持优先展示。Windows 本地前端类型检查、桌面 UI 生产构建和差异检查通过；Windows/macOS 原生窗口实际事件顺序尚未验收。
