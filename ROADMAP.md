@@ -4,6 +4,8 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-29 通知设置中的“发送测试通知”按钮仅在 Vite 开发模式显示，正式构建的“桌面提醒”和“提示音”页不再展示；系统通知设置及正常通知投递逻辑未改。Windows 本地 `pnpm --dir apps/frontend typecheck`、`pnpm build` 与 `git diff --check` 通过，桌面生产构建产物未检出中英文按钮文案；Windows/macOS 原生安装包页面尚未实机验收。
+
 2026-10-29 修复新会话输入 `@` 或 `/` 不弹技能与命令候选：前端原先仅在已有 `sessionId` 时读取并显示目录，空白新会话因此始终被拦住。现在未建会话时按当前 Profile 向锁定 Gateway 请求 `commands.catalog`，已有会话继续按会话读取，创建会话后清除旧目录以重新核对工作区相关 Skill；`@` 只显示 Skill，`/` 显示命令和 Skill。Windows 本地前端类型检查、生产构建、契约/架构/生成契约检查、Rust 格式与定向测试通过。锁定 Gateway 的无会话测试在当前 Python 环境中未完整通过：异步测试缺少 pytest 插件，另一个 Profile 路由测试已读到预期 Skill，但测试要求的 quick command 在此 Windows 环境未出现；未将其计作 Gateway 测试通过。Windows/macOS 原生弹层操作及真实 Profile/工作区目录仍待验收。
 
 2026-10-29 新增产品自有 `hermess-desktop-guide` Skill：依据当前前端入口讲解聊天、工作区、定时任务、扩展中心、Profile、设置与渠道；涉及 Hermes 内核时先读取官方 `llms.txt` 并定位相关文章，明确区分官方 Hermes Desktop 和本客户端。客户端启动时将 Skill 部署到产品自有默认及现有 Profile，新建 Profile 创建后也部署；已有同名用户改动保留，未改锁定 fork。Windows 本地 Hermes frontmatter 解析、Rust 定向测试、格式与架构检查通过；真实会话调用、Windows/macOS 原生窗口及官网断网场景尚未验收。
