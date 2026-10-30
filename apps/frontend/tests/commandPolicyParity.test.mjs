@@ -10,6 +10,10 @@ test('frontend and native builtin forwarding policies stay aligned', () => {
   const frontendNames = [...block.matchAll(/'([^']+)'/g)].map(match => match[1]).filter(name => !local.has(name)).sort()
   const nativeNames = [...new Set([...nativeBlock.matchAll(/"\/([^"]+)"/g)].map(match => match[1]))].sort()
   assert.deepEqual(frontendNames, nativeNames)
-  assert.match(frontend, /name === '\/bg' \|\| name === '\/rollback'/)
-  assert.match(native, /matches!\(name, "\/bg" \| "\/rollback"\)/)
+  const frontendDenied = frontend.split('DESKTOP_DENIED_COMMANDS = new Set([')[1].split('])')[0]
+  const nativeDenied = native.split('if matches!(')[1].split(') {')[0]
+  const frontendDeniedNames = [...frontendDenied.matchAll(/'\/([^']+)'/g)].map(match => match[1]).sort()
+  const nativeDeniedNames = [...nativeDenied.matchAll(/"\/([^"]+)"/g)].map(match => match[1]).sort()
+  assert.deepEqual(frontendDeniedNames, nativeDeniedNames)
+  assert.equal(frontendDeniedNames.some(name => frontendNames.includes(name)), false)
 })

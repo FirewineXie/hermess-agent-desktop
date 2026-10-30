@@ -4,7 +4,43 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
     let mut parts = command.splitn(2, char::is_whitespace);
     let name = parts.next().unwrap_or("");
     let arg = parts.next().unwrap_or("").trim();
-    if matches!(name, "/bg" | "/rollback") {
+    if matches!(
+        name,
+        "/rollback"
+            | "/bg"
+            | "/worktree"
+            | "/snapshot"
+            | "/export"
+            | "/import"
+            | "/reload"
+            | "/reload-mcp"
+            | "/reload-skills"
+            | "/browser"
+            | "/clear"
+            | "/redraw"
+            | "/prompt"
+            | "/statusbar"
+            | "/battery"
+            | "/timestamps"
+            | "/focus"
+            | "/skin"
+            | "/indicator"
+            | "/palette"
+            | "/copy"
+            | "/paste"
+            | "/image"
+            | "/quit"
+            | "/density"
+            | "/logs"
+            | "/mouse"
+            | "/handoff"
+            | "/journey"
+            | "/pet"
+            | "/hatch"
+            | "/wake"
+            | "/subscription"
+            | "/update"
+    ) {
         return false;
     }
     let builtin = matches!(

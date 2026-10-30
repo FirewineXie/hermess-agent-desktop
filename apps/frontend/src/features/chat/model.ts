@@ -13,9 +13,17 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'codex-runtime', 'fast', 'personality',
   'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
 ])
+export const DESKTOP_DENIED_COMMANDS = new Set([
+  '/rollback', '/bg', '/worktree', '/snapshot', '/export', '/import',
+  '/reload', '/reload-mcp', '/reload-skills', '/browser',
+  '/clear', '/redraw', '/prompt', '/statusbar', '/battery', '/timestamps', '/focus',
+  '/skin', '/indicator', '/palette', '/copy', '/paste', '/image', '/quit',
+  '/density', '/logs', '/mouse',
+  '/handoff', '/journey', '/pet', '/hatch', '/wake', '/subscription', '/update',
+])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
-  if (name === '/bg' || name === '/rollback') return false
+  if (DESKTOP_DENIED_COMMANDS.has(name)) return false
   if (Object.hasOwn(catalog.skills, name) || DESKTOP_GATEWAY_COMMANDS.has(name.slice(1))) return true
   if (catalog.categories?.some(category => category.name === 'Plugin commands' && category.pairs.some(([key]) => key === name))) return true
   return false

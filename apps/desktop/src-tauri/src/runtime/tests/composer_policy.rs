@@ -3,7 +3,7 @@ use serde_json::json;
 
 #[test]
 fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
-    let catalog = json!({"categories":[{"name":"User commands","pairs":[["/shortcut","alias"],["/yolo","alias"]]}, {"name":"Plugin commands","pairs":[["/extension","Plugin"],["/bg","Colliding plugin"],["/rollback","Colliding plugin"]]}]});
+    let catalog = json!({"categories":[{"name":"User commands","pairs":[["/shortcut","alias"],["/yolo","alias"]]}, {"name":"Plugin commands","pairs":[["/extension","Plugin"],["/bg","Colliding plugin"],["/rollback","Colliding plugin"],["/quit","Colliding plugin"],["/copy","Colliding plugin"],["/reload-mcp","Colliding plugin"]]}]});
     for command in [
         "/yolo",
         "/debug",
@@ -20,6 +20,8 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/undo nope",
         "/bg do work",
         "/rollback 1",
+        "/copy",
+        "/reload-mcp",
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
