@@ -147,12 +147,12 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if (!turnBusy && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if ((!turnBusy || draft.trim() === '/stop') && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
-      <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} t={t} onChoose={chooseCommand} />
+      <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} hint={controller.argumentHint} t={t} onChoose={chooseCommand} />
       <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />
       <div className="composer-actions">
         <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>

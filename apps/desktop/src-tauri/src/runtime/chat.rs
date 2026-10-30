@@ -178,14 +178,40 @@ pub async fn execute_composer_command(
     if !command.starts_with('/') || command.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .request(
-            "slash.exec",
-            json!({"session_id": session_id, "command": command}),
-        )
-        .await
-        .map_err(Into::into)
+    let scope = state.resolve_profile(&profile).await?;
+    let operation = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("composer_start operation={operation} profile={profile} session={session_id}"),
+    );
+    let result = async {
+        let catalog = scope
+            .gateway
+            .request("commands.catalog", composer_catalog_params(&session_id)?)
+            .await?;
+        if !super::composer_policy::allowed(&catalog, &command) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        scope
+            .gateway
+            .request(
+                "slash.exec",
+                json!({"session_id": session_id, "command": command}),
+            )
+            .await
+            .map_err(Into::into)
+    }
+    .await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("composer_{outcome} operation={operation} profile={profile} session={session_id}"),
+    );
+    result
 }
 
 #[tauri::command]

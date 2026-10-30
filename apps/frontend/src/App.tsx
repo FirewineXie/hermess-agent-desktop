@@ -78,9 +78,12 @@ function App() {
   })
   const viewedProfile = profileController.snapshot?.selected || null
   const [activeModel, setActiveModel] = useProfileState<ModelPick | null>(workspaceKey(backend?.replay_epoch, viewedProfile), null, 'app:active-model')
+  const commandFinishedRef = React.useRef<(profile: string, sessionId: string) => void>(() => {})
   const chatController = useChatController({
     backend, profile: viewedProfile, chatVisible: view === 'chat', activeModel, language, storagePath, workspacePath: workspaces.selected, t,
     openChat: () => { openView('chat') }, openModelSettings: () => { openSettings('main') }, setSidebarOpen, setActiveModel,
+    onCommandFinished: (owner, id) => commandFinishedRef.current(owner, id),
+    openCommandPage: name => name === 'config' ? openSettings('advanced-config') : openView(name === 'cron' ? 'scheduled' : name === 'plugins' ? 'extensions' : 'tools'),
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
     setBackend, setBackendStatus, setBusy,
   })
@@ -158,10 +161,11 @@ function App() {
     void loadSessions(true)
     void refreshOtherProfileSessions()
   }, [loadSessions, servedProfileNames, chat])
-  const { activity: sessionActivity, markViewed, keyFor: activityKey } = useSessionActivity(
+  const { activity: sessionActivity, markViewed, settleCommand, keyFor: activityKey } = useSessionActivity(
     storagePath, backend?.replay_epoch || null, viewedProfile, sessions, otherProfileSessions,
     storedSessionRef.current, sessionId, serverRequests, view === 'chat', turnBusy, refreshSessionActivity,
   )
+  commandFinishedRef.current = settleCommand
   const openProfileSession = async (profile: string, id: string) => {
     if (!openView('chat')) return
     if (profile === viewedProfile && id === storedSessionRef.current) { markViewed(profile, id); return }

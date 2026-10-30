@@ -116,10 +116,21 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
     return () => window.clearInterval(timer)
   }, [connectionId, Object.values(activity).includes('running')])
 
+  function settleCommand(profile: string, id: string) {
+    const key = keyFor(profile, id)
+    setActivity(current => {
+      if (current[key] !== 'running') return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
   function markViewed(profile: string, id: string) {
     const key = keyFor(profile, id)
     setActivity(current => {
-      if (current[key] !== 'completed' && current[key] !== 'failed') return current
+      const row = profile === selectedProfile ? sessions.find(item => item.id === id) : otherProfileSessions[profile]?.find(item => item.id === id)
+      if (current[key] !== 'completed' && current[key] !== 'failed' && !(current[key] === 'running' && !turnBusy && !row?.running)) return current
       const next = { ...current }
       delete next[key]
       return next
@@ -131,5 +142,5 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
     if (Object.values(requests).includes('approval')) displayActivity[key] = 'approval'
     else if (Object.values(requests).includes('suggestion')) displayActivity[key] = 'suggestion'
   }
-  return { activity: displayActivity, markViewed, keyFor }
+  return { activity: displayActivity, markViewed, settleCommand, keyFor }
 }

@@ -115,7 +115,8 @@ export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_p
 export type CommandCatalog = {
   pairs: Array<[string, string]>
   skills: Record<string, { usage: number; origin: string }>
-  commands: Record<string, { desktop?: string | null }>
+  commands: Record<string, { desktop?: string | null; argument_mode?: string | null; desktop_subcommands?: string[] }>
+  sub?: Record<string, string[]>
   categories?: Array<{ name: string; pairs: Array<[string, string]> }>
   plugin_commands?: Record<string, string>
   warning?: string

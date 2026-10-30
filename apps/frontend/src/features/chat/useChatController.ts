@@ -8,6 +8,7 @@ import { savedModelFromOptions, type ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool, type TimelineItem } from './timeline'
 import { mergeRecoveredRequests } from './requestRecovery'
 import { composeClarifyAnswer } from './clarifyAnswer'
+import { argumentAllowed, argumentHint as commandArgumentHint } from './commandArguments'
 
 type Options = {
   backend: BackendInfo | null
@@ -20,6 +21,8 @@ type Options = {
   t: (key: string, ...values: unknown[]) => string
   openChat: () => void
   openModelSettings: () => void
+  openCommandPage: (name: string) => boolean
+  onCommandFinished: (profile: string, sessionId: string) => void
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>
   setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
   setModelPickerOpen: React.Dispatch<React.SetStateAction<boolean>>
@@ -32,7 +35,7 @@ function selectedWorkspacePath(info?: ResumeResult['info']): string {
   return info?.launch_request?.cwd_explicit === true ? info.cwd || info.launch_request.cwd || '' : ''
 }
 
-export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
+export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
   const workspace = workspaceKey(backend?.replay_epoch, profile)
   let stateSlot = 0
@@ -58,6 +61,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const [sessionCurrentDirectory, setSessionCurrentDirectory] = useState('')
   const [reasoningEffort, setReasoningEffort] = useState('')
   const [reasoningLoadFailed, setReasoningLoadFailed] = useState(false)
+  const [reasoningRefreshVersion, setReasoningRefreshVersion] = useState(0)
   const [reasoningBusy, setReasoningBusy] = useState(false)
   const draftReasoningRef = useRef('')
   const reasoningChangeInFlightRef = useRef(false)
@@ -329,7 +333,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       if (usage.status === 'fulfilled' && usage.value) setChatUsage(usage.value)
     })
     return () => { active = false }
-  }, [backend, profile, sessionId, activeModel?.provider, activeModel?.model, chatVisible])
+  }, [backend, profile, sessionId, activeModel?.provider, activeModel?.model, chatVisible, reasoningRefreshVersion])
 
   React.useEffect(() => {
     if (!backend || !sessionId || !turnBusy || (chatUsage?.context_max ?? chatUsage?.context_length)) return
@@ -400,11 +404,12 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }, [backend, profile, sessionId, draft, draftCaret, commandCatalog])
 
   const trigger = composerTrigger(draft, draftCaret)
+  const argumentHint = trigger && 'command' in trigger ? commandArgumentHint(commandCatalog, trigger.command, language) : ''
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []
   function chooseCommand(choice: ComposerChoice) {
     if (!trigger) return
     if (!choice.available) { setChatStatus(`${choice.name}：${choice.availability}`); return }
-    const replacement = `${choice.name} `
+    const replacement = `${choice.insertion || choice.name} `
     const caret = trigger.start + replacement.length
     setDraft(`${draft.slice(0, trigger.start)}${replacement}${draft.slice(trigger.end)}`)
     setDraftCaret(caret)
@@ -501,22 +506,39 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
+    if (typed === '/stop' && !attachments.length && !attachmentBusy) {
+      if (sessionRef.current || submittingRef.current) await interruptSession()
+      else setChatStatus(t('ui.there.are.currently.no.tasks.running'))
+      setDraft('')
+      return true
+    }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
-    if (slash && ['/new', '/sessions', '/model'].includes(`/${slash[1]}`)) {
+    if (slash && ['/new', '/sessions', '/model', '/history', '/resume', '/config', '/tools', '/cron', '/plugins'].includes(`/${slash[1]}`)) {
       if (attachments.length) {
         setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command'))
         return
       }
+      if (slash[1] === 'resume' && slash[2]?.trim()) {
+        const owner = viewedProfileRef.current
+        try {
+          const result = await chat.listSessions(profileScope())
+          if (viewedProfileRef.current !== owner) return false
+          const target = slash[2].trim()
+          const exact = result.sessions.filter(row => row.id === target)
+          const matches = exact.length ? exact : result.sessions.filter(row => row.title === target)
+          if (matches.length !== 1) throw new Error(language === 'zh-CN' ? '会话不存在或名称重复，请在历史列表选择。' : 'Session missing or ambiguous. Choose it from history.')
+          return await resumeSession(matches[0].id, false, backend?.replay_epoch || '', owner, true)
+        } catch (cause) { setChatStatus(describeError(cause, language)); return false }
+      }
       if (slash[2]?.trim()) {
-        setChatStatus(t(slash[1] === 'new' ? 'ui.the.desktop.new.command.does.not.accept.a.title.yet.create.a.session.then.u'
-          : slash[1] === 'sessions' ? 'ui.the.desktop.sessions.command.does.not.accept.arguments'
-            : 'ui.choose.a.model.in.model.settings.arguments.after.model.do.not.change.the.cu'))
+        setChatStatus(language === 'zh-CN' ? '此桌面命令不接受参数，请在打开的页面操作。' : 'This desktop command takes no arguments. Use the page it opens.')
         return
       }
       if (slash[1] === 'new') await newChat(false)
-      else if (slash[1] === 'sessions') { await loadSessions(true); openChat(); setSidebarOpen(true); setDraft('') }
-      else { openModelSettings(); setDraft('') }
+      else if (['sessions', 'history', 'resume'].includes(slash[1])) { await loadSessions(true); openChat(); setSidebarOpen(true); setDraft('') }
+      else if (slash[1] === 'model') { openModelSettings(); setDraft('') }
+      else if (openCommandPage(slash[1])) setDraft('')
       return true
     }
     const mentions = Array.from(typed.matchAll(/(^|\s)@([^\s]+)/g))
@@ -539,6 +561,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     if (isCommand && (!catalog?.pairs.some(([name]) => name === commandName)
       || !commandSupported(catalog, commandName))) {
       setChatStatus(t("ui.this.command.does.not.exist.for.the.current.session.arg", commandName))
+      return
+    }
+    if (isCommand && catalog && !argumentAllowed(catalog, commandName, commandArg)) {
+      setChatStatus(language === 'zh-CN' ? '该命令参数不适用于桌面，请按候选中的子命令输入；审批模式请在安全设置中调整。' : 'These arguments are unavailable on desktop. Use a suggested subcommand or change approval mode in Security settings.')
       return
     }
     if (isCommand && attachments.length && !isSkill) { setChatStatus(t("ui.please.remove.the.attachment.first.when.executing.the.command")); return }
@@ -578,26 +604,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       turnStartedAtRef.current = null
     }
     try {
-      if (commandName === '/new' && isCommand) {
-        submittingRef.current = false
-        await newChat(false)
-        setTurnBusy(false)
-        return
-      }
-      if (commandName === '/sessions' && isCommand) {
-        await loadSessions(true)
-        openChat()
-        setSidebarOpen(true)
-        setDraft('')
-        setTurnBusy(false)
-        return
-      }
-      if (commandName === '/model' && isCommand) {
-        openModelSettings()
-        setDraft('')
-        setTurnBusy(false)
-        return
-      }
       const id = await ensureChatSession()
       idForSubmission = id
       if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
@@ -622,11 +628,14 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           if (!result.message) throw new Error(t("ui.the.command.did.not.return.a.message.to.send"))
           text = [result.message, ...refs].filter(Boolean).join('\n')
         } else if (result.type === 'prefill') {
+          onCommandFinished(sessionProfileRef.current, storedSessionRef.current || id)
           setDraft(result.message || '')
           setChatStatus(result.notice || t("ui.the.command.has.been.filled.in.the.input.box"))
           setTurnBusy(false)
           return true
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
+          onCommandFinished(sessionProfileRef.current, storedSessionRef.current || id)
+          if (commandName === '/reasoning' && sessionRef.current === id) setReasoningRefreshVersion(version => version + 1)
           setConversation(rows => appendMessage(appendMessage(rows, 'user', typed), 'assistant', result.output || result.notice || t("ui.command.execution.completed")))
           setDraft('')
           setChatStatus(t("ui.command.execution.completed"))
@@ -663,6 +672,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       }
       return true
     } catch (cause) {
+      if (isCommand && !promptDispatchStartedRef.current && sessionProfileRef.current && (storedSessionRef.current || idForSubmission)) {
+        onCommandFinished(sessionProfileRef.current, storedSessionRef.current || idForSubmission)
+      }
       if (!stopRequestedRef.current && (!sessionRef.current || sessionRef.current === idForSubmission)) {
         if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
           restoreUnsentPrompt()
@@ -759,7 +771,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setNavigationBusy(false)
   }
 
-  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current) {
+  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current, commandResume = false) {
     if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || (!force && id === storedSessionRef.current)) return false
     navigationBusyRef.current = true
     setNavigationBusy(true)
@@ -767,7 +779,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     try {
       if (!ownerProfile) throw new Error('Session has no Profile owner')
       const result = await chat.resumeSession({ kind: 'session', profile: ownerProfile, sessionId: id })
-      if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft, attachments }
+      if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft: commandResume ? '' : draft, attachments }
       turnStartedAtRef.current = null
       sessionRef.current = result.session_id
       sessionProfileRef.current = ownerProfile
@@ -958,7 +970,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, serverRequests, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
-    attachmentBusy, draggingFiles, trigger, choices, answerRequest,
+    attachmentBusy, draggingFiles, trigger, choices, argumentHint, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat,
   }
