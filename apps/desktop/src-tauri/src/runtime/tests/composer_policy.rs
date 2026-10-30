@@ -16,6 +16,8 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/resume test",
         "/agents all",
         &format!("/branch {}", "a".repeat(201)),
+        "/undo 0",
+        "/undo nope",
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
@@ -29,6 +31,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/approvals status",
         "/agents",
         "/branch 新方向",
+        "/undo 2",
     ] {
         assert!(allowed(&catalog, command), "{command}");
     }

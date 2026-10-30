@@ -517,7 +517,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
-    if (slash && ['retry', 'compress', 'agents', 'branch'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
+    if (slash && ['retry', 'compress', 'agents', 'branch', 'undo'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
     if (slash?.[1] === 'save') {
       if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false
       if (attachments.length) { setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command')); return false }
@@ -651,6 +651,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
           onCommandFinished(sessionProfileRef.current, storedSessionRef.current || id)
           if (commandName === '/reasoning' && sessionRef.current === id) setReasoningRefreshVersion(version => version + 1)
+          if (commandName === '/undo' && result.display === 'applied') retryPendingRef.current = id
           setConversation(rows => appendMessage(appendMessage(rows, 'user', typed), 'assistant', result.output || result.notice || t("ui.command.execution.completed")))
           setDraft('')
           setChatStatus(t("ui.command.execution.completed"))

@@ -153,6 +153,44 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         stale = await rpc(ws, "session.mutate", **(branch_params | {"request_id": "desktop-branch-stale"}))
         assert "error" in stale, stale
 
+        undo_session = await call("session.create", source="gui", request_id="desktop-undo-test",
+                                  cwd=str(home), toolsets=[])
+        undo_id = undo_session["session_id"]
+        for index in range(2):
+            await call("prompt.submit", session_id=undo_id, text=f"UNDO_Q{index}",
+                       submission_id=f"desktop-undo-prompt-{index}", clarify_batch=True)
+            for _ in range(50):
+                undo_history = await call("session.history", session_id=undo_id)
+                if len(undo_history["messages"]) >= (index + 1) * 2:
+                    break
+                await asyncio.sleep(0.2)
+            else:
+                raise AssertionError(undo_history)
+        for _ in range(50):
+            settled = await call("session.events.since", session_id=undo_id,
+                                 replay_epoch=undo_session["replay_epoch"], last_sequence=0)
+            if any("UNDO_Q1" in str(event.get("payload", {}).get("text", ""))
+                   for event in settled.get("events", []) if event.get("type") == "message.complete"):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(settled)
+        undo_snapshot = await call("session.resume", session_id=undo_id, source="desktop")
+        target = next(row["row_id"] for row in undo_snapshot["messages"]
+                      if row.get("role") == "user" and row.get("content") == "UNDO_Q1")
+        undo_params = dict(session_id=undo_id, request_id="desktop-undo-apply",
+                           expected_revision=undo_snapshot["revision"],
+                           expected_generation=undo_snapshot["execution_generation"],
+                           operation="rewind", payload={"target_message_id": target})
+        undone = await call("session.mutate", **undo_params)
+        assert undone["rewound_count"] >= 2, undone
+        assert await call("session.mutate", **undo_params) == undone
+        remaining = await call("session.resume", session_id=undo_id, source="desktop")
+        assert any(row.get("content") == "UNDO_Q0" for row in remaining["messages"]), remaining
+        assert not any(row.get("content") == "UNDO_Q1" for row in remaining["messages"]), remaining
+        stale_undo = await rpc(ws, "session.mutate", **(undo_params | {"request_id": "desktop-undo-stale"}))
+        assert "error" in stale_undo, stale_undo
+
         # A longer transcript must exercise the mutation path, not merely the short-session no-op.
         long_session = await call("session.create", source="gui", request_id="desktop-compress-long", cwd=str(home), toolsets=[])
         long_id = long_session["session_id"]
@@ -193,6 +231,20 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert compacted["count"] < history["count"], (history["count"], compacted["count"])
         assert resumed.get("session_id") == long_id, resumed
         assert resumed.get("messages"), resumed
+        active_users = [row for row in resumed["messages"]
+                        if row.get("role") == "user" and not row.get("archived")
+                        and row.get("display_kind") in (None, "", "steer")
+                        and type(row.get("row_id")) is int]
+        assert active_users and str(active_users[-1].get("content", "")).startswith("LONG_7_"), active_users
+        compressed_rewind = await call("session.mutate", session_id=long_id,
+                                       request_id="desktop-compressed-undo", operation="rewind",
+                                       expected_revision=resumed["revision"],
+                                       expected_generation=resumed["execution_generation"],
+                                       payload={"target_message_id": active_users[-1]["row_id"]})
+        assert compressed_rewind["rewound_count"] > 0, compressed_rewind
+        after_rewind = await call("session.resume", session_id=long_id, source="desktop")
+        assert not any(str(row.get("content", "")).startswith("LONG_7_")
+                       for row in after_rewind["messages"] if not row.get("archived")), after_rewind
 
 
 def main() -> None:
@@ -229,7 +281,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression and fenced branch passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch and rewind passed")
 
 
 if __name__ == "__main__":

@@ -46,6 +46,7 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
             | "/deny"
             | "/agents"
             | "/branch"
+            | "/undo"
     );
     if builtin {
         if name == "/skills" {
@@ -59,6 +60,9 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
         }
         if name == "/branch" {
             return arg.chars().count() <= 200;
+        }
+        if name == "/undo" {
+            return super::composer_undo::valid_argument(arg);
         }
         return name != "/approvals" || !arg.eq_ignore_ascii_case("off");
     }
