@@ -11,6 +11,7 @@ import tempfile
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from websockets.asyncio.client import connect
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -18,6 +19,7 @@ UPSTREAM = REPO / "upstream" / "hermes-agent"
 sys.path.insert(0, str(UPSTREAM))
 
 from tests.gateway.fixtures.local_recovery_probe import Model, child_env, daemon, rpc, websocket
+from tests.gateway.test_normal_runtime_boot import control
 
 
 async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
@@ -30,8 +32,33 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         created = await call("session.create", source="gui", request_id="desktop-composer-test", cwd=str(home), toolsets=[])
         session_id = created["session_id"]
         catalog = await call("commands.catalog", session_id=session_id)
+        assert any(name == "/agents" for name, _ in catalog["pairs"]), catalog
         assert "pending" in catalog["commands"]["/skills"]["desktop_subcommands"], catalog
         assert catalog["sub"].get("/reasoning") or catalog["sub"].get("reasoning"), catalog.keys()
+        # /agents uses this read-only, session-owned roster instead of CLI process output.
+        roster = await call("subagent.list", session_id=session_id)
+        assert roster["subagents"] == [] and roster["delegations"] == [], roster
+        foreign = await rpc(ws, "subagent.list", session_id="missing-desktop-session")
+        assert "error" in foreign, foreign
+        named_home = home / "profiles" / "reviewer"
+        grant = control(home, "session-ticket", {"profile_id": str(named_home),
+                                                  "instance_id": desc["instance_id"], "purpose": "interactive"})
+        async with connect(desc["api_origin"].replace("http:", "ws:") + "/api/ws",
+                           subprotocols=["hermes-gateway-v1", "hermes-gateway-ticket." + grant["ticket"]]) as named_ws:
+            async def named_call(method: str, **params) -> dict:
+                answer = await rpc(named_ws, method, profile="reviewer", **params)
+                assert "result" in answer, answer
+                return answer["result"]
+            named = await named_call("session.create", source="gui",
+                                     request_id="desktop-named-composer-test", cwd=str(home), toolsets=[])
+            named_id = named["session_id"]
+            named_roster = await named_call("subagent.list", session_id=named_id)
+            assert named_roster["subagents"] == [] and named_roster["delegations"] == [], named_roster
+            named_export = await named_call("session.export", session_id=named_id,
+                                            format="md", redact=True)
+            assert "_No messages found._" in named_export["content"], named_export
+            cross_profile = await rpc(named_ws, "subagent.list", profile="reviewer", session_id=session_id)
+            assert "error" in cross_profile, cross_profile
         for command in ["/status", "/title 中文命令标题"]:
             result = await call("slash.exec", session_id=session_id, command=command)
             assert result.get("type") == "exec", result
@@ -164,12 +191,16 @@ def main() -> None:
         thread = threading.Thread(target=peer.serve_forever, daemon=True)
         thread.start()
         url = f"http://127.0.0.1:{peer.server_port}/v1"
-        (home / "config.yaml").write_text(json.dumps({
-            "gateway": {"multiplex_profiles": False, "managed_workers": False},
+        config = {
+            "gateway": {"multiplex_profiles": True, "managed_workers": False},
             "model": {"provider": "custom", "default": "delete-test", "base_url": url},
             "auxiliary": {"title_generation": {"enabled": False}},
             "platform_toolsets": {"cli": []},
-        }), encoding="utf-8")
+        }
+        (home / "config.yaml").write_text(json.dumps(config), encoding="utf-8")
+        named_home = home / "profiles" / "reviewer"
+        named_home.mkdir(parents=True)
+        (named_home / "config.yaml").write_text(json.dumps(config), encoding="utf-8")
         env = child_env()
         env.update(HOME=str(user), USERPROFILE=str(user), HERMES_HOME=str(home),
                    PYTHONPATH=os.pathsep.join([str(UPSTREAM), os.environ.get("PYTHONPATH", "")]), PYTHONUNBUFFERED="1",
@@ -181,7 +212,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, arguments, refusal, export, retry, compression preview and apply passed")
+    print("Locked Gateway composer: catalog, agents roster, arguments, refusal, export, retry and compression passed")
 
 
 if __name__ == "__main__":

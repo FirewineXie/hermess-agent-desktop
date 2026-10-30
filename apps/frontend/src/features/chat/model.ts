@@ -11,7 +11,7 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
   'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
   'codex-runtime', 'fast', 'personality',
-  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
 ])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
@@ -66,6 +66,7 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/save': ['导出当前会话：/save json|md|html [文件名] [redact]', 'Export current session: /save json|md|html [filename] [redact]'],
       '/retry': ['重新运行上一条用户请求', 'Retry the last user request'],
       '/compress': ['压缩当前会话：/compress [here N | focus 主题] [--preview]', 'Compress current session: /compress [here N | focus topic] [--preview]'],
+      '/agents': ['查看当前会话的子代理与失败任务', 'View subagents and failed tasks for this session'],
     }
     const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]
     const modelDescription = name === '/model'

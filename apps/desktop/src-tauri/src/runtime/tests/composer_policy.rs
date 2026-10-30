@@ -14,6 +14,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/skills",
         "/approvals OFF",
         "/resume test",
+        "/agents all",
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
@@ -25,6 +26,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/skills diff item",
         "/extension free text",
         "/approvals status",
+        "/agents",
     ] {
         assert!(allowed(&catalog, command), "{command}");
     }

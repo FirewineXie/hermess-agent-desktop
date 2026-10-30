@@ -209,9 +209,10 @@ pub async fn execute_composer_command(
     }
     let scope = state.resolve_profile(&profile).await?;
     let operation = Uuid::new_v4();
+    let command_name = command.split_whitespace().next().unwrap_or("");
     let _ = crate::diagnostics::append_client_event(
         &scope.storage,
-        &format!("composer_start operation={operation} profile={profile} session={session_id}"),
+        &format!("composer_start operation={operation} command={command_name} profile={profile} session={session_id}"),
     );
     let result = async {
         let catalog = scope
@@ -221,14 +222,22 @@ pub async fn execute_composer_command(
         if !super::composer_policy::allowed(&catalog, &command) {
             return Err(DesktopFailure::invalid_input());
         }
-        scope
-            .gateway
-            .request(
-                "slash.exec",
-                json!({"session_id": session_id, "command": command}),
-            )
-            .await
-            .map_err(Into::into)
+        if command.trim() == "/agents" {
+            let roster = scope
+                .gateway
+                .request("subagent.list", json!({"session_id": session_id}))
+                .await?;
+            Ok(json!({"type": "exec", "output": super::composer_agents::format_roster(&roster)}))
+        } else {
+            scope
+                .gateway
+                .request(
+                    "slash.exec",
+                    json!({"session_id": session_id, "command": command}),
+                )
+                .await
+                .map_err(Into::into)
+        }
     }
     .await;
     let outcome = if result.is_ok() {
@@ -238,7 +247,7 @@ pub async fn execute_composer_command(
     };
     let _ = crate::diagnostics::append_client_event(
         &scope.storage,
-        &format!("composer_{outcome} operation={operation} profile={profile} session={session_id}"),
+        &format!("composer_{outcome} operation={operation} command={command_name} profile={profile} session={session_id}"),
     );
     result
 }

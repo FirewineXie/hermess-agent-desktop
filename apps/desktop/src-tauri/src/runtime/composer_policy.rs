@@ -44,6 +44,7 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
             | "/personality"
             | "/approve"
             | "/deny"
+            | "/agents"
     );
     if builtin {
         if name == "/skills" {
@@ -51,6 +52,9 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
                 arg.split_whitespace().next(),
                 Some("pending" | "approve" | "reject" | "diff" | "approval")
             );
+        }
+        if name == "/agents" {
+            return arg.is_empty();
         }
         return name != "/approvals" || !arg.eq_ignore_ascii_case("off");
     }

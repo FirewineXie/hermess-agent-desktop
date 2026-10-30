@@ -24,6 +24,9 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/compress', '--preview'), true)
   assert.equal(argumentAllowed(catalog, '/compress', 'here 2 --preview'), true)
   assert.equal(argumentAllowed(catalog, '/compress', 'here 2'), true)
+  assert.deepEqual(argumentOptions(catalog, '/agents'), [])
+  assert.equal(argumentAllowed(catalog, '/agents', ''), true)
+  assert.equal(argumentAllowed(catalog, '/agents', 'all'), false)
 })
 
 test('desktop navigation does not suggest CLI-only mutations and mid-token completion consumes the suffix', () => {

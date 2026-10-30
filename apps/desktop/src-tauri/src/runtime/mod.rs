@@ -3,6 +3,7 @@ pub mod about;
 pub mod browser_bridge;
 pub mod channels;
 pub mod chat;
+mod composer_agents;
 mod composer_policy;
 pub mod config;
 mod config_document;
