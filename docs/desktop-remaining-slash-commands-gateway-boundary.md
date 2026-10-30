@@ -13,12 +13,14 @@
 - `gateway/session_tui_side.py` 的 `prompt.background` 校验已附着会话、提交权限、非空 `text`，返回 `bg_*` 任务 ID；独立 agent 在后台运行，完成后只向父会话事件流发布 `background.complete {task_id,text}`。父会话历史不追加该回合。
 - 运行中任务只在进程内 `_side_agents` 字典中按线程记录；`session_runtime_workers.py` 的中断函数只供整个运行时退出或 Profile 退役使用。当前 Gateway 没有按父会话和任务 ID 查询、取消后台任务的 RPC。
 - `session.interrupt` 处理普通会话执行，不接受 `bg_*` 作为其独立任务目标。父会话事件流重放能覆盖窗口内事件，但不能证明 Gateway 重启后仍有可查询的任务终态。因此仅用桌面内存列表接入 `/bg` 会缺失取消和重启恢复。
+- Windows 隔离 Gateway WebSocket 实测：`prompt.background` 返回 `bg_*`，父会话收到 `background.complete`，父历史仍为零条；把该任务 ID 传给 `session.interrupt` 返回 `4001 not_found`。本测试只证明当前接收方行为，不是产品侧功能验收。
 
 ### `/rollback`
 
 - `gateway/session_tui_ops.py` 已提供 `rollback.list`、`rollback.diff`、`rollback.restore`。它按会话冻结的工作目录和 checkpoint 配置选取存储；容器后端的宿主检查点恢复会拒绝。完整目录恢复要求主回合空闲，成功后还会回退最近一轮会话历史。
 - `rollback.diff` 的差异正文截断为 4000 字符。当前响应没有结构化的“将恢复、将跳过、将删除”文件清单，也没有供确认后恢复使用的文件状态栅栏。
 - 现有 `CheckpointManager.restore(safe=True)` 在代理写入 ledger 为空时回退到完整目录恢复，可能覆盖用户手工修改；传入单文件路径时也不使用 `safe=True` 的手工修改保护。桌面方案要求明确列出覆盖范围并保留手工修改，直接调用当前恢复接口不能保证这一点。
+- Windows 隔离目录复现：先保存含 `checkpoint version` 的检查点，再手动改为 `user edit`，不记录代理写入；`_safe_restore_plan` 返回 `ledger_empty=True`，`restore(safe=True)` 返回成功后文件变回 `checkpoint version`，`skipped_user_edits` 为空。测试主断言已打印结果，但临时 Hermes 运行时的租约文件短暂被占用，脚本在清理临时目录时以 WinError 32 退出；不把该进程退出码记作完整测试通过。
 - 恢复先改文件，随后回退会话历史；如果后一步失败，文件和历史可能不一致。桌面应显示部分成功并提供可恢复的信息，不能把它当作原子操作。
 
 ## 拟议的 fork 最小接口改动
