@@ -85,7 +85,7 @@ pub(crate) trait CanonicalizePlain {
 
 impl CanonicalizePlain for Path {
     fn canonicalize_plain(&self) -> io::Result<PathBuf> {
-        std::fs::canonicalize(self).map(|path| plain_path(&path))
+        std::fs::canonicalize(filesystem_path(self)).map(|path| plain_path(&path))
     }
 }
 

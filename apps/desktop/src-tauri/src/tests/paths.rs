@@ -42,6 +42,7 @@ fn deep_filesystem_path_is_temporary_and_not_an_identity() {
     assert!(internal.to_string_lossy().starts_with(r"\\?\"));
     assert_eq!(plain_path(&internal), deep);
     std::fs::create_dir_all(&internal).unwrap();
+    assert_eq!(deep.canonicalize_plain().unwrap(), deep);
     let file = deep.join("sample.txt");
     std::fs::write(filesystem_path(&file), "中文").unwrap();
     assert_eq!(
