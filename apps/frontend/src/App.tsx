@@ -28,6 +28,7 @@ import UpdateView from './features/about/UpdateView'
 import { useUpdateStatus } from './features/about/useUpdateStatus'
 import ChannelsView from './features/channels/ChannelsView'
 import UsageView from './features/usage/UsageView'
+import JourneyView from './features/journey/JourneyView'
 import WorkspacesView from './features/workspaces/WorkspacesView'
 import { useWorkspaces } from './features/workspaces/useWorkspaces'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
@@ -91,6 +92,7 @@ function App() {
         setProfileToolsRequest(value => value + 1)
         return true
       }
+      if (name === 'journey') return openView('journey')
       return name === 'config' ? openSettings('advanced-config') : openView(name === 'cron' ? 'scheduled' : name === 'plugins' ? 'extensions' : 'tools')
     },
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
@@ -219,6 +221,7 @@ function App() {
     {view === 'scheduled' && <ScheduledTasksView key={workspaceGeneration} connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} />}
     {view === 'tools' && <ToolsView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} generation={workspaceGeneration} onRestart={() => restartBackend().then(Boolean)} />}
     {view === 'usage' && <UsageView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
+    {view === 'journey' && <JourneyView key={`${profileController.snapshot?.selected || ''}:${backend?.replay_epoch || ''}`} connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
       onCreateProfile={profileController.create} onImportProfile={profileController.importPackage} />}
     {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} toolsetsRequest={profileToolsRequest}

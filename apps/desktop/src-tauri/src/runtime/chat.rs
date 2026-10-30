@@ -197,11 +197,12 @@ pub(super) fn composer_catalog_params(session_id: &str) -> Result<Value, Desktop
 #[tauri::command]
 pub async fn execute_composer_command(
     state: State<'_, BackendState>,
+    browser_bridge: State<'_, super::browser_bridge::BrowserBridgeState>,
     profile: String,
     session_id: String,
     command: String,
 ) -> Result<Value, DesktopFailure> {
-    super::composer_commands::execute(&state, profile, session_id, command).await
+    super::composer_commands::execute(&state, &browser_bridge, profile, session_id, command).await
 }
 
 #[tauri::command]

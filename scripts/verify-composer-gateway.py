@@ -9,7 +9,7 @@ import os
 import sys
 import tempfile
 import threading
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from websockets.asyncio.client import connect
 
@@ -20,6 +20,20 @@ sys.path.insert(0, str(UPSTREAM))
 
 from tests.gateway.fixtures.local_recovery_probe import Model, child_env, daemon, rpc, websocket
 from tests.gateway.test_normal_runtime_boot import control
+
+
+class CdpProbe(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/json/version":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"Browser":"Chromium"}')
+        else:
+            self.send_error(404)
+
+    def log_message(self, *_args):
+        pass
 
 
 async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
@@ -39,6 +53,38 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         # /agents uses this read-only, session-owned roster instead of CLI process output.
         roster = await call("subagent.list", session_id=session_id)
         assert roster["subagents"] == [] and roster["delegations"] == [], roster
+        # These are the exact RPC shapes emitted by composer_commands after ProfiledGateway scopes them.
+        mcp = await call("reload.mcp", session_id=session_id, confirm=True)
+        assert mcp["status"] == "reloaded" and isinstance(mcp["message"], str), mcp
+        confirm = await call("reload.mcp", session_id=session_id)
+        assert confirm["status"] == "confirm_required", confirm
+        skills = await call("skills.reload", session_id=session_id)
+        assert isinstance(skills["output"], str) and isinstance(skills["result"], dict), skills
+        missing_skill_session = await rpc(ws, "skills.reload", session_id="missing-desktop-session")
+        assert "error" in missing_skill_session, missing_skill_session
+        browser_status = await call("browser.manage", session_id=session_id, action="status")
+        assert isinstance(browser_status["connected"], bool), browser_status
+        browser_use = await call("browser.manage", session_id=session_id, action="use", enabled=False)
+        assert browser_use["browser_use"] is False, browser_use
+        await call("browser.manage", session_id=session_id, action="use", enabled=True)
+        cdp = ThreadingHTTPServer(("127.0.0.1", 0), CdpProbe)
+        cdp_thread = threading.Thread(target=cdp.serve_forever, daemon=True)
+        cdp_thread.start()
+        try:
+            connected = await call("browser.manage", session_id=session_id, action="connect",
+                                   url=f"http://127.0.0.1:{cdp.server_port}")
+            assert connected["connected"] is True, connected
+            assert (await call("browser.manage", session_id=session_id, action="status"))["connected"] is True
+            assert (await call("browser.manage", session_id=session_id, action="disconnect"))["connected"] is False
+        finally:
+            cdp.shutdown()
+            cdp.server_close()
+            cdp_thread.join(timeout=5)
+        bad_browser = await rpc(ws, "browser.manage", session_id=session_id, action="unknown")
+        assert "error" in bad_browser, bad_browser
+        handoff = await rpc(ws, "handoff.request", session_id=session_id, platform="telegram")
+        assert "error" in handoff, handoff
+        assert handoff["error"].get("message") in {"method_not_found", "session not found"}, handoff
         foreign = await rpc(ws, "subagent.list", session_id="missing-desktop-session")
         assert "error" in foreign, foreign
         named_home = home / "profiles" / "reviewer"
@@ -55,6 +101,10 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             named_id = named["session_id"]
             named_roster = await named_call("subagent.list", session_id=named_id)
             assert named_roster["subagents"] == [] and named_roster["delegations"] == [], named_roster
+            named_mcp = await named_call("reload.mcp", session_id=named_id, confirm=True)
+            assert named_mcp["status"] == "reloaded", named_mcp
+            named_skills = await named_call("skills.reload", session_id=named_id)
+            assert isinstance(named_skills["result"], dict), named_skills
             named_snapshot = await named_call("session.resume", session_id=named_id, source="desktop",
                                               defer_history=True, omit_messages=True)
             named_idle_steer = await rpc(named_ws, "session.steer", profile="reviewer", session_id=named_id,
@@ -435,7 +485,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression, side question, background task, branch, rewind, steer and queue passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, side question, background task, branch, rewind, steer, queue, MCP reload, skill reload and browser state passed")
 
 
 if __name__ == "__main__":

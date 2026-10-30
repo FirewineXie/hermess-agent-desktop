@@ -1,6 +1,6 @@
-# 桌面斜杠命令接入与禁用方案（待审核）
+# 桌面斜杠命令接入与禁用记录
 
-状态：表中已接入命令的 Windows 本地检查与隔离 Gateway 验证见 [路线图](../ROADMAP.md)；`/bg` 后续按用户新要求接入桌面专用任务路径，`/rollback` 保持禁用，双平台原生窗口仍待验收。核对日期：2026-10-30。适用范围：Hermess Agent Desktop 当前开发分支与 `runtime/upstream.lock.json` 锁定的 Hermes fork；不定义 Hermes CLI 或消息平台的命令政策。
+状态：`/reload-mcp`、`/reload-skills`、`/browser` 和 `/journey` 已在当前开发分支接入；`/handoff` 仍受锁定 owner Gateway 缺少移交 RPC 阻碍，`/rollback` 保持禁用。已接入命令的本地检查与隔离 Gateway 验证见 [路线图](../ROADMAP.md)，双平台原生窗口仍待验收。核对日期：2026-10-30。适用范围：Hermess Agent Desktop 当前开发分支与 `runtime/upstream.lock.json` 锁定的 Hermes fork；不定义 Hermes CLI 或消息平台的命令政策。
 
 ## 1. 目标与审核结论
 
@@ -21,6 +21,8 @@
 
 ## 2. 当前代码事实与边界
 
+本节第 1–3 项保留最初审核时的基线，后续实现状态以第 3 节逐项决定、第 8 节交付记录和 `ROADMAP.md` 为准。
+
 1. `apps/frontend/src/features/chat/useChatController.ts` 直接处理 `/new`、`/sessions`、`/model`。其他斜杠命令先查目录和 `commandSupported`，随后通过 `chat.executeCommand` 进入 Rust 的 `execute_composer_command`，转发锁定 Gateway 的 `slash.exec`。`send` 返回值仍需由客户端以自己的输入 ID 提交，不得在 Gateway 侧重复提交。
 2. `apps/frontend/src/features/chat/model.ts` 的 `DESKTOP_GATEWAY_COMMANDS` 是前端静态允许集合；插件命令和 Skill 另有动态分支。它与 Gateway 命令目录的 `desktop` 标记并非同一份策略。当前 Rust 入口只检查会话 ID、斜杠前缀和长度，尚未在宿主侧限制命令名与子命令。
 3. 锁定 fork 的 `hermes_cli/commands.py` 声明命令目录、`cli_only`、`desktop` 与部分 `desktop_subcommands`；`gateway/session_commands.py` 再按具体命令与参数给出 `read`、`control` 或 `refused`。例如 `/skills` 只允许桌面使用待审批事项的部分子命令；`/cron` 的读取与写入在本地会话上有不同边界。目录可列出而执行仍可能被拒绝。
@@ -29,7 +31,7 @@
 
 核对入口：`apps/frontend/src/features/chat/model.ts`、`apps/frontend/src/features/chat/useChatController.ts`、`apps/desktop/src-tauri/src/runtime/chat.rs`、`upstream/hermes-agent/hermes_cli/commands.py`、`upstream/hermes-agent/gateway/session_commands.py`、`upstream/hermes-agent/gateway/session_discovery.py`。
 
-## 3. 尚未接入的 51 个命令：逐项决定
+## 3. 原规划的 51 个命令：逐项决定
 
 “第一批”指策略与现有能力映射；“后续”指独立功能任务。对没有证明 Gateway 可接受的操作，不通过 `slash.exec` 猜测性透传。
 
@@ -75,10 +77,10 @@
 | `/toolsets` | 已接入映射，原生待验收 | 直接打开当前 Profile 的工具集信息视图；只读内容以实际返回为准，不代表已有会话实际可调用的工具。 |
 | `/cron` | 第一批映射 | 打开定时任务页面。不得把 `add/edit/run/remove` 直接发给附着在桌面会话上的 `slash.exec`；复用产品现有定时任务契约。 |
 | `/reload` | 禁止桌面执行 | 重载 `.env` 会改变运行时环境，需明确自有 Gateway 的配置来源、凭据和重启边界；当前不经聊天命令执行。 |
-| `/reload-mcp` | 暂不接入 | 若扩展页面需要刷新，设计为目标 Profile 的显式操作并显示扫描结果；先验证锁定 Gateway 的响应。 |
-| `/reload-skills` | 暂不接入 | 同上，并核对无会话/已有会话的目录缓存与工作区 Skill 来源。 |
+| `/reload-mcp` | 已接入，原生待验收 | 当前会话显式调用锁定 owner Gateway `reload.mcp(confirm=true)`，显示重连结果、未连接服务与忙碌会话延后信息；命名 Profile 路由已做隔离 Gateway 验证。 |
+| `/reload-skills` | 已接入，原生待验收 | 当前会话调用锁定 owner Gateway `skills.reload`，显示新增、移除与总数，并清除桌面命令目录缓存；工作区 Skill 来源及原生会话切换仍待验收。 |
 | `/plugins` | 第一批映射 | 打开扩展/插件状态页面；只展示当前 Profile 的实际清单与错误，不把 CLI 插件管理能力附带开放。 |
-| `/browser` | 暂不接入 | 需明确控制产品浏览器还是用户已有浏览器、CDP 连接和退出清理；不能直接沿用 CLI 的连接动作。 |
+| `/browser` | 自有浏览器路径已接入，原生待验收 | `connect` 启动产品进程管理器登记的私有 Chromium 并通过 `browser.manage` 连接；`status`、`disconnect`、`use on|off` 返回锁定 Gateway 状态。只管理产品自有实例，不接管用户已有浏览器；Gateway 接受/拒绝已在隔离 CDP 探针验证，原生窗口与真实浏览器工具调用尚待验收。 |
 
 ### 3.5 终端界面与桌面原生操作（17 个）
 
@@ -107,7 +109,7 @@
 | 命令 | 决定 | 桌面行为或禁用理由 |
 | --- | --- | --- |
 | `/handoff` | 暂不接入 | 消息平台会话移交需明确目标渠道、会话所有权和回退；锁定 Gateway 对本地会话并未因此提供桌面移交承诺。 |
-| `/journey` | 暂不接入 | 需要独立页面与数据接口；不能以 CLI 输出代替。 |
+| `/journey` | 时间线及节点编辑删除已接入，原生待验收 | 打开当前 Profile 的学习时间线；同一视图也可从专家管理的概览卡片和标签进入。读取锁定 Dashboard `/api/learning/graph`，显示 Skill 与记忆数量，可刷新并查看、编辑、删除节点。默认/命名 Profile 的隔离读取及节点写入已验证；完整图谱交互未接入。 |
 | `/pet` | 暂不接入 | 需要完整的桌面宠物体验和资源管理。 |
 | `/hatch` | 暂不接入 | 同上，另有生成和保存流程。 |
 | `/wake` | 暂不接入 | 需要 Windows/macOS 分别实现麦克风权限、常驻监听与关闭清理。 |
@@ -201,3 +203,5 @@
 2026-10-30 `/steer 内容`：输入框运行中仍保留停止按钮；输入有效 `/steer` 文本时可直接发送插入消息。Rust 使用当前 Profile 的会话快照获取运行代次，调用锁定 Gateway 的 `session.steer`；只在明确 `queued` 后清空该次输入，失败或回执不明保留输入，当前回合结束后重载持久化历史。隔离真实 Gateway WebSocket 验证空闲拒绝、运行中接收、错误代次拒绝和插入消息持久化；Windows/macOS 原生输入、断连时回执不明及正在生成时的视觉状态尚未验收。
 
 2026-10-30 `/queue`：当前 Profile/会话通过 `session.resume` 读取持久化待处理项，只对 Gateway 标记可编辑的普通排队文本列序号；运行时 `prompt.submit(queued=true)` 入队，`prompt.replace_queued` 原子替换并移至队尾，`prompt.cancel` 删除或在争用下停止已开始回合。清空逐项取消，非原子；失败后重新列队列核对。对提交/编辑/删除结果不明的请求在桌面进程内保留原请求参数，重复同一命令才重放。Gateway 没有重排接口，`move` 不执行。隔离真实 Gateway WebSocket 验证入队、重复请求、编辑、删除、逐项取消及过期编辑拒绝；Windows/macOS 原生队列显示、连续排队回合、断连与重启后的结果不明恢复尚未验收。
+
+2026-10-30 `/reload-mcp`、`/reload-skills`、`/browser`、`/journey` 追加接入：前两条经当前会话的 owner Gateway 专用 RPC 执行，不走 `slash.exec`；`/browser` 只连接产品进程管理器启动的私有 Chromium，`status` 与 `use on|off` 使用 Gateway `browser.manage`；`/journey` 打开 Profile 级学习时间线及节点编辑删除。真实接收方、Profile 隔离及本地检查证据见 `ROADMAP.md` 同日记录。`/handoff` 仍禁用，原因是旧 sidecar 的 `handoff.request/state/fail` 未由当前 owner Gateway 提供；直接照搬 Hermes Desktop 前端调用会得到 `session not found`。原生窗口及安装包未验收。

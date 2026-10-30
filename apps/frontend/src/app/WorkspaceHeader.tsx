@@ -16,6 +16,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
     agent: t('ui.agent.settings'),
     profiles: language === 'zh-CN' ? '角色与 Profile' : 'Roles and profiles',
     memory: t('ui.persona.and.memory'),
+    journey: language === 'zh-CN' ? '学习时间线' : 'Learning timeline',
     runtime: t('ui.runtime.and.storage'),
     tools: t('ui.tools.and.capabilities'),
     extensions: t('ui.extensions'),

@@ -162,7 +162,7 @@ Agent 的“是否允许/实际会调用哪些工具”是另一件事。现有 
 | 集成工具归应用，Profile 工具集归管理页 | 当前原生工具页显示 18 项客户端集成工具和“所有 Profile 共用”，可进入 Profile 管理页只读“工具集”；扩展页可明确选择安装/连接目标 Profile；客户端不再调用 `tools.list/show` | 页面归属已原生复验；安装与缓存失效待验收 |
 | 定时任务不依赖私有 Dashboard 缺失的 `/api/jobs` | 原生窗口曾复现 404 与错误空态；改为 Gateway `cron.manage` 加 Dashboard `/api/cron/jobs` 后，原生任务页显示空列表、没有失败提示，新建弹窗可选择 default/coder；立即运行现请求 Dashboard `/trigger`，产品 Python 脚本已移除 | 列表与目标选择已原生复验；触发执行、真实写入与运行待验收 |
 | 工作区与终端不串 Profile | 早前原生窗口完成 coder → default → coder 单终端往返；作用域和路径修复经 Rust 测试 | 双终端并发输入待验收 |
-| 浏览器桥接不串 Profile/会话 | Rust 现有桥接按 Profile 保存 Chromium 实例，并用 `session.resume` 核对目标会话；但 `open_visible_browser` / `close_visible_browser` 未注册为 Tauri 命令，当前前端也无调用入口 | 当前产品没有可操作的桥接界面；不能记为已完成原生验收，后续启用时须补入口与会话并发验证 |
+| 浏览器桥接不串 Profile/会话 | Rust 桥接按 Profile 保存产品自有 Chromium 实例，并用 `session.resume` 核对目标会话；当前开发分支已由 `/browser connect|disconnect` 调用该桥接，`status|use` 调用锁定 Gateway | 隔离 Gateway 已验证连接形状与状态接口；Windows/macOS 原生窗口、真实浏览器工具调用和同 Profile 多会话并发尚未验收 |
 | 断线、乱序及 Gateway 纪元变化不接纳旧结果 | ProfileWorkspace 代次、响应后纪元检查和架构检查已覆盖代码路径 | 自动验证通过；跨重连原生操作待验收 |
 | 新功能必须声明作用域 | `pnpm check:architecture` 对 69 个原生命令、5 个事件及动态扩展清单执行登记检查 | 检查通过；后续新功能仍需持续执行 |
 

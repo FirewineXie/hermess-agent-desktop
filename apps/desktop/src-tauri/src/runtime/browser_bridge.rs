@@ -167,25 +167,37 @@ impl BrowserBridgeState {
             );
         }
         let instance = browsers
-            .get_mut(&profile)
+            .get(&profile)
             .ok_or_else(DesktopFailure::operation_failed)?;
+        let port = instance.port;
         if instance.connected_epoch.as_deref() != Some(&epoch) {
-            scope.ensure_current(backend).await?;
-            let result = scope
-                .gateway
-                .request(
-                    "browser.manage",
-                    json!({"action":"connect", "session_id":session_id,
-                "url":format!("http://127.0.0.1:{}", instance.port)}),
-                )
-                .await?;
-            scope.ensure_current(backend).await?;
-            if result.get("connected").and_then(Value::as_bool) != Some(true) {
-                return Err(DesktopFailure::operation_failed());
+            let connected = async {
+                scope.ensure_current(backend).await?;
+                let result = scope
+                    .gateway
+                    .request(
+                        "browser.manage",
+                        json!({"action":"connect", "session_id":session_id,
+                        "url":format!("http://127.0.0.1:{port}")}),
+                    )
+                    .await?;
+                scope.ensure_current(backend).await?;
+                if result.get("connected").and_then(Value::as_bool) != Some(true) {
+                    return Err(DesktopFailure::operation_failed());
+                }
+                Ok(())
             }
-            instance.connected_epoch = Some(epoch);
+            .await;
+            if let Err(cause) = connected {
+                browsers.remove(&profile);
+                let _ = crate::diagnostics::append_client_event(&storage, &format!("browser_connect_cleanup profile={profile} session={session_id} result=closed"));
+                return Err(cause);
+            }
+            if let Some(instance) = browsers.get_mut(&profile) {
+                instance.connected_epoch = Some(epoch);
+            }
         }
-        Ok(instance.port)
+        Ok(port)
     }
 
     pub async fn stop_all(&self) {
@@ -213,18 +225,30 @@ impl BrowserBridgeState {
         let Some(instance) = browsers.get(&profile) else {
             return Ok(());
         };
-        if instance.connected_epoch.as_deref() == Some(&epoch) {
-            scope.ensure_current(backend).await?;
-            scope
-                .gateway
-                .request(
-                    "browser.manage",
-                    json!({"action":"disconnect", "session_id":session_id}),
-                )
-                .await?;
-        }
+        let disconnected = if instance.connected_epoch.as_deref() == Some(&epoch) {
+            async {
+                scope.ensure_current(backend).await?;
+                scope
+                    .gateway
+                    .request(
+                        "browser.manage",
+                        json!({"action":"disconnect", "session_id":session_id}),
+                    )
+                    .await?;
+                Ok(())
+            }
+            .await
+        } else {
+            Ok(())
+        };
         browsers.remove(&profile);
-        Ok(())
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!(
+                "browser_disconnect_cleanup profile={profile} session={session_id} result=closed"
+            ),
+        );
+        disconnected
     }
 }
 

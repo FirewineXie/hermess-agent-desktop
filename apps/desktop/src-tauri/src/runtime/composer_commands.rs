@@ -6,6 +6,7 @@ use super::{chat::composer_catalog_params, BackendState};
 
 pub(super) async fn execute(
     state: &BackendState,
+    browser_bridge: &super::browser_bridge::BrowserBridgeState,
     profile: String,
     session_id: String,
     command: String,
@@ -61,6 +62,47 @@ pub(super) async fn execute(
                 command.strip_prefix("/queue").unwrap_or("").trim(),
             )
             .await
+        } else if command_name == "/reload-mcp" {
+            let response = scope.gateway.request(
+                "reload.mcp",
+                json!({"session_id": session_id, "confirm": true}),
+            ).await?;
+            scope.ensure_current(state).await?;
+            if response.get("status").and_then(Value::as_str) != Some("reloaded") {
+                return Err(DesktopFailure::operation_failed());
+            }
+            let message = response.get("message").and_then(Value::as_str).ok_or_else(DesktopFailure::operation_failed)?;
+            Ok(json!({"type": "exec", "output": message}))
+        } else if command_name == "/reload-skills" {
+            let response = scope.gateway.request(
+                "skills.reload",
+                json!({"session_id": session_id}),
+            ).await?;
+            scope.ensure_current(state).await?;
+            let output = response.get("output").and_then(Value::as_str).ok_or_else(DesktopFailure::operation_failed)?;
+            Ok(json!({"type": "exec", "output": output}))
+        } else if command_name == "/browser" {
+            let arg = command.strip_prefix("/browser").unwrap_or("").trim();
+            let action = if arg.is_empty() { "status".to_string() } else { arg.to_ascii_lowercase() };
+            if action == "connect" {
+                browser_bridge.ensure(state, &profile, &session_id).await?;
+            } else if action == "disconnect" {
+                browser_bridge.close(state, &profile, &session_id).await?;
+            }
+            scope.ensure_current(state).await?;
+            let response = scope.gateway.request(
+                "browser.manage",
+                if action.starts_with("use") {
+                    json!({"session_id": session_id, "action": "use", "enabled": action != "use off"})
+                } else {
+                    json!({"session_id": session_id, "action": "status"})
+                },
+            ).await?;
+            scope.ensure_current(state).await?;
+            let connected = response.get("connected").and_then(Value::as_bool).ok_or_else(DesktopFailure::operation_failed)?;
+            let browser_use = response.get("browser_use").and_then(Value::as_bool).ok_or_else(DesktopFailure::operation_failed)?;
+            let output = format!("Browser: {}; Browser Use: {}", if connected { "connected" } else { "disconnected" }, if browser_use { "on" } else { "off" });
+            Ok(json!({"type": "exec", "output": output}))
         } else {
             scope
                 .gateway

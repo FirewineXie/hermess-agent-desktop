@@ -21,7 +21,9 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/bg do work",
         "/rollback 1",
         "/copy",
-        "/reload-mcp",
+        "/reload-mcp extra",
+        "/reload-skills extra",
+        "/browser connect http://127.0.0.1:9222",
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
@@ -36,6 +38,10 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/agents",
         "/branch 新方向",
         "/undo 2",
+        "/reload-mcp",
+        "/reload-skills",
+        "/browser status",
+        "/browser use off",
     ] {
         assert!(allowed(&catalog, command), "{command}");
     }

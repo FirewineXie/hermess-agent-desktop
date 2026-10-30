@@ -199,6 +199,8 @@ fn accepts_profile(method: &str) -> bool {
             | "config.set"
             | "model.options"
             | "browser.manage"
+            | "reload.mcp"
+            | "skills.reload"
             | "cron.manage"
             | "setup.runtime_check"
     )

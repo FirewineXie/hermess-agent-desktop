@@ -9,8 +9,9 @@ import LocalMcp from '../extensions/LocalMcp'
 import { labels } from '../extensions/labels'
 import ProfileDataView from './ProfileDataView'
 import ProfileHermesPlugins from './ProfileHermesPlugins'
+import JourneyView from '../journey/JourneyView'
 
-type Tab = 'overview' | 'tools' | 'skills' | 'plugins' | 'mcp' | 'memory' | 'data'
+type Tab = 'overview' | 'tools' | 'skills' | 'plugins' | 'mcp' | 'memory' | 'journey' | 'data'
 type CardIconKind = 'tools' | 'settings' | 'skills' | 'mcp' | 'memory' | 'data' | 'channels' | 'usage'
 
 function CardIcon({ kind }: { kind: CardIconKind }) {
@@ -111,8 +112,8 @@ export default function ProfileOverview({ connected, epoch, profiles, toolsetsRe
   }, [connected, epoch, profiles?.selected, extensions, personalFiles, profileApi, language])
 
   const tabs: Array<[Tab, string]> = zh
-    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['data', '数据目录']]
-    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['data', 'Data directory']]
+    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['journey', '学习时间线'], ['data', '数据目录']]
+    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['journey', 'Learning timeline'], ['data', 'Data directory']]
   const enabledToolsets = toolsets?.filter(toolset => toolset.enabled) || []
   const skillNames = skills?.filter(skill => skill.enabled).map(skill => skill.name) || []
   const filteredSkills = skills?.filter(skill => `${skill.name} ${skill.description || ''}`.toLocaleLowerCase().includes(skillQuery.trim().toLocaleLowerCase())) || []
@@ -230,6 +231,8 @@ export default function ProfileOverview({ connected, epoch, profiles, toolsetsRe
         zh ? '查看并管理此 Agent 已安装的 Hermes 插件。' : 'View and manage Hermes plugins installed for this Agent.', 'skills')}
       {card('MCP', zh ? '管理 MCP' : 'Manage MCP', () => setTab('mcp'), mcpContent, 'mcp')}
       {card(zh ? '记忆' : 'Memory', zh ? '查看记忆' : 'View memory', onOpenMemory, memoryContent, 'memory')}
+      {card(zh ? '学习时间线' : 'Learning timeline', zh ? '查看时间线' : 'View timeline', () => setTab('journey'),
+        zh ? '查看此专家学到或使用过的 Skill 与记忆记录。' : 'Explore skills learned or used by this expert and its memory records.', 'memory', !served)}
       {card(zh ? '数据目录' : 'Data directory', zh ? '查看目录' : 'Browse folder', () => setTab('data'), dataContent, 'data', !served)}
       {card(zh ? '渠道' : 'Channels', zh ? '管理渠道' : 'Manage channels', onOpenChannels,
         zh ? '查看和管理此专家的消息渠道。' : 'View and manage this expert’s message channels.', 'channels')}
@@ -237,6 +240,7 @@ export default function ProfileOverview({ connected, epoch, profiles, toolsetsRe
         zh ? '查看此专家的使用量和模型统计。' : 'View usage and model statistics for this expert.', 'usage')}
       </div>
     </>}
+    {tab === 'journey' && <JourneyView key={workspace} connected={served} profile={profiles?.selected || null} epoch={epoch} embedded />}
     {tab === 'tools' && card(zh ? '此 Profile 的工具集配置' : 'Toolset settings for this profile', zh ? '打开工具设置' : 'Open tool settings', () => onOpenConfiguration('advanced-tools'),
       <><p>{zh ? '这里显示当前 Profile 的配置，不代表某个已有会话实际可调用的工具。' : 'These are this Profile’s settings, not the tools available to a particular existing session.'}</p>
         {toolsets === null ? toolsContent : toolsets.length === 0 ? (zh ? '没有可配置的工具集。' : 'No configurable toolsets.')

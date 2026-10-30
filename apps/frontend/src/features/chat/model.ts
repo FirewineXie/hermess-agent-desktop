@@ -11,12 +11,12 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
   'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
   'codex-runtime', 'fast', 'personality',
-  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save', 'reload-mcp', 'reload-skills', 'browser',
 ])
-export const DESKTOP_DEDICATED_COMMANDS = new Set(['/bg'])
+export const DESKTOP_DEDICATED_COMMANDS = new Set(['/bg', '/journey'])
 export const DESKTOP_DENIED_COMMANDS = new Set([
   '/rollback', '/bg', '/worktree', '/snapshot', '/export', '/import',
-  '/reload', '/reload-mcp', '/reload-skills', '/browser',
+  '/reload',
   '/clear', '/redraw', '/prompt', '/statusbar', '/battery', '/timestamps', '/focus',
   '/skin', '/indicator', '/palette', '/copy', '/paste', '/image', '/quit',
   '/density', '/logs', '/mouse',
@@ -91,6 +91,10 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/steer': ['运行中插入消息：/steer 内容', 'Send guidance to the running turn: /steer text'],
       '/queue': ['管理当前会话队列：/queue list|add|edit|rm|clear', 'Manage this session queue: /queue list|add|edit|rm|clear'],
       '/btw': ['顺带提问：/btw 问题；主回合继续运行', 'Ask a side question: /btw question; main turn continues'],
+      '/reload-mcp': ['重连当前 Profile 的 MCP 服务器', 'Reconnect MCP servers for this profile'],
+      '/reload-skills': ['重扫当前会话可用的 Skill', 'Rescan skills for this session'],
+      '/browser': ['管理产品自有浏览器：connect|status|disconnect|use', 'Manage the product browser: connect|status|disconnect|use'],
+      '/journey': ['打开当前 Profile 的学习时间线', 'Open the learning timeline for this profile'],
     }
     const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]
     const modelDescription = name === '/model'

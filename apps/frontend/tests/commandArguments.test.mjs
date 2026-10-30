@@ -39,6 +39,13 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/queue', 'add next task'), true)
   assert.equal(argumentAllowed(catalog, '/queue', 'edit 2 revised task'), true)
   assert.equal(argumentAllowed(catalog, '/queue', 'rm 0'), false)
+  assert.deepEqual(argumentOptions(catalog, '/browser'), ['connect', 'status', 'disconnect', 'use'])
+  assert.equal(argumentAllowed(catalog, '/browser', 'use off'), true)
+  assert.equal(argumentAllowed(catalog, '/browser', 'connect http://127.0.0.1:9222'), false)
+  assert.equal(argumentAllowed(catalog, '/reload-mcp', ''), true)
+  assert.equal(argumentAllowed(catalog, '/reload-mcp', 'extra'), false)
+  assert.equal(argumentAllowed(catalog, '/reload-skills', 'extra'), false)
+  assert.equal(argumentAllowed(catalog, '/journey', 'delete 1'), false)
 })
 
 test('desktop navigation does not suggest CLI-only mutations and mid-token completion consumes the suffix', () => {

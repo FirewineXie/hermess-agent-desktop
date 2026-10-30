@@ -7,6 +7,7 @@ use reqwest::{Method, Url};
 use serde_json::Value;
 use std::time::Duration;
 use tauri::State;
+use uuid::Uuid;
 
 fn field<'a>(body: &'a Value, key: &str, max: usize) -> Result<&'a str, DesktopFailure> {
     let value = body.get(key).and_then(Value::as_str).unwrap_or("").trim();
@@ -31,6 +32,9 @@ pub async fn extension_request(
         return jobs::request(&state, &scope, &operation, &payload).await;
     }
     match operation.as_str() {
+        "journey.graph" | "journey.node" | "journey.edit" | "journey.delete" => {
+            return journey_request(&state, &scope, &profile, &operation, &payload).await;
+        }
         "mcp.update" => return update_mcp_server(&state, &scope, &payload).await,
         "mcp.modelscope.search" => {
             let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
@@ -191,6 +195,71 @@ pub async fn extension_request(
         _ => {}
     }
     upstream_request(&state, &scope, &operation, &payload).await
+}
+
+async fn journey_request(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    profile: &str,
+    operation: &str,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    let (method, path, body) = match operation {
+        "journey.graph" if payload == &serde_json::json!({}) => {
+            (Method::GET, "/api/learning/graph".to_owned(), None)
+        }
+        "journey.node" => {
+            let id = field(payload, "id", 500)?;
+            let mut url = Url::parse("http://localhost/api/learning/node")
+                .map_err(|_| DesktopFailure::operation_failed())?;
+            url.query_pairs_mut().append_pair("id", id);
+            (
+                Method::GET,
+                format!("{}?{}", url.path(), url.query().unwrap_or_default()),
+                None,
+            )
+        }
+        "journey.edit" => {
+            let id = field(payload, "id", 500)?;
+            let content = payload
+                .get("content")
+                .and_then(Value::as_str)
+                .ok_or_else(DesktopFailure::invalid_input)?;
+            if content.trim().is_empty() || content.len() > 256 * 1024 || content.contains('\0') {
+                return Err(DesktopFailure::invalid_input());
+            }
+            (
+                Method::PUT,
+                "/api/learning/node".to_owned(),
+                Some(serde_json::json!({"id": id, "content": content})),
+            )
+        }
+        "journey.delete" => {
+            let id = field(payload, "id", 500)?;
+            (
+                Method::DELETE,
+                "/api/learning/node".to_owned(),
+                Some(serde_json::json!({"id": id})),
+            )
+        }
+        _ => return Err(DesktopFailure::invalid_input()),
+    };
+    let operation_id = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("{operation}_start operation_id={operation_id} profile={profile}"),
+    );
+    let result = config_request_for_scope(state, scope, method, &path, body).await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("{operation}_{outcome} operation_id={operation_id} profile={profile}"),
+    );
+    result
 }
 
 async fn update_mcp_server(

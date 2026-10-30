@@ -507,7 +507,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
     const deniedNotice = slash ? deniedCommandNotice(`/${slash[1]}`, language) : ''
     if (deniedNotice) { setChatStatus(deniedNotice); return false }
-    if (slash && ['retry', 'compress', 'agents', 'branch', 'undo', 'queue'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
+    if (slash && ['retry', 'compress', 'agents', 'branch', 'undo', 'queue', 'reload-mcp', 'reload-skills', 'browser'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
     if (slash?.[1] === 'save') {
       if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false
       if (attachments.length) { setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command')); return false }
@@ -519,7 +519,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         language, busy: submittingRef, setBusy: setNavigationBusy,
         setDraft, setStatus: setChatStatus, describeError: cause => describeError(cause, language) })
     }
-    if (slash && ['/new', '/sessions', '/model', '/history', '/resume', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(`/${slash[1]}`)) {
+    if (slash && ['/new', '/sessions', '/model', '/history', '/resume', '/config', '/tools', '/toolsets', '/cron', '/plugins', '/journey'].includes(`/${slash[1]}`)) {
       if (attachments.length) {
         setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command'))
         return
@@ -640,6 +640,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           return true
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
           onCommandFinished(sessionProfileRef.current, storedSessionRef.current || id)
+          if (commandName === '/reload-skills' || commandName === '/reload-mcp') { setCommandCatalog(null); commandCatalogPromiseRef.current = null }
           if (commandName === '/reasoning' && sessionRef.current === id) setReasoningRefreshVersion(version => version + 1)
           if (commandName === '/undo' && result.display === 'applied') retryPendingRef.current = id
           setConversation(rows => appendMessage(appendMessage(rows, 'user', typed), 'assistant', result.output || result.notice || t("ui.command.execution.completed")))

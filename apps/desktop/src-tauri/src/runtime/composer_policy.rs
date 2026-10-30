@@ -13,9 +13,6 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
             | "/export"
             | "/import"
             | "/reload"
-            | "/reload-mcp"
-            | "/reload-skills"
-            | "/browser"
             | "/clear"
             | "/redraw"
             | "/prompt"
@@ -87,6 +84,9 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
             | "/branch"
             | "/undo"
             | "/queue"
+            | "/reload-mcp"
+            | "/reload-skills"
+            | "/browser"
     );
     if builtin {
         if name == "/skills" {
@@ -106,6 +106,15 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
         }
         if name == "/queue" {
             return super::composer_queue::valid_argument(arg);
+        }
+        if matches!(name, "/reload-mcp" | "/reload-skills") {
+            return arg.is_empty();
+        }
+        if name == "/browser" {
+            return matches!(
+                arg.to_ascii_lowercase().as_str(),
+                "" | "connect" | "status" | "disconnect" | "use" | "use on" | "use off"
+            );
         }
         return name != "/approvals" || !arg.eq_ignore_ascii_case("off");
     }
