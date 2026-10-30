@@ -1,11 +1,13 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use crate::gateway::GatewayRequestError;
 use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 use tauri::State;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Deserialize, Serialize)]
@@ -461,6 +463,277 @@ pub async fn list_chat_sessions(
         .request("session.list", json!({"limit":50,"scope":"stored"}))
         .await?;
     Ok(merge_session_lists(&live, &stored))
+}
+
+#[tauri::command]
+pub async fn delete_chat_session(
+    state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
+    keep_view: bool,
+    view_session_id: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let _delete_gate = state.4.lock().await;
+    let scope = state.resolve_profile(&profile).await?;
+    let operation = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "session_delete_start operation={operation} profile={profile} session={session_id}"
+        ),
+    );
+    let gateway = TracedDeleteGateway {
+        inner: &scope.gateway,
+        storage: &scope.storage,
+        operation,
+    };
+    let key = (
+        scope.home.to_string_lossy().into_owned(),
+        profile.clone(),
+        session_id.clone(),
+    );
+    let result = delete_chat_session_from_gateway(
+        &gateway,
+        &session_id,
+        keep_view,
+        &view_session_id,
+        &state.3,
+        key.clone(),
+    )
+    .await;
+    let outcome_unknown = result.is_err() && state.3.lock().await.contains_key(&key);
+    let outcome = if outcome_unknown {
+        "result_unknown"
+    } else if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "session_delete_{outcome} operation={operation} profile={profile} session={session_id}"
+        ),
+    );
+    if outcome_unknown {
+        return Err(DesktopFailure::timeout());
+    }
+    result.map_err(Into::into)
+}
+
+trait SessionDeleteGateway {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError>;
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError>;
+}
+
+struct TracedDeleteGateway<'a> {
+    inner: &'a super::profiles::ProfiledGateway,
+    storage: &'a std::path::Path,
+    operation: Uuid,
+}
+
+impl SessionDeleteGateway for TracedDeleteGateway<'_> {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
+        let result = self.inner.request_detailed(method, params).await;
+        let detail = match &result {
+            Ok(value) if method == "session.list" => {
+                format!("rows={}", value["sessions"].as_array().map_or(0, Vec::len))
+            }
+            Ok(value) if method == "session.resume" => format!(
+                "revision_present={} generation_present={} subscription_present={}",
+                value["revision"].as_u64().is_some(),
+                value["execution_generation"].as_u64().is_some(),
+                value["subscription_id"].as_str().is_some()
+            ),
+            Ok(value) if method == "session.mutate" => {
+                format!(
+                    "deleted_count={}",
+                    value["deleted_ids"].as_array().map_or(0, Vec::len)
+                )
+            }
+            Ok(value) if method == "session.detach" => {
+                format!("detached={}", value["detached"].as_bool().unwrap_or(false))
+            }
+            Ok(_) => "completed=true".to_owned(),
+            Err(GatewayRequestError::Rpc { code, .. }) => {
+                format!("failed=true kind=rpc code={code}")
+            }
+            Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
+        };
+        let _ = crate::diagnostics::append_client_event(
+            self.storage,
+            &format!(
+                "session_delete_rpc operation={} method={method} {detail}",
+                self.operation
+            ),
+        );
+        result
+    }
+
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError> {
+        let result = self.inner.retry_delete(params).await;
+        let detail = match &result {
+            Ok(value) => format!(
+                "deleted_count={}",
+                value["deleted_ids"].as_array().map_or(0, Vec::len)
+            ),
+            Err(GatewayRequestError::Rpc { code, .. }) => {
+                format!("failed=true kind=rpc code={code}")
+            }
+            Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
+        };
+        let _ = crate::diagnostics::append_client_event(
+            self.storage,
+            &format!(
+                "session_delete_retry operation={} method=session.mutate {detail}",
+                self.operation
+            ),
+        );
+        result
+    }
+}
+
+impl SessionDeleteGateway for super::profiles::ProfiledGateway {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
+        super::profiles::ProfiledGateway::request_detailed(self, method, params).await
+    }
+
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError> {
+        super::profiles::ProfiledGateway::retry_delete(self, params).await
+    }
+}
+
+async fn delete_chat_session_from_gateway<G: SessionDeleteGateway>(
+    gateway: &G,
+    session_id: &str,
+    keep_view: bool,
+    view_session_id: &str,
+    pending: &Mutex<HashMap<(String, String, String), Value>>,
+    key: (String, String, String),
+) -> Result<Value, String> {
+    // An unknown write result must be retried with the exact original request, before any new read.
+    let retry = {
+        let requests = pending.lock().await;
+        requests.get(&key).cloned()
+    };
+    if let Some(params) = retry {
+        return settle_delete_mutation(gateway, session_id, pending, &key, params, true).await;
+    }
+    // The authority splits active rows from closed/legacy history. Both feeds are scoped.
+    let live = gateway
+        .request("session.list", json!({"limit":200}))
+        .await
+        .map_err(|error| error.to_string())?;
+    let found = live["sessions"].as_array().is_some_and(|rows| {
+        rows.iter()
+            .any(|row| row["id"].as_str() == Some(session_id))
+    });
+    if !found {
+        let stored = gateway
+            .request("session.list", json!({"limit":200,"scope":"stored"}))
+            .await
+            .map_err(|error| error.to_string())?;
+        if !stored["sessions"].as_array().is_some_and(|rows| {
+            rows.iter()
+                .any(|row| row["id"].as_str() == Some(session_id))
+        }) {
+            return Err("会话不存在或不属于目标 Profile".into());
+        }
+    }
+    // The locked authority owns the whole lineage and accepts only a fenced mutation.
+    let snapshot = gateway
+        .request("session.resume", json!({"session_id":session_id}))
+        .await
+        .map_err(|error| error.to_string())?;
+    let resolved_id = snapshot["session_id"].as_str().unwrap_or(session_id);
+    let subscription = snapshot["subscription_id"].as_str();
+    let keep_view = keep_view || (!view_session_id.is_empty() && view_session_id == resolved_id);
+    let params = match (
+        snapshot["revision"].as_u64(),
+        snapshot["execution_generation"].as_u64(),
+    ) {
+        (Some(revision), Some(generation)) => json!({
+            "session_id":session_id,
+            "request_id":Uuid::new_v4().to_string(),
+            "expected_revision":revision,
+            "expected_generation":generation,
+            "operation":"delete",
+            "payload":{},
+        }),
+        _ => {
+            if !keep_view {
+                detach_delete_subscription(gateway, resolved_id, subscription).await;
+            }
+            return Err("会话缺少修订版本或运行代次".into());
+        }
+    };
+    pending.lock().await.insert(key.clone(), params.clone());
+    let result = settle_delete_mutation(gateway, session_id, pending, &key, params, false).await;
+    if result.is_err() && !keep_view {
+        detach_delete_subscription(gateway, resolved_id, subscription).await;
+    }
+    result
+}
+
+async fn detach_delete_subscription<G: SessionDeleteGateway>(
+    gateway: &G,
+    resolved_id: &str,
+    subscription: Option<&str>,
+) {
+    if let Some(subscription_id) = subscription {
+        let _ = gateway
+            .request(
+                "session.detach",
+                json!({"session_id":resolved_id,"subscription_id":subscription_id}),
+            )
+            .await;
+    }
+}
+
+async fn settle_delete_mutation<G: SessionDeleteGateway>(
+    gateway: &G,
+    session_id: &str,
+    pending: &Mutex<HashMap<(String, String, String), Value>>,
+    key: &(String, String, String),
+    params: Value,
+    retry: bool,
+) -> Result<Value, String> {
+    let response = if retry {
+        gateway.retry_delete(params).await
+    } else {
+        gateway.request("session.mutate", params).await
+    };
+    let deleted = match response {
+        Ok(value) => value,
+        Err(GatewayRequestError::Rpc { message, code }) => {
+            pending.lock().await.remove(key);
+            return Err(format!("{message} ({code})"));
+        }
+        Err(error @ GatewayRequestError::Transport(_)) => return Err(error.to_string()),
+    };
+    if !deleted["deleted_ids"]
+        .as_array()
+        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(session_id)))
+    {
+        return Err("网关未确认会话删除".into());
+    }
+    pending.lock().await.remove(key);
+    Ok(deleted)
 }
 
 fn merge_session_lists(live: &Value, stored: &Value) -> Value {

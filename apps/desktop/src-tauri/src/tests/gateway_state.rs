@@ -1,6 +1,6 @@
 use super::{
     prune_abandoned_rpc, register_owner, result_session_owners, validate_server_answer,
-    GatewayClient, PendingRpc,
+    GatewayClient, GatewayRequestError, PendingRpc,
 };
 use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -13,11 +13,11 @@ use tokio::{
 fn timed_out_calls_release_pending_capacity() {
     let mut pending = PendingRpc::new();
     for id in 0..64 {
-        let (reply, received) = oneshot::channel::<Result<Value, String>>();
+        let (reply, received) = oneshot::channel::<Result<Value, GatewayRequestError>>();
         pending.insert(id, ("session.resume", reply));
         drop(received);
     }
-    let (reply, _received) = oneshot::channel::<Result<Value, String>>();
+    let (reply, _received) = oneshot::channel::<Result<Value, GatewayRequestError>>();
     pending.insert(64, ("session.resume", reply));
     prune_abandoned_rpc(&mut pending);
     assert_eq!(pending.len(), 1);

@@ -16,11 +16,32 @@ use tokio_tungstenite::{
 struct RpcRequest {
     method: &'static str,
     params: Value,
-    reply: oneshot::Sender<Result<Value, String>>,
+    reply: oneshot::Sender<Result<Value, GatewayRequestError>>,
 }
 
-type PendingRpc = HashMap<u64, (&'static str, oneshot::Sender<Result<Value, String>>)>;
+type PendingRpc = HashMap<
+    u64,
+    (
+        &'static str,
+        oneshot::Sender<Result<Value, GatewayRequestError>>,
+    ),
+>;
 type PendingAnswer = HashMap<u64, (String, oneshot::Sender<Result<(), String>>)>;
+
+#[derive(Debug)]
+pub(crate) enum GatewayRequestError {
+    Rpc { message: String, code: i64 },
+    Transport(String),
+}
+
+impl std::fmt::Display for GatewayRequestError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rpc { message, code } => write!(formatter, "{message} ({code})"),
+            Self::Transport(message) => formatter.write_str(message),
+        }
+    }
+}
 
 fn prune_abandoned_rpc(pending: &mut PendingRpc) {
     pending.retain(|_, (_, reply)| !reply.is_closed());
@@ -280,7 +301,7 @@ impl GatewayClient {
                                 prune_abandoned_rpc(&mut pending);
                                 rpc_scopes.retain(|id, _| pending.contains_key(id));
                                 if pending.len() + pending_answers.len() >= 64 {
-                                    let _ = request.reply.send(Err("待处理的网关请求过多".into()));
+                                    let _ = request.reply.send(Err(GatewayRequestError::Transport("待处理的网关请求过多".into())));
                                     continue;
                                 }
                                 let id = next_id;
@@ -291,7 +312,7 @@ impl GatewayClient {
                                 }
                                 let frame = json!({"jsonrpc":"2.0","id":id,"method":request.method,"params":request.params});
                                 if writer.send(Message::Text(frame.to_string().into())).await.is_err() {
-                                    let _ = request.reply.send(Err("网关连接已断开".into()));
+                                    let _ = request.reply.send(Err(GatewayRequestError::Transport("网关连接已断开".into())));
                                     break;
                                 }
                                 pending.insert(id, (request.method, request.reply));
@@ -352,7 +373,7 @@ impl GatewayClient {
                                 let outcome = if let Some(error) = value.get("error") {
                                     let code = error.get("code").and_then(Value::as_i64).unwrap_or(0);
                                     let message = error.get("message").and_then(Value::as_str).unwrap_or("未知 RPC 错误");
-                                    Err(format!("{message} ({code})"))
+                                    Err(GatewayRequestError::Rpc { message: message.to_owned(), code })
                                 } else {
                                     let mut result = value.get("result").cloned().unwrap_or(Value::Null);
                                     if let Some((profile, params)) = scope.as_ref() {
@@ -527,7 +548,7 @@ impl GatewayClient {
                 }
             }
             for (_, (_, reply)) in pending {
-                let _ = reply.send(Err("网关连接已断开".into()));
+                let _ = reply.send(Err(GatewayRequestError::Transport("网关连接已断开".into())));
             }
             for (_, (_, reply)) in pending_answers {
                 let _ = reply.send(Err("网关连接已断开".into()));
@@ -564,6 +585,16 @@ impl GatewayClient {
     }
 
     pub async fn request(&self, method: &'static str, params: Value) -> Result<Value, String> {
+        self.request_detailed(method, params)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub(crate) async fn request_detailed(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
         let (reply, received) = oneshot::channel();
         timeout(Duration::from_secs(30), async {
             self.sender
@@ -573,11 +604,15 @@ impl GatewayClient {
                     reply,
                 }))
                 .await
-                .map_err(|_| "网关连接已断开".to_string())?;
-            received.await.map_err(|_| "网关连接已断开".to_string())?
+                .map_err(|_| GatewayRequestError::Transport("网关连接已断开".into()))?;
+            received
+                .await
+                .map_err(|_| GatewayRequestError::Transport("网关连接已断开".into()))?
         })
         .await
-        .map_err(|_| "网关请求超时；写操作结果未知，请先恢复会话".to_string())?
+        .map_err(|_| {
+            GatewayRequestError::Transport("网关请求超时；写操作结果未知，请先恢复会话".into())
+        })?
     }
 
     pub async fn answer(

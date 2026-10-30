@@ -281,6 +281,7 @@ export const tauriDesktopApi: DesktopApi = {
       return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }
     },
     listSessions: scope => invoke('list_chat_sessions', { profile: scope.profile }),
+    deleteSession: scope => invoke('delete_chat_session', { profile: scope.profile, sessionId: scope.sessionId, keepView: scope.keepView, viewSessionId: scope.viewSessionId }),
     submitPrompt: (scope, text) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text }),
     interruptSession: scope => invoke('interrupt_chat_session', { profile: scope.profile, sessionId: scope.sessionId }),
     replayEvents: async (scope, lastSeen, replayEpoch) => {

@@ -335,6 +335,7 @@ export interface DesktopApi {
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
+    deleteSession(scope: SessionScope & { keepView: boolean; viewSessionId: string }): Promise<{ deleted_ids: string[] }>
     submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
     interruptSession(scope: SessionScope): Promise<{ status: string }>
     replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>

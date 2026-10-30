@@ -695,8 +695,36 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
   }
 
-  async function newChat(preserveDraft = true) {
-    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current) return
+  async function deleteSession(ownerProfile: string, id: string) {
+    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current) {
+      throw new Error(language === 'zh-CN' ? '当前操作完成后再删除会话' : 'Wait for the current operation before deleting this session')
+    }
+    navigationBusyRef.current = true
+    setNavigationBusy(true)
+    try {
+      await chat.deleteSession({
+        kind: 'session', profile: ownerProfile, sessionId: id,
+        keepView: ownerProfile === viewedProfileRef.current && (storedSessionRef.current === id || sessionRef.current === id),
+        viewSessionId: ownerProfile === viewedProfileRef.current ? sessionRef.current : '',
+      })
+      delete pendingBySessionRef.current[id]
+      interruptedSessionsRef.current.delete(id)
+      if (lastSessionByProfile.current[ownerProfile] === id) delete lastSessionByProfile.current[ownerProfile]
+      if (ownerProfile === viewedProfileRef.current) {
+        if (storedSessionRef.current === id) {
+          storedSessionRef.current = ''
+          await newChat(false, true)
+        }
+        await loadSessions(true, ownerProfile)
+      }
+    } finally {
+      navigationBusyRef.current = false
+      setNavigationBusy(false)
+    }
+  }
+
+  async function newChat(preserveDraft = true, afterDelete = false) {
+    if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || (navigationBusyRef.current && !afterDelete)) return
     navigationBusyRef.current = true
     if (profile) delete lastSessionByProfile.current[profile]
     setNavigationBusy(true)
@@ -932,6 +960,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, serverRequests, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
     attachmentBusy, draggingFiles, trigger, choices, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
-    loadSessions, newChat, resumeSession, interruptSession, reconnectBackend, resetChat,
+    loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat,
   }
 }

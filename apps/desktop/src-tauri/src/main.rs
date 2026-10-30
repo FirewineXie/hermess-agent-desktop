@@ -134,6 +134,7 @@ fn main() {
             runtime::chat::detach_chat_image,
             runtime::chat::answer_gateway_request,
             runtime::chat::list_chat_sessions,
+            runtime::chat::delete_chat_session,
             runtime::tools::list_bundled_tools,
             runtime::tools::list_profile_toolsets,
             runtime::downloadable_tools::list_downloadable_tools,

@@ -46,6 +46,7 @@ use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     process::Stdio,
@@ -69,6 +70,8 @@ pub struct BackendState(
     Mutex<Option<OwnedBackend>>,
     Mutex<()>,
     Mutex<Option<profile_scope::ProfileTopology>>,
+    Mutex<HashMap<(String, String, String), Value>>,
+    Mutex<()>,
 );
 
 struct OwnedBackend {

@@ -25,6 +25,19 @@ fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
         json!({"profile": "writer", "session_id": "s"})
     );
     assert_eq!(
+        scoped_params("writer", "session.active_list", json!({})).unwrap(),
+        json!({"profile": "writer"})
+    );
+    assert_eq!(
+        scoped_params(
+            "writer",
+            "session.detach",
+            json!({"session_id": "s", "subscription_id":"sub"})
+        )
+        .unwrap(),
+        json!({"profile": "writer", "session_id": "s", "subscription_id":"sub"})
+    );
+    assert_eq!(
         scoped_params("writer", "session.mutate", json!({"session_id": "s"})).unwrap(),
         json!({"session_id": "s", "profile": "writer"})
     );

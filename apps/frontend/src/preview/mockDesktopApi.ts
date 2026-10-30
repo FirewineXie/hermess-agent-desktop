@@ -135,6 +135,7 @@ export const previewDesktopApi: DesktopApi = {
     async createSession() { throw previewOnly() },
     async resumeSession() { throw previewOnly() },
     async listSessions() { return { sessions: [] } },
+    async deleteSession(scope) { return { deleted_ids: [scope.sessionId] } },
     async submitPrompt() { throw previewOnly() },
     async interruptSession() { throw previewOnly() },
     async replayEvents() { throw previewOnly() },

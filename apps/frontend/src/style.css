@@ -88,7 +88,19 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .sidebar-profile-chevron { flex: none; color: #66758c; font-size: 15px; line-height: 1; transition: transform .15s ease; }
 .sidebar-profile-row[aria-expanded="false"] .sidebar-profile-chevron { transform: rotate(-90deg); }
 .sidebar-sessions .sidebar-profile-manage { flex: none; justify-content: center; width: 32px; min-height: 36px; padding: 4px; color: #66758c; font-size: 15px; }
-.sidebar-sessions .sidebar-profile-session { min-height: 32px; margin-left: 26px; width: calc(100% - 26px); padding: 5px 8px 5px 12px; color: #425066; font-size: 12px; }
+.sidebar-session-entry { display: flex; align-items: center; margin-left: 26px; width: calc(100% - 26px); }
+.sidebar-sessions .sidebar-profile-session { min-width: 0; min-height: 32px; width: auto; flex: 1; padding: 5px 8px 5px 12px; color: #425066; font-size: 12px; }
+.sidebar-sessions .sidebar-session-delete { flex: none; justify-content: center; width: 28px; min-height: 28px; padding: 0; color: #66758c; font-size: 18px; opacity: .7; }
+.sidebar-session-entry:hover .sidebar-session-delete, .sidebar-session-delete:focus-visible { opacity: 1; }
+.sidebar-sessions .sidebar-session-delete:hover { color: #b42318; background: #fee4e2; }
+.session-delete-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgb(15 23 42 / 48%); }
+.session-delete-dialog { width: min(100%, 440px); padding: 24px; border-radius: 12px; background: #fff; box-shadow: 0 20px 60px rgb(15 23 42 / 25%); color: #111827; }
+.session-delete-dialog h2 { margin: 0 0 14px; font-size: 20px; }
+.session-delete-dialog p { line-height: 1.55; overflow-wrap: anywhere; }
+.session-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.session-delete-actions button { padding: 9px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #111827; }
+.session-delete-actions button.confirm { border-color: #b4232d; background: #b4232d; color: #fff; }
+.session-delete-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .sidebar-profile-session .session-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-activity { flex: none; margin-left: auto; padding: 2px 5px; border-radius: 5px; font-size: 10px; font-weight: 600; white-space: nowrap; color: #2563a6; background: #dbeafe; }
 .session-activity.running { color: #9a5b08; background: #fef0c7; }

@@ -4,7 +4,7 @@ use super::{
     BackendState,
 };
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
-use crate::gateway::GatewayClient;
+use crate::gateway::{GatewayClient, GatewayRequestError};
 use crate::process_manager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -48,6 +48,16 @@ impl ProfiledGateway {
         method: &'static str,
         params: Value,
     ) -> Result<Value, String> {
+        self.request_detailed(method, params)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub(super) async fn request_detailed(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
         let requested_session = params
             .get("session_id")
             .and_then(Value::as_str)
@@ -55,16 +65,21 @@ impl ProfiledGateway {
             .map(str::to_owned);
         if !matches!(method, "session.create" | "session.list" | "session.resume") {
             if let Some(session_id) = requested_session.as_deref() {
-                self.session_owners.ensure(&self.profile, session_id)?;
+                self.session_owners
+                    .ensure(&self.profile, session_id)
+                    .map_err(GatewayRequestError::Transport)?;
             }
         }
-        let params = scoped_params(&self.profile, method, params)?;
-        let result = self.client.request(method, params).await?;
+        let params =
+            scoped_params(&self.profile, method, params).map_err(GatewayRequestError::Transport)?;
+        let result = self.client.request_detailed(method, params).await?;
         match method {
             "session.create" => {
                 for key in ["session_id", "stored_session_id"] {
                     if let Some(id) = result.get(key).and_then(Value::as_str) {
-                        self.session_owners.record(&self.profile, id)?;
+                        self.session_owners
+                            .record(&self.profile, id)
+                            .map_err(GatewayRequestError::Transport)?;
                     }
                 }
             }
@@ -77,22 +92,36 @@ impl ProfiledGateway {
                 {
                     for key in ["id", "session_id", "resolved_id"] {
                         if let Some(id) = row.get(key).and_then(Value::as_str) {
-                            self.session_owners.record(&self.profile, id)?;
+                            self.session_owners
+                                .record(&self.profile, id)
+                                .map_err(GatewayRequestError::Transport)?;
                         }
                     }
                 }
             }
             "session.resume" => {
                 if let Some(id) = requested_session.as_deref() {
-                    self.session_owners.record(&self.profile, id)?;
+                    self.session_owners
+                        .record(&self.profile, id)
+                        .map_err(GatewayRequestError::Transport)?;
                 }
                 if let Some(id) = result.get("session_id").and_then(Value::as_str) {
-                    self.session_owners.record(&self.profile, id)?;
+                    self.session_owners
+                        .record(&self.profile, id)
+                        .map_err(GatewayRequestError::Transport)?;
                 }
             }
             _ => {}
         }
         Ok(result)
+    }
+
+    /// Only an already prepared delete receipt may use this path. The Gateway validates
+    /// its original principal, profile, request id and CAS tuple even after reconnect.
+    pub(super) async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError> {
+        let params = scoped_params(&self.profile, "session.mutate", params)
+            .map_err(GatewayRequestError::Transport)?;
+        self.client.request_detailed("session.mutate", params).await
     }
 
     pub(super) async fn answer(
@@ -134,7 +163,9 @@ fn accepts_profile(method: &str) -> bool {
         method,
         "session.create"
             | "session.list"
+            | "session.active_list"
             | "session.resume"
+            | "session.detach"
             | "session.interrupt"
             | "session.stats"
             | "session.mutate"
