@@ -68,7 +68,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
-    chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, reasoningEffort,
+    chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, sideQuestions, dismissSideQuestion, reasoningEffort,
     reasoningBusy, reasoningLoadFailed, chatUsage,
   } = controller
   const {
@@ -90,7 +90,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     lastUserCountRef.current = userCount
     const content = contentRef.current
     if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
-  }, [conversation, assistant, serverRequest, sessionId, userCount])
+  }, [conversation, assistant, serverRequest, sideQuestions, sessionId, userCount])
 
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
@@ -106,6 +106,10 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
       }}>
       {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
+      {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>
+        <div className="side-question-header"><strong>{language === 'zh-CN' ? '顺带提问' : 'Side question'}</strong><span>{item.status === 'running' ? language === 'zh-CN' ? '回答中' : 'Answering' : item.status === 'unknown' ? language === 'zh-CN' ? '结果待确认' : 'Result uncertain' : item.status === 'failed' ? language === 'zh-CN' ? '失败' : 'Failed' : language === 'zh-CN' ? '已完成' : 'Complete'}</span><button type="button" onClick={() => dismissSideQuestion(item.taskId, item.profile, item.sessionId)} aria-label={language === 'zh-CN' ? '关闭旁路提问卡片' : 'Dismiss side question'}>×</button></div>
+        <p>{item.question}</p>{item.answer && <div className="side-question-answer">{item.answer}</div>}
+      </article>)}
       {serverRequest && <GatewayRequestCard key={serverRequest.id} request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={setClarifyAnswer}
         onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
@@ -147,7 +151,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue|btw)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
@@ -176,6 +180,8 @@ export default function ChatView({ connected, backendStatus, language, t, contro
           ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
           : /^\/queue(?:\s|$)/.test(draft.trim())
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
+          : /^\/btw(?:\s|$)/.test(draft.trim())
+            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/btw\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '旁问' : 'Ask'}</button>
           : <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
           : canContinue && !hasSubmission
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>

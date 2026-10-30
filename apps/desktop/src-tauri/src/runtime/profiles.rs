@@ -179,6 +179,7 @@ fn accepts_profile(method: &str) -> bool {
             | "prompt.receipt"
             | "prompt.cancel"
             | "prompt.replace_queued"
+            | "prompt.btw"
             | "session.stats"
             | "session.export"
             | "session.mutate"

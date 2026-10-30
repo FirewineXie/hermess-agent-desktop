@@ -14,6 +14,9 @@ import { useRetryRefresh } from './retryRefresh'
 import { runSteerCommand } from './steerCommand'
 import { runBusyQueueCommand } from './queueCommand'
 import { selectedWorkspacePath } from './sessionWorkspace'
+import { selectCommand } from './commandSelection'
+import { useSideQuestions } from './sideQuestions'
+import { runBtwCommand } from './btwCommand'
 
 type Options = {
   backend: BackendInfo | null
@@ -38,6 +41,7 @@ type Options = {
 
 export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
+  const sideQuestions = useSideQuestions(chat, diagnostics, storagePath)
   const workspace = workspaceKey(backend?.replay_epoch, profile)
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `chat:${stateSlot++}`)
@@ -126,6 +130,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const disconnectProcessors = React.useRef<Record<string, () => void>>({})
 
   eventProcessorRef.current = data => {
+    sideQuestions.handleEvent(data)
     const id = data.session_id
     if (!data.profile || data.profile !== sessionProfileRef.current) return
     if (!id || id !== sessionRef.current) {
@@ -193,6 +198,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
   }
   disconnectProcessors.current[workspace] = () => {
+    sideQuestions.markDisconnected()
     setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess"))
     setConversation(finishReasoning)
     setTurnBusy(false)
@@ -412,17 +418,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const argumentHint = trigger && 'command' in trigger ? commandArgumentHint(commandCatalog, trigger.command, language) : ''
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []
   function chooseCommand(choice: ComposerChoice) {
-    if (!trigger) return
-    if (!choice.available) { setChatStatus(`${choice.name}：${choice.availability}`); return }
-    const replacement = `${choice.insertion || choice.name} `
-    const caret = trigger.start + replacement.length
-    setDraft(`${draft.slice(0, trigger.start)}${replacement}${draft.slice(trigger.end)}`)
-    setDraftCaret(caret)
-    setActiveChoice(0)
-    requestAnimationFrame(() => {
-      draftInputRef.current?.focus()
-      draftInputRef.current?.setSelectionRange(caret, caret)
-    })
+    selectCommand({ choice, trigger, draft, setDraft, setCaret: setDraftCaret, setActiveChoice, setStatus: setChatStatus, input: draftInputRef })
   }
 
   async function addAttachments(paths: string[]) {
@@ -510,6 +506,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     if (quickInput && (draft.trim() || attachments.length || navigationBusyRef.current || sessionCreationRef.current)) return false
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
+    if (!quickInput && /^\/btw(?:\s|$)/.test(typed)) return runBtwCommand({ scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, ask: sideQuestions.ask, setDraft, setStatus: setChatStatus, describeError: cause => describeError(cause, language) })
     if (!quickInput && /^\/steer(?:\s|$)/.test(typed)) return runSteerCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, busy: turnBusy, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     if (!quickInput && turnBusy && /^\/queue(?:\s|$)/.test(typed)) return runBusyQueueCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, setConversation, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
@@ -996,5 +993,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     attachmentBusy, draggingFiles, trigger, choices, argumentHint, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat,
+    sideQuestions: sideQuestions.forSession(sessionProfileRef.current, sessionRef.current), dismissSideQuestion: sideQuestions.dismiss,
   }
 }

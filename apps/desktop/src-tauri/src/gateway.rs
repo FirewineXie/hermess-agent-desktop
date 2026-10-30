@@ -174,13 +174,17 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "status.update"
             | "request.cancel"
             | "background.complete"
+            | "btw.complete"
             | "notification.show"
             | "notification.clear"
     )
 }
 
 fn bound_notification_text(kind: &str, payload: &mut Value) {
-    if !matches!(kind, "background.complete" | "notification.show") {
+    if !matches!(
+        kind,
+        "background.complete" | "btw.complete" | "notification.show"
+    ) {
         return;
     }
     // These events feed native notices, not the chat transcript. Keep an

@@ -8,6 +8,7 @@ mod composer_branch;
 mod composer_commands;
 mod composer_policy;
 mod composer_queue;
+pub mod composer_side_question;
 pub mod composer_steer;
 mod composer_undo;
 pub mod config;

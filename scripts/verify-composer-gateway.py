@@ -64,6 +64,19 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             named_export = await named_call("session.export", session_id=named_id,
                                             format="md", redact=True)
             assert "_No messages found._" in named_export["content"], named_export
+            named_side = await named_call("prompt.btw", session_id=named_id, text="Answer this side question")
+            assert named_side["task_id"].startswith("btw_"), named_side
+            for _ in range(100):
+                named_events = await named_call("session.events.since", session_id=named_id,
+                                                replay_epoch=named["replay_epoch"], last_sequence=0)
+                named_matches = [event for event in named_events.get("events", [])
+                                 if event.get("type") == "btw.complete"
+                                 and event.get("payload", {}).get("task_id") == named_side["task_id"]]
+                if named_matches:
+                    break
+                await asyncio.sleep(0.2)
+            assert named_matches and not named_matches[0]["payload"]["text"].startswith("error: "), named_matches
+            assert (await named_call("session.history", session_id=named_id))["messages"] == []
             cross_profile = await rpc(named_ws, "subagent.list", profile="reviewer", session_id=session_id)
             assert "error" in cross_profile, cross_profile
         for command in ["/status", "/title 中文命令标题"]:
@@ -80,6 +93,7 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         # export_chat_session sends this exact request shape after the native save dialog.
         empty = await call("session.export", session_id=session_id, format="md", redact=True)
         assert "_No messages found._" in empty["content"], empty
+        main_requests_start = len(peer.requests)
         await call("prompt.submit", session_id=session_id, text="EXPORT_PROBE", submission_id="desktop-export-test", clarify_batch=True)
         for _ in range(50):
             exported = await rpc(ws, "session.export", session_id=session_id, format="md", redact=True)
@@ -103,7 +117,7 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert retry["status"] in {"queued", "running", "completed"}, retry
         for _ in range(50):
             after = await call("session.history", session_id=session_id)
-            if len(peer.requests) >= 2 and len(after["messages"]) >= 4:
+            if len(peer.requests) - main_requests_start >= 2 and len(after["messages"]) >= 4:
                 break
             await asyncio.sleep(0.2)
         else:
@@ -111,7 +125,7 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert [row.get("role") for row in after["messages"]] == ["user", "assistant", "user", "assistant"], after
         assert [row.get("text") for row in after["messages"] if row.get("role") == "user"] == ["EXPORT_PROBE"] * 2, after
         assert all(next((m.get("content") for m in reversed(request.get("messages", []))
-                         if m.get("role") == "user"), None) == "EXPORT_PROBE" for request in peer.requests), peer.requests
+                         if m.get("role") == "user"), None) == "EXPORT_PROBE" for request in peer.requests[main_requests_start:]), peer.requests[main_requests_start:]
         initial_events = await call("session.events.since", session_id=session_id,
                                     replay_epoch=created["replay_epoch"], last_sequence=0)
         preview = await call("prompt.submit", session_id=session_id, text="/compress --preview",
@@ -142,6 +156,24 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             await asyncio.sleep(0.2)
         assert completed, final
         assert any("No changes" in str(event.get("payload", {}).get("text", "")) for event in completed), completed
+        before_btw = await call("session.history", session_id=session_id)
+        btw_cursor = (await call("session.events.since", session_id=session_id,
+                                 replay_epoch=created["replay_epoch"], last_sequence=0))["latest_seq"]
+        side = await call("prompt.btw", session_id=session_id, text="What is the last user request?")
+        assert side["task_id"].startswith("btw_"), side
+        for _ in range(100):
+            side_events = await call("session.events.since", session_id=session_id,
+                                     replay_epoch=created["replay_epoch"], last_sequence=btw_cursor)
+            matches = [event for event in side_events.get("events", []) if event.get("type") == "btw.complete"
+                       and event.get("payload", {}).get("task_id") == side["task_id"]]
+            if matches:
+                break
+            await asyncio.sleep(0.2)
+        assert len(matches) == 1 and matches[0]["payload"]["question"] == "What is the last user request?", matches
+        assert matches[0]["payload"].get("text") and not matches[0]["payload"]["text"].startswith("error: "), matches
+        assert (await call("session.history", session_id=session_id))["messages"] == before_btw["messages"]
+        empty_btw = await rpc(ws, "prompt.btw", session_id=session_id, text=" ")
+        assert "error" in empty_btw, empty_btw
         parent = await call("session.resume", session_id=session_id, source="desktop")
         branch_params = dict(session_id=session_id, request_id="desktop-branch-test",
                              expected_revision=parent["revision"],
@@ -370,7 +402,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch, rewind, steer and queue passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, side question, branch, rewind, steer and queue passed")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ fn forwards_reasoning_content_events() {
 fn forwards_runtime_notification_and_background_events() {
     for kind in [
         "background.complete",
+        "btw.complete",
         "notification.show",
         "notification.clear",
     ] {
@@ -32,6 +33,12 @@ fn large_notification_text_keeps_identity_and_does_not_change_chat_events() {
     assert_eq!(notice["task_id"], "task");
     assert_eq!(notice["text"].as_str().unwrap().chars().count(), 1024);
     assert!(notice.to_string().len() < 32 * 1024);
+    let mut side =
+        json!({"task_id":"btw_test", "question":"问题".repeat(40000), "text":"中文".repeat(40000)});
+    bound_notification_text("btw.complete", &mut side);
+    assert_eq!(side["task_id"], "btw_test");
+    assert_eq!(side["question"].as_str().unwrap().chars().count(), 1024);
+    assert_eq!(side["text"].as_str().unwrap().chars().count(), 1024);
     let mut chat = original.clone();
     bound_notification_text("message.complete", &mut chat);
     assert_eq!(chat, original);

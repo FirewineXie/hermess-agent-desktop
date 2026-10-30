@@ -178,6 +178,7 @@ fn main() {
             runtime::chat::resume_chat_session,
             runtime::chat::interrupt_chat_session,
             runtime::composer_steer::steer_chat_session,
+            runtime::composer_side_question::ask_side_question,
             runtime::chat::replay_chat_events
         ])
         .run(tauri::generate_context!())

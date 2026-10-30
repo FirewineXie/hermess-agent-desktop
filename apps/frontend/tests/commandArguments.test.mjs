@@ -33,6 +33,8 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/undo', '0'), false)
   assert.equal(argumentAllowed(catalog, '/steer', '补充要求'), true)
   assert.equal(argumentAllowed(catalog, '/steer', ''), false)
+  assert.equal(argumentAllowed(catalog, '/btw', '现在几点？'), true)
+  assert.equal(argumentAllowed(catalog, '/btw', ''), false)
   assert.deepEqual(argumentOptions(catalog, '/queue'), ['list', 'add', 'edit', 'rm', 'clear'])
   assert.equal(argumentAllowed(catalog, '/queue', 'add next task'), true)
   assert.equal(argumentAllowed(catalog, '/queue', 'edit 2 revised task'), true)
