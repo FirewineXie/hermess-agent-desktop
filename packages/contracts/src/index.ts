@@ -341,6 +341,7 @@ export interface DesktopApi {
     interruptSession(scope: SessionScope): Promise<{ status: string }>
     steerSession(scope: SessionScope, text: string): Promise<{ status: string; delivered?: boolean }>
     askSideQuestion(scope: SessionScope, question: string): Promise<{ task_id?: string; status?: string }>
+    startBackgroundTask(scope: SessionScope, prompt: string): Promise<{ task_id?: string; status?: string }>
     replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
     usage(scope: SessionScope): Promise<ChatUsage>
     reasoning(scope: ProfileScope | SessionScope): Promise<{ value?: string }>

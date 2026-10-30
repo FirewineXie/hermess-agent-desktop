@@ -31,7 +31,8 @@ fn large_notification_text_keeps_identity_and_does_not_change_chat_events() {
     let mut notice = original.clone();
     bound_notification_text("background.complete", &mut notice);
     assert_eq!(notice["task_id"], "task");
-    assert_eq!(notice["text"].as_str().unwrap().chars().count(), 1024);
+    assert!(notice["text"].as_str().unwrap().len() <= 16 * 1024);
+    assert_eq!(notice["truncated"], true);
     assert!(notice.to_string().len() < 32 * 1024);
     let mut side =
         json!({"task_id":"btw_test", "question":"问题".repeat(40000), "text":"中文".repeat(40000)});

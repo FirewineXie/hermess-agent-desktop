@@ -13,6 +13,7 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'codex-runtime', 'fast', 'personality',
   'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
 ])
+export const DESKTOP_DEDICATED_COMMANDS = new Set(['/bg'])
 export const DESKTOP_DENIED_COMMANDS = new Set([
   '/rollback', '/bg', '/worktree', '/snapshot', '/export', '/import',
   '/reload', '/reload-mcp', '/reload-skills', '/browser',
@@ -23,6 +24,7 @@ export const DESKTOP_DENIED_COMMANDS = new Set([
 ])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
+  if (DESKTOP_DEDICATED_COMMANDS.has(name)) return true
   if (DESKTOP_DENIED_COMMANDS.has(name)) return false
   if (Object.hasOwn(catalog.skills, name) || DESKTOP_GATEWAY_COMMANDS.has(name.slice(1))) return true
   if (catalog.categories?.some(category => category.name === 'Plugin commands' && category.pairs.some(([key]) => key === name))) return true

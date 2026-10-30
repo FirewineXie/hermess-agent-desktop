@@ -286,6 +286,7 @@ export const tauriDesktopApi: DesktopApi = {
     interruptSession: scope => invoke('interrupt_chat_session', { profile: scope.profile, sessionId: scope.sessionId }),
     steerSession: (scope, text) => invoke('steer_chat_session', { profile: scope.profile, sessionId: scope.sessionId, text }),
     askSideQuestion: (scope, question) => invoke('ask_side_question', { profile: scope.profile, sessionId: scope.sessionId, question }),
+    startBackgroundTask: (scope, prompt) => invoke('start_background_task', { profile: scope.profile, sessionId: scope.sessionId, prompt }),
     replayEvents: async (scope, lastSeen, replayEpoch) => {
       const result = await invoke<ReplayResult>('replay_chat_events', { profile: scope.profile, sessionId: scope.sessionId, lastSeen, replayEpoch })
       return { ...result, open_requests: supportedRequests(result.open_requests, scope.profile) }

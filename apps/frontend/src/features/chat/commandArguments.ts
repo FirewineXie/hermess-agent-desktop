@@ -21,6 +21,7 @@ export function argumentAllowed(catalog: CommandCatalog, name: string, arg: stri
   if (name === '/undo') return !arg.trim() || /^[1-9]\d{0,2}(?: --confirm [0-9a-f-]{36})?$/.test(arg.trim())
   if (name === '/steer') return !!arg.trim()
   if (name === '/btw') return !!arg.trim()
+  if (name === '/bg') return !!arg.trim()
   if (name === '/queue') return !arg.trim() || /^(list|clear|move(?:\s+.*)?|add\s+\S[\s\S]*|edit\s+[1-9]\d*\s+\S[\s\S]*|rm\s+[1-9]\d*)$/.test(arg.trim())
   const subcommands = catalog.commands[name]?.desktop_subcommands
   if (subcommands && !subcommands.includes(arg.trim().split(/\s+/)[0])) return false
@@ -37,6 +38,7 @@ export function argumentHint(catalog: CommandCatalog | null, name: string, langu
   if (name === '/undo') return language === 'zh-CN' ? '/undo [数量] 预览后确认回退会话消息；不恢复工作区文件' : '/undo [count] previews then rewinds session messages; workspace files are unchanged'
   if (name === '/steer') return language === 'zh-CN' ? '/steer 内容 仅在当前回合运行时插入消息' : '/steer text sends guidance to the running turn'
   if (name === '/btw') return language === 'zh-CN' ? '/btw 问题 旁路提问，不打断当前回合' : '/btw question asks without interrupting the current turn'
+  if (name === '/bg') return language === 'zh-CN' ? '/bg 任务内容 在后台运行，结果显示在右侧' : '/bg prompt runs in the background; view the result on the right'
   if (name === '/queue') return language === 'zh-CN' ? '/queue list|add 内容|edit 序号 内容|rm 序号|clear；队列按提交顺序执行' : '/queue list|add text|edit index text|rm index|clear; FIFO order is fixed'
   if (['/new', '/sessions', '/model', '/history', '/stop', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(name)) return language === 'zh-CN' ? name + ' 不接受参数，请在对应界面操作' : name + ' takes no arguments; use its desktop view'
   return catalog?.pairs.find(([key]) => key === name)?.[1] || ''

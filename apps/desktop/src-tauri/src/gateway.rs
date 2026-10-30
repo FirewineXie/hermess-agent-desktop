@@ -187,13 +187,25 @@ fn bound_notification_text(kind: &str, payload: &mut Value) {
     ) {
         return;
     }
-    // These events feed native notices, not the chat transcript. Keep an
-    // excerpt before the transport size gate so a long task/plugin result
-    // cannot silently discard its completion notification.
+    // Keep a bounded result before the transport size gate. Background results
+    // are displayed in the task panel; other notices need only a short excerpt.
     if let Some(object) = payload.as_object_mut() {
         for key in ["text", "detail", "question"] {
             if let Some(text) = object.get(key).and_then(Value::as_str) {
-                let excerpt: String = text.chars().take(1024).collect();
+                let excerpt: String = if kind == "background.complete" && key == "text" {
+                    let mut bytes = 0;
+                    text.chars()
+                        .take_while(|ch| {
+                            bytes += ch.len_utf8();
+                            bytes <= 16 * 1024
+                        })
+                        .collect()
+                } else {
+                    text.chars().take(1024).collect()
+                };
+                if kind == "background.complete" && key == "text" && excerpt.len() < text.len() {
+                    object.insert("truncated".to_owned(), Value::Bool(true));
+                }
                 object.insert(key.to_owned(), Value::String(excerpt));
             }
         }

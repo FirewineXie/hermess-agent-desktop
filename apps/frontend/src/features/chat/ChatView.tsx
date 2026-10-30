@@ -94,7 +94,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
 
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
-  const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件与终端' : 'Files & terminal')
+  const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件、任务与终端' : 'Files, tasks & terminal')
   const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
   return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
@@ -151,7 +151,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue|btw)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue|btw|bg)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
@@ -180,6 +180,8 @@ export default function ChatView({ connected, backendStatus, language, t, contro
           ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
           : /^\/queue(?:\s|$)/.test(draft.trim())
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
+          : /^\/bg(?:\s|$)/.test(draft.trim())
+            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/bg\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '后台' : 'Background'}</button>
           : /^\/btw(?:\s|$)/.test(draft.trim())
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/btw\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '旁问' : 'Ask'}</button>
           : <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>

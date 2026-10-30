@@ -84,6 +84,7 @@ function App() {
     backend, profile: viewedProfile, chatVisible: view === 'chat', activeModel, language, storagePath, workspacePath: workspaces.selected, t,
     openChat: () => { openView('chat') }, openModelSettings: () => { openSettings('main') }, setSidebarOpen, setActiveModel,
     onCommandFinished: (owner, id) => commandFinishedRef.current(owner, id),
+    onBackgroundStarted: () => setPanelOpen(true),
     openCommandPage: name => {
       if (name === 'toolsets') {
         if (!openView('profiles')) return false
@@ -274,6 +275,7 @@ function App() {
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
       onOpenRuntime={() => openSettings('runtime')} onOpenModelSettings={() => openSettings('main')} onOpenDiagnostics={openDiagnostics} />
       <WorkspacePanel open={view === 'chat' && panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionCurrentDirectory : workspaces.selected} profile={viewedProfile} epoch={backend?.replay_epoch || null} ownerSessionId={sessionId}
+        backgroundTasks={chatController.backgroundTasks}
       /></div>
     </main>
   </div>

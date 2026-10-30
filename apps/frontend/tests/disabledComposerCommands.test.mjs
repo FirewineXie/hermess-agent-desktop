@@ -12,7 +12,7 @@ test('commands disabled by the desktop plan stay unavailable even when the catal
     const denied = [...plan.matchAll(/^\| `(\/[^`]+)` \| ([^|]+) \|/gm)]
       .filter(([, , decision]) => /当前保持禁用|暂不接入|禁止桌面执行|改用界面操作/.test(decision))
       .map(([, name]) => name)
-    assert.deepEqual([...DESKTOP_DENIED_COMMANDS].sort(), [...denied].sort())
+    assert.deepEqual([...DESKTOP_DENIED_COMMANDS].filter(name => name !== '/bg').sort(), [...denied].sort())
     const catalog = {
       pairs: denied.map(name => [name, 'Listed command']),
       skills: Object.fromEntries(denied.map(name => [name, {}])),
@@ -23,6 +23,7 @@ test('commands disabled by the desktop plan stay unavailable even when the catal
       assert.equal(commandSupported(catalog, name), false)
       assert.deepEqual(commandChoices(catalog, composerTrigger(name, name.length), 'zh-CN'), [])
     }
+    assert.equal(commandSupported(catalog, '/bg'), true)
     assert.equal(commandSupported(catalog, '/status'), true)
   } finally {
     await server.close()

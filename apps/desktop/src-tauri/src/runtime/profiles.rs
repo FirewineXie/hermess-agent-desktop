@@ -180,6 +180,7 @@ fn accepts_profile(method: &str) -> bool {
             | "prompt.cancel"
             | "prompt.replace_queued"
             | "prompt.btw"
+            | "prompt.background"
             | "session.stats"
             | "session.export"
             | "session.mutate"

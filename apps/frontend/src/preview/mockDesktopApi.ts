@@ -140,6 +140,7 @@ export const previewDesktopApi: DesktopApi = {
     async interruptSession() { throw previewOnly() },
     async steerSession() { throw previewOnly() },
     async askSideQuestion() { throw previewOnly() },
+    async startBackgroundTask() { throw previewOnly() },
     async replayEvents() { throw previewOnly() },
     async usage() { throw previewOnly() },
     async reasoning() { throw previewOnly() },

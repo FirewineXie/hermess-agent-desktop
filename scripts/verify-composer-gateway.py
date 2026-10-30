@@ -66,6 +66,8 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             assert "_No messages found._" in named_export["content"], named_export
             named_side = await named_call("prompt.btw", session_id=named_id, text="Answer this side question")
             assert named_side["task_id"].startswith("btw_"), named_side
+            named_bg = await named_call("prompt.background", session_id=named_id, text="Answer this background request")
+            assert named_bg["task_id"].startswith("bg_"), named_bg
             for _ in range(100):
                 named_events = await named_call("session.events.since", session_id=named_id,
                                                 replay_epoch=named["replay_epoch"], last_sequence=0)
@@ -76,9 +78,22 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
                     break
                 await asyncio.sleep(0.2)
             assert named_matches and not named_matches[0]["payload"]["text"].startswith("error: "), named_matches
+            for _ in range(100):
+                named_events = await named_call("session.events.since", session_id=named_id,
+                                               replay_epoch=named["replay_epoch"], last_sequence=0)
+                named_bg_matches = [event for event in named_events.get("events", [])
+                                    if event.get("type") == "background.complete"
+                                    and event.get("payload", {}).get("task_id") == named_bg["task_id"]]
+                if named_bg_matches:
+                    break
+                await asyncio.sleep(0.2)
+            assert named_bg_matches and not named_bg_matches[0]["payload"]["text"].startswith("error: "), named_bg_matches
             assert (await named_call("session.history", session_id=named_id))["messages"] == []
             cross_profile = await rpc(named_ws, "subagent.list", profile="reviewer", session_id=session_id)
             assert "error" in cross_profile, cross_profile
+            cross_profile_bg = await rpc(named_ws, "prompt.background", profile="reviewer",
+                                         session_id=session_id, text="cross-profile request")
+            assert "error" in cross_profile_bg, cross_profile_bg
         for command in ["/status", "/title 中文命令标题"]:
             result = await call("slash.exec", session_id=session_id, command=command)
             assert result.get("type") == "exec", result
@@ -172,6 +187,24 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert len(matches) == 1 and matches[0]["payload"]["question"] == "What is the last user request?", matches
         assert matches[0]["payload"].get("text") and not matches[0]["payload"]["text"].startswith("error: "), matches
         assert (await call("session.history", session_id=session_id))["messages"] == before_btw["messages"]
+        await call("session.resume", session_id=session_id, source="desktop", defer_history=True, omit_messages=True)
+        bg_before = await call("session.history", session_id=session_id)
+        bg = await call("prompt.background", session_id=session_id, text="Answer this background request")
+        assert bg["task_id"].startswith("bg_"), bg
+        for _ in range(100):
+            bg_events = await call("session.events.since", session_id=session_id,
+                                   replay_epoch=created["replay_epoch"], last_sequence=0)
+            bg_matches = [event for event in bg_events.get("events", []) if event.get("type") == "background.complete"
+                          and event.get("payload", {}).get("task_id") == bg["task_id"]]
+            if bg_matches:
+                break
+            await asyncio.sleep(0.2)
+        assert bg_matches and not bg_matches[0]["payload"]["text"].startswith("error: "), bg_matches
+        assert (await call("session.history", session_id=session_id))["messages"] == bg_before["messages"]
+        empty_bg = await rpc(ws, "prompt.background", session_id=session_id, text=" ")
+        assert "error" in empty_bg, empty_bg
+        missing_bg = await rpc(ws, "prompt.background", session_id="missing-desktop-session", text="test")
+        assert "error" in missing_bg, missing_bg
         empty_btw = await rpc(ws, "prompt.btw", session_id=session_id, text=" ")
         assert "error" in empty_btw, empty_btw
         parent = await call("session.resume", session_id=session_id, source="desktop")
@@ -402,7 +435,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression, side question, branch, rewind, steer and queue passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, side question, background task, branch, rewind, steer and queue passed")
 
 
 if __name__ == "__main__":

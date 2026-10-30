@@ -407,6 +407,11 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .panel-file pre { flex: 1; margin: 0; padding: 14px; overflow: auto; font: 12px/1.55 Consolas, monospace; white-space: pre; }
 .panel-file img { max-width: 100%; max-height: 100%; margin: auto; object-fit: contain; }
 .panel-file p { padding: 14px; color: #697586; }
+.panel-background-task { display: flex; flex: 1; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; padding: 14px; }
+.panel-background-task-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.panel-background-task-header span, .panel-background-task small { color: #697586; }
+.panel-background-task p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel-background-task pre { flex: 1; min-height: 0; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 Consolas, monospace; }
 .panel-terminal { flex: 1; min-width: 0; min-height: 0; padding: 5px; background: #171d27; }
 .settings-panel { width: min(760px, calc(100% - 64px)); margin: 36px auto 60px; padding: 28px 32px; border: 1px solid #e7ebef; border-radius: 16px; box-shadow: 0 12px 42px rgba(35, 51, 76, .04); overflow: auto; }
 .settings-panel.flat-settings-panel { padding: 0; border: 0; border-radius: 0; box-shadow: none; }

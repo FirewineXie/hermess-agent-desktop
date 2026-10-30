@@ -4,6 +4,7 @@ pub mod browser_bridge;
 pub mod channels;
 pub mod chat;
 mod composer_agents;
+pub mod composer_background;
 mod composer_branch;
 mod composer_commands;
 mod composer_policy;

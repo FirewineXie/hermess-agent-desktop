@@ -1,5 +1,5 @@
 import React from 'react'
-import type { BackendInfo, GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow, ProfileScope, SessionScope } from '@hermess/contracts'
+import type { GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow, ProfileScope, SessionScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
@@ -17,31 +17,14 @@ import { selectedWorkspacePath } from './sessionWorkspace'
 import { selectCommand } from './commandSelection'
 import { useSideQuestions } from './sideQuestions'
 import { runBtwCommand } from './btwCommand'
+import { useBackgroundTasks } from './backgroundTasks'
+import { runBgCommand } from './bgCommand'
+import type { ChatControllerOptions } from './chatControllerOptions'
 
-type Options = {
-  backend: BackendInfo | null
-  profile: string | null
-  chatVisible: boolean
-  activeModel: ModelPick | null
-  language: 'zh-CN' | 'en-US'
-  storagePath: string
-  workspacePath: string
-  t: (key: string, ...values: unknown[]) => string
-  openChat: () => void
-  openModelSettings: () => void
-  openCommandPage: (name: string) => boolean
-  onCommandFinished: (profile: string, sessionId: string) => void
-  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>
-  setActiveModel: React.Dispatch<React.SetStateAction<ModelPick | null>>
-  setModelPickerOpen: React.Dispatch<React.SetStateAction<boolean>>
-  setBackend: (next: BackendInfo | null) => void
-  setBackendStatus: React.Dispatch<React.SetStateAction<string>>
-  setBusy: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
+export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
   const sideQuestions = useSideQuestions(chat, diagnostics, storagePath)
+  const backgroundTasks = useBackgroundTasks(chat, diagnostics, storagePath)
   const workspace = workspaceKey(backend?.replay_epoch, profile)
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `chat:${stateSlot++}`)
@@ -131,6 +114,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
 
   eventProcessorRef.current = data => {
     sideQuestions.handleEvent(data)
+    backgroundTasks.handleEvent(data)
     const id = data.session_id
     if (!data.profile || data.profile !== sessionProfileRef.current) return
     if (!id || id !== sessionRef.current) {
@@ -199,6 +183,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }
   disconnectProcessors.current[workspace] = () => {
     sideQuestions.markDisconnected()
+    backgroundTasks.markDisconnected()
     setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess"))
     setConversation(finishReasoning)
     setTurnBusy(false)
@@ -507,6 +492,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
     if (!quickInput && /^\/btw(?:\s|$)/.test(typed)) return runBtwCommand({ scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, ask: sideQuestions.ask, setDraft, setStatus: setChatStatus, describeError: cause => describeError(cause, language) })
+    if (!quickInput && /^\/bg(?:\s|$)/.test(typed)) return runBgCommand({ scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, start: backgroundTasks.start, setDraft, setStatus: setChatStatus, onStarted: onBackgroundStarted, describeError: cause => describeError(cause, language) })
     if (!quickInput && /^\/steer(?:\s|$)/.test(typed)) return runSteerCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, busy: turnBusy, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     if (!quickInput && turnBusy && /^\/queue(?:\s|$)/.test(typed)) return runBusyQueueCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, setConversation, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
@@ -994,5 +980,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
     loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat,
     sideQuestions: sideQuestions.forSession(sessionProfileRef.current, sessionRef.current), dismissSideQuestion: sideQuestions.dismiss,
+    backgroundTasks: backgroundTasks.forSession(sessionProfileRef.current, sessionRef.current),
   }
 }

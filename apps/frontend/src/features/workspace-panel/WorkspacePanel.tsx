@@ -5,17 +5,19 @@ import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-
 import { useLanguage } from '../../i18n'
 import TerminalTab from './TerminalTab'
 import DirectoryTree from './DirectoryTree'
+import type { BackgroundTask } from '../chat/backgroundTasks'
 
 type PanelFile = Awaited<ReturnType<DesktopApi['workspacePanel']['readFile']>>
 type PanelDirectory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
 type PanelTab = ({ id: string; kind: 'file'; title: string; file: PanelFile }
   | { id: string; kind: 'directory'; title: string; directory: PanelDirectory; revision: number }
-  | { id: string; kind: 'terminal'; title: string; terminalId: string }) & { scope: WorkspaceScope }
+  | { id: string; kind: 'terminal'; title: string; terminalId: string }
+  | { id: string; kind: 'background'; title: string; taskId: string }) & { scope: WorkspaceScope }
 
 let nextId = 0
 
-export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch, ownerSessionId }: {
-  open: boolean; onOpenChange: (open: boolean) => void; cwd: string; profile: string | null; epoch: string | null; ownerSessionId: string
+export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch, ownerSessionId, backgroundTasks }: {
+  open: boolean; onOpenChange: (open: boolean) => void; cwd: string; profile: string | null; epoch: string | null; ownerSessionId: string; backgroundTasks: BackgroundTask[]
 }) {
   const desktop = useDesktop()
   const api = desktop.workspacePanel
@@ -31,6 +33,7 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
   const tabsRef = useProfileRef(workspace, tabs)
   tabsRef.current = tabs
   const terminalIds = React.useRef(new Set<string>())
+  const dismissedTasks = React.useRef(new Set<string>())
   const terminalsRef = React.useRef(terminals)
   terminalsRef.current = terminals
   const viewedProfileRef = React.useRef(profile)
@@ -38,6 +41,16 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
   const owner = profile && ownerSessionId ? { profile, sessionId: ownerSessionId } : undefined
   const scope: WorkspaceScope = { kind: 'workspace', path: cwd || '', owner: owner && { kind: 'session', ...owner } }
   const active = tabs.find(tab => tab.id === activeId)
+
+  React.useEffect(() => {
+    for (const task of backgroundTasks) {
+      const id = `background:${task.profile}:${task.sessionId}:${task.taskId}`
+      if (dismissedTasks.current.has(id) || tabsRef.current.some(tab => tab.id === id)) continue
+      const taskScope: WorkspaceScope = { kind: 'workspace', path: cwd || '', owner: { kind: 'session', profile: task.profile, sessionId: task.sessionId } }
+      setTabs(current => current.some(tab => tab.id === id) ? current : [...current, { id, kind: 'background', title: `BG ${task.taskId.slice(3, 9)}`, taskId: task.taskId, scope: taskScope }])
+      setActiveId(id)
+    }
+  }, [backgroundTasks, cwd, setActiveId, setTabs, tabsRef])
 
   function addTab(tab: PanelTab) {
     setTabs(current => [...current, tab])
@@ -81,7 +94,17 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
     } catch { setError(zh ? '终端启动失败。' : 'Could not start terminal.') }
   }
 
+  function openBackgroundTask(task: BackgroundTask) {
+    const id = `background:${task.profile}:${task.sessionId}:${task.taskId}`
+    dismissedTasks.current.delete(id)
+    const existing = tabsRef.current.find(tab => tab.id === id)
+    if (existing) { setActiveId(id); setMenuOpen(false); return }
+    addTab({ id, kind: 'background', title: `BG ${task.taskId.slice(3, 9)}`, taskId: task.taskId,
+      scope: { kind: 'workspace', path: cwd || '', owner: { kind: 'session', profile: task.profile, sessionId: task.sessionId } } })
+  }
+
   function closeTab(tab: PanelTab) {
+    if (tab.kind === 'background') dismissedTasks.current.add(tab.id)
     setTabs(current => current.filter(item => item.id !== tab.id))
     if (tab.id === activeId) setActiveId(tabs.find(item => item.id !== tab.id)?.id || '')
     if (tab.kind === 'terminal') {
@@ -119,6 +142,7 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
         {menuOpen && <div className="panel-add-menu">
           <button type="button" onClick={() => void showDirectory()}>▤ {zh ? '打开文件' : 'Open file'}</button>
           <button type="button" onClick={() => void openTerminal()}>› {zh ? '新建终端' : 'New terminal'}</button>
+          {backgroundTasks.map(task => <button type="button" key={task.taskId} onClick={() => openBackgroundTask(task)}>◷ BG {task.taskId.slice(3, 9)} · {task.status === 'running' ? zh ? '运行中' : 'Running' : task.status === 'unknown' ? zh ? '待确认' : 'Uncertain' : task.status === 'failed' ? zh ? '失败' : 'Failed' : zh ? '已完成' : 'Complete'}</button>)}
         </div>}
       </div>
       <button type="button" className="panel-collapse" aria-label={zh ? '收起工作区' : 'Collapse workspace'} onClick={() => onOpenChange(false)}>»</button>
@@ -127,6 +151,16 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
     <div className="panel-body">
       {!active && <div className="panel-empty">{zh ? '点击 ＋ 打开文件或终端' : 'Click + to open a file or terminal'}</div>}
       {tabs.filter(tab => tab.kind !== 'terminal').map(tab => <div key={tab.id} className="panel-tab-content" style={{ display: tab.id === activeId ? 'flex' : 'none' }}>
+        {tab.kind === 'background' && (() => {
+          const task = backgroundTasks.find(item => item.taskId === tab.taskId && item.profile === tab.scope.owner?.profile && item.sessionId === tab.scope.owner?.sessionId)
+          return <div className="panel-background-task">
+            <div className="panel-background-task-header"><strong>{zh ? '后台任务' : 'Background task'}</strong><span>{task?.status === 'running' ? zh ? '运行中' : 'Running' : task?.status === 'unknown' ? zh ? '结果待确认' : 'Result uncertain' : task?.status === 'failed' ? zh ? '失败' : 'Failed' : task?.status === 'complete' ? zh ? '已完成' : 'Complete' : zh ? '切换到所属会话查看' : 'Open the owning session'}</span></div>
+            <small>{tab.taskId}</small>
+            {task?.prompt && <p>{task.prompt}</p>}
+            {task?.result && <pre>{task.result}</pre>}
+            {task?.truncated && <small>{zh ? '结果过长，仅显示部分内容。' : 'The result is too long; only part is shown.'}</small>}
+          </div>
+        })()}
         {tab.kind === 'directory' && <DirectoryTree key={tab.revision} scope={tab.scope} directory={tab.directory} onFile={path => void openFile(path, tab.scope)} />}
         {tab.kind === 'file' && <div className="panel-file">
           <div className="panel-file-path" title={tab.file.path}>{tab.file.path}</div>
