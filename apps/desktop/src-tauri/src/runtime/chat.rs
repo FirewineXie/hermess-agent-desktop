@@ -228,6 +228,14 @@ pub async fn execute_composer_command(
                 .request("subagent.list", json!({"session_id": session_id}))
                 .await?;
             Ok(json!({"type": "exec", "output": super::composer_agents::format_roster(&roster)}))
+        } else if command_name == "/branch" {
+            super::composer_branch::execute(
+                &state,
+                &scope,
+                &session_id,
+                command.strip_prefix("/branch").unwrap_or("").trim(),
+            )
+            .await
         } else {
             scope
                 .gateway

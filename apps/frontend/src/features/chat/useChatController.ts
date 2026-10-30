@@ -517,7 +517,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
-    if (slash && ['retry', 'compress', 'agents'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
+    if (slash && ['retry', 'compress', 'agents', 'branch'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
     if (slash?.[1] === 'save') {
       if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false
       if (attachments.length) { setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command')); return false }
@@ -583,18 +583,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       return
     }
     if (isCommand && attachments.length && !isSkill) { setChatStatus(t("ui.please.remove.the.attachment.first.when.executing.the.command")); return }
-    if (isCommand && commandName === '/new' && commandArg) {
-      setChatStatus(t("ui.the.desktop.new.command.does.not.accept.a.title.yet.create.a.session.then.u"))
-      return
-    }
-    if (isCommand && commandName === '/sessions' && commandArg) {
-      setChatStatus(t("ui.the.desktop.sessions.command.does.not.accept.arguments"))
-      return
-    }
-    if (isCommand && commandName === '/model' && commandArg) {
-      setChatStatus(t("ui.choose.a.model.in.model.settings.arguments.after.model.do.not.change.the.cu"))
-      return
-    }
     assistantRef.current = ''
     setAssistant('')
     let idForSubmission = sessionRef.current
@@ -636,6 +624,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         text = [typed, ...refs].filter(Boolean).join('\n') || t('ui.please.see.attachment')
       }
       if (isCommand) {
+        const commandOwner = sessionProfileRef.current
         const result = isSkill
           ? await chat.dispatchSkill(sessionScope(id), commandName.slice(1), commandArg)
           : ['/retry', '/compress'].includes(commandName) ? { type: 'send', message: typed }
@@ -648,6 +637,16 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
           setDraft(result.message || '')
           setChatStatus(result.notice || t("ui.the.command.has.been.filled.in.the.input.box"))
           setTurnBusy(false)
+          return true
+        } else if (result.type === 'branch') {
+          if (!result.message) throw new Error('Gateway did not return the branch session ID')
+          onCommandFinished(commandOwner, storedSessionRef.current || id)
+          setTurnBusy(false)
+          if (sessionRef.current !== id || sessionProfileRef.current !== commandOwner) return true
+          submittingRef.current = false
+          setDraft('')
+          const opened = await resumeSession(result.message, false, backend?.replay_epoch || '', commandOwner, true)
+          if (!opened) setChatStatus(language === 'zh-CN' ? `分支已创建，请用 /resume ${result.message} 打开。` : `Branch created. Open it with /resume ${result.message}.`)
           return true
         } else if (result.type === 'exec' || result.type === 'plugin' || !result.type) {
           onCommandFinished(sessionProfileRef.current, storedSessionRef.current || id)

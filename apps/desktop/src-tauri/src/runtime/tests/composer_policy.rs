@@ -15,6 +15,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/approvals OFF",
         "/resume test",
         "/agents all",
+        &format!("/branch {}", "a".repeat(201)),
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
@@ -27,6 +28,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/extension free text",
         "/approvals status",
         "/agents",
+        "/branch 新方向",
     ] {
         assert!(allowed(&catalog, command), "{command}");
     }

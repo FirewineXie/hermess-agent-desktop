@@ -45,6 +45,7 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
             | "/approve"
             | "/deny"
             | "/agents"
+            | "/branch"
     );
     if builtin {
         if name == "/skills" {
@@ -55,6 +56,9 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
         }
         if name == "/agents" {
             return arg.is_empty();
+        }
+        if name == "/branch" {
+            return arg.chars().count() <= 200;
         }
         return name != "/approvals" || !arg.eq_ignore_ascii_case("off");
     }

@@ -63,6 +63,7 @@ impl ProfiledGateway {
             .and_then(Value::as_str)
             .filter(|id| !id.is_empty())
             .map(str::to_owned);
+        let branching = method == "session.mutate" && params["operation"] == "branch";
         if !matches!(method, "session.create" | "session.list" | "session.resume") {
             if let Some(session_id) = requested_session.as_deref() {
                 self.session_owners
@@ -106,6 +107,13 @@ impl ProfiledGateway {
                         .map_err(GatewayRequestError::Transport)?;
                 }
                 if let Some(id) = result.get("session_id").and_then(Value::as_str) {
+                    self.session_owners
+                        .record(&self.profile, id)
+                        .map_err(GatewayRequestError::Transport)?;
+                }
+            }
+            "session.mutate" if branching => {
+                if let Some(id) = result.get("branched_session_id").and_then(Value::as_str) {
                     self.session_owners
                         .record(&self.profile, id)
                         .map_err(GatewayRequestError::Transport)?;

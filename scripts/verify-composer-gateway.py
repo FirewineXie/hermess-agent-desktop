@@ -135,6 +135,23 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             await asyncio.sleep(0.2)
         assert completed, final
         assert any("No changes" in str(event.get("payload", {}).get("text", "")) for event in completed), completed
+        parent = await call("session.resume", session_id=session_id, source="desktop")
+        branch_params = dict(session_id=session_id, request_id="desktop-branch-test",
+                             expected_revision=parent["revision"],
+                             expected_generation=parent["execution_generation"],
+                             operation="branch", payload={"title": "新方向"})
+        branched = await call("session.mutate", **branch_params)
+        child_id = branched["branched_session_id"]
+        assert child_id != session_id, branched
+        assert await call("session.mutate", **branch_params) == branched
+        child = await call("session.resume", session_id=child_id, source="desktop")
+        assert child["session_id"] == child_id and child["messages"], child
+        assert child["info"]["cwd"] == parent["info"]["cwd"], (parent, child)
+        rows = await call("session.list", limit=50)
+        assert any(row.get("id") == child_id and row.get("title") == "新方向"
+                   for row in rows["sessions"]), rows
+        stale = await rpc(ws, "session.mutate", **(branch_params | {"request_id": "desktop-branch-stale"}))
+        assert "error" in stale, stale
 
         # A longer transcript must exercise the mutation path, not merely the short-session no-op.
         long_session = await call("session.create", source="gui", request_id="desktop-compress-long", cwd=str(home), toolsets=[])
@@ -212,7 +229,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents roster, arguments, refusal, export, retry and compression passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression and fenced branch passed")
 
 
 if __name__ == "__main__":
