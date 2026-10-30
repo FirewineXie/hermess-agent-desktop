@@ -3,7 +3,7 @@ import type { GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, Approval
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
-import { commandSupported, commandChoices, composerTrigger, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
+import { commandSupported, commandChoices, composerTrigger, deniedCommandNotice, type PendingAttachment, type CommandCatalog, type ComposerChoice, type ChatUsage } from './model'
 import { savedModelFromOptions, type ModelPick } from '../models/model'
 import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool, type TimelineItem } from './timeline'
 import { mergeRecoveredRequests } from './requestRecovery'
@@ -400,7 +400,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   }, [backend, profile, sessionId, draft, draftCaret, commandCatalog])
 
   const trigger = composerTrigger(draft, draftCaret)
-  const argumentHint = trigger && 'command' in trigger ? commandArgumentHint(commandCatalog, trigger.command, language) : ''
+  const argumentHint = trigger && 'command' in trigger ? deniedCommandNotice(trigger.command, language) || commandArgumentHint(commandCatalog, trigger.command, language)
+    : trigger?.prefix === '/' ? deniedCommandNotice(`/${trigger.query}`, language) : ''
   const choices = commandCatalog && trigger ? commandChoices(commandCatalog, trigger, language) : []
   function chooseCommand(choice: ComposerChoice) {
     selectCommand({ choice, trigger, draft, setDraft, setCaret: setDraftCaret, setActiveChoice, setStatus: setChatStatus, input: draftInputRef })
@@ -504,6 +505,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
+    const deniedNotice = slash ? deniedCommandNotice(`/${slash[1]}`, language) : ''
+    if (deniedNotice) { setChatStatus(deniedNotice); return false }
     if (slash && ['retry', 'compress', 'agents', 'branch', 'undo', 'queue'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
     if (slash?.[1] === 'save') {
       if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false

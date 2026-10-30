@@ -410,8 +410,9 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .panel-background-task { display: flex; flex: 1; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; padding: 14px; }
 .panel-background-task-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .panel-background-task-header span, .panel-background-task small { color: #697586; }
-.panel-background-task p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.panel-background-task pre { flex: 1; min-height: 0; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 Consolas, monospace; }
+.panel-background-task-messages { flex: 1; min-height: 0; overflow: auto; padding: 8px 2px; }
+.panel-background-task-user { width: fit-content; max-width: 85%; margin: 0 0 16px auto; padding: 11px 15px; border-radius: 14px; background: #f1f3f5; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel-background-task-assistant { max-width: 100%; padding: 0 4px; line-height: 1.65; overflow-wrap: anywhere; }
 .panel-terminal { flex: 1; min-width: 0; min-height: 0; padding: 5px; background: #171d27; }
 .settings-panel { width: min(760px, calc(100% - 64px)); margin: 36px auto 60px; padding: 28px 32px; border: 1px solid #e7ebef; border-radius: 16px; box-shadow: 0 12px 42px rgba(35, 51, 76, .04); overflow: auto; }
 .settings-panel.flat-settings-panel { padding: 0; border: 0; border-radius: 0; box-shadow: none; }

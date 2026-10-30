@@ -23,6 +23,14 @@ export const DESKTOP_DENIED_COMMANDS = new Set([
   '/handoff', '/journey', '/pet', '/hatch', '/wake', '/subscription', '/update',
 ])
 
+export function deniedCommandNotice(name: string, language: 'zh-CN' | 'en-US'): string {
+  if (!DESKTOP_DENIED_COMMANDS.has(name) || DESKTOP_DEDICATED_COMMANDS.has(name)) return ''
+  if (name === '/rollback') return language === 'zh-CN'
+    ? '桌面端暂不支持 /rollback：文件恢复的安全预览与保护尚未完成。'
+    : 'The desktop app does not support /rollback yet: safe file restore preview and protection are incomplete.'
+  return language === 'zh-CN' ? `桌面端暂不支持 ${name}。` : `The desktop app does not support ${name} yet.`
+}
+
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
   if (DESKTOP_DEDICATED_COMMANDS.has(name)) return true
   if (DESKTOP_DENIED_COMMANDS.has(name)) return false

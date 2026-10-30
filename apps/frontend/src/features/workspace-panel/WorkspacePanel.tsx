@@ -6,6 +6,7 @@ import { useLanguage } from '../../i18n'
 import TerminalTab from './TerminalTab'
 import DirectoryTree from './DirectoryTree'
 import type { BackgroundTask } from '../chat/backgroundTasks'
+import MarkdownMessage from '../chat/components/MarkdownMessage'
 
 type PanelFile = Awaited<ReturnType<DesktopApi['workspacePanel']['readFile']>>
 type PanelDirectory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
@@ -156,8 +157,10 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
           return <div className="panel-background-task">
             <div className="panel-background-task-header"><strong>{zh ? '后台任务' : 'Background task'}</strong><span>{task?.status === 'running' ? zh ? '运行中' : 'Running' : task?.status === 'unknown' ? zh ? '结果待确认' : 'Result uncertain' : task?.status === 'failed' ? zh ? '失败' : 'Failed' : task?.status === 'complete' ? zh ? '已完成' : 'Complete' : zh ? '切换到所属会话查看' : 'Open the owning session'}</span></div>
             <small>{tab.taskId}</small>
-            {task?.prompt && <p>{task.prompt}</p>}
-            {task?.result && <pre>{task.result}</pre>}
+            <div className="panel-background-task-messages">
+              {task?.prompt && <p className="panel-background-task-user">{task.prompt}</p>}
+              {task?.result && <div className="panel-background-task-assistant"><MarkdownMessage text={task.result} language={language} /></div>}
+            </div>
             {task?.truncated && <small>{zh ? '结果过长，仅显示部分内容。' : 'The result is too long; only part is shown.'}</small>}
           </div>
         })()}
