@@ -1,6 +1,6 @@
 # 桌面斜杠命令接入与禁用方案（待审核）
 
-状态：第一批已实现，第二批 `/save` 已接入；Windows 本地检查与隔离 Gateway 验证通过，双平台原生窗口待验收。核对日期：2026-10-30。适用范围：Hermess Agent Desktop 当前开发分支与 `runtime/upstream.lock.json` 锁定的 Hermes fork；不定义 Hermes CLI 或消息平台的命令政策。
+状态：表中已接入命令的 Windows 本地检查与隔离 Gateway 验证见 [路线图](../ROADMAP.md)；`/bg` 和 `/rollback` 按用户决定保持禁用，双平台原生窗口仍待验收。核对日期：2026-10-30。适用范围：Hermess Agent Desktop 当前开发分支与 `runtime/upstream.lock.json` 锁定的 Hermes fork；不定义 Hermes CLI 或消息平台的命令政策。
 
 ## 1. 目标与审核结论
 
@@ -42,14 +42,14 @@
 | `/resume` | 第一批接入 | 按当前 Profile 的会话标识或名称定位、恢复；无参数时打开会话列表。处理重名、无结果和未服务 Profile。 |
 | `/branch` | 已接入，原生待验收 | `/branch [标题]` 通过带修订与代次栅栏的 `session.mutate(branch)` 复制当前会话历史及工作区；成功后打开子会话。响应丢失时桌面进程内保留原请求重试，打开失败时给出子会话 ID 供 `/resume`。 |
 | `/compress` | 第二批已接入，原生待验收 | 预览和实际压缩均沿可靠提示提交路径处理。隔离 Gateway 验证预览不改变历史，长会话实际压缩缩短持久化历史且原会话可恢复；原生窗口、失败与断连恢复仍待验收。 |
-| `/rollback` | 后续新增，待 Gateway 安全预览接口 | 文件检查点恢复必须列出目标文件、冲突与覆盖范围，保留用户手工修改；锁定接口的安全恢复在写入 ledger 为空时会退化为完整覆盖，不能直接开放。所需接口见 [Gateway 边界提案](desktop-remaining-slash-commands-gateway-boundary.md)。 |
+| `/rollback` | 当前保持禁用 | 用户决定暂不修改 fork；锁定接口的安全恢复在写入 ledger 为空时会退化为完整覆盖，不能直接开放。未来若重新评估，所需接口见 [Gateway 边界提案](desktop-remaining-slash-commands-gateway-boundary.md)。 |
 
 ### 3.2 会话操作与后台任务（6 个）
 
 | 命令 | 决定 | 桌面行为或禁用理由 |
 | --- | --- | --- |
 | `/stop` | 第一批接入有限语义 | 停止当前会话正在运行的回合，复用现有停止操作。CLI 的“终止所有后台进程”是另一语义；后台任务停止需在任务功能完成后单独设计，不能共用此命令暗中扩大范围。 |
-| `/bg` | 后续新增，待 Gateway 任务管理接口 | 已有提交与完成事件，但没有按任务查询和取消、重启后查询终态的 RPC；这些能力接入后才开放后台提示词。所需接口见 [Gateway 边界提案](desktop-remaining-slash-commands-gateway-boundary.md)。 |
+| `/bg` | 当前保持禁用 | 用户决定暂不修改 fork；已有提交与完成事件，但没有按任务查询和取消、重启后查询终态的 RPC。未来若重新评估，所需接口见 [Gateway 边界提案](desktop-remaining-slash-commands-gateway-boundary.md)。 |
 | `/btw` | 旁路提问已接入，原生待验收 | `/btw 问题` 向当前 Profile 的会话提交 `prompt.btw`，运行中也可使用；锁定 Gateway 读取主会话快照，结果经 `btw.complete` 事件显示在独立卡片，不追加到主会话历史。桌面进程和 Gateway 重启后的旁问结果恢复、原生窗口及双平台显示仍待验收。 |
 | `/agents` | 当前会话只读快照已接入，原生待验收 | 在聊天中显示锁定 Gateway `subagent.list` 返回的当前会话活动子代理与近期失败委派；无会话或带参数时拒绝，不把普通会话等同于子代理。 |
 | `/queue` | 持久化队列管理已接入，原生待验收 | `/queue list` 查看当前会话可管理的排队请求；运行中用 `/queue add 内容` 入队，`edit 序号 内容` 编辑并移至队尾，`rm 序号` 删除，`clear` 清空。按 Gateway 的持久化 FIFO 执行，`move` 明确告知不支持重排；结果不明时同一命令沿原请求重试，列表可用于核对。 |
@@ -149,7 +149,7 @@
 
 1. **第一批：目录准确性与现有能力映射。** 逐项核对已开放命令；统一前端候选和直接输入判定；宿主拒绝桌面禁止命令及不支持的子命令；接入 `/history`、`/resume`、有限语义的 `/stop`、`/config`、`/tools`、`/toolsets`、`/cron`、`/plugins`。若某条映射的实际语义无法与名称一致，该条保持禁用并在实现记录中说明。
 2. **第二批：独立、可验收的新增功能。** 建议按 `/save`、`/retry`、`/compress` 的顺序分别实施。每项单独核对锁定 Gateway 协议、持久化和失败恢复；不把三个功能捆成一个不可拆的提交。
-3. **第三批：后台任务与会话变更。** `/btw`、`/agents`、`/queue`、`/steer`、`/branch`、`/undo` 已按本表范围接入。`/bg` 仍需独立后台会话、任务列表、取消和重连恢复；`/rollback` 仍需证明文件检查点所有权及恢复语义。
+3. **第三批：后台任务与会话变更。** `/btw`、`/agents`、`/queue`、`/steer`、`/branch`、`/undo` 已按本表范围接入。`/bg` 与 `/rollback` 按用户决定保持禁用；重新评估前不修改 fork。
 
 方案审核通过后才开始实现。若实施中证明某项必须修改锁定 Hermes fork，应先给出客户端无法适配的代码与协议证据、拟改范围和影响，另行取得明确审批；不能把本方案审核当作 fork 修改授权。
 

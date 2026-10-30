@@ -4,6 +4,9 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
     let mut parts = command.splitn(2, char::is_whitespace);
     let name = parts.next().unwrap_or("");
     let arg = parts.next().unwrap_or("").trim();
+    if matches!(name, "/bg" | "/rollback") {
+        return false;
+    }
     let builtin = matches!(
         name,
         "/help"

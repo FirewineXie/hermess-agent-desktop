@@ -15,6 +15,7 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
 ])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
+  if (name === '/bg' || name === '/rollback') return false
   if (Object.hasOwn(catalog.skills, name) || DESKTOP_GATEWAY_COMMANDS.has(name.slice(1))) return true
   if (catalog.categories?.some(category => category.name === 'Plugin commands' && category.pairs.some(([key]) => key === name))) return true
   return false
