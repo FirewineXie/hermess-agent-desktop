@@ -4,6 +4,8 @@
 
 ## v0.1.8（开发中，未发布）
 
+2026-10-30 收紧开发代理通用约束：根规则要求跨层接口改动核对接收方、生产请求和实际接受/拒绝结果；桌面规则要求冒烟脚本与生产请求对齐；React 规则补充调用链与回归路径检查；新增 Rust 目录规则，要求逐方法核对锁定 Gateway 的字段、映射和语义，不把内部名称或其他方法的参数规则直接套用。仅修改 Markdown 规则，已核对文档链接、UTF-8 并执行 `git diff --check`；未运行 Gateway 会话、Rust/前端构建或原生窗口验收。已发现现有 Gateway 冒烟脚本的会话创建请求与当前生产请求不一致，脚本修正或补充覆盖前不能用于该请求的验收。
+
 2026-10-30 准备 `v0.1.8-rc.5` 云端候选包：版本说明汇总 `rc.4` 之后的新建会话、Windows 路径和 PowerShell 工具修复。Windows 本地版本说明检查、锁定上游与许可证校验、离线 payload 源码与辅助解释器搬迁校验、前端类型检查与生产构建、架构/契约/生成契约检查、Rust 格式与离线单测通过（116 通过、5 忽略）；云端构建结果、安装包及 Windows/macOS 原生验收尚未完成，未标记为已发布。
 
 2026-10-30 修复 RC.5 新建聊天会话立即失败：客户端曾把会话创建来源发为 `desktop`，但锁定 Gateway 的创建入口只接受 `gui` 等来源；现恢复为 `gui`，由 Gateway 将其映射为桌面会话。既有会话恢复接口未改。Windows 本地 `pnpm verify:upstream`、`pnpm check:architecture`、`pnpm build`、`cargo fmt --all -- --check`、`cargo check` 和 `cargo test` 通过（Rust 单测 116 通过、5 忽略）；未做真实 Gateway 会话、原生窗口或安装包验证，macOS 原生行为未验收。已安装的 RC.5 尚不包含此修复。未修改 Hermes fork。
