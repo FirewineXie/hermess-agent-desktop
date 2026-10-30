@@ -63,12 +63,12 @@ pnpm build
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm deps` | 下载并准备当前系统的依赖与离线载荷 |
-| `pnpm start` | 在 Windows 或 macOS 启动桌面开发版 |
+| `pnpm start` | 在 Windows 或 macOS 同时管理前端开发服务与桌面开发版；任一命令退出时结束另一命令 |
 | `pnpm pack:win` | 在 Windows x64 生成 NSIS `.exe` |
 | `pnpm pack:mac` | 在 macOS Apple Silicon 或 Intel 生成 `.dmg` |
 | `pnpm pack:linux` | 在 Linux x64 生成 `.AppImage` 和 `.deb` |
 
-安装包输出到 `apps/desktop/src-tauri/target/release/bundle/` 下对应格式的目录。打包命令按当前操作系统检查目标平台，不执行跨平台交叉编译；macOS 本地包使用临时签名，正式发布仍须遵循发行流程。若机器上的 CPython 3.14 没有常用命令名，可通过 `HERMESS_PYTHON` 指定其绝对路径。`pnpm start` 是开发窗口，不代表安装包验收。
+安装包输出到 `apps/desktop/src-tauri/target/release/bundle/` 下对应格式的目录。打包命令按当前操作系统检查目标平台，不执行跨平台交叉编译；macOS 本地包使用临时签名，正式发布仍须遵循发行流程。若机器上的 CPython 3.14 没有常用命令名，可通过 `HERMESS_PYTHON` 指定其绝对路径。`pnpm start` 是开发窗口，不代表安装包验收；按 Ctrl+C 或在托盘选择「退出 Hermess」会结束开发会话，关闭窗口只会隐藏到托盘。
 
 Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码流程](docs/upstream-source.md)。
 

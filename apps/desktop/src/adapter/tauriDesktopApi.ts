@@ -2,7 +2,7 @@ import { invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
@@ -293,6 +293,14 @@ export const tauriDesktopApi: DesktopApi = {
     setReasoning: (scope, value) => invoke('set_chat_reasoning', { profile: scope.profile, sessionId: scope.sessionId, value }),
     commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
+    exportSession: async (scope, format, redact, filename) => {
+      const path = await nativeCall(() => save({
+        defaultPath: filename || `hermes_conversation.${format}`,
+        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+      }))
+      if (!path) return null
+      return invoke('export_chat_session', { profile: scope.profile, sessionId: scope.sessionId, format, redact, path })
+    },
     dispatchSkill: (scope, name, arg) => invoke('dispatch_composer_skill', { profile: scope.profile, sessionId: scope.sessionId, name, arg }),
     attachFile: (scope, path) => invoke('attach_chat_file', { profile: scope.profile, sessionId: scope.sessionId, path }),
     attachImageBytes: (scope, contentBase64, name) => invoke('attach_chat_image_bytes', { profile: scope.profile, sessionId: scope.sessionId, contentBase64, name }),

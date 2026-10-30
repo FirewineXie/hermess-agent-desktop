@@ -11,7 +11,7 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
   'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
   'codex-runtime', 'fast', 'personality',
-  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'stop', 'config', 'tools', 'cron', 'plugins',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
 ])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
@@ -51,6 +51,7 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
   return catalog.pairs.flatMap(([name, description]) => {
     const skill = Object.hasOwn(catalog.skills, name)
     if (prefix === '@' && !skill) return []
+    if (prefix === '/' && skill) return []
     if (!name.slice(1).toLowerCase().includes(query.toLowerCase()) || !commandSupported(catalog, name)) return []
     const localized = language === 'zh-CN' ? commandDescriptionsZh[name as keyof typeof commandDescriptionsZh] : undefined
     const localDescriptions: Record<string, [string, string]> = {
@@ -59,8 +60,12 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/stop': ['停止当前会话任务', 'Stop the current session task'],
       '/config': ['打开当前专家的完整配置页面', 'Open configuration for this Profile'],
       '/tools': ['打开客户端工具页面', 'Open desktop tools'],
+      '/toolsets': ['查看当前专家的工具集配置', 'View toolset configuration for this Profile'],
       '/cron': ['打开定时任务页面', 'Open scheduled tasks'],
       '/plugins': ['打开扩展中心', 'Open Extension Hub'],
+      '/save': ['导出当前会话：/save json|md|html [文件名] [redact]', 'Export current session: /save json|md|html [filename] [redact]'],
+      '/retry': ['重新运行上一条用户请求', 'Retry the last user request'],
+      '/compress': ['压缩当前会话：/compress [here N | focus 主题] [--preview]', 'Compress current session: /compress [here N | focus topic] [--preview]'],
     }
     const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]
     const modelDescription = name === '/model'

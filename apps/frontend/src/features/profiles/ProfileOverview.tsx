@@ -30,6 +30,7 @@ type Props = {
   connected: boolean
   epoch: string | null
   profiles: ProfilesSnapshot | null
+  toolsetsRequest: number
   onNewChat: () => void
   onDeleteProfile: () => void
   onRenameProfile: () => void
@@ -41,7 +42,7 @@ type Props = {
   onOpenExtensions: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onDeleteProfile, onRenameProfile, profileBusy, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, toolsetsRequest, onNewChat, onDeleteProfile, onRenameProfile, profileBusy, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -50,6 +51,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `profile-overview:${stateSlot++}`)
   const [tab, setTab] = useState<Tab>('overview')
+  React.useEffect(() => { if (toolsetsRequest) setTab('tools') }, [toolsetsRequest])
   const [skills, setSkills] = useState<LocalSkill[] | null>(null)
   const [toolsets, setToolsets] = useState<ProfileToolset[] | null>(null)
   const [servers, setServers] = useState<McpServer[] | null>(null)

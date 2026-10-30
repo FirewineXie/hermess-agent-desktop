@@ -20,7 +20,7 @@ sys.path.insert(0, str(UPSTREAM))
 from tests.gateway.fixtures.local_recovery_probe import Model, child_env, daemon, rpc, websocket
 
 
-async def verify(home: Path, desc: dict) -> None:
+async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
     async with websocket(home, desc) as ws:
         async def call(method: str, **params) -> dict:
             answer = await rpc(ws, method, **params)
@@ -42,6 +42,113 @@ async def verify(home: Path, desc: dict) -> None:
         for command in ["/skills install example", "/voice tts"]:
             refused = await rpc(ws, "slash.exec", session_id=session_id, command=command)
             assert "error" in refused, refused
+
+        # export_chat_session sends this exact request shape after the native save dialog.
+        empty = await call("session.export", session_id=session_id, format="md", redact=True)
+        assert "_No messages found._" in empty["content"], empty
+        await call("prompt.submit", session_id=session_id, text="EXPORT_PROBE", submission_id="desktop-export-test", clarify_batch=True)
+        for _ in range(50):
+            exported = await rpc(ws, "session.export", session_id=session_id, format="md", redact=True)
+            if "result" in exported and "EXPORT_PROBE" in exported["result"].get("content", ""):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(exported)
+        assert exported["result"]["format"] == "md", exported
+        invalid = await rpc(ws, "session.export", session_id=session_id, format="txt", redact=True)
+        assert "error" in invalid, invalid
+        for _ in range(50):
+            before = await call("session.history", session_id=session_id)
+            if any(row.get("role") == "assistant" for row in before["messages"]):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(before)
+        retry = await call("prompt.submit", session_id=session_id, text="/retry",
+                           submission_id="desktop-retry-test", clarify_batch=True)
+        assert retry["status"] in {"queued", "running", "completed"}, retry
+        for _ in range(50):
+            after = await call("session.history", session_id=session_id)
+            if len(peer.requests) >= 2 and len(after["messages"]) >= 4:
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError((after, len(peer.requests)))
+        assert [row.get("role") for row in after["messages"]] == ["user", "assistant", "user", "assistant"], after
+        assert [row.get("text") for row in after["messages"] if row.get("role") == "user"] == ["EXPORT_PROBE"] * 2, after
+        assert all(next((m.get("content") for m in reversed(request.get("messages", []))
+                         if m.get("role") == "user"), None) == "EXPORT_PROBE" for request in peer.requests), peer.requests
+        initial_events = await call("session.events.since", session_id=session_id,
+                                    replay_epoch=created["replay_epoch"], last_sequence=0)
+        preview = await call("prompt.submit", session_id=session_id, text="/compress --preview",
+                             submission_id="desktop-compress-preview-test", clarify_batch=True)
+        assert preview["status"] in {"queued", "running", "completed"}, preview
+        for _ in range(50):
+            events = await call("session.events.since", session_id=session_id,
+                                replay_epoch=created["replay_epoch"],
+                                last_sequence=initial_events.get("latest_seq", 0))
+            if any("Preview" in str(event.get("payload", {}).get("text", ""))
+                   for event in events.get("events", []) if event.get("type") == "message.complete"):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(events)
+        checked = await call("session.history", session_id=session_id)
+        assert checked["messages"] == after["messages"], checked
+        cursor = events.get("latest_seq", 0)
+        applied = await call("prompt.submit", session_id=session_id, text="/compress",
+                             submission_id="desktop-compress-test", clarify_batch=True)
+        assert applied["status"] in {"queued", "running", "completed"}, applied
+        for _ in range(50):
+            final = await call("session.events.since", session_id=session_id,
+                               replay_epoch=created["replay_epoch"], last_sequence=cursor)
+            completed = [event for event in final.get("events", []) if event.get("type") == "message.complete"]
+            if completed:
+                break
+            await asyncio.sleep(0.2)
+        assert completed, final
+        assert any("No changes" in str(event.get("payload", {}).get("text", "")) for event in completed), completed
+
+        # A longer transcript must exercise the mutation path, not merely the short-session no-op.
+        long_session = await call("session.create", source="gui", request_id="desktop-compress-long", cwd=str(home), toolsets=[])
+        long_id = long_session["session_id"]
+        for index in range(8):
+            await call("prompt.submit", session_id=long_id,
+                       text=f"LONG_{index}_" + ("alpha beta gamma delta " * 180),
+                       submission_id=f"desktop-compress-long-{index}", clarify_batch=True)
+            for _ in range(100):
+                history = await call("session.history", session_id=long_id)
+                if len(history["messages"]) >= (index + 1) * 2:
+                    break
+                await asyncio.sleep(0.2)
+            else:
+                raise AssertionError((index, history["count"]))
+        for _ in range(50):
+            long_events = await call("session.events.since", session_id=long_id,
+                                     replay_epoch=long_session["replay_epoch"], last_sequence=0)
+            if any(str(event.get("payload", {}).get("text", "")).startswith("RECOVERY_ACK_LONG_7_")
+                   for event in long_events.get("events", []) if event.get("type") == "message.complete"):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError("long session did not settle")
+        await call("prompt.submit", session_id=long_id, text="/compress",
+                   submission_id="desktop-compress-long-apply", clarify_batch=True)
+        for _ in range(100):
+            result_events = await call("session.events.since", session_id=long_id,
+                                       replay_epoch=long_session["replay_epoch"],
+                                       last_sequence=long_events.get("latest_seq", 0))
+            result_text = [event.get("payload", {}).get("text", "") for event in result_events.get("events", [])
+                           if event.get("type") == "message.complete"]
+            if result_text:
+                break
+            await asyncio.sleep(0.2)
+        assert any("Compressed" in text for text in result_text), result_text
+        compacted = await call("session.history", session_id=long_id)
+        resumed = await call("session.resume", session_id=long_id, source="desktop")
+        assert compacted["count"] < history["count"], (history["count"], compacted["count"])
+        assert resumed.get("session_id") == long_id, resumed
+        assert resumed.get("messages"), resumed
 
 
 def main() -> None:
@@ -69,12 +176,12 @@ def main() -> None:
                    OPENAI_API_KEY="loopback-only", OPENAI_BASE_URL=url)
         try:
             with daemon(UPSTREAM, home, env, barrier=False) as (_, desc):
-                asyncio.run(verify(home, desc))
+                asyncio.run(verify(home, desc, peer))
         finally:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, text arguments and refusal passed")
+    print("Locked Gateway composer: catalog, arguments, refusal, export, retry, compression preview and apply passed")
 
 
 if __name__ == "__main__":

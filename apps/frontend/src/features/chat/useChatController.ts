@@ -9,6 +9,8 @@ import { appendMessage, appendReasoning, finishReasoning, finishTurn, historyTim
 import { mergeRecoveredRequests } from './requestRecovery'
 import { composeClarifyAnswer } from './clarifyAnswer'
 import { argumentAllowed, argumentHint as commandArgumentHint } from './commandArguments'
+import { runSaveCommand } from './saveCommand'
+import { useRetryRefresh } from './retryRefresh'
 
 type Options = {
   backend: BackendInfo | null
@@ -89,6 +91,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const promptDispatchStartedRef = useRef(false)
   const stopRequestedRef = useRef(false)
   const retryInterruptAfterSubmitRef = useRef(false)
+  const retryPendingRef = useRef('')
   const sessionCreationRef = useRef<Promise<string> | null>(null)
   const sessionGenerationRef = useRef(0)
   const pendingBySessionRef = useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
@@ -514,7 +517,19 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
-    if (slash && ['/new', '/sessions', '/model', '/history', '/resume', '/config', '/tools', '/cron', '/plugins'].includes(`/${slash[1]}`)) {
+    if (slash && ['retry', 'compress'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
+    if (slash?.[1] === 'save') {
+      if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false
+      if (attachments.length) { setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command')); return false }
+      const owner = sessionProfileRef.current
+      const id = sessionRef.current
+      return runSaveCommand({ arg: slash[2] || '', exportSession: chat.exportSession,
+        scope: owner && id ? { kind: 'session', profile: owner, sessionId: id } : null,
+        isCurrent: () => sessionRef.current === id && sessionProfileRef.current === owner,
+        language, busy: submittingRef, setBusy: setNavigationBusy,
+        setDraft, setStatus: setChatStatus, describeError: cause => describeError(cause, language) })
+    }
+    if (slash && ['/new', '/sessions', '/model', '/history', '/resume', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(`/${slash[1]}`)) {
       if (attachments.length) {
         setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command'))
         return
@@ -623,7 +638,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       if (isCommand) {
         const result = isSkill
           ? await chat.dispatchSkill(sessionScope(id), commandName.slice(1), commandArg)
-          : await chat.executeCommand(sessionScope(id), `${commandName}${commandArg ? ` ${commandArg}` : ''}`)
+          : ['/retry', '/compress'].includes(commandName) ? { type: 'send', message: typed }
+            : await chat.executeCommand(sessionScope(id), `${commandName}${commandArg ? ` ${commandArg}` : ''}`)
         if (result.type === 'skill' || result.type === 'send') {
           if (!result.message) throw new Error(t("ui.the.command.did.not.return.a.message.to.send"))
           text = [result.message, ...refs].filter(Boolean).join('\n')
@@ -655,6 +671,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         setDraft('')
       }
       promptDispatchStartedRef.current = true
+      if (commandName === '/retry') retryPendingRef.current = id
       const result = await chat.submitPrompt(sessionScope(id), text)
       if (!stopRequestedRef.current) {
         interruptedSessionsRef.current.delete(storedSessionRef.current)
@@ -810,6 +827,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     } catch (cause) { setChatStatus(t("ui.restore.failed.arg", describeError(cause, language))); return false }
     finally { navigationBusyRef.current = false; setNavigationBusy(false) }
   }
+
+  useRetryRefresh(retryPendingRef, turnBusy, navigationBusy, backend, sessionId, storedSessionRef, sessionProfileRef, resumeSession)
 
   React.useEffect(() => {
     if (!backend?.replay_epoch || !profile || sessionId) return

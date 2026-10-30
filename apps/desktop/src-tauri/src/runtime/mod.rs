@@ -32,6 +32,7 @@ pub mod provider_copy;
 #[cfg(windows)]
 mod retired_payload;
 pub mod security;
+pub mod session_export;
 pub mod tools;
 pub mod usage;
 pub mod workbuddy_import;

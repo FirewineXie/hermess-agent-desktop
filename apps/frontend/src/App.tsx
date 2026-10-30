@@ -58,6 +58,7 @@ function App() {
   const [settingsBusy, setSettingsBusy] = React.useState(false)
   const [personalFilesDirty, setPersonalFilesDirty] = React.useState(false)
   const [profileMemoryOpen, setProfileMemoryOpen] = React.useState(false)
+  const [profileToolsRequest, setProfileToolsRequest] = React.useState(0)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
@@ -83,7 +84,14 @@ function App() {
     backend, profile: viewedProfile, chatVisible: view === 'chat', activeModel, language, storagePath, workspacePath: workspaces.selected, t,
     openChat: () => { openView('chat') }, openModelSettings: () => { openSettings('main') }, setSidebarOpen, setActiveModel,
     onCommandFinished: (owner, id) => commandFinishedRef.current(owner, id),
-    openCommandPage: name => name === 'config' ? openSettings('advanced-config') : openView(name === 'cron' ? 'scheduled' : name === 'plugins' ? 'extensions' : 'tools'),
+    openCommandPage: name => {
+      if (name === 'toolsets') {
+        if (!openView('profiles')) return false
+        setProfileToolsRequest(value => value + 1)
+        return true
+      }
+      return name === 'config' ? openSettings('advanced-config') : openView(name === 'cron' ? 'scheduled' : name === 'plugins' ? 'extensions' : 'tools')
+    },
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
     setBackend, setBackendStatus, setBusy,
   })
@@ -212,7 +220,7 @@ function App() {
     {view === 'usage' && <UsageView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
       onCreateProfile={profileController.create} onImportProfile={profileController.importPackage} />}
-    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot}
+    {view === 'profiles' && <ProfilesView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} toolsetsRequest={profileToolsRequest}
       onDeleteProfile={profileController.deleteProfile}
       onRenameProfile={profileController.renameProfile}
       profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} onSelectProfile={name => {

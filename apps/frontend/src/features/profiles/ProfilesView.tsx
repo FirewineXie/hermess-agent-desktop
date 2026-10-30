@@ -10,6 +10,7 @@ type Props = {
   connected: boolean
   epoch: string | null
   profiles: ProfilesSnapshot | null
+  toolsetsRequest: number
   profileBusy: boolean
   onSelectProfile: (name: string) => Promise<unknown>
   onDeleteProfile: (name: string) => Promise<{ settlement_pending: boolean; refreshed: boolean }>
@@ -132,6 +133,7 @@ export default function ProfilesView(props: Props) {
       connected={props.connected}
       epoch={props.epoch}
       profiles={props.profiles}
+      toolsetsRequest={props.toolsetsRequest}
       profileBusy={props.profileBusy}
       onDeleteProfile={() => {
         const name = props.profiles?.selected

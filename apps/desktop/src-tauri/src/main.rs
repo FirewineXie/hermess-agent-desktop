@@ -127,6 +127,7 @@ fn main() {
             runtime::chat::submit_chat_prompt,
             runtime::chat::list_composer_commands,
             runtime::chat::execute_composer_command,
+            runtime::session_export::export_chat_session,
             runtime::chat::dispatch_composer_skill,
             runtime::chat::attach_chat_file,
             runtime::chat::attach_chat_image_bytes,

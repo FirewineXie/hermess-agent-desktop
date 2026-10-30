@@ -17,7 +17,7 @@
     "tauri:dev": "pnpm --dir apps/desktop tauri dev",
     "tauri:build": "pnpm --dir apps/desktop tauri build",
     "deps": "node scripts/local-commands.mjs deps",
-    "start": "node scripts/local-commands.mjs start",
+    "start": "concurrently --kill-others --success first --names frontend,desktop \"pnpm dev\" \"pnpm --dir apps/desktop tauri dev --config src-tauri/tauri.start.conf.json\"",
     "pack:win": "node scripts/local-commands.mjs pack-win",
     "pack:mac": "node scripts/local-commands.mjs pack-mac",
     "pack:linux": "node scripts/local-commands.mjs pack-linux",
@@ -26,6 +26,7 @@
     "verify:upstream": "node scripts/verify-upstream.mjs"
   },
   "devDependencies": {
+    "concurrently": "10.0.6",
     "javascript-obfuscator": "5.9.0",
     "yaml": "^2.9.1"
   }

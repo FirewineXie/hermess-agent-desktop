@@ -63,8 +63,6 @@ if (command === 'deps') {
     run(interpreter, ['scripts/verify-payload.py', '--payload', payload])
   }
   console.log('依赖、开发环境和离线载荷已准备好')
-} else if (command === 'start') {
-  pnpm('--dir', 'apps/desktop', 'tauri', 'dev')
 } else if (target) {
   const [platform, arch] = target
   if (process.platform !== platform || (arch && process.arch !== arch) ||
@@ -75,5 +73,5 @@ if (command === 'deps') {
   const env = platform === 'darwin' ? { ...process.env, APPLE_SIGNING_IDENTITY: '-' } : process.env
   run(python(), ['scripts/build-offline-runtime.py', '--payload', payload, '--build'], { env })
 } else {
-  throw new Error('可用命令：pnpm deps、pnpm start、pnpm pack:win、pnpm pack:mac、pnpm pack:linux')
+  throw new Error('可用命令：pnpm deps、pnpm pack:win、pnpm pack:mac、pnpm pack:linux')
 }

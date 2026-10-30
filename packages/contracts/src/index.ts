@@ -345,6 +345,7 @@ export interface DesktopApi {
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
     commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    exportSession(scope: SessionScope, format: 'json' | 'md' | 'html', redact: boolean, filename?: string): Promise<string | null>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
     attachImageBytes(scope: SessionScope, contentBase64: string, name: string): Promise<PendingAttachment>

@@ -144,6 +144,7 @@ export const previewDesktopApi: DesktopApi = {
     async setReasoning() { throw previewOnly() },
     async commands() { throw previewOnly() },
     async executeCommand() { throw previewOnly() },
+    async exportSession() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },
     async attachFile() { throw previewOnly() },
     async attachImageBytes() { throw previewOnly() },

@@ -18,6 +18,12 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/approvals', 'OFF'), false)
   assert.equal(argumentTrigger('请使用 @skill 正文', 14), null)
   assert.deepEqual(argumentOptions(catalog, '/approvals'), ['status'])
+  assert.deepEqual(argumentOptions(catalog, '/retry'), [])
+  assert.equal(argumentAllowed(catalog, '/retry', ''), true)
+  assert.equal(argumentAllowed(catalog, '/retry', '2'), false)
+  assert.equal(argumentAllowed(catalog, '/compress', '--preview'), true)
+  assert.equal(argumentAllowed(catalog, '/compress', 'here 2 --preview'), true)
+  assert.equal(argumentAllowed(catalog, '/compress', 'here 2'), true)
 })
 
 test('desktop navigation does not suggest CLI-only mutations and mid-token completion consumes the suffix', () => {

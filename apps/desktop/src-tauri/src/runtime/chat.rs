@@ -121,11 +121,40 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .request("prompt.submit", prompt_submit_params(session_id, text))
-        .await
-        .map_err(Into::into)
+    let command = if text == "/retry" {
+        Some("retry")
+    } else if text == "/compress" || text.starts_with("/compress ") {
+        Some(
+            if text
+                .split_whitespace()
+                .any(|part| matches!(part, "--preview" | "--dry-run"))
+            {
+                "compress_preview"
+            } else {
+                "compress"
+            },
+        )
+    } else {
+        None
+    };
+    let scope = state.resolve_profile(&profile).await?;
+    let params = prompt_submit_params(session_id.clone(), text);
+    let operation = params["submission_id"].as_str().unwrap_or("").to_owned();
+    if let Some(command) = command {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("composer_submit_start operation={operation} command={command} profile={profile} session={session_id}"),
+        );
+    }
+    let result = scope.gateway.request("prompt.submit", params).await;
+    if let Some(command) = command {
+        let outcome = if result.is_ok() { "admitted" } else { "failed" };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("composer_submit_{outcome} operation={operation} command={command} profile={profile} session={session_id}"),
+        );
+    }
+    result.map_err(Into::into)
 }
 
 fn prompt_submit_params(session_id: String, text: String) -> Value {
