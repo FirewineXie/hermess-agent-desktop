@@ -41,3 +41,25 @@ test('/bg preserves uncertain input and opens the panel only after admission', a
   assert.equal(draft, '')
   assert.equal(opened, 1)
 })
+
+test('/bg explains why a task cannot start without changing the draft', async () => {
+  for (const [scopeValue, draft, hasAttachments, expected] of [
+    [null, '/bg 写一个文件', false, /先发送一条普通消息创建会话/],
+    [scope, '/bg', false, /输入任务内容/],
+    [scope, '/bg 写一个文件', true, /暂不支持附件/],
+  ]) {
+    let currentDraft = draft
+    let status = ''
+    let started = false
+    const accepted = await runBgCommand({
+      scope: scopeValue, draft, hasAttachments, inFlight: { current: false }, isCurrent: () => true,
+      language: 'zh-CN', start: async () => { started = true; return { status: 'accepted', taskId: 'bg_1' } },
+      setDraft: value => { currentDraft = typeof value === 'function' ? value(currentDraft) : value },
+      setStatus: value => { status = value }, onStarted: () => {}, describeError: String,
+    })
+    assert.equal(accepted, false)
+    assert.equal(started, false)
+    assert.equal(currentDraft, draft)
+    assert.match(status, expected)
+  }
+})

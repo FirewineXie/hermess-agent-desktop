@@ -16,8 +16,16 @@ export async function runBgCommand(options: {
 }) {
   const { scope, draft, hasAttachments, inFlight, isCurrent, language, start, setDraft, setStatus, onStarted, describeError } = options
   const prompt = draft.slice('/bg'.length).trim()
-  if (!scope || !prompt || hasAttachments) {
-    setStatus(language === 'zh-CN' ? '请在当前会话输入 /bg 任务内容，且不要附带文件。' : 'Use /bg prompt in a current session without attachments.')
+  if (!scope) {
+    setStatus(language === 'zh-CN' ? '请先发送一条普通消息创建会话，再在该会话中输入 /bg 任务内容。' : 'Send a regular message to create a session first, then enter /bg prompt in that session.')
+    return false
+  }
+  if (!prompt) {
+    setStatus(language === 'zh-CN' ? '请在 /bg 后输入任务内容。' : 'Enter a task after /bg.')
+    return false
+  }
+  if (hasAttachments) {
+    setStatus(language === 'zh-CN' ? '后台任务暂不支持附件，请移除附件后重试。' : 'Background tasks do not support attachments. Remove them and try again.')
     return false
   }
   if (inFlight.current) return false
