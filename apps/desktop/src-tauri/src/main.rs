@@ -177,6 +177,7 @@ fn main() {
             runtime::models::set_default_model,
             runtime::chat::resume_chat_session,
             runtime::chat::interrupt_chat_session,
+            runtime::composer_steer::steer_chat_session,
             runtime::chat::replay_chat_events
         ])
         .run(tauri::generate_context!())

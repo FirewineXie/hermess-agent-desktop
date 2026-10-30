@@ -339,6 +339,7 @@ export interface DesktopApi {
     deleteSession(scope: SessionScope & { keepView: boolean; viewSessionId: string }): Promise<{ deleted_ids: string[] }>
     submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
     interruptSession(scope: SessionScope): Promise<{ status: string }>
+    steerSession(scope: SessionScope, text: string): Promise<{ status: string; delivered?: boolean }>
     replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
     usage(scope: SessionScope): Promise<ChatUsage>
     reasoning(scope: ProfileScope | SessionScope): Promise<{ value?: string }>

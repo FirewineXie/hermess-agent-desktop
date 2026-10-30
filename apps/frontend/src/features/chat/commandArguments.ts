@@ -18,6 +18,7 @@ export function argumentAllowed(catalog: CommandCatalog, name: string, arg: stri
   if (name === '/agents') return !arg.trim()
   if (name === '/branch') return Array.from(arg.trim()).length <= 200
   if (name === '/undo') return !arg.trim() || /^[1-9]\d{0,2}(?: --confirm [0-9a-f-]{36})?$/.test(arg.trim())
+  if (name === '/steer') return !!arg.trim()
   const subcommands = catalog.commands[name]?.desktop_subcommands
   if (subcommands && !subcommands.includes(arg.trim().split(/\s+/)[0])) return false
   return name !== '/approvals' || arg.trim().toLowerCase() !== 'off'
@@ -31,6 +32,7 @@ export function argumentHint(catalog: CommandCatalog | null, name: string, langu
   if (name === '/agents') return language === 'zh-CN' ? '/agents 查看当前会话的子代理任务，不接受参数' : '/agents shows subagent tasks for this session and takes no arguments'
   if (name === '/branch') return language === 'zh-CN' ? '/branch [标题] 从当前会话创建分支并切换，标题可选' : '/branch [title] creates and opens a branch of this session; title is optional'
   if (name === '/undo') return language === 'zh-CN' ? '/undo [数量] 预览后确认回退会话消息；不恢复工作区文件' : '/undo [count] previews then rewinds session messages; workspace files are unchanged'
+  if (name === '/steer') return language === 'zh-CN' ? '/steer 内容 仅在当前回合运行时插入消息' : '/steer text sends guidance to the running turn'
   if (['/new', '/sessions', '/model', '/history', '/stop', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(name)) return language === 'zh-CN' ? name + ' 不接受参数，请在对应界面操作' : name + ' takes no arguments; use its desktop view'
   return catalog?.pairs.find(([key]) => key === name)?.[1] || ''
 }

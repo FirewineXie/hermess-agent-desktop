@@ -31,6 +31,8 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/branch', '探索新方向'), true)
   assert.equal(argumentAllowed(catalog, '/undo', '2'), true)
   assert.equal(argumentAllowed(catalog, '/undo', '0'), false)
+  assert.equal(argumentAllowed(catalog, '/steer', '补充要求'), true)
+  assert.equal(argumentAllowed(catalog, '/steer', ''), false)
 })
 
 test('desktop navigation does not suggest CLI-only mutations and mid-token completion consumes the suffix', () => {

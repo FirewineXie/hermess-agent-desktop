@@ -11,7 +11,7 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
   'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
   'codex-runtime', 'fast', 'personality',
-  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save',
 ])
 
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
@@ -69,6 +69,7 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/agents': ['查看当前会话的子代理与失败任务', 'View subagents and failed tasks for this session'],
       '/branch': ['从当前会话创建分支：/branch [标题]', 'Branch this session: /branch [title]'],
       '/undo': ['回退会话回合：/undo [数量]，先预览再确认', 'Undo session turns: /undo [count], preview before applying'],
+      '/steer': ['运行中插入消息：/steer 内容', 'Send guidance to the running turn: /steer text'],
     }
     const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]
     const modelDescription = name === '/model'

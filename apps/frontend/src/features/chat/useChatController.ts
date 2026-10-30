@@ -11,6 +11,7 @@ import { composeClarifyAnswer } from './clarifyAnswer'
 import { argumentAllowed, argumentHint as commandArgumentHint } from './commandArguments'
 import { runSaveCommand } from './saveCommand'
 import { useRetryRefresh } from './retryRefresh'
+import { runSteerCommand } from './steerCommand'
 
 type Options = {
   backend: BackendInfo | null
@@ -508,6 +509,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     if (quickInput && (draft.trim() || attachments.length || navigationBusyRef.current || sessionCreationRef.current)) return false
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
+    if (!quickInput && /^\/steer(?:\s|$)/.test(typed)) return runSteerCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, busy: turnBusy, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (typed === '/stop' && !attachments.length && !attachmentBusy) {
       if (sessionRef.current || submittingRef.current) await interruptSession()

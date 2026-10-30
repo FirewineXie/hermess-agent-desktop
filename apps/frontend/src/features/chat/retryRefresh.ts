@@ -13,5 +13,5 @@ export function useRetryRefresh(
     if (busy || navigationBusy || !backend || !owner.current) return
     pending.current = ''
     void resume(storedSession.current || sessionId, true, backend.replay_epoch || '', owner.current)
-  }, [busy, navigationBusy, backend?.replay_epoch, sessionId])
+  }, [busy, navigationBusy, backend?.replay_epoch, sessionId, pending.current])
 }

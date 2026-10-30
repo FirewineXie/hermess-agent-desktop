@@ -54,6 +54,12 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             named_id = named["session_id"]
             named_roster = await named_call("subagent.list", session_id=named_id)
             assert named_roster["subagents"] == [] and named_roster["delegations"] == [], named_roster
+            named_snapshot = await named_call("session.resume", session_id=named_id, source="desktop",
+                                              defer_history=True, omit_messages=True)
+            named_idle_steer = await rpc(named_ws, "session.steer", profile="reviewer", session_id=named_id,
+                                         execution_generation=named_snapshot["execution_generation"], text="UNSENT_STEER")
+            assert named_idle_steer.get("error", {}).get("message") != "profile_mismatch", named_idle_steer
+            assert "error" in named_idle_steer, named_idle_steer
             named_export = await named_call("session.export", session_id=named_id,
                                             format="md", redact=True)
             assert "_No messages found._" in named_export["content"], named_export
@@ -191,6 +197,40 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         stale_undo = await rpc(ws, "session.mutate", **(undo_params | {"request_id": "desktop-undo-stale"}))
         assert "error" in stale_undo, stale_undo
 
+        steer_session = await call("session.create", source="gui", request_id="desktop-steer-test",
+                                   cwd=str(home), toolsets=[])
+        steer_id = steer_session["session_id"]
+        idle = await call("session.resume", session_id=steer_id, source="desktop",
+                          defer_history=True, omit_messages=True)
+        assert idle["running"] is False, idle
+        idle_steer = await rpc(ws, "session.steer", session_id=steer_id,
+                               execution_generation=idle["execution_generation"], text="UNSENT_STEER")
+        assert "error" in idle_steer, idle_steer
+        await call("prompt.submit", session_id=steer_id, text="BLOCK_STARTED",
+                   submission_id="desktop-steer-prompt", clarify_batch=True)
+        try:
+            assert await asyncio.to_thread(peer.blocked.wait, 20), "model did not start"
+            running = await call("session.resume", session_id=steer_id, source="desktop",
+                                 defer_history=True, omit_messages=True)
+            assert running["running"] is True, running
+            steered = await call("session.steer", session_id=steer_id,
+                                 execution_generation=running["execution_generation"], text="STEER_NOW")
+            assert steered["status"] == "queued", steered
+            stale_steer = await rpc(ws, "session.steer", session_id=steer_id,
+                                    execution_generation=running["execution_generation"] + 1,
+                                    text="UNSENT_STEER")
+            assert "error" in stale_steer, stale_steer
+        finally:
+            peer.release.set()
+        for _ in range(100):
+            steered_history = await call("session.history", session_id=steer_id)
+            if any(row.get("role") == "user" and row.get("text") == "STEER_NOW"
+                   for row in steered_history["messages"]):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(steered_history)
+
         # A longer transcript must exercise the mutation path, not merely the short-session no-op.
         long_session = await call("session.create", source="gui", request_id="desktop-compress-long", cwd=str(home), toolsets=[])
         long_id = long_session["session_id"]
@@ -281,7 +321,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch and rewind passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch, rewind and steer passed")
 
 
 if __name__ == "__main__":

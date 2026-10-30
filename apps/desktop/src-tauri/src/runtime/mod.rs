@@ -7,6 +7,7 @@ mod composer_agents;
 mod composer_branch;
 mod composer_commands;
 mod composer_policy;
+pub mod composer_steer;
 mod composer_undo;
 pub mod config;
 mod config_document;

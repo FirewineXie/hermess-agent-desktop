@@ -116,7 +116,7 @@ if (!acceptedMethodsBlock) failures.push('runtime/profiles.rs: named Profile Gat
 const acceptedMethods = new Set([...(acceptedMethodsBlock || '').matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)].map(match => match[1]))
 // These modules use ProfiledGateway. Include literal branches that select a
 // method before calling request (for example, image.attach vs file.attach).
-for (const file of ['chat.rs', 'composer_commands.rs', 'composer_branch.rs', 'composer_undo.rs', 'session_export.rs', 'models.rs', 'browser_bridge.rs']) {
+for (const file of ['chat.rs', 'composer_commands.rs', 'composer_branch.rs', 'composer_undo.rs', 'composer_steer.rs', 'session_export.rs', 'models.rs', 'browser_bridge.rs']) {
   const source = readFileSync(resolve(runtimeDir, file), 'utf8')
   for (const [, method] of source.matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)) {
     if (!acceptedMethods.has(method)) failures.push(`runtime/${file}: Gateway method ${method} has no named Profile route`)

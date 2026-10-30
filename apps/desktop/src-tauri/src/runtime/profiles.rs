@@ -175,6 +175,7 @@ fn accepts_profile(method: &str) -> bool {
             | "session.resume"
             | "session.detach"
             | "session.interrupt"
+            | "session.steer"
             | "session.stats"
             | "session.export"
             | "session.mutate"
