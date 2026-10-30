@@ -33,6 +33,7 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         session_id = created["session_id"]
         catalog = await call("commands.catalog", session_id=session_id)
         assert any(name == "/agents" for name, _ in catalog["pairs"]), catalog
+        assert any(name == "/queue" for name, _ in catalog["pairs"]), catalog
         assert "pending" in catalog["commands"]["/skills"]["desktop_subcommands"], catalog
         assert catalog["sub"].get("/reasoning") or catalog["sub"].get("reasoning"), catalog.keys()
         # /agents uses this read-only, session-owned roster instead of CLI process output.
@@ -231,6 +232,54 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         else:
             raise AssertionError(steered_history)
 
+        peer.blocked.clear()
+        peer.release.clear()
+        queue_session = await call("session.create", source="gui", request_id="desktop-queue-test",
+                                   cwd=str(home), toolsets=[])
+        queue_id = queue_session["session_id"]
+        await call("prompt.submit", session_id=queue_id, text="BLOCK_STARTED",
+                   submission_id="desktop-queue-running", clarify_batch=True)
+        try:
+            assert await asyncio.to_thread(peer.blocked.wait, 20), "queue model did not start"
+            first = await call("prompt.submit", session_id=queue_id, text="QUEUE_FIRST",
+                               queued=True, submission_id="desktop-queue-first")
+            second = await call("prompt.submit", session_id=queue_id, text="QUEUE_SECOND",
+                                queued=True, submission_id="desktop-queue-second")
+            assert first["status"] == second["status"] == "queued", (first, second)
+            assert await call("prompt.submit", session_id=queue_id, text="QUEUE_FIRST",
+                              queued=True, submission_id="desktop-queue-first") == first
+            queue_snapshot = await call("session.resume", session_id=queue_id, source="desktop",
+                                        defer_history=True, omit_messages=True)
+            waiting = sorted((row for row in queue_snapshot["pending"] if row["status"] == "queued"),
+                             key=lambda row: row["sequence"])
+            assert [row["text"] for row in waiting] == ["QUEUE_FIRST", "QUEUE_SECOND"], waiting
+            assert all("replace" in row.get("controls", []) for row in waiting), waiting
+            replaced = await call("prompt.replace_queued", session_id=queue_id,
+                                  admission_id=first["admission_id"],
+                                  submission_id="desktop-queue-edit", text="QUEUE_REVISED")
+            assert replaced["admission_id"] != first["admission_id"], replaced
+            assert await call("prompt.replace_queued", session_id=queue_id,
+                              admission_id=first["admission_id"],
+                              submission_id="desktop-queue-edit", text="QUEUE_REVISED") == replaced
+            cancelled = await call("prompt.cancel", session_id=queue_id,
+                                   admission_id=second["admission_id"])
+            assert cancelled["status"] == "terminal" and cancelled["outcome"] == "cancelled", cancelled
+            assert await call("prompt.cancel", session_id=queue_id,
+                              admission_id=second["admission_id"]) == cancelled
+            after_queue = await call("session.resume", session_id=queue_id, source="desktop",
+                                     defer_history=True, omit_messages=True)
+            waiting = [row for row in after_queue["pending"] if row["status"] == "queued"]
+            assert len(waiting) == 1 and waiting[0]["admission_id"] == replaced["admission_id"], waiting
+            cleared = await call("prompt.cancel", session_id=queue_id,
+                                 admission_id=replaced["admission_id"])
+            assert cleared["outcome"] == "cancelled", cleared
+            stale_queue = await rpc(ws, "prompt.replace_queued", session_id=queue_id,
+                                    admission_id=first["admission_id"],
+                                    submission_id="desktop-queue-stale", text="NOT_ADMITTED")
+            assert "error" in stale_queue, stale_queue
+        finally:
+            peer.release.set()
+
         # A longer transcript must exercise the mutation path, not merely the short-session no-op.
         long_session = await call("session.create", source="gui", request_id="desktop-compress-long", cwd=str(home), toolsets=[])
         long_id = long_session["session_id"]
@@ -321,7 +370,7 @@ def main() -> None:
             peer.shutdown()
             peer.server_close()
             thread.join(timeout=5)
-    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch, rewind and steer passed")
+    print("Locked Gateway composer: catalog, agents, export, retry, compression, branch, rewind, steer and queue passed")
 
 
 if __name__ == "__main__":

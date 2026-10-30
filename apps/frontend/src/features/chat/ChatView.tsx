@@ -147,7 +147,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if ((!turnBusy || draft.trim() === '/stop' || /^\/steer(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
@@ -174,6 +174,8 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
         {turnBusy ? /^\/steer(?:\s|$)/.test(draft.trim())
           ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
+          : /^\/queue(?:\s|$)/.test(draft.trim())
+            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
           : <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
           : canContinue && !hasSubmission
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>

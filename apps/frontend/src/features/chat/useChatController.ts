@@ -12,6 +12,8 @@ import { argumentAllowed, argumentHint as commandArgumentHint } from './commandA
 import { runSaveCommand } from './saveCommand'
 import { useRetryRefresh } from './retryRefresh'
 import { runSteerCommand } from './steerCommand'
+import { runBusyQueueCommand } from './queueCommand'
+import { selectedWorkspacePath } from './sessionWorkspace'
 
 type Options = {
   backend: BackendInfo | null
@@ -32,10 +34,6 @@ type Options = {
   setBackend: (next: BackendInfo | null) => void
   setBackendStatus: React.Dispatch<React.SetStateAction<string>>
   setBusy: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-function selectedWorkspacePath(info?: ResumeResult['info']): string {
-  return info?.launch_request?.cwd_explicit === true ? info.cwd || info.launch_request.cwd || '' : ''
 }
 
 export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: Options) {
@@ -138,7 +136,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       if (data.seq <= (lastSeqRef.current[id] || 0)) return
       lastSeqRef.current[id] = data.seq
     }
-    if ((data.kind === 'reasoning.delta' || data.kind === 'reasoning.available') && typeof data.payload?.text === 'string') {
+    if (data.kind === 'message.start' && turnStartedAtRef.current == null) {
+      retryPendingRef.current = id
+      setTurnBusy(true)
+    } else if ((data.kind === 'reasoning.delta' || data.kind === 'reasoning.available') && typeof data.payload?.text === 'string') {
       setConversation(rows => appendReasoning(rows, data.payload.text as string, data.kind === 'reasoning.available', !assistantRef.current.trim()))
     } else if (data.kind === 'message.delta' && typeof data.payload?.text === 'string') {
       if (data.payload.text.trim()) setConversation(finishReasoning)
@@ -510,6 +511,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
     if (!quickInput && /^\/steer(?:\s|$)/.test(typed)) return runSteerCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, busy: turnBusy, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
+    if (!quickInput && turnBusy && /^\/queue(?:\s|$)/.test(typed)) return runBusyQueueCommand({ chat, scope: sessionRef.current ? sessionScope(sessionRef.current) : null, draft: typed, hasAttachments: !!attachments.length, inFlight: submittingRef, isCurrent: () => sessionRef.current === sessionId && sessionProfileRef.current === profile, language, setDraft, setStatus: setChatStatus, setConversation, onQueued: () => { retryPendingRef.current = sessionId }, describeError: cause => describeError(cause, language) })
     let text = [typed, ...refs].filter(Boolean).join('\n') || (attachments.length ? t("ui.please.see.attachment") : '')
     if (typed === '/stop' && !attachments.length && !attachmentBusy) {
       if (sessionRef.current || submittingRef.current) await interruptSession()
@@ -519,7 +521,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
-    if (slash && ['retry', 'compress', 'agents', 'branch', 'undo'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
+    if (slash && ['retry', 'compress', 'agents', 'branch', 'undo', 'queue'].includes(slash[1]) && !sessionRef.current) { setChatStatus(language === 'zh-CN' ? '当前没有可操作的会话。' : 'There is no current session for this command.'); return false }
     if (slash?.[1] === 'save') {
       if (turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return false
       if (attachments.length) { setChatStatus(t('ui.please.remove.the.attachment.first.when.executing.the.command')); return false }

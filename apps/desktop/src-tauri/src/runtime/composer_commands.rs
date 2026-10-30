@@ -53,6 +53,14 @@ pub(super) async fn execute(
                 command.strip_prefix("/undo").unwrap_or("").trim(),
             )
             .await
+        } else if command_name == "/queue" {
+            super::composer_queue::execute(
+                state,
+                &scope,
+                &session_id,
+                command.strip_prefix("/queue").unwrap_or("").trim(),
+            )
+            .await
         } else {
             scope
                 .gateway
