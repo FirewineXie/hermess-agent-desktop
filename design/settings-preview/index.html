@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermess 桌面设置效果预览</title>
+  <style>
+    :root { --ink:#111827; --muted:#58687d; --line:#e3e8ef; --blue:#1665e8; --blue-soft:#e4eefd; --frame:#f5f6f8; --panel:#f8fafc; --green:#2fb65d; }
+    * { box-sizing:border-box; }
+    html,body { height:100%; margin:0; }
+    body { font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif; color:var(--ink); background:var(--frame); font-size:14px; }
+    button,input,select { font:inherit; }
+    button { cursor:pointer; }
+    .app { display:grid; grid-template-columns:280px minmax(0,1fr); grid-template-rows:72px minmax(0,1fr); height:100vh; min-height:680px; }
+    .top { grid-column:1/-1; display:flex; align-items:center; gap:18px; padding:0 28px; background:var(--frame); }
+    .brand { display:flex; align-items:center; gap:11px; min-width:245px; font-size:19px; letter-spacing:-.03em; }
+    .mark { display:grid; place-items:center; width:33px; height:33px; border-radius:9px; background:var(--blue); color:#fff; font-size:21px; font-weight:750; line-height:1; }
+    .brand strong { font-weight:750; }
+    .brand small { color:#58687d; font-size:15px; font-weight:500; }
+    .location { display:flex; align-items:center; gap:10px; color:#344256; font-size:13px; }
+    .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); }
+    .top-spacer { flex:1; }
+    .top-text { border:0; background:transparent; color:#435269; padding:10px 7px; }
+    .top-text:hover { color:var(--blue); }
+    .top-icon { display:grid; place-items:center; width:36px; height:36px; border:0; background:transparent; color:#435269; }
+    .top-icon svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+    .top-icon.active { color:var(--blue); }
+    .global-sidebar { grid-column:1; grid-row:2; display:flex; flex-direction:column; min-height:0; padding:19px 15px 17px; background:var(--frame); }
+    .side-group { display:grid; gap:3px; }
+    .global-link { display:flex; align-items:center; gap:13px; width:100%; height:43px; padding:0 14px; border:0; border-radius:10px; background:transparent; color:#253247; text-align:left; font-size:14px; }
+    .global-link:hover { background:#eaf0f7; }
+    .global-link svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .side-label { margin:32px 13px 14px; padding-top:21px; border-top:1px solid #e0e5ec; color:#56667a; font-size:12px; font-weight:700; letter-spacing:.04em; }
+    .profile { display:flex; align-items:center; gap:10px; padding:10px 12px; color:#28364a; }
+    .avatar { display:grid; place-items:center; width:31px; height:31px; border-radius:50%; background:#e9eff7; color:#32547f; font-weight:700; }
+    .profile small { color:var(--muted); }
+    .profile-chat { margin-left:47px; padding:9px 0; color:#637087; font-size:13px; }
+    .sidebar-foot { margin-top:auto; display:flex; align-items:center; gap:9px; padding:13px 9px 0; border-top:1px solid #e0e5ec; color:#5e6d81; font-size:12px; }
+    .workspace { grid-column:2; grid-row:2; min-width:0; min-height:0; padding:0 8px 8px 0; }
+    .sheet { display:grid; grid-template-columns:205px minmax(0,1fr); height:100%; overflow:hidden; border:1px solid #e9edf2; border-radius:16px; background:#fff; }
+    .settings-nav { display:flex; flex-direction:column; min-width:0; min-height:0; padding:25px 11px 19px 16px; border-right:1px solid #edf0f4; }
+    .nav-title { padding:0 12px; color:#141d2b; font-size:22px; font-weight:720; letter-spacing:-.025em; }
+    .nav-caption { padding:5px 12px 16px; color:#58687d; font-size:13px; }
+    .nav-sep { height:1px; margin:8px 10px 12px; background:#edf0f4; }
+    .nav-item { display:flex; align-items:center; gap:10px; width:100%; min-height:40px; padding:8px 12px; border:0; border-radius:8px; background:transparent; color:#526176; text-align:left; }
+    .nav-item:hover { background:#f4f7fb; color:#1c2d46; }
+    .nav-item.active { background:var(--blue-soft); color:var(--blue); font-weight:680; }
+    .nav-item svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+    .nav-item .chev { margin-left:auto; color:#8d9bb0; font-size:17px; font-weight:400; }
+    .nav-bottom { margin-top:auto; }
+    .content { min-width:0; overflow:auto; padding:29px 42px 55px; }
+    .crumb { color:#5b6b80; font-size:13px; margin-bottom:18px; }
+    .heading { display:flex; align-items:flex-start; gap:20px; }
+    h1 { margin:0; font-size:27px; font-weight:730; letter-spacing:-.035em; line-height:1.25; }
+    .intro { margin:8px 0 0; color:#5b6b80; font-size:13px; line-height:1.55; }
+    .heading-actions { display:flex; align-items:center; gap:12px; margin-left:auto; }
+    .preview-chip { padding:6px 10px; border:1px solid #e2e8ef; border-radius:7px; color:#58687d; white-space:nowrap; font-size:12px; }
+    .scope { display:flex; align-items:center; gap:9px; margin:24px 0 21px; padding:10px 13px; background:#f7f9fc; border-radius:8px; color:#536279; font-size:13px; }
+    .scope strong { color:#263950; font-weight:650; }
+    .scope .scope-dot { width:6px; height:6px; border-radius:50%; background:var(--blue); }
+    .scope select { height:32px; min-width:150px; padding:0 30px 0 10px; border:1px solid #d6dee8; border-radius:7px; background:#fff; color:#263950; font-weight:650; }
+    .scope-note { margin-left:auto; color:#5d6b7e; font-size:13px; }
+    .tabs { display:flex; align-items:center; gap:27px; border-bottom:1px solid var(--line); margin-bottom:5px; }
+    .tab { position:relative; min-height:41px; padding:0 1px 13px; border:0; background:transparent; color:#65738a; font-size:13px; white-space:nowrap; }
+    .tab.active { color:#172638; font-weight:650; }
+    .tab.active:after { content:""; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:var(--blue); }
+    .setting-row { display:grid; grid-template-columns:minmax(155px,34%) minmax(0,1fr); gap:25px; padding:27px 0 29px; border-bottom:1px solid #edf0f3; }
+    .setting-row:last-child { border-bottom:0; }
+    .row-title { padding-top:6px; font-size:15px; font-weight:650; }
+    .row-desc { margin:8px 0 0; max-width:245px; color:#64738a; font-size:13px; line-height:1.62; }
+    .row-note { display:inline-block; margin-top:17px; padding:5px 8px; border-radius:5px; background:#f1f4f8; color:#58687d; font-size:11px; }
+    .panel { min-width:0; padding:17px 18px 18px; background:var(--panel); border-radius:12px; }
+    .form-grid { display:grid; grid-template-columns:1fr 1.35fr; gap:15px; }
+    .field { min-width:0; }
+    .field.full { grid-column:1/-1; }
+    .field label { display:block; margin-bottom:8px; color:#44546a; font-size:13px; font-weight:650; }
+    .field input,.field select { width:100%; height:39px; padding:0 11px; border:1px solid #dbe2ea; border-radius:8px; background:#fff; color:#2c3a4e; outline:none; }
+    .field input:focus,.field select:focus { border-color:#71a3fd; outline:2px solid #e5efff; outline-offset:1px; }
+    .panel-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:15px; color:#52647a; font-size:12px; }
+    .button { min-height:34px; padding:7px 14px; border:1px solid #d6dee8; border-radius:7px; background:#fff; color:#35506e; font-size:13px; font-weight:600; }
+    .button.primary { border-color:var(--blue); background:var(--blue); color:#fff; }
+    .mini-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:4px 0; }
+    .mini-row + .mini-row { border-top:1px solid #e8ecf2; margin-top:13px; padding-top:17px; }
+    .mini-row strong { display:block; font-size:13px; font-weight:650; }
+    .mini-row small { display:block; margin-top:4px; color:#66758c; font-size:12px; }
+    .mini-row select { width:160px; height:36px; border:1px solid #dbe2ea; border-radius:8px; background:#fff; color:#40516a; padding:0 10px; }
+    .inline-link { color:#145ed9; font-size:12px; font-weight:600; }
+    .toggle { width:31px; height:18px; padding:2px; border:0; border-radius:20px; background:#cbd4df; }
+    .toggle.on { background:var(--green); }
+    .toggle:after { content:""; display:block; width:14px; height:14px; border-radius:50%; background:#fff; transform:translateX(0); }
+    .toggle.on:after { transform:translateX(13px); }
+    .provider-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:21px 0 14px; }
+    .provider-toolbar strong { font-size:15px; }
+    .provider-toolbar span { margin-left:8px; color:#68778b; font-size:13px; }
+    .provider-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:14px; }
+    .provider-card { min-width:0; padding:17px; border:1px solid #e1e7ee; border-radius:12px; background:#fff; }
+    .provider-card.selected { border-color:#91add1; background:#f8fbff; }
+    .provider-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+    .provider-name { display:flex; align-items:center; gap:9px; min-width:0; }
+    .provider-name strong { overflow:hidden; font-size:15px; text-overflow:ellipsis; white-space:nowrap; }
+    .provider-mark { display:grid; place-items:center; width:27px; height:27px; flex:none; border-radius:7px; background:#eef3f9; color:#315c91; font-size:12px; font-weight:750; }
+    .provider-actions { display:flex; flex:none; align-items:center; gap:11px; }
+    .text-action { padding:3px 0; border:0; background:transparent; color:#245b9d; font-size:13px; font-weight:600; }
+    .provider-meta { margin:8px 0 12px 36px; overflow:hidden; color:#66758c; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+    .provider-state { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px; padding:8px 10px; border-radius:7px; background:#f3f6fa; color:#536279; font-size:13px; }
+    .provider-state strong { color:#253950; font-size:13px; }
+    .provider-models { display:grid; gap:6px; }
+    .model-row { display:flex; align-items:center; gap:10px; min-height:35px; padding:6px 9px; border:1px solid #e7ebf0; border-radius:7px; background:#fff; color:#34445a; font-size:13px; }
+    .model-row .model-id { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .model-row.current { border-color:#b9cce5; color:#173d70; font-weight:650; }
+    .model-badge { flex:none; padding:3px 6px; border-radius:4px; background:#edf4ff; color:#145ed9; font-size:11px; font-weight:600; }
+    .provider-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; color:#66758c; font-size:11px; }
+    .sync-icon { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-2px; }
+    .modal-backdrop { position:fixed; z-index:20; inset:0; display:none; place-items:center; padding:24px; background:rgba(17,24,39,.34); }
+    .modal-backdrop.open { display:grid; }
+    /* taste-skill-ignore: the sync dialog is a real modal overlay, not a resting panel. */
+    .sync-dialog { width:min(520px,100%); overflow:hidden; border:1px solid #dfe5ec; border-radius:14px; background:#fff; box-shadow:0 18px 50px rgba(16,29,48,.18); }
+    .dialog-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding:22px 23px 17px; }
+    .dialog-head h2 { margin:0; font-size:20px; letter-spacing:-.02em; }
+    .dialog-head p { margin:7px 0 0; color:#66758c; font-size:13px; line-height:1.5; }
+    .dialog-close { width:32px; height:32px; flex:none; border:0; border-radius:7px; background:transparent; color:#5d6b7e; font-size:22px; line-height:1; }
+    .dialog-body { padding:0 23px 21px; }
+    .sync-source { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:17px; padding:11px 13px; border-radius:8px; background:#f5f7fa; color:#58687d; font-size:13px; }
+    .sync-source strong { color:#27384d; }
+    .target-list { display:grid; gap:8px; margin-top:9px; }
+    .target-row { display:flex; align-items:center; gap:11px; min-height:46px; padding:9px 11px; border:1px solid #e4e9ef; border-radius:8px; }
+    .target-row input { width:17px; height:17px; }
+    .target-row span { display:grid; gap:2px; }
+    .target-row small { color:#66758c; font-size:12px; }
+    .sync-notice { margin:16px 0 0; color:#5b6b80; font-size:13px; line-height:1.65; }
+    .dialog-foot { display:flex; justify-content:flex-end; gap:9px; padding:15px 23px; border-top:1px solid #edf0f3; }
+    .content[data-page="gateway"] .tabs { gap:22px; }
+    @media(max-width:1100px){ .app{grid-template-columns:235px minmax(0,1fr)} .brand{min-width:204px} .sheet{grid-template-columns:185px minmax(0,1fr)} .content{padding:27px 25px 45px} .setting-row{grid-template-columns:180px minmax(0,1fr)} .form-grid{grid-template-columns:1fr} .field.full{grid-column:auto} .provider-grid{grid-template-columns:1fr} }
+    @media(max-width:900px){ .app{grid-template-columns:minmax(0,1fr)} .global-sidebar{display:none} .workspace{grid-column:1} .brand{min-width:0} }
+    @media(max-width:760px){ .app{display:block;min-height:100vh;height:auto}.top{height:58px;padding:0 16px}.brand{min-width:0;font-size:16px}.brand small,.location,.top-text{display:none}.global-sidebar{display:none}.workspace{height:calc(100vh - 58px);padding:0}.sheet{display:block;border:0;border-radius:0}.settings-nav{height:auto;padding:15px 16px;border-right:0;border-bottom:1px solid var(--line)}.nav-title{font-size:19px}.nav-caption{display:none}.nav-links{display:flex;gap:5px;overflow:auto;padding-top:10px}.nav-item{width:auto;flex:none;white-space:nowrap}.nav-item .chev,.nav-sep,.nav-bottom{display:none}.content{height:calc(100% - 95px);padding:23px 17px}.preview-chip{display:none}.heading{display:block}.heading-actions{margin:15px 0 0}.scope{align-items:flex-start;flex-wrap:wrap}.scope-note{width:100%;margin-left:15px}.tabs{gap:20px;overflow:auto}.setting-row{grid-template-columns:1fr;gap:14px;padding:23px 0}.row-desc{max-width:none}.row-note{margin-top:8px}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.provider-grid{grid-template-columns:1fr}.provider-toolbar{align-items:flex-start}.provider-card{padding:15px}.provider-heading{display:block}.provider-actions{margin:10px 0 0 36px}.sync-dialog{max-height:calc(100vh - 32px);overflow:auto}.dialog-foot{position:sticky;bottom:0;background:#fff} }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand"><span class="mark">H</span><strong>Hermess <small>Desktop</small></strong></div>
+      <div class="location"><span class="status-dot"></span>本地 · 已连接</div>
+      <div class="top-spacer"></div>
+      <button class="top-text" type="button">模型</button>
+      <button class="top-icon" type="button" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M9 19c-4 1-4-2-6-3m12 6v-3a3 3 0 0 0-1-2.5c3-.4 6-1.5 6-7A5.4 5.4 0 0 0 18.5 5 5 5 0 0 0 18.4 2S17 1.6 15 3a12 12 0 0 0-6 0C7 1.6 5.6 2 5.6 2a5 5 0 0 0-.1 3A5.4 5.4 0 0 0 4 9.5c0 5.5 3 6.6 6 7A3 3 0 0 0 9 19v3"/></svg></button>
+      <button class="top-text" type="button">更新</button>
+      <button class="top-icon active" type="button" aria-label="设置"><svg viewBox="0 0 24 24"><path d="M10 2h4l.6 2.1 1.8.7 1.9-1.1 2.8 2.8-1.1 1.9.7 1.8L23 11v4l-2.3.6-.7 1.8 1.1 1.9-2.8 2.8-1.9-1.1-1.8.7L14 23h-4l-.6-2.3-1.8-.7-1.9 1.1-2.8-2.8 1.1-1.9-.7-1.8L1 15v-4l2.3-.6.7-1.8-1.1-1.9 2.8-2.8 1.9 1.1 1.8-.7L10 2Z"/><circle cx="12" cy="13" r="3"/></svg></button>
+    </header>
+    <aside class="global-sidebar">
+      <div class="side-group">
+        <button class="global-link" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16v11H8l-4 3V6Z"/><path d="M12 9v6m-3-3h6"/></svg>新建会话</button>
+        <button class="global-link" type="button"><svg viewBox="0 0 24 24"><path d="M2 6h7l2 2h11v12H2V6Z"/></svg>工作区</button>
+        <button class="global-link" type="button"><svg viewBox="0 0 24 24"><path d="M12 2 5 6v7l7 4 7-4V6l-7-4Zm-7 11-3 3 10 6 10-6-3-3"/></svg>专家 · 技能 · 插件</button>
+        <button class="global-link" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>定时任务</button>
+        <button class="global-link" type="button"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 10h16M10 10v9"/></svg>工具与能力</button>
+      </div>
+      <div class="side-label">PROFILES</div>
+      <div class="profile"><span class="avatar">默</span><span>默认专家<br><small>本机 Profile</small></span></div>
+      <div class="profile-chat">会话列表</div>
+      <div class="sidebar-foot"><span class="status-dot"></span>Gateway 已连接</div>
+    </aside>
+    <main class="workspace">
+      <div class="sheet">
+        <nav class="settings-nav" aria-label="设置分类">
+          <div class="nav-title">设置</div>
+          <div class="nav-caption">应用与 Agent 配置</div>
+          <div class="nav-links">
+            <button class="nav-item active" type="button" data-target="model"><svg viewBox="0 0 24 24"><path d="M3 7 12 3l9 4-9 4-9-4Zm0 0v10l9 4 9-4V7M12 11v10"/></svg>模型<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="gateway"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9h10"/></svg>网关<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="notification"><svg viewBox="0 0 24 24"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5l-2 3ZM10 20h4"/></svg>通知<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="memory"><svg viewBox="0 0 24 24"><path d="M12 4c-3-2-7 0-7 4-3 1-3 5 0 6-1 4 3 6 6 4l1-2 1 2c3 2 7 0 6-4 3-1 3-5 0-6 0-4-4-6-7-4v12M8 9l3 2m5-2-3 2"/></svg>记忆与上下文<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="security"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v7c0 5 3 8 8 10 5-2 8-5 8-10V5l-8-3Zm-3 10 2 2 4-4"/></svg>安全<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="voice"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg>语音<span class="chev">›</span></button>
+            <button class="nav-item" type="button" data-target="advanced"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M9 4v4m6 2v4m-6 2v4"/></svg>高级<span class="chev">›</span></button>
+          </div>
+          <div class="nav-bottom"><div class="nav-sep"></div><button class="nav-item" type="button" data-target="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg>关于</button></div>
+        </nav>
+        <section class="content" id="content" data-page="model">
+          <div class="crumb">设置 / 模型</div>
+          <div class="heading"><div><h1>模型提供商</h1><p class="intro">管理当前 Profile 可用的提供商、凭据和模型目录。</p></div><div class="heading-actions"><span class="preview-chip">概念效果图 · 示例数据</span><button class="button primary" type="button">添加提供商</button></div></div>
+          <div class="scope"><span class="scope-dot"></span><span>当前 Profile</span><select aria-label="当前 Profile"><option>默认专家</option><option>编程助手</option><option>办公助手</option></select><span class="scope-note">提供商与凭据按 Profile 隔离</span></div>
+          <div class="tabs"><button class="tab active" type="button">提供商</button><button class="tab" type="button">主模型</button><button class="tab" type="button">回退模型</button><button class="tab" type="button">辅助模型</button><button class="tab" type="button">委派</button><button class="tab" type="button">MoA</button></div>
+          <div class="provider-toolbar"><div><strong>已配置的提供商</strong><span>3 个提供商 · 8 个模型</span></div><button class="button" type="button">刷新模型目录</button></div>
+          <div class="provider-grid">
+            <article class="provider-card selected">
+              <div class="provider-heading"><div class="provider-name"><span class="provider-mark">O</span><strong>OpenAI</strong></div><div class="provider-actions"><button class="text-action" type="button">编辑</button><button class="text-action" type="button" data-open-sync><svg class="sync-icon" viewBox="0 0 24 24"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg> 同步</button></div></div>
+              <div class="provider-meta">https://api.openai.com/v1</div>
+              <div class="provider-state"><span>认证状态 <strong>已配置</strong></span><span>主模型提供商</span></div>
+              <div class="provider-models"><div class="model-row current"><span class="model-id">gpt-5.2</span><span class="model-badge">当前主模型</span></div><div class="model-row"><span class="model-id">gpt-5-mini</span></div><div class="model-row"><span class="model-id">gpt-4.1</span></div></div>
+              <div class="provider-foot"><span>3 个模型</span><button class="text-action" type="button">添加模型</button></div>
+            </article>
+            <article class="provider-card">
+              <div class="provider-heading"><div class="provider-name"><span class="provider-mark">A</span><strong>Anthropic</strong></div><div class="provider-actions"><button class="text-action" type="button">编辑</button><button class="text-action" type="button" data-open-sync><svg class="sync-icon" viewBox="0 0 24 24"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg> 同步</button></div></div>
+              <div class="provider-meta">https://api.anthropic.com</div>
+              <div class="provider-state"><span>认证状态 <strong>已配置</strong></span><span>备用模型可用</span></div>
+              <div class="provider-models"><div class="model-row"><span class="model-id">claude-sonnet-4-5</span></div><div class="model-row"><span class="model-id">claude-opus-4-1</span></div></div>
+              <div class="provider-foot"><span>2 个模型</span><button class="text-action" type="button">添加模型</button></div>
+            </article>
+            <article class="provider-card">
+              <div class="provider-heading"><div class="provider-name"><span class="provider-mark">R</span><strong>OpenRouter</strong></div><div class="provider-actions"><button class="text-action" type="button">编辑</button><button class="text-action" type="button" data-open-sync><svg class="sync-icon" viewBox="0 0 24 24"><path d="M7 7h11l-3-3m3 3-3 3M17 17H6l3 3m-3-3 3-3"/></svg> 同步</button></div></div>
+              <div class="provider-meta">https://openrouter.ai/api/v1</div>
+              <div class="provider-state"><span>认证状态 <strong>已配置</strong></span><span>自定义 Endpoint</span></div>
+              <div class="provider-models"><div class="model-row"><span class="model-id">google/gemini-2.5-pro</span></div><div class="model-row"><span class="model-id">qwen/qwen3-235b</span></div><div class="model-row"><span class="model-id">deepseek/deepseek-r1</span></div></div>
+              <div class="provider-foot"><span>3 个模型</span><button class="text-action" type="button">添加模型</button></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="sync-modal" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+    <div class="sync-dialog">
+      <div class="dialog-head"><div><h2 id="sync-title">同步 OpenAI 到其他 Profile</h2><p>复制这个提供商的配置；不会修改目标 Profile 使用哪个模型。</p></div><button class="dialog-close" type="button" data-close-sync aria-label="关闭">×</button></div>
+      <div class="dialog-body">
+        <div class="sync-source"><span>来源 Profile</span><strong>默认专家</strong></div>
+        <strong>选择目标 Profile</strong>
+        <div class="target-list"><label class="target-row"><input type="checkbox" checked><span>编程助手<small>尚未配置 OpenAI</small></span></label><label class="target-row"><input type="checkbox"><span>办公助手<small>已存在同名提供商，确认后才能覆盖</small></span></label></div>
+        <p class="sync-notice">Endpoint、API 模式、模型目录和可迁移凭据将复制到目标 Profile。OAuth 或不可导出的凭据需要在目标 Profile 重新认证。</p>
+      </div>
+      <div class="dialog-foot"><button class="button" type="button" data-close-sync>取消</button><button class="button primary" type="button">同步到 1 个 Profile</button></div>
+    </div>
+  </div>
+  <script>
+    const pages = {
+      model: { title:'模型提供商', crumb:'模型', intro:'管理当前 Profile 可用的提供商、凭据和模型目录。' },
+      gateway: { title:'网关', crumb:'网关', intro:'管理本地运行时和外部连接。连接身份决定会话与配置的归属。' },
+      notification: { title:'通知', crumb:'通知', intro:'选择哪些事件使用系统通知，以及完成时的声音。' },
+      memory: { title:'记忆与上下文', crumb:'记忆与上下文', intro:'调整当前专家的持久记忆、上下文引擎和压缩策略。' },
+      security: { title:'安全', crumb:'安全', intro:'管理审批、隐私和检查点规则。' },
+      voice: { title:'语音', crumb:'语音', intro:'配置语音对话、转写与播报。' },
+      advanced: { title:'高级', crumb:'高级', intro:'调整运行参数、工具、终端与输出限制。' },
+      about: { title:'关于', crumb:'关于', intro:'查看客户端版本与更新信息。' }
+    };
+    const modelContent = document.querySelector('#content').innerHTML;
+    const switchPage = key => {
+      const target = pages[key]; if (!target) return;
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active',el.dataset.target===key));
+      const content = document.querySelector('#content'); content.dataset.page=key;
+      if (key==='model') { content.innerHTML=modelContent; bindModelActions(); return; }
+      const gateway = key==='gateway';
+      const rows = gateway ? [
+        ['当前连接','本地 Gateway 由当前客户端管理。远程连接只断开连接，不控制外部进程。','连接模式','本地（示例）','测试连接'],
+        ['本地运行时与存储','启动、探活、重连与停止仅作用于产品自有实例。','运行状态','未在效果图中连接真实服务','管理运行时'],
+        ['已保存连接','可按连接与 Profile 管理 URL、Cloud 或 SSH 来源。','连接列表','无示例连接','添加连接']
+      ] : [
+        ['配置分组',target.intro,'设置状态','等待真实运行时数据','查看详情'],
+        ['作用范围','配置项会标记设备、连接、Profile 或会话归属。','当前范围','默认专家（示例）','切换范围']
+      ];
+      content.innerHTML=`<div class="crumb">设置 / ${target.crumb}</div><div class="heading"><div><h1>${target.title}</h1><p class="intro">${target.intro}</p></div><span class="preview-chip">概念效果图 · 示例数据</span></div><div class="scope"><span class="scope-dot"></span>配置范围 <strong>${gateway?'当前客户端':'默认专家'}</strong><span>·</span><span>具体选项以运行时能力为准</span></div>${gateway?'<div class="tabs"><button class="tab active">连接</button><button class="tab">本地运行时</button><button class="tab">已保存连接</button><button class="tab">托管更新</button></div>':''}${rows.map(row=>`<div class="setting-row"><div><div class="row-title">${row[0]}</div><p class="row-desc">${row[1]}</p></div><div class="panel"><div class="mini-row"><div><strong>${row[2]}</strong><small>${row[3]}</small></div><button class="button" type="button">${row[4]}</button></div></div></div>`).join('')}`;
+    };
+    const syncModal = document.querySelector('#sync-modal');
+    const openSync = () => syncModal.classList.add('open');
+    const closeSync = () => { syncModal.classList.remove('open'); if (location.hash === '#sync') history.replaceState(null,'',location.pathname); };
+    const bindModelActions = () => document.querySelectorAll('[data-open-sync]').forEach(button => button.addEventListener('click',openSync));
+    bindModelActions();
+    document.querySelectorAll('[data-close-sync]').forEach(button => button.addEventListener('click',closeSync));
+    syncModal.addEventListener('mousedown',event => { if (event.target === syncModal) closeSync(); });
+    document.addEventListener('keydown',event => { if (event.key === 'Escape') closeSync(); });
+    if (location.hash === '#sync') openSync();
+    document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click',()=>switchPage(button.dataset.target)));
+    document.querySelector('.top-text').addEventListener('click',()=>switchPage('model'));
+  </script>
+</body>
+</html>

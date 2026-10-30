@@ -4,7 +4,7 @@ use super::models::{
     write_model_lists_file,
 };
 use super::payload::validate_payload;
-use super::{acquire_storage_lock, running_storage_matches};
+use super::{acquire_storage_lock, hermes_process_path, running_storage_matches};
 use super::{
     dev_backend_defaults, BackendInfo, BundledTool, BundledToolsInventory, GracefulRestartResult,
     PackedDefaults,
@@ -12,11 +12,27 @@ use super::{
 use crate::diagnostics::{
     append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
 };
+use crate::paths::CanonicalizePlain;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use uuid::Uuid;
+
+#[cfg(windows)]
+#[test]
+fn hermes_child_environment_uses_plain_windows_paths() {
+    let extended = std::path::Path::new(r"\\?\E:\Hermess Data\hermes-home");
+    let plain = hermes_process_path(extended);
+    assert_eq!(
+        plain,
+        std::path::PathBuf::from(r"E:\Hermess Data\hermes-home")
+    );
+    assert_eq!(
+        hermes_process_path(std::path::Path::new(r"\\?\UNC\host\share\hermes-home")),
+        std::path::PathBuf::from(r"\\host\share\hermes-home")
+    );
+}
 
 #[test]
 fn backend_info_serializes_contract_fields() {
@@ -58,7 +74,7 @@ fn runtime_defaults_and_tool_inventory_serialize_contract_fields() {
     let dev = dev_backend_defaults().unwrap();
     let build = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .unwrap()
         .join(".build");
     assert_eq!(
@@ -132,7 +148,10 @@ fn running_backend_rejects_a_different_storage_location() {
     let second = root.join("second");
     fs::create_dir_all(first.join("HermessAgentDesktop")).unwrap();
     fs::create_dir_all(&second).unwrap();
-    let running = first.join("HermessAgentDesktop").canonicalize().unwrap();
+    let running = first
+        .join("HermessAgentDesktop")
+        .canonicalize_plain()
+        .unwrap();
     assert!(running_storage_matches(&running, &first));
     assert!(!running_storage_matches(&running, &second));
     assert!(!running_storage_matches(&running, &root.join("missing")));

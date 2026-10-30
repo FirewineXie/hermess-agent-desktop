@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { activateWorkspaceEpoch } from '../../app/profile-scope/ProfileWorkspace'
+import { displayPath } from '../../shared/displayPath'
 
 type Options = {
   t: (key: string, ...values: unknown[]) => string
@@ -11,35 +12,11 @@ type Options = {
 }
 
 export function useRuntimeController({ t, onReset }: Options) {
-  const { nativeFiles, runtime, diagnostics, windowChrome } = useDesktop()
+  const { nativeFiles, runtime, diagnostics } = useDesktop()
   const language = useLanguage()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
-  const [debugMode, setDebugMode] = React.useState(false)
-  const [debugButtonVisible, setDebugButtonVisible] = React.useState(false)
-  React.useEffect(() => {
-    if (debugButtonVisible) return
-    let typed = ''
-    const revealDebugButton = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey ||
-        (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]'))) {
-        typed = ''
-        return
-      }
-      typed = event.key.length === 1 ? (typed + event.key.toLowerCase()).slice(-5) : ''
-      if (typed === 'debug') setDebugButtonVisible(true)
-    }
-    document.addEventListener('keydown', revealDebugButton)
-    return () => document.removeEventListener('keydown', revealDebugButton)
-  }, [debugButtonVisible])
-  const changeDebugMode = async (enabled: boolean) => {
-    await windowChrome.setFrontendDebugEnabled(enabled)
-    setDebugMode(enabled)
-  }
-  React.useEffect(() => {
-    void windowChrome.setFrontendDebugEnabled(false).catch(() => {})
-  }, [])
   const [backend, setBackendState] = React.useState<BackendInfo | null>(null)
   const [workspaceGeneration, setWorkspaceGeneration] = React.useState(0)
   const setBackend = (next: BackendInfo | null) => {
@@ -57,13 +34,13 @@ export function useRuntimeController({ t, onReset }: Options) {
         if (import.meta.env.DEV) {
           const defaults = await runtime.devDefaults()
           if (!active) return
-          setPythonPath(defaults.python_path)
-          setStoragePath(defaults.storage_path)
+          setPythonPath(displayPath(defaults.python_path))
+          setStoragePath(displayPath(defaults.storage_path))
           await startBackend(defaults.storage_path, defaults.python_path)
         } else {
           const defaults = await runtime.packedDefaults()
           if (!active) return
-          setStoragePath(defaults.storage_path)
+          setStoragePath(displayPath(defaults.storage_path))
           setStorageLocked(defaults.initialized)
           await startBackend(defaults.storage_path)
         }
@@ -100,7 +77,7 @@ export function useRuntimeController({ t, onReset }: Options) {
   async function chooseStoragePath() {
     try {
       const selected = await nativeFiles.choose({ directory: true, multiple: false, title: t("ui.choose.primary.storage.location") })
-      if (typeof selected === 'string') setStoragePath(selected)
+      if (typeof selected === 'string') setStoragePath(displayPath(selected))
     } catch (cause) { setBackendStatus(t("ui.failed.to.select.directory.arg", describeError(cause, language))) }
   }
 
@@ -173,7 +150,7 @@ export function useRuntimeController({ t, onReset }: Options) {
 
 
   return {
-    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, debugMode, debugButtonVisible, changeDebugMode,
+    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend, forceRestartBackend,
   }

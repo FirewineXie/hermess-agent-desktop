@@ -5,19 +5,21 @@ type Props = {
   choices: ComposerChoice[]
   activeChoice: number
   catalog: CommandCatalog | null
+  hint?: string
   error: string
   t: (key: string, ...values: unknown[]) => string
   onChoose: (choice: ComposerChoice) => void
 }
 
-export default function CommandSuggestions({ visible, choices, activeChoice, catalog, error, t, onChoose }: Props) {
+export default function CommandSuggestions({ visible, choices, activeChoice, catalog, error, hint, t, onChoose }: Props) {
   if (!visible) return null
   return <div className="composer-choices" role="listbox" aria-label={t('ui.commands.and.skills')}>
+    {hint && <p>{hint}</p>}
     {choices.map((choice, index) => <button key={choice.name} type="button" role="option" aria-selected={index === activeChoice}
       aria-disabled={!choice.available} className={`${index === activeChoice ? 'active' : ''} ${choice.available ? '' : 'unavailable'}`}
       onMouseDown={event => event.preventDefault()} onClick={() => onChoose(choice)}>
       <strong>{choice.name}</strong><span>{choice.description}</span><small>{choice.skill ? 'Skill · ' : ''}{choice.availability}</small>
     </button>)}
-    {!choices.length && <p>{error || (catalog ? t('ui.no.matching.commands.or.skills') : t('ui.loading.commands.and.skills'))}</p>}
+    {!choices.length && !hint && <p>{error || (catalog ? t('ui.no.matching.commands.or.skills') : t('ui.loading.commands.and.skills'))}</p>}
   </div>
 }

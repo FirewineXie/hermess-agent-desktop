@@ -1,15 +1,29 @@
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
 pub mod browser_bridge;
 pub mod channels;
 pub mod chat;
+mod composer_agents;
+pub mod composer_background;
+mod composer_branch;
+mod composer_commands;
+mod composer_policy;
+mod composer_queue;
+pub mod composer_side_question;
+pub mod composer_steer;
+mod composer_undo;
 pub mod config;
+mod config_document;
+pub mod delegation;
 pub mod downloadable_tools;
 pub mod extensions;
 mod gateway_control;
 mod helper_python;
+mod hermes_plugins;
 mod jobs;
 mod location;
 mod mcp_registry;
+pub mod memory_provider;
 pub mod models;
 mod modelscope;
 mod modelscope_mcp;
@@ -18,13 +32,18 @@ pub mod personal_files;
 pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
+mod product_skill;
 pub mod profile_data;
 mod profile_scope;
 pub mod profiles;
+pub mod provider_copy;
 #[cfg(windows)]
 mod retired_payload;
+pub mod security;
+pub mod session_export;
 pub mod tools;
 pub mod usage;
+pub mod workbuddy_import;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
 use crate::errors::DesktopFailure;
@@ -37,6 +56,7 @@ use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     process::Stdio,
@@ -60,6 +80,8 @@ pub struct BackendState(
     Mutex<Option<OwnedBackend>>,
     Mutex<()>,
     Mutex<Option<profile_scope::ProfileTopology>>,
+    Mutex<HashMap<(String, String, String), Value>>,
+    Mutex<()>,
 );
 
 struct OwnedBackend {
@@ -75,13 +97,14 @@ struct OwnedBackend {
     selected_profile: String,
     bundled_tools_root: Option<PathBuf>,
     disable_lazy_installs: bool,
+    exit_recorded: bool,
 }
 
 struct RestartDrainGuard(PathBuf);
 
 impl Drop for RestartDrainGuard {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        let _ = fs::remove_file(filesystem_path(&self.0));
     }
 }
 
@@ -132,7 +155,7 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
     }
     let product = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     let build = product.join(".build");
     let python = build.join("hermes-venv-i1").join(if cfg!(windows) {
@@ -147,6 +170,19 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
             .to_string_lossy()
             .into_owned(),
     })
+}
+
+fn hermes_process_path(path: &Path) -> PathBuf {
+    plain_path(path)
+}
+
+pub(crate) fn existing_client_log_storage(app: &AppHandle) -> Option<PathBuf> {
+    let selected = if cfg!(debug_assertions) {
+        PathBuf::from(dev_backend_defaults().ok()?.storage_path)
+    } else {
+        saved_storage_path(app).ok()??
+    };
+    crate::storage::product_storage(&selected).ok()
 }
 
 async fn ping(port: u16, token: &str) -> Result<(), String> {
@@ -244,11 +280,11 @@ pub async fn start_dev_backend(
         return Err("开发态后端启动仅在调试构建可用".into());
     }
     let python = PathBuf::from(python_path)
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::invalid_input())?;
     let product = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     if !python.starts_with(product.join(".build")) {
         return Err(DesktopFailure::invalid_input());
@@ -261,9 +297,15 @@ pub async fn start_dev_backend(
     if !hermes.is_file() {
         return Err(DesktopFailure::runtime_unavailable());
     }
-    launch_backend(app, &state, hermes, PathBuf::from(storage_path), false)
-        .await
-        .map_err(Into::into)
+    launch_backend(
+        app,
+        &state,
+        hermes,
+        plain_path(Path::new(&storage_path)),
+        false,
+    )
+    .await
+    .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -278,6 +320,7 @@ pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, Desktop
         None => app
             .path()
             .app_local_data_dir()
+            .map(|path| plain_path(&path))
             .map_err(|_| "无法定位默认数据目录".to_string())?,
     };
     Ok(PackedDefaults {
@@ -298,17 +341,18 @@ pub async fn start_packed_backend(
     let resource = app
         .path()
         .resource_dir()
+        .map(|path| plain_path(&path))
         .map_err(|_| "无法定位应用资源目录".to_string())?;
-    let selected = PathBuf::from(storage_path);
+    let selected = plain_path(Path::new(&storage_path));
     if let Some(saved) = saved_storage_path(&app)? {
         if !saved.exists() {
             return Err(DesktopFailure::runtime_unavailable());
         }
         if saved
-            .canonicalize()
+            .canonicalize_plain()
             .map_err(|_| "无法解析已选存储位置".to_string())?
             != selected
-                .canonicalize()
+                .canonicalize_plain()
                 .map_err(|_| "主要存储位置与已保存位置不一致".to_string())?
         {
             return Err(DesktopFailure::conflict());
@@ -326,7 +370,7 @@ pub async fn start_packed_backend(
     let hermes = validate_payload(&resource.join("runtime/payload"))?;
     if saved_storage_path(&app)?.is_none() {
         let resolved = selected
-            .canonicalize()
+            .canonicalize_plain()
             .map_err(|_| "无法解析主要存储位置".to_string())?;
         save_storage_path(&app, &resolved)?;
     }
@@ -352,18 +396,36 @@ async fn launch_backend(
     if let Some(info) = reuse_owned_backend(&mut owned, app.clone(), &selected).await? {
         return Ok(info);
     }
-    fs::create_dir_all(&selected).map_err(|_| "无法创建存储位置".to_string())?;
+    fs::create_dir_all(filesystem_path(&selected)).map_err(|_| "无法创建存储位置".to_string())?;
     let storage = selected
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法解析存储位置".to_string())?
         .join("HermessAgentDesktop");
-    fs::create_dir_all(storage.join("control")).map_err(|_| "无法创建产品控制目录".to_string())?;
+    fs::create_dir_all(filesystem_path(&storage.join("control")))
+        .map_err(|_| "无法创建产品控制目录".to_string())?;
     let storage = storage
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "无法解析产品存储目录".to_string())?;
     let storage_lock = acquire_storage_lock(&storage)?;
+    crate::diagnostics::set_client_log_storage(storage.clone());
     #[cfg(windows)]
-    powershell_tool::install(&storage)?;
+    {
+        let _ = append_client_event(&storage, "powershell_tool_install_start");
+        if let Err(error) = powershell_tool::install(&storage) {
+            let _ = append_client_event(
+                &storage,
+                &format!("powershell_tool_install_failed error={error}"),
+            );
+            return Err(error.into());
+        }
+        let _ = append_client_event(&storage, "powershell_tool_install_completed");
+    }
+    let _ = append_client_event(&storage, "product_skill_install_start");
+    if let Err(error) = product_skill::install(&storage) {
+        let _ = append_client_event(&storage, "product_skill_install_failed");
+        return Err(error.into());
+    }
+    let _ = append_client_event(&storage, "product_skill_install_completed");
     let _ = append_client_event(&storage, "backend_starting");
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let bundled_tools_root = hermes.parent().and_then(Path::parent).and_then(|root| {
@@ -373,11 +435,15 @@ async fn launch_backend(
     });
     let hermes_home = storage.join("hermes-home");
     let gateway_locks = storage.join("control").join("gateway-locks");
+    let gateway_home = hermes_process_path(&hermes_home);
     let mut command = tokio::process::Command::new(&hermes);
     command
         .args(["gateway", "run"])
-        .env("HERMES_HOME", &hermes_home)
-        .env("HERMES_GATEWAY_LOCK_DIR", &gateway_locks)
+        .env("HERMES_HOME", &gateway_home)
+        .env(
+            "HERMES_GATEWAY_LOCK_DIR",
+            hermes_process_path(&gateway_locks),
+        )
         .env("HERMES_DESKTOP", "1")
         .env("HERMESS_DESKTOP_PRIVATE_API", "1")
         .env("HERMES_DASHBOARD_SESSION_TOKEN", &token)
@@ -402,15 +468,18 @@ async fn launch_backend(
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let deadline = Instant::now() + Duration::from_secs(60);
     let (port, endpoint) = loop {
-        if child
+        if let Some(status) = child
             .try_wait()
             .map_err(|_| "后端进程状态读取失败".to_string())?
-            .is_some()
         {
+            let _ = append_client_event(
+                &storage,
+                &format!("ERROR backend_exited_before_ready status={status}"),
+            );
             return Err("后端在发布就绪状态前退出；请查看开发者诊断中的 Hermess 日志".into());
         }
         if hermes_home.join("gateway.lock").is_file() {
-            if let Some(found) = discover_owned_gateway(&hermes_home, pid).await? {
+            if let Some(found) = discover_owned_gateway(&gateway_home, pid).await? {
                 break found;
             }
         }
@@ -421,14 +490,17 @@ async fn launch_backend(
     };
     ping(port, &token).await?;
     verify_private_api(port, &token).await?;
-    if child
+    if let Some(status) = child
         .try_wait()
         .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
     {
+        let _ = append_client_event(
+            &storage,
+            &format!("ERROR backend_exited_after_auth status={status}"),
+        );
         return Err("后端在鉴权后退出".into());
     }
-    let ticket = mint_gateway_ticket(&hermes_home, &endpoint, pid).await?;
+    let ticket = mint_gateway_ticket(&gateway_home, &endpoint, pid).await?;
     let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
     let selected_profile =
         profiles::restore_selected_profile(&storage, &gateway, child.id(), port, &token).await;
@@ -447,6 +519,7 @@ async fn launch_backend(
         selected_profile,
         bundled_tools_root,
         disable_lazy_installs,
+        exit_recorded: false,
     });
     Ok(BackendInfo {
         port,
@@ -461,12 +534,7 @@ async fn reuse_owned_backend(
     selected: &Path,
 ) -> Result<Option<BackendInfo>, DesktopFailure> {
     if let Some(existing) = owned.as_mut() {
-        if existing
-            .child
-            .try_wait()
-            .map_err(|_| "进程状态读取失败".to_string())?
-            .is_none()
-        {
+        if backend_running(existing).map_err(DesktopFailure::from)? {
             if !running_storage_matches(&existing.storage, selected) {
                 return Err(DesktopFailure::conflict());
             }
@@ -491,8 +559,28 @@ async fn reuse_owned_backend(
     Ok(None)
 }
 
+fn backend_running(backend: &mut OwnedBackend) -> Result<bool, String> {
+    match backend
+        .child
+        .try_wait()
+        .map_err(|_| "后端进程状态读取失败".to_string())?
+    {
+        None => Ok(true),
+        Some(status) => {
+            if !backend.exit_recorded {
+                let _ = append_client_event(
+                    &backend.storage,
+                    &format!("ERROR backend_exited status={status}"),
+                );
+                backend.exit_recorded = true;
+            }
+            Ok(false)
+        }
+    }
+}
+
 fn running_storage_matches(storage: &Path, selected: &Path) -> bool {
-    selected.canonicalize().ok().as_deref() == storage.parent()
+    selected.canonicalize_plain().ok().as_deref() == storage.parent()
 }
 
 #[tauri::command]
@@ -501,12 +589,7 @@ pub async fn ping_backend(state: State<'_, BackendState>) -> Result<(), DesktopF
     let backend = owned
         .as_mut()
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    if backend
-        .child
-        .try_wait()
-        .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
-    {
+    if !backend_running(backend).map_err(DesktopFailure::from)? {
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
@@ -524,12 +607,7 @@ pub async fn reconnect_backend(
     let backend = owned
         .as_mut()
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    if backend
-        .child
-        .try_wait()
-        .map_err(|_| "后端进程状态读取失败".to_string())?
-        .is_some()
-    {
+    if !backend_running(backend).map_err(DesktopFailure::from)? {
         *owned = None;
         return Err(DesktopFailure::runtime_unavailable());
     }
@@ -659,10 +737,10 @@ pub async fn restart_backend_gracefully(
     }
     let mut stop = tokio::process::Command::new(&hermes);
     stop.args(["gateway", "stop"])
-        .env("HERMES_HOME", &home)
+        .env("HERMES_HOME", hermes_process_path(&home))
         .env(
             "HERMES_GATEWAY_LOCK_DIR",
-            storage.join("control").join("gateway-locks"),
+            hermes_process_path(&storage.join("control").join("gateway-locks")),
         )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -717,10 +795,13 @@ pub async fn stop_backend(
         {
             let mut stop = tokio::process::Command::new(&backend.hermes);
             stop.args(["gateway", "stop"])
-                .env("HERMES_HOME", backend.storage.join("hermes-home"))
+                .env(
+                    "HERMES_HOME",
+                    hermes_process_path(&backend.storage.join("hermes-home")),
+                )
                 .env(
                     "HERMES_GATEWAY_LOCK_DIR",
-                    backend.storage.join("control").join("gateway-locks"),
+                    hermes_process_path(&backend.storage.join("control").join("gateway-locks")),
                 )
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
@@ -759,3 +840,13 @@ pub async fn stop_backend(
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
+
+impl BackendState {
+    pub(crate) async fn owned_process_running(&self) -> bool {
+        self.0
+            .lock()
+            .await
+            .as_mut()
+            .is_some_and(|backend| backend_running(backend).unwrap_or(false))
+    }
+}

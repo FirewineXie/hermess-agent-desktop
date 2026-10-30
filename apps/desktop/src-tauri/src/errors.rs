@@ -3,7 +3,7 @@ use serde::Serialize;
 pub const SESSION_OWNER_UNKNOWN: &str = "session_owner_unknown";
 pub const SESSION_PROFILE_MISMATCH: &str = "session_profile_mismatch";
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DesktopFailure {
     kind: &'static str,
     code: &'static str,

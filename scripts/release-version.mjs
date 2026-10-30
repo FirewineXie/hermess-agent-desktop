@@ -39,7 +39,21 @@ function checkConfiguration() {
 function checkTag(tag) {
   if (!tagPattern.test(tag)) fail('tag must be vX.Y.Z or vX.Y.Z-rc.N (N >= 1)')
   const notes = readFileSync(file(`releases/${tag}.md`), 'utf8').trim()
-  if (notes.length < 50) fail(`release notes are too short: releases/${tag}.md`)
+  const upstream = JSON.parse(readFileSync(file('runtime/upstream.lock.json'), 'utf8'))
+  const sections = notes.replaceAll('\r\n', '\n').split(/\n## /).map(section => section.trim())
+  if (sections.length !== 4 || sections[0] !== `# Hermess Agent Desktop ${tag}` ||
+      !sections[1].startsWith('新增功能\n\n') ||
+      !sections[2].startsWith('修复问题\n\n') ||
+      !sections[3].startsWith('Hermes fork 版本\n\n')) {
+    fail(`release notes must contain only the three required sections: releases/${tag}.md`)
+  }
+  for (const section of sections.slice(1, 3)) {
+    if (!section.split('\n').slice(2).every(line => line.startsWith('- ') && line.length > 2)) {
+      fail(`release features and fixes must be bullet lists: releases/${tag}.md`)
+    }
+  }
+  const forkLine = `Hermes fork 版本\n\n- 基于 Hermes Agent ${upstream.tag}；fork ${upstream.branch}（${upstream.commit}）。`
+  if (sections[3] !== forkLine) fail(`release fork version differs from runtime/upstream.lock.json: releases/${tag}.md`)
   return tag.slice(1)
 }
 

@@ -1,4 +1,5 @@
 use crate::errors::DesktopFailure;
+use crate::paths::filesystem_path;
 use serde::{Deserialize, Serialize};
 #[cfg(windows)]
 use std::path::Path;
@@ -72,13 +73,13 @@ fn valid_value(value: u32) -> bool {
 fn policy_path(app: &AppHandle) -> Result<PathBuf, DesktopFailure> {
     app.path()
         .app_config_dir()
-        .map(|root| root.join("webview-cache.json"))
+        .map(|root| crate::paths::plain_path(&root).join("webview-cache.json"))
         .map_err(|_| DesktopFailure::operation_failed())
 }
 
 fn read_value(app: &AppHandle) -> Result<u32, DesktopFailure> {
     let path = policy_path(app)?;
-    let bytes = match fs::read(path) {
+    let bytes = match fs::read(filesystem_path(&path)) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(default_value()),
         Err(_) => return Err(DesktopFailure::operation_failed()),
@@ -109,10 +110,12 @@ pub fn set_webview_cache_settings(app: AppHandle, value: u32) -> Result<(), Desk
         return Err(DesktopFailure::invalid_input());
     }
     let path = policy_path(&app)?;
-    fs::create_dir_all(path.parent().ok_or_else(DesktopFailure::operation_failed)?)
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    fs::create_dir_all(filesystem_path(
+        path.parent().ok_or_else(DesktopFailure::operation_failed)?,
+    ))
+    .map_err(|_| DesktopFailure::operation_failed())?;
     fs::write(
-        path,
+        filesystem_path(&path),
         serde_json::to_vec(&SavedPolicy { schema: 1, value })
             .map_err(|_| DesktopFailure::operation_failed())?,
     )
@@ -160,15 +163,15 @@ fn now_seconds() -> u64 {
 fn marker_path(app: &AppHandle) -> Result<PathBuf, DesktopFailure> {
     app.path()
         .app_local_data_dir()
-        .map(|root| root.join("webview-cache-last-clear"))
+        .map(|root| crate::paths::plain_path(&root).join("webview-cache-last-clear"))
         .map_err(|_| DesktopFailure::operation_failed())
 }
 
 fn write_marker(path: &PathBuf, now: u64) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(filesystem_path(parent))?;
     }
-    fs::write(path, now.to_string())
+    fs::write(filesystem_path(path), now.to_string())
 }
 
 async fn maintain(app: &AppHandle) {
@@ -179,7 +182,7 @@ async fn maintain(app: &AppHandle) {
     }
     let Ok(marker) = marker_path(app) else { return };
     let now = now_seconds();
-    let last = fs::read_to_string(&marker)
+    let last = fs::read_to_string(filesystem_path(&marker))
         .ok()
         .and_then(|text| text.trim().parse::<u64>().ok());
     if cfg!(target_os = "macos") && last.is_none() {
@@ -198,7 +201,7 @@ async fn maintain(app: &AppHandle) {
         let Ok(local) = app.path().app_local_data_dir() else {
             return;
         };
-        let cache = local.join("EBWebView");
+        let cache = crate::paths::plain_path(&local).join("EBWebView");
         let limit = value as u64 * MIB;
         let Ok(Ok(over_limit)) =
             tokio::task::spawn_blocking(move || directory_exceeds_limit(&cache, limit)).await
@@ -219,7 +222,7 @@ async fn maintain(app: &AppHandle) {
 
 #[cfg(windows)]
 fn directory_exceeds_limit(root: &Path, limit: u64) -> std::io::Result<bool> {
-    let root_metadata = match fs::symlink_metadata(root) {
+    let root_metadata = match fs::symlink_metadata(filesystem_path(root)) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
@@ -230,9 +233,9 @@ fn directory_exceeds_limit(root: &Path, limit: u64) -> std::io::Result<bool> {
     let mut pending = vec![root.to_path_buf()];
     let mut total = 0u64;
     while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(directory)? {
+        for entry in fs::read_dir(filesystem_path(&directory))? {
             let entry = entry?;
-            let metadata = fs::symlink_metadata(entry.path())?;
+            let metadata = fs::symlink_metadata(filesystem_path(&entry.path()))?;
             if metadata.file_type().is_symlink() {
                 continue;
             }

@@ -80,7 +80,7 @@ HermessAgentDesktop/
 
 ### View、组件与状态
 
-`App` 只负责产品布局、页面导航和少量跨页面状态。现有五个页面分别成为 `ChatView`、`ModelSettingsView`、`AgentSettingsView`、`RuntimeView` 和 `ToolsView`。View 组合本功能组件，处理加载、空态和错误展示，并通过注入的能力接口触发用例；View 不直接导入 Tauri。
+`App` 只负责产品布局、页面导航和少量跨页面状态。页面按功能组合 `ChatView`、统一 `SettingsView`、`RuntimeView` 和 `ToolsView` 等视图；安全与高级配置使用 `ConfigurationSettings` 及 `useConfigEditor`，已删除独立 `AgentSettingsView` 和旧控制器。View 组合本功能组件，处理加载、空态和错误展示，并通过注入的能力接口触发用例；View 不直接导入 Tauri。
 
 功能组件放在所属功能目录，例如聊天的消息列表、输入框、附件队列、审批卡片和模型选择器，Agent 设置的配置树、字段编辑器与 YAML 编辑器。只有两个以上功能确实共用且语义一致的组件，才进入 `shared`。共享的是行为和表达，不以视觉相似为唯一依据。
 

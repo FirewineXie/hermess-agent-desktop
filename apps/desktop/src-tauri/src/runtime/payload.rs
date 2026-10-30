@@ -1,3 +1,4 @@
+use crate::paths::{filesystem_path, CanonicalizePlain};
 use serde_json::Value;
 use std::{
     fs,
@@ -19,7 +20,7 @@ fn expected_runtime_target() -> Result<&'static str, String> {
 }
 
 pub(super) fn validate_payload(payload: &Path) -> Result<PathBuf, String> {
-    let manifest = fs::read(payload.join("manifest.json"))
+    let manifest = fs::read(filesystem_path(&payload.join("manifest.json")))
         .map_err(|_| "发行资源缺少 Hermes 清单".to_string())?;
     let value: Value =
         serde_json::from_slice(&manifest).map_err(|_| "Hermes 清单格式无效".to_string())?;
@@ -45,10 +46,10 @@ pub(super) fn validate_payload(payload: &Path) -> Result<PathBuf, String> {
     }
     let launcher = payload.join(launcher);
     let real = launcher
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "内置 Hermes 启动器不存在".to_string())?;
     let root = payload
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| "内置运行时目录不存在".to_string())?;
     if !real.starts_with(root) {
         return Err("内置 Hermes 启动器越过资源目录".into());

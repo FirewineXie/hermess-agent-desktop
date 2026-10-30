@@ -99,7 +99,7 @@ if ([...profileDataSource.matchAll(/\.spawn\s*\(/g)].length !== 1 || !profileDat
 }
 
 const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
-const adapter = readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8')
+const adapter = [readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/adapter/errorLogging.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/quick-input.tsx'), 'utf8')].join('\n')
 const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')
 const registeredBlock = main.match(/generate_handler!\[([\s\S]*?)\]/)?.[1]
 if (!registeredBlock) failures.push('apps/desktop/src-tauri/src/main.rs: command registration not found')
@@ -116,7 +116,7 @@ if (!acceptedMethodsBlock) failures.push('runtime/profiles.rs: named Profile Gat
 const acceptedMethods = new Set([...(acceptedMethodsBlock || '').matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)].map(match => match[1]))
 // These modules use ProfiledGateway. Include literal branches that select a
 // method before calling request (for example, image.attach vs file.attach).
-for (const file of ['chat.rs', 'models.rs', 'browser_bridge.rs']) {
+for (const file of ['chat.rs', 'composer_commands.rs', 'composer_branch.rs', 'composer_undo.rs', 'composer_steer.rs', 'composer_queue.rs', 'composer_side_question.rs', 'composer_background.rs', 'session_export.rs', 'models.rs', 'browser_bridge.rs']) {
   const source = readFileSync(resolve(runtimeDir, file), 'utf8')
   for (const [, method] of source.matchAll(/"([a-z]+(?:\.[a-z_]+)+)"/g)) {
     if (!acceptedMethods.has(method)) failures.push(`runtime/${file}: Gateway method ${method} has no named Profile route`)
@@ -129,6 +129,9 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/runtime/mod.rs',
   ...readdirSync(runtimeDir).filter(name => name.endsWith('.rs')).map(name => `apps/desktop/src-tauri/src/runtime/${name}`),
   'apps/desktop/src-tauri/src/diagnostics.rs',
+  'apps/desktop/src-tauri/src/device.rs',
+  'apps/desktop/src-tauri/src/quick_input.rs',
+  'apps/desktop/src-tauri/src/notifications.rs',
   'apps/desktop/src-tauri/src/webview_cache.rs',
   'apps/desktop/src-tauri/src/updates.rs',
   'apps/desktop/src-tauri/src/panel_terminal.rs',
@@ -195,8 +198,8 @@ for (const entry of frontendSources) {
 
 const updates = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/updates.rs'), 'utf8')
 const nativeEventSources = [gateway, updates, ...nativeCommandFiles.map(file => readFileSync(resolve(root, file), 'utf8'))].join('\n')
-const emitted = new Set([...nativeEventSources.matchAll(/app\.emit\(\s*"([^"]+)"/g)].map(match => match[1]))
-const listened = new Set([...adapter.matchAll(/listenPayload(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
+const emitted = new Set([...nativeEventSources.matchAll(/app\s*\.emit(?:_to)?\(\s*(?:"(?:main|quick-input)",\s*)?"([^"]+)"/g)].map(match => match[1]))
+const listened = new Set([...adapter.matchAll(/(?:listenPayload|listen)(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
 if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')
 for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)
 for (const name of emitted) if (!listened.has(name)) failures.push(`native event has no adapter listener: ${name}`)

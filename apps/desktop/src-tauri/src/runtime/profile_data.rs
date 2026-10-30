@@ -1,5 +1,7 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use crate::paths::CanonicalizePlain;
+use crate::paths::{filesystem_path, plain_path};
 use serde::Serialize;
 use std::{
     fs,
@@ -32,33 +34,23 @@ pub struct ProfileDataEntry {
 }
 
 fn display_path(path: &Path) -> String {
-    let value = path.to_string_lossy();
-    #[cfg(windows)]
-    {
-        if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
-            return format!(r"\\{unc}");
-        }
-        if let Some(local) = value.strip_prefix(r"\\?\") {
-            return local.to_owned();
-        }
-    }
-    value.into_owned()
+    plain_path(path).to_string_lossy().into_owned()
 }
 
 fn checked_directory(home: &Path, storage: &Path, profile: &str) -> Result<String, DesktopFailure> {
     let root = storage
         .join("hermes-home")
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     let directory = home
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     let expected = if profile == "default" {
         root
     } else {
         root.join("profiles").join(profile)
     };
-    if directory != expected || !directory.is_dir() {
+    if directory != expected || !filesystem_path(&directory).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
     Ok(display_path(home))
@@ -81,7 +73,7 @@ fn list_directory(
     let mut checked = home.to_path_buf();
     for component in relative.components() {
         checked.push(component.as_os_str());
-        if fs::symlink_metadata(&checked)
+        if fs::symlink_metadata(filesystem_path(&checked))
             .map_err(|_| DesktopFailure::operation_failed())?
             .file_type()
             .is_symlink()
@@ -90,15 +82,15 @@ fn list_directory(
         }
     }
     let directory = checked
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     let root = home
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
-    if !directory.starts_with(root) || !directory.is_dir() {
+    if !directory.starts_with(root) || !filesystem_path(&directory).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
-    let mut entries = fs::read_dir(&directory)
+    let mut entries = fs::read_dir(filesystem_path(&directory))
         .map_err(|_| DesktopFailure::operation_failed())?
         .map(|entry| {
             let entry = entry.map_err(|_| DesktopFailure::operation_failed())?;

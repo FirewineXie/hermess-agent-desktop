@@ -11,7 +11,10 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:recovery": "node --experimental-strip-types --test tests/requestRecovery.test.mjs",
-    "test:profile-workspace": "node --experimental-strip-types --test tests/profileWorkspace.test.mjs"
+    "test:profile-workspace": "node --experimental-strip-types --test tests/profileWorkspace.test.mjs",
+    "test:memory-settings": "node --experimental-strip-types --test tests/memoryContextSettings.test.mjs",
+    "test:notifications": "node --experimental-strip-types --test tests/notificationPolicy.test.mjs",
+    "test:moa": "node --experimental-strip-types --test tests/moaModel.test.mjs"
   },
   "dependencies": {
     "@hermess/contracts": "workspace:*",
@@ -21,7 +24,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/qrcode": "1.5.5",

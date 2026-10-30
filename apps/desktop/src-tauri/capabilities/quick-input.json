@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-input",
+  "description": "快捷输入窗仅允许监听投递结果和隐藏自身",
+  "webviews": [
+    "quick-input"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-hide"
+  ]
+}

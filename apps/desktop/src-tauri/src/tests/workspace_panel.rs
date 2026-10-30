@@ -1,4 +1,7 @@
-use super::{list_workspace_panel_directory, read_workspace_panel_file, WorkspaceScope};
+use super::{
+    list_workspace_panel_directory, read_local_preview_html, read_workspace_panel_file,
+    WorkspaceScope,
+};
 use std::fs;
 use uuid::Uuid;
 
@@ -47,4 +50,18 @@ fn lists_immediate_children_with_folders_first() {
     )
     .is_err());
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn local_html_preview_requires_absolute_html_path() {
+    let root = std::env::temp_dir();
+    let path = root.join(format!("hermess-preview-{}.html", Uuid::new_v4()));
+    fs::write(&path, "<img src=\"data:image/png;base64,AAAA\">").unwrap();
+    assert!(read_local_preview_html("relative.html".into()).is_err());
+    assert!(
+        read_local_preview_html(root.join("missing.txt").to_string_lossy().into_owned()).is_err()
+    );
+    let result = read_local_preview_html(path.to_string_lossy().into_owned()).unwrap();
+    assert!(result.content.contains("data:image/png"));
+    fs::remove_file(path).unwrap();
 }

@@ -1,6 +1,14 @@
-use super::{is_served, live_served_profiles, roster_contains, scoped_params};
+use super::{is_served, live_served_profiles, roster_contains, scoped_params, valid_display_name};
 use serde_json::json;
 use std::fs;
+
+#[test]
+fn display_name_accepts_chinese_and_rejects_control_or_overlong_input() {
+    assert!(valid_display_name("公众号运营专家"));
+    assert!(!valid_display_name(""));
+    assert!(!valid_display_name("名字\n下一行"));
+    assert!(!valid_display_name(&"中".repeat(65)));
+}
 
 #[test]
 fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
@@ -15,6 +23,19 @@ fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
     assert_eq!(
         scoped_params("writer", "session.stats", json!({"session_id": "s"})).unwrap(),
         json!({"profile": "writer", "session_id": "s"})
+    );
+    assert_eq!(
+        scoped_params("writer", "session.active_list", json!({})).unwrap(),
+        json!({"profile": "writer"})
+    );
+    assert_eq!(
+        scoped_params(
+            "writer",
+            "session.detach",
+            json!({"session_id": "s", "subscription_id":"sub"})
+        )
+        .unwrap(),
+        json!({"profile": "writer", "session_id": "s", "subscription_id":"sub"})
     );
     assert_eq!(
         scoped_params("writer", "session.mutate", json!({"session_id": "s"})).unwrap(),
@@ -32,6 +53,15 @@ fn routes_profile_scoped_methods_without_changing_session_owned_methods() {
     assert_eq!(
         scoped_params("writer", "cron.manage", json!({"action": "list"})).unwrap(),
         json!({"action": "list", "profile": "writer"})
+    );
+    assert_eq!(
+        scoped_params(
+            "writer",
+            "clarify.lock",
+            json!({"request_id": "srq-1", "question_id": "q1", "answer": "choice"})
+        )
+        .unwrap(),
+        json!({"profile": "writer", "request_id": "srq-1", "question_id": "q1", "answer": "choice"})
     );
     assert!(scoped_params("writer", "unreviewed.method", json!({})).is_err());
     assert_eq!(

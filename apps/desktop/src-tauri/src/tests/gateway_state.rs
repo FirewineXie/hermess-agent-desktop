@@ -1,6 +1,6 @@
 use super::{
     prune_abandoned_rpc, register_owner, result_session_owners, validate_server_answer,
-    GatewayClient, PendingRpc,
+    GatewayClient, GatewayRequestError, PendingRpc,
 };
 use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -13,11 +13,11 @@ use tokio::{
 fn timed_out_calls_release_pending_capacity() {
     let mut pending = PendingRpc::new();
     for id in 0..64 {
-        let (reply, received) = oneshot::channel::<Result<Value, String>>();
+        let (reply, received) = oneshot::channel::<Result<Value, GatewayRequestError>>();
         pending.insert(id, ("session.resume", reply));
         drop(received);
     }
-    let (reply, _received) = oneshot::channel::<Result<Value, String>>();
+    let (reply, _received) = oneshot::channel::<Result<Value, GatewayRequestError>>();
     pending.insert(64, ("session.resume", reply));
     prune_abandoned_rpc(&mut pending);
     assert_eq!(pending.len(), 1);
@@ -101,6 +101,38 @@ fn answer_must_match_the_open_request_method_and_choices() {
         "srq-missing",
         "approval",
         &json!({"choice":"deny"}),
+        "s1"
+    )
+    .is_err());
+}
+
+#[test]
+fn canonical_approval_answer_uses_the_prompt_id_and_declared_choices() {
+    let requests = HashMap::from([(
+        "approval-1".to_string(),
+        (
+            "approval".to_string(),
+            json!({
+                "session_id":"s1",
+                "request_id":"approval-1",
+                "execution_generation":3,
+                "choices":["once","deny"]
+            }),
+        ),
+    )]);
+    assert!(validate_server_answer(
+        &requests,
+        "approval-1",
+        "approval",
+        &json!({"choice":"deny"}),
+        "s1"
+    )
+    .is_ok());
+    assert!(validate_server_answer(
+        &requests,
+        "approval-1",
+        "approval",
+        &json!({"choice":"always"}),
         "s1"
     )
     .is_err());

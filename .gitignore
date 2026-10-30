@@ -17,3 +17,9 @@ __pycache__/
 apps/desktop/src-tauri/gen/schemas/
 apps/desktop/src-tauri/icons/android/
 apps/desktop/src-tauri/icons/ios/
+.taste-skill/
+/design/**/*.png
+/design/**/*.jpg
+/design/**/*.jpeg
+/design/**/*.webp
+/design/**/*.gif

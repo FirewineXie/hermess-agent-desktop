@@ -105,7 +105,22 @@ pub(super) fn write_model_lists_file(
     if bytes.len() > 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    fs::write(file, bytes).map_err(|_| DesktopFailure::operation_failed())
+    let temporary = file.with_extension(format!("{}.tmp", Uuid::new_v4()));
+    let result = (|| {
+        use std::io::Write;
+        let mut pending = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        pending.write_all(&bytes)?;
+        pending.sync_all()?;
+        drop(pending);
+        fs::rename(&temporary, file)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map_err(|_| DesktopFailure::operation_failed())
 }
 
 #[tauri::command]
@@ -522,6 +537,117 @@ pub async fn delete_custom_endpoint(
     config_request_for_scope(&state, &scope, reqwest::Method::DELETE, &path, None).await
 }
 
+fn valid_moa_slot(value: &Value) -> bool {
+    let text = |key: &str, limit: usize| {
+        value
+            .get(key)
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty() && text.len() <= limit)
+    };
+    value.is_object()
+        && text("provider", 128)
+        && text("model", 256)
+        && value
+            .get("reasoning_effort")
+            .is_none_or(|effort| effort.as_str().is_some_and(|text| text.len() <= 64))
+        && value.get("enabled").is_none_or(Value::is_boolean)
+}
+
+fn valid_moa_preset(value: &Value) -> bool {
+    let temperature = |key: &str| {
+        value.get(key).is_some_and(|temperature| {
+            temperature.is_null()
+                || temperature
+                    .as_f64()
+                    .is_some_and(|number| (0.0..=2.0).contains(&number))
+        })
+    };
+    let references = value.get("reference_models").and_then(Value::as_array);
+    value.is_object()
+        && value.get("enabled").is_some_and(Value::is_boolean)
+        && value.get("aggregator").is_some_and(valid_moa_slot)
+        && temperature("aggregator_temperature")
+        && temperature("reference_temperature")
+        && matches!(
+            value
+                .get("degraded_reference_policy")
+                .and_then(Value::as_str),
+            Some("loud" | "silent")
+        )
+        && references.is_some_and(|slots| {
+            !slots.is_empty() && slots.len() <= 32 && slots.iter().all(valid_moa_slot)
+        })
+        && value.get("fanout").is_none_or(|fanout| {
+            fanout
+                .as_str()
+                .is_some_and(|text| !text.is_empty() && text.len() <= 64)
+        })
+        && value.get("reference_timeout").is_some_and(|timeout| {
+            timeout.is_null() || timeout.as_f64().is_some_and(|seconds| seconds > 0.0)
+        })
+}
+
+pub(super) fn valid_moa_config(config: &Value) -> bool {
+    let Some(presets) = config.get("presets").and_then(Value::as_object) else {
+        return false;
+    };
+    let named = |key: &str| {
+        config
+            .get(key)
+            .and_then(Value::as_str)
+            .is_some_and(|name| !name.is_empty() && name.len() <= 128 && presets.contains_key(name))
+    };
+    let active = config
+        .get("active_preset")
+        .and_then(Value::as_str)
+        .is_some_and(|name| name.is_empty() || name.len() <= 128 && presets.contains_key(name));
+    !presets.is_empty()
+        && presets.len() <= 64
+        && presets.iter().all(|(name, preset)| {
+            !name.is_empty()
+                && name.len() <= 128
+                && !name.chars().any(char::is_control)
+                && valid_moa_preset(preset)
+        })
+        && named("default_preset")
+        && active
+}
+
+#[tauri::command]
+pub async fn get_moa_config(
+    state: State<'_, BackendState>,
+    profile: String,
+) -> Result<Value, DesktopFailure> {
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::GET,
+        "/api/model/moa",
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn save_moa_config(
+    state: State<'_, BackendState>,
+    profile: String,
+    config: Value,
+) -> Result<Value, DesktopFailure> {
+    let encoded = serde_json::to_vec(&config).map_err(|_| DesktopFailure::invalid_input())?;
+    if encoded.len() > 512 * 1024 || !valid_moa_config(&config) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    config_request_to_profile(
+        &state,
+        &profile,
+        reqwest::Method::PUT,
+        "/api/model/moa",
+        Some(config),
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn check_model_runtime(
     state: State<'_, BackendState>,
@@ -533,6 +659,10 @@ pub async fn check_model_runtime(
         .await
         .map_err(Into::into)
 }
+
+#[cfg(test)]
+#[path = "tests/models.rs"]
+mod tests;
 
 #[tauri::command]
 pub async fn set_default_model(

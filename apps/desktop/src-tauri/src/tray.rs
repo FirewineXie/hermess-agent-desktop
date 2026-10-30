@@ -13,6 +13,11 @@ pub fn show_main_window(app: &AppHandle) {
 }
 
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    if window.label() == "quick-input" {
+        if let WindowEvent::Focused(false) = event {
+            let _ = window.hide();
+        }
+    }
     if let WindowEvent::CloseRequested { api, .. } = event {
         api.prevent_close();
         let _ = window.hide();
@@ -41,15 +46,20 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main_window(app),
             "quit" => {
+                crate::diagnostics::log_client_event("tray quit requested");
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let Ok(processes) = crate::process_manager::ProcessManager::current() else {
+                        crate::diagnostics::log_client_event(
+                            "ERROR tray quit: process manager unavailable",
+                        );
                         app.exit(1);
                         return;
                     };
                     if !processes.begin_shutdown() {
                         return;
                     }
+                    crate::device::shutdown(&app);
                     crate::panel_terminal::close_all_panel_terminals(
                         app.state::<crate::panel_terminal::TerminalState>(),
                     );
@@ -66,6 +76,11 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     if !remaining.is_empty() {
                         eprintln!("Force-closed remaining desktop processes: {remaining:?}");
                     }
+                    crate::diagnostics::log_client_event(if matches!(stopped, Ok(Ok(()))) {
+                        "tray quit completed"
+                    } else {
+                        "ERROR tray quit: backend stop failed or timed out"
+                    });
                     app.exit(if matches!(stopped, Ok(Ok(()))) { 0 } else { 1 });
                 });
             }

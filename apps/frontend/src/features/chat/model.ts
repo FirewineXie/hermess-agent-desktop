@@ -2,22 +2,41 @@ import type { CommandCatalog, ChatUsage } from '@hermess/contracts'
 export type { PendingAttachment, CommandCatalog, CommandResult, ResumeResult, ChatUsage } from '@hermess/contracts'
 import commandDescriptionsZh from '../../locales/app/command-descriptions.zh-CN.json'
 import { translateApp } from '../../i18n'
+import { argumentTrigger, argumentOptions } from './commandArguments'
 
-export type ComposerChoice = { name: string; description: string; skill: boolean; available: boolean; availability: string }
+export type ComposerChoice = { name: string; description: string; skill: boolean; available: boolean; availability: string; insertion?: string }
 export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'help', 'status', 'context', 'version', 'whoami', 'usage', 'insights', 'profile', 'diff',
   'memory', 'kanban', 'topup', 'suggestions', 'bundles', 'skills', 'title', 'goal', 'subgoal',
-  'loop', 'heartbeat', 'review', 'refine', 'debug', 'curator', 'login', 'autoprune',
-  'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'voice', 'approvals',
-  'codex-runtime', 'footer', 'busy', 'verbose', 'yolo', 'fast', 'personality',
-  'approve', 'deny', 'platforms', 'new', 'sessions', 'model',
+  'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
+  'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
+  'codex-runtime', 'fast', 'personality',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save', 'reload-mcp', 'reload-skills', 'browser',
+])
+export const DESKTOP_DEDICATED_COMMANDS = new Set(['/bg', '/journey'])
+export const DESKTOP_DENIED_COMMANDS = new Set([
+  '/rollback', '/bg', '/worktree', '/snapshot', '/export', '/import',
+  '/reload',
+  '/clear', '/redraw', '/prompt', '/statusbar', '/battery', '/timestamps', '/focus',
+  '/skin', '/indicator', '/palette', '/copy', '/paste', '/image', '/quit',
+  '/density', '/logs', '/mouse',
+  '/handoff', '/journey', '/pet', '/hatch', '/wake', '/subscription', '/update',
 ])
 
+export function deniedCommandNotice(name: string, language: 'zh-CN' | 'en-US'): string {
+  if (!DESKTOP_DENIED_COMMANDS.has(name) || DESKTOP_DEDICATED_COMMANDS.has(name)) return ''
+  if (name === '/rollback') return language === 'zh-CN'
+    ? '桌面端暂不支持 /rollback：文件恢复的安全预览与保护尚未完成。'
+    : 'The desktop app does not support /rollback yet: safe file restore preview and protection are incomplete.'
+  return language === 'zh-CN' ? `桌面端暂不支持 ${name}。` : `The desktop app does not support ${name} yet.`
+}
+
 export function commandSupported(catalog: CommandCatalog, name: string): boolean {
+  if (DESKTOP_DEDICATED_COMMANDS.has(name)) return true
+  if (DESKTOP_DENIED_COMMANDS.has(name)) return false
   if (Object.hasOwn(catalog.skills, name) || DESKTOP_GATEWAY_COMMANDS.has(name.slice(1))) return true
-  if (Object.hasOwn(catalog.plugin_commands || {}, name.slice(1))) return true
-  return Boolean(catalog.categories?.some(category =>
-    category.name === 'User commands' && category.pairs.some(([key]) => key === name)))
+  if (catalog.categories?.some(category => category.name === 'Plugin commands' && category.pairs.some(([key]) => key === name))) return true
+  return false
 }
 
 export function commandAvailability(catalog: CommandCatalog, name: string, language: 'zh-CN' | 'en-US'): string {
@@ -30,6 +49,8 @@ export function commandAvailability(catalog: CommandCatalog, name: string, langu
 
 export function composerTrigger(draft: string, caret: number) {
   const position = Math.min(Math.max(caret, 0), draft.length)
+  const argument = argumentTrigger(draft, position)
+  if (argument) return argument
   const match = /(^|\s)([\/@])([^\s]*)$/.exec(draft.slice(0, position))
   if (!match) return null
   const start = position - match[2].length - match[3].length
@@ -39,17 +60,49 @@ export function composerTrigger(draft: string, caret: number) {
 
 export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<ReturnType<typeof composerTrigger>>, language: 'zh-CN' | 'en-US'): ComposerChoice[] {
   const { prefix, query } = trigger
+  if ('command' in trigger) {
+    if (!commandSupported(catalog, trigger.command)) return []
+    return argumentOptions(catalog, trigger.command).filter(option => option.startsWith(query) && option !== query).map(option => ({
+      name: option, insertion: option, description: trigger.command, skill: false, available: true,
+      availability: translateApp(language, 'ui.available'),
+    }))
+  }
   return catalog.pairs.flatMap(([name, description]) => {
     const skill = Object.hasOwn(catalog.skills, name)
     if (prefix === '@' && !skill) return []
-    if (!name.slice(1).toLowerCase().includes(query.toLowerCase())) return []
+    if (prefix === '/' && skill) return []
+    if (!name.slice(1).toLowerCase().includes(query.toLowerCase()) || !commandSupported(catalog, name)) return []
     const localized = language === 'zh-CN' ? commandDescriptionsZh[name as keyof typeof commandDescriptionsZh] : undefined
+    const localDescriptions: Record<string, [string, string]> = {
+      '/history': ['打开当前专家的会话历史', 'Open session history for this Profile'],
+      '/resume': ['恢复会话：/resume 会话ID或完整名称；无参数打开历史', 'Resume: /resume ID or full title; no argument opens history'],
+      '/stop': ['停止当前会话任务', 'Stop the current session task'],
+      '/config': ['打开当前专家的完整配置页面', 'Open configuration for this Profile'],
+      '/tools': ['打开客户端工具页面', 'Open desktop tools'],
+      '/toolsets': ['查看当前专家的工具集配置', 'View toolset configuration for this Profile'],
+      '/cron': ['打开定时任务页面', 'Open scheduled tasks'],
+      '/plugins': ['打开扩展中心', 'Open Extension Hub'],
+      '/save': ['导出当前会话：/save json|md|html [文件名] [redact]', 'Export current session: /save json|md|html [filename] [redact]'],
+      '/retry': ['重新运行上一条用户请求', 'Retry the last user request'],
+      '/compress': ['压缩当前会话：/compress [here N | focus 主题] [--preview]', 'Compress current session: /compress [here N | focus topic] [--preview]'],
+      '/agents': ['查看当前会话的子代理与失败任务', 'View subagents and failed tasks for this session'],
+      '/branch': ['从当前会话创建分支：/branch [标题]', 'Branch this session: /branch [title]'],
+      '/undo': ['回退会话回合：/undo [数量]，先预览再确认', 'Undo session turns: /undo [count], preview before applying'],
+      '/steer': ['运行中插入消息：/steer 内容', 'Send guidance to the running turn: /steer text'],
+      '/queue': ['管理当前会话队列：/queue list|add|edit|rm|clear', 'Manage this session queue: /queue list|add|edit|rm|clear'],
+      '/btw': ['顺带提问：/btw 问题；主回合继续运行', 'Ask a side question: /btw question; main turn continues'],
+      '/reload-mcp': ['重连当前 Profile 的 MCP 服务器', 'Reconnect MCP servers for this profile'],
+      '/reload-skills': ['重扫当前会话可用的 Skill', 'Rescan skills for this session'],
+      '/browser': ['管理产品自有浏览器：connect|status|disconnect|use', 'Manage the product browser: connect|status|disconnect|use'],
+      '/journey': ['打开当前 Profile 的学习时间线', 'Open the learning timeline for this profile'],
+    }
+    const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]
     const modelDescription = name === '/model'
       ? translateApp(language, "ui.open.model.settings.saved.defaults.apply.to.new.sessions")
       : undefined
     return [{
       name: prefix === '@' ? `@${name.slice(1)}` : name,
-      description: modelDescription || localized || description,
+      description: localDescription || modelDescription || localized || description,
       skill,
       available: commandSupported(catalog, name),
       availability: commandAvailability(catalog, name, language),

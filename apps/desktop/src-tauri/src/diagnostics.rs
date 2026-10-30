@@ -1,11 +1,11 @@
 use crate::errors::DesktopFailure;
+use crate::paths::CanonicalizePlain;
 use crate::process_manager;
 use serde::Serialize;
 use std::{env, path::PathBuf, time::Duration};
 use tokio::{process::Command, time::timeout};
 
-#[tauri::command]
-pub async fn set_frontend_debug_enabled(
+pub async fn apply_frontend_debug(
     window: tauri::WebviewWindow,
     enabled: bool,
 ) -> Result<(), DesktopFailure> {
@@ -71,7 +71,7 @@ fn candidates(names: &[&str]) -> Vec<PathBuf> {
         for name in names {
             let candidate = directory.join(name);
             if candidate.is_file() {
-                if let Ok(real) = candidate.canonicalize() {
+                if let Ok(real) = candidate.canonicalize_plain() {
                     if !found.contains(&real) {
                         found.push(real);
                     }
@@ -281,6 +281,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::Path,
+    sync::{Mutex, OnceLock},
     time::SystemTime,
 };
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -297,6 +298,83 @@ pub(crate) fn append_client_event(storage: &Path, event: &str) -> Result<(), Str
         .map_err(|_| "无法写入客户端日志".to_string())?;
     writeln!(file, "{} {event}", now.format("%Y-%m-%d %H:%M:%S%.3f"))
         .map_err(|_| "无法写入客户端日志".to_string())
+}
+
+static CLIENT_LOG_STORAGE: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+
+pub(crate) fn set_client_log_storage(storage: PathBuf) {
+    if let Ok(mut current) = CLIENT_LOG_STORAGE.get_or_init(|| Mutex::new(None)).lock() {
+        *current = Some(storage);
+    }
+}
+
+pub(crate) fn log_client_event(event: &str) {
+    let storage = CLIENT_LOG_STORAGE
+        .get()
+        .and_then(|current| current.try_lock().ok())
+        .and_then(|current| current.clone());
+    if let Some(storage) = storage {
+        let _ = append_client_event(&storage, event);
+    }
+}
+
+pub(crate) fn install_panic_logger() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let storage = CLIENT_LOG_STORAGE
+            .get()
+            .and_then(|current| current.try_lock().ok())
+            .and_then(|current| current.clone());
+        if let Some(storage) = storage {
+            let location = info
+                .location()
+                .map(|location| {
+                    format!(
+                        "{}:{}:{}",
+                        location.file(),
+                        location.line(),
+                        location.column()
+                    )
+                })
+                .unwrap_or_else(|| "unknown".into());
+            let _ = append_client_event(&storage, &format!("ERROR rust_panic at {location}"));
+        }
+        previous(info);
+    }));
+}
+
+fn bounded_error_detail(detail: &str) -> String {
+    detail
+        .chars()
+        .take(2048)
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn record_client_error(source: String, detail: String) -> Result<(), DesktopFailure> {
+    if !matches!(
+        source.as_str(),
+        "frontend_error" | "unhandled_rejection" | "react_render_error" | "quick_input_error"
+    ) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let storage = CLIENT_LOG_STORAGE
+        .get()
+        .and_then(|current| current.lock().ok())
+        .and_then(|current| current.clone())
+        .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    append_client_event(
+        &storage,
+        &format!("ERROR {source}: {}", bounded_error_detail(&detail)),
+    )
+    .map_err(Into::into)
 }
 
 pub(crate) async fn capture_backend_output<R: tokio::io::AsyncRead + Unpin>(

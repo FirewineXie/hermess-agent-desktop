@@ -21,6 +21,26 @@ test('older text rows remain visible', () => {
     .filter(item => item.kind === 'message').map(item => item.text), ['旧问题', '旧回答'])
 })
 
+test('running restored turn is not marked complete by persisted assistant reasoning', () => {
+  const timeline = historyTimeline([
+    { role: 'user', text: '请选择文件名', timestamp: 10 },
+    { role: 'assistant', reasoning: 'I will call clarify.', timestamp: 13 },
+  ], true)
+  assert.equal(timeline[0].kind, 'message')
+  assert.equal(timeline[0].turnState, undefined)
+  assert.equal(timeline[0].duration, undefined)
+})
+
+test('reasoning without a final assistant answer never completes a restored turn', () => {
+  const timeline = historyTimeline([
+    { role: 'user', text: '请选择文件名', timestamp: 10 },
+    { role: 'assistant', reasoning: 'I will call clarify.', timestamp: 13 },
+  ])
+  assert.equal(timeline[0].kind, 'message')
+  assert.equal(timeline[0].turnState, undefined)
+  assert.equal(timeline[0].duration, undefined)
+})
+
 test('tools and reasoning previews do not end the expanded reasoning for a turn', () => {
   let timeline = [{ kind: 'message', role: 'user', text: '查找资料' }]
   timeline = appendReasoning(timeline, '先查资料')

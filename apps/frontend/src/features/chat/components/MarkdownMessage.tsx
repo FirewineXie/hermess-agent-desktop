@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import LocalPreview from './LocalPreview'
 
 const remarkPlugins = [remarkGfm]
 type Language = 'zh-CN' | 'en-US'
@@ -42,13 +43,27 @@ function CodeBlock({ children, language }: { children?: React.ReactNode; languag
 }
 
 function MarkdownMessage({ text, language }: { text: string; language: Language }) {
-  return <div className="markdown-body">
-    <ReactMarkdown remarkPlugins={remarkPlugins} skipHtml urlTransform={safeUrl} components={{
+  const parts: Array<{ kind: 'markdown'; value: string } | { kind: 'preview'; value: string }> = []
+  let markdown = ''
+  let fenced = false
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*```/.test(line)) fenced = !fenced
+    const directive = !fenced && line.trim().match(/^::preview\{file="([^"\r\n]+)"\}$/)
+    if (directive) {
+      if (markdown.trim()) parts.push({ kind: 'markdown', value: markdown })
+      parts.push({ kind: 'preview', value: directive[1] })
+      markdown = ''
+    } else markdown += `${line}\n`
+  }
+  if (markdown.trim()) parts.push({ kind: 'markdown', value: markdown })
+  return <div className="markdown-body">{parts.map((part, index) => part.kind === 'preview'
+    ? <LocalPreview key={`${index}-${part.value}`} path={part.value} language={language} />
+    : <ReactMarkdown key={index} remarkPlugins={remarkPlugins} skipHtml urlTransform={safeUrl} components={{
       a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
       img: ({ alt }) => <span className="markdown-image-alt">{language === 'zh-CN' ? `[图片：${alt || '未提供说明'}]` : `[Image: ${alt || 'no description'}]`}</span>,
       pre: ({ children }) => <CodeBlock language={language}>{children}</CodeBlock>,
       table: ({ children }) => <div className="markdown-table-scroll"><table>{children}</table></div>,
-    }}>{text}</ReactMarkdown>
+    }}>{part.value}</ReactMarkdown>)}
   </div>
 }
 

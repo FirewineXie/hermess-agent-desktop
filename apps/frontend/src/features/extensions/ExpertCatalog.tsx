@@ -4,12 +4,14 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { expertPresets, type ExpertPreset } from './expertPresets'
 import { keepFocusInside } from './dialogFocus'
+import WorkBuddyImportDialog from './WorkBuddyImportDialog'
 
 type CreateResult = { name: string; warnings?: string[]; served: boolean } | undefined
 type Props = {
   profiles: ProfilesSnapshot | null
   busy: boolean
   onCreate: (name: string, preset?: ProfilePresetSelection) => Promise<CreateResult>
+  onImport: (path: string, name: string, digest: string) => Promise<{ name: string; served: boolean } | undefined>
 }
 
 function availableName(base: string, profiles: ProfilesSnapshot | null) {
@@ -21,7 +23,7 @@ function availableName(base: string, profiles: ProfilesSnapshot | null) {
   }
 }
 
-export default function ExpertCatalog({ profiles, busy, onCreate }: Props) {
+export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Props) {
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const [chosen, setChosen] = React.useState<ExpertPreset | 'custom' | null>(null)
@@ -110,6 +112,7 @@ export default function ExpertCatalog({ profiles, busy, onCreate }: Props) {
         <h3>{zh ? '自定义专家' : 'Custom expert'}</h3>
         <p>{zh ? '创建不套用预设的新 Profile，之后再配置人格与能力。' : 'Create a new profile without a preset, then configure its personality and capabilities.'}</p>
         <button type="button" disabled={busy || submitting} onClick={event => open('custom', event.currentTarget)}>{zh ? '创建自定义专家' : 'Create custom expert'}</button>
+        <WorkBuddyImportDialog profiles={profiles} busy={busy || submitting} onImport={onImport} onNotice={setNotice} />
       </article>
     </div>
     {chosen && <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>

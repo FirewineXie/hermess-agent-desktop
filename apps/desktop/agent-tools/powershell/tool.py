@@ -16,6 +16,25 @@ _VERSION = re.compile(r"^(\d+)\.(\d+)(?:\.\d+){0,2}$")
 _MAX_OUTPUT_BYTES = 256 * 1024
 
 
+def _plain_windows_path(value: str) -> str:
+    value = value.replace("/", "\\")
+    if value.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + value[8:]
+    if value.startswith("\\\\?\\") and len(value) > 6 and value[5:7] == ":\\":
+        return value[4:]
+    return value
+
+
+_UTF8_DEFAULTS = """$__hermess_utf8 = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = $__hermess_utf8
+[Console]::OutputEncoding = $__hermess_utf8
+foreach ($__hermess_command in @('Get-Content', 'Set-Content', 'Add-Content',
+    'Out-File', 'Import-Csv', 'Export-Csv', 'Select-String')) {
+    $PSDefaultParameterValues["${__hermess_command}:Encoding"] = 'utf8'
+}
+"""
+
+
 def _candidates():
     override = os.environ.get("HERMESS_POWERSHELL_PATH")
     program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
@@ -31,7 +50,7 @@ def _candidates():
     for value in values:
         if not value:
             continue
-        path = Path(value)
+        path = Path(_plain_windows_path(value))
         key = str(path).casefold()
         if key not in seen and path.is_file():
             seen.add(key)
@@ -94,6 +113,8 @@ def execute(args: dict, *, task_id: str | None = None):
 
     workdir = (args.get("workdir") or (get_session_cwd(task_id) if task_id else None)
                or os.environ.get("TERMINAL_CWD") or os.getcwd())
+    if isinstance(workdir, str):
+        workdir = _plain_windows_path(workdir)
     if not isinstance(workdir, str) or not Path(workdir).is_absolute() or not Path(workdir).is_dir():
         return _result(error="workdir must be an existing absolute directory", exit_code=1)
     timeout = args.get("timeout", 120)
@@ -121,12 +142,13 @@ def execute(args: dict, *, task_id: str | None = None):
     if is_interrupted():
         return _result(error="Command was interrupted before it started", exit_code=130)
 
-    # A UTF-8 BOM lets Windows PowerShell 5.1 read non-ASCII script text.
-    # Files, rather than shell interpolation, preserve quotes and newlines.
+    # The BOM lets Windows PowerShell 5.1 read the source; the prelude makes
+    # text file input/output and captured process output UTF-8 by default.
+    # An explicit -Encoding on a command still takes precedence.
     with tempfile.TemporaryDirectory(prefix="hermess-powershell-") as scratch:
         script = Path(scratch) / "command.ps1"
         script.write_text(
-            command + "\n$__hermess_ok = $?\n"
+            _UTF8_DEFAULTS + command + "\n$__hermess_ok = $?\n"
             "if (-not $__hermess_ok) {\n"
             "  if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\n"
             "  exit 1\n}\n",

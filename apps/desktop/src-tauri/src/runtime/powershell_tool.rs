@@ -1,3 +1,4 @@
+use super::profile_scope::valid_profile_name;
 use serde_yaml::{Mapping, Value};
 use std::{fs, path::Path};
 
@@ -19,6 +20,64 @@ const FILES: [(&str, &[u8]); 3] = [
 
 pub(super) fn install(storage: &Path) -> Result<(), String> {
     let home = storage.join("hermes-home");
+    install_to_home(
+        &home,
+        &storage.join("control").join("powershell-tool-initialized"),
+    )?;
+    let profiles = home.join("profiles");
+    if profiles.is_dir() {
+        for entry in fs::read_dir(&profiles).map_err(|e| format!("无法读取 Profile 目录：{e}"))?
+        {
+            let entry = entry.map_err(|e| format!("无法读取 Profile：{e}"))?;
+            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if valid_profile_name(&name)
+                && name
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+                && entry
+                    .file_type()
+                    .map_err(|e| format!("无法检查 Profile：{e}"))?
+                    .is_dir()
+                && [
+                    "config.yaml",
+                    ".env",
+                    "SOUL.md",
+                    "profile.yaml",
+                    "auth.json",
+                    "state.db",
+                ]
+                .iter()
+                .any(|file| path.join(file).is_file() || path.join(file).is_symlink())
+                && !profiles.join(".deleted").join(name.as_ref()).exists()
+            {
+                install_to_home(&path, &path.join(".hermess-powershell-tool-initialized"))
+                    .map_err(|error| {
+                        format!("Profile {name} 的 PowerShell 工具部署失败：{error}")
+                    })?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn install_new_profile(home: &Path, name: &str) -> Result<(), String> {
+    if !valid_profile_name(name) {
+        return Err("Profile 名称无效，无法部署 PowerShell 工具".into());
+    }
+    let profile = home.join("profiles").join(name);
+    if !profile.is_dir() {
+        return Err("Profile 目录不存在，无法部署 PowerShell 工具".into());
+    }
+    install_to_home(
+        &profile,
+        &profile.join(".hermess-powershell-tool-initialized"),
+    )
+}
+
+fn install_to_home(home: &Path, marker: &Path) -> Result<(), String> {
     let directory = home.join("plugins").join(TOOL_ID);
     fs::create_dir_all(&directory).map_err(|e| format!("无法创建 PowerShell 工具目录：{e}"))?;
     for (name, expected) in FILES {
@@ -30,7 +89,6 @@ pub(super) fn install(storage: &Path) -> Result<(), String> {
 
     // Only the first product installation enables the tool. A later user opt-out
     // remains in effect across restarts and product upgrades.
-    let marker = storage.join("control").join("powershell-tool-initialized");
     if marker.exists() {
         return Ok(());
     }

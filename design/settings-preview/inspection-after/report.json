@@ -1,0 +1,1380 @@
+{
+ "url": "design/settings-preview/index.html",
+ "at": "2026-10-28T03:07:53.420Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.79
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 118,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 18,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 1.9,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 136,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "模型提供商",
+     "words": 1,
+     "lines": 1,
+     "size": 27,
+     "font": "Microsoft YaHei UI"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Microsoft YaHei UI",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      17,
+      19,
+      21,
+      22,
+      27
+     ],
+     "sizeCount": 10,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 27,
+      "vw": 1.9,
+      "font": "Microsoft YaHei UI",
+      "text": "模型提供商"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.01,
+     "centerShare": 0.1,
+     "smallText": 12
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f6f8",
+     "bodyBgHsl": {
+      "h": 220,
+      "s": 0.18,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 72,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#34445a",
+       "share": 0.18
+      },
+      {
+       "color": "#66758c",
+       "share": 0.16
+      },
+      {
+       "color": "#536279",
+       "share": 0.08
+      },
+      {
+       "color": "#111827",
+       "share": 0.08
+      },
+      {
+       "color": "#58687d",
+       "share": 0.07
+      }
+     ],
+     "button": {
+      "bg": "#e4eefd",
+      "hsl": {
+       "h": 216,
+       "s": 0.86,
+       "l": 0.94
+      },
+      "fg": "#1665e8"
+     },
+     "lowContrast": [
+      {
+       "text": "提供商与凭据按 Profile 隔离",
+       "ratio": 4.3,
+       "need": 4.5,
+       "size": 12,
+       "fg": "#68778b",
+       "bg": "#f7f9fc"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 3,
+     "radius": 7,
+     "height": 34,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "模型 ›",
+      "添加提供商",
+      "刷新模型目录"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div.sidebar-foot 250px",
+      "nav.settings-nav 205px",
+      "div.tabs 861px"
+     ],
+     "outlinedBoxes": 4,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 4,
+     "boxRadius": 12,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 411
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 15,
+     "right": 51
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "模型提供商",
+      "size": 27,
+      "top": 136,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 528,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.1,
+    "voidBox": {
+     "x": 0,
+     "y": 540,
+     "w": 540,
+     "h": 240
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#f5f6f8",
+    "sidebar": {
+     "w": 280,
+     "tag": "aside",
+     "links": 5,
+     "share": 0.19
+    },
+    "topbar": {
+     "h": 72
+    },
+    "canvas": {
+     "left": 17,
+     "right": 51
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 1.9,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 136,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 1,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 4,
+     "radii": [
+      [
+       12,
+       3
+      ],
+      [
+       16,
+       1
+      ]
+     ],
+     "heavyBorders": 1,
+     "borderSamples": [
+      "#91add1 on #f8fbff (2.22:1)"
+     ],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.6,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      19,
+      20,
+      22,
+      27
+     ]
+    },
+    "title": {
+     "text": "模型提供商",
+     "size": 27,
+     "top": 136
+    },
+    "colourShare": 0.005
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.96
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1024,
+     "screens": 1,
+     "words": 101,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 18,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 3.5,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 134,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "模型提供商",
+     "words": 1,
+     "lines": 1,
+     "size": 27,
+     "font": "Microsoft YaHei UI"
+    },
+    "headings": [
+     {
+      "text": "模型提供商",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 27,
+      "vw": 3.5,
+      "font": "Microsoft YaHei UI",
+      "weight": 730,
+      "tracking": -0.035,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.36,
+      "top": 134,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Microsoft YaHei UI",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      17,
+      19,
+      21,
+      22,
+      27
+     ],
+     "sizeCount": 10,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 27,
+      "vw": 3.5,
+      "font": "Microsoft YaHei UI",
+      "text": "模型提供商"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.11,
+     "smallText": 12
+    },
+    "eyebrows": [
+     {
+      "text": "设置 / 模型",
+      "above": "模型提供商",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 100
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f6f8",
+     "bodyBgHsl": {
+      "h": 220,
+      "s": 0.18,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 72,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#34445a",
+       "share": 0.21
+      },
+      {
+       "color": "#66758c",
+       "share": 0.18
+      },
+      {
+       "color": "#536279",
+       "share": 0.09
+      },
+      {
+       "color": "#111827",
+       "share": 0.09
+      },
+      {
+       "color": "#5b6b80",
+       "share": 0.07
+      }
+     ],
+     "button": {
+      "bg": "#e4eefd",
+      "hsl": {
+       "h": 216,
+       "s": 0.86,
+       "l": 0.94
+      },
+      "fg": "#1665e8"
+     },
+     "lowContrast": [
+      {
+       "text": "提供商与凭据按 Profile 隔离",
+       "ratio": 4.3,
+       "need": 4.5,
+       "size": 12,
+       "fg": "#68778b",
+       "bg": "#f7f9fc"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 3,
+     "radius": 7,
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "模型 ›",
+      "添加提供商",
+      "刷新模型目录"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 2,
+     "hairlineSamples": [
+      "nav.settings-nav 185px",
+      "div.tabs 523px"
+     ],
+     "outlinedBoxes": 4,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 4,
+     "boxRadius": 12,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 429
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 72,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1024,
+    "margins": {
+     "left": 17,
+     "right": 34
+    },
+    "sections": [
+     {
+      "sel": "article.provider-card.selected",
+      "tag": "article",
+      "top": 429,
+      "height": 289,
+      "words": 14,
+      "media": 0,
+      "middle": 233,
+      "heading": null,
+      "left": 229,
+      "right": 52,
+      "textLeft": 229,
+      "textRight": 52,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "article.provider-card",
+      "tag": "article",
+      "top": 732,
+      "height": 248,
+      "words": 12,
+      "media": 0,
+      "middle": 235,
+      "heading": null,
+      "left": 229,
+      "right": 52,
+      "textLeft": 229,
+      "textRight": 52,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "article.provider-card",
+      "tag": "article",
+      "top": 994,
+      "height": 289,
+      "words": 0,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": null,
+      "right": null,
+      "textLeft": null,
+      "textRight": null,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "模型提供商",
+      "size": 27,
+      "top": 134,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 211,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#f5f6f8",
+    "sidebar": {
+     "w": 185,
+     "tag": "nav",
+     "links": 8,
+     "share": 0.24
+    },
+    "topbar": {
+     "h": 72
+    },
+    "canvas": {
+     "left": 26,
+     "right": 34
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 3.5,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 134,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 3,
+     "firstScreen": 2,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 3,
+     "radii": [
+      [
+       12,
+       3
+      ]
+     ],
+     "heavyBorders": 1,
+     "borderSamples": [
+      "#91add1 on #f8fbff (2.22:1)"
+     ],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.6,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      19,
+      20,
+      22,
+      27
+     ]
+    },
+    "title": {
+     "text": "模型提供商",
+     "size": 27,
+     "top": 134
+    },
+    "colourShare": 0.009
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.96
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 844,
+     "screens": 1,
+     "words": 81,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 18,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 6.9,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 220,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "模型提供商",
+     "words": 1,
+     "lines": 1,
+     "size": 27,
+     "font": "Microsoft YaHei UI"
+    },
+    "headings": [
+     {
+      "text": "模型提供商",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 27,
+      "vw": 6.9,
+      "font": "Microsoft YaHei UI",
+      "weight": 730,
+      "tracking": -0.035,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.91,
+      "top": 220,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Microsoft YaHei UI",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      19,
+      21,
+      27
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 27,
+      "vw": 6.9,
+      "font": "Microsoft YaHei UI",
+      "text": "模型提供商"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.12,
+     "smallText": 11
+    },
+    "eyebrows": [
+     {
+      "text": "设置 / 模型",
+      "above": "模型提供商",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 186
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f6f8",
+     "bodyBgHsl": {
+      "h": 220,
+      "s": 0.18,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#ffffff",
+       "top": 58,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#f8fbff",
+       "top": 582,
+       "hsl": {
+        "h": 214,
+        "s": 1,
+        "l": 0.99
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#34445a",
+       "share": 0.23
+      },
+      {
+       "color": "#66758c",
+       "share": 0.2
+      },
+      {
+       "color": "#536279",
+       "share": 0.1
+      },
+      {
+       "color": "#111827",
+       "share": 0.1
+      },
+      {
+       "color": "#5b6b80",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#e4eefd",
+      "hsl": {
+       "h": 216,
+       "s": 0.86,
+       "l": 0.94
+      },
+      "fg": "#1665e8"
+     },
+     "lowContrast": [
+      {
+       "text": "提供商与凭据按 Profile 隔离",
+       "ratio": 4.3,
+       "need": 4.5,
+       "size": 12,
+       "fg": "#68778b",
+       "bg": "#f7f9fc"
+      }
+     ]
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 3,
+     "radius": 7,
+     "height": 40,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "模型",
+      "添加提供商",
+      "刷新模型目录"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 2,
+     "hairlineSamples": [
+      "nav.settings-nav 390px",
+      "div.tabs 356px"
+     ],
+     "outlinedBoxes": 3,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 3,
+     "boxRadius": 12,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 58,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 844,
+    "margins": {
+     "left": 17,
+     "right": 16
+    },
+    "sections": [
+     {
+      "sel": "article.provider-card.selected",
+      "tag": "article",
+      "top": 582,
+      "height": 316,
+      "words": 11,
+      "media": 0,
+      "middle": 70,
+      "heading": null,
+      "left": 43,
+      "right": 43,
+      "textLeft": 43,
+      "textRight": 43,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "article.provider-card",
+      "tag": "article",
+      "top": 912,
+      "height": 275,
+      "words": 0,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": null,
+      "right": null,
+      "textLeft": null,
+      "textRight": null,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "article.provider-card",
+      "tag": "article",
+      "top": 1201,
+      "height": 316,
+      "words": 0,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": null,
+      "right": null,
+      "textLeft": null,
+      "textRight": null,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "模型提供商",
+      "size": 27,
+      "top": 220,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 17,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#f5f6f8",
+    "sidebar": null,
+    "topbar": {
+     "h": 58
+    },
+    "canvas": {
+     "left": 17,
+     "right": -253
+    },
+    "hero": {
+     "text": "模型提供商",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 27,
+     "vw": 6.9,
+     "font": "Microsoft YaHei UI",
+     "weight": 730,
+     "tracking": -0.03,
+     "leading": 1.25,
+     "top": 220,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 2,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 4,
+     "radii": [
+      [
+       12,
+       3
+      ],
+      [
+       8,
+       1
+      ]
+     ],
+     "heavyBorders": 1,
+     "borderSamples": [
+      "#91add1 on #f8fbff (2.22:1)"
+     ],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.62,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      19,
+      20,
+      27
+     ]
+    },
+    "title": {
+     "text": "模型提供商",
+     "size": 27,
+     "top": 220
+    },
+    "colourShare": 0.014
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "contrast",
+   "width": 1440,
+   "message": "Low-contrast text: \"提供商与凭据按 Profile 隔离\" 4.3:1 needs 4.5:1",
+   "fix": "Darken or lighten the text colour.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "tiny-text",
+   "width": 1440,
+   "message": "60% of the text is under 13px.",
+   "fix": "Data and labels read at 13–14px; keep 11–12px for sublines and axis ticks.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "inspection-after/desktop-fold.jpg",
+   "pages": [
+    "inspection-after/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "inspection-after/tablet-fold.jpg",
+   "pages": [
+    "inspection-after/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "inspection-after/mobile-fold.jpg",
+   "pages": [
+    "inspection-after/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

@@ -1,45 +1,17 @@
 import React from 'react'
-import type { UpdateDownloadProgress } from '@hermess/contracts'
-import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
-import { defaultUpdateChannel, type UpdateChannel } from './updateRules'
 import type { UpdateStatus } from './useUpdateStatus'
 
-type Tab = 'license' | 'tools' | 'feedback' | 'update'
-const tabs: Tab[] = ['license', 'tools', 'feedback', 'update']
-export default function AboutView({ initialTab = 'license', updateTabRequest, updateStatus }: { initialTab?: Tab; updateTabRequest: number; updateStatus: UpdateStatus }) {
-  const { about } = useDesktop()
+type Tab = 'license' | 'tools' | 'feedback'
+const tabs: Tab[] = ['license', 'tools', 'feedback']
+export default function AboutView({ updateStatus }: { updateStatus: UpdateStatus }) {
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
-  const [tab, setTab] = React.useState<Tab>(initialTab)
-  React.useEffect(() => { setTab(initialTab) }, [initialTab, updateTabRequest])
+  const [tab, setTab] = React.useState<Tab>('license')
   const [copyState, setCopyState] = React.useState('')
-  const [updateError, setUpdateError] = React.useState('')
-  const [downloading, setDownloading] = React.useState(false)
-  const [downloadPath, setDownloadPath] = React.useState('')
-  const [progress, setProgress] = React.useState<UpdateDownloadProgress | null>(null)
-  const { info, infoError, effectiveChannel, changeChannel, lookup, lookupError, checking, checkUpdates, candidate } = updateStatus
-
-  React.useEffect(() => {
-    let active = true
-    let unsubscribe: (() => void) | undefined
-    void about.onDownloadProgress(value => { if (active) setProgress(value) })
-      .then(stop => { if (active) unsubscribe = stop; else stop() })
-      .catch(() => {})
-    return () => { active = false; unsubscribe?.() }
-  }, [about])
-
-  async function downloadUpdate() {
-    if (!candidate?.asset) return
-    setDownloading(true)
-    setProgress(null)
-    setDownloadPath('')
-    setUpdateError('')
-    try { setDownloadPath(await about.downloadUpdate(candidate.tagName, candidate.asset.id)) }
-    catch (cause) { setUpdateError(describeError(cause, language)) }
-    finally { setDownloading(false) }
-  }
+  const { info, infoError, effectiveChannel } = updateStatus
+  const isWindows = navigator.userAgent.includes('Windows')
   async function copyEnvironment() {
     if (!info) return
     const lines = [
@@ -81,7 +53,7 @@ export default function AboutView({ initialTab = 'license', updateTabRequest, up
     {tab === 'tools' && <div role="tabpanel" className="about-content">
       <h3>{t('ui.about.tab.tools')}</h3>
       <p>{t('ui.about.tools.explain')}</p>
-      <div className="about-card"><strong>Hermess PowerShell Tool</strong><p>{t('ui.about.tools.powershell')}</p></div>
+      {isWindows && <div className="about-card"><strong>Hermess PowerShell Tool</strong><p>{t('ui.about.tools.powershell')}</p></div>}
       <p>{t('ui.about.tools.system')}</p>
     </div>}
     {tab === 'feedback' && <div role="tabpanel" className="about-content">
@@ -93,32 +65,7 @@ export default function AboutView({ initialTab = 'license', updateTabRequest, up
       {copyState && <p role="status">{copyState}</p>}
       <small>{t('ui.about.copy.scope')}</small>
     </div>}
-    {tab === 'update' && <div role="tabpanel" className="about-content">
-      <h3>{t('ui.about.tab.update')}</h3>
-      <div className="about-card">
-        <p>{t('ui.about.version')}: <strong>{info?.version ?? '—'}</strong>{info && <span className="about-badge">{t(info.version === '0.0.0' ? 'ui.about.version.development' : `ui.about.version.${defaultUpdateChannel(info.version)}`)}</span>}</p>
-        <p>{t('ui.about.hermes.version')}: <strong>{info?.hermesVersion ?? '—'}</strong></p>
-        <label>{t('ui.about.channel.preference')}
-          <select value={effectiveChannel} disabled={info?.version === '0.0.0'} onChange={event => changeChannel(event.target.value as UpdateChannel)}>
-            <option value="stable">{t('ui.about.channel.stable')}</option>
-            <option value="rc">{t('ui.about.channel.rc')}</option>
-          </select>
-        </label>
-      </div>
-      <button type="button" disabled={!info || info.version === '0.0.0' || checking || downloading} onClick={() => { setUpdateError(''); setDownloadPath(''); void checkUpdates() }}>{checking ? t('ui.about.update.checking') : t('ui.about.check.update')}</button>
-      {lookup?.status === 'unavailable' && <p role="status">{t('ui.about.update.unavailable')}</p>}
-      {lookup?.status === 'available' && !candidate && <p role="status">{t('ui.about.update.none')}</p>}
-      {candidate?.asset && <div className="about-card">
-        <p>{t('ui.about.update.found', candidate.version)}</p>
-        <p><code className="about-monospace">{candidate.asset.name}</code> ({(candidate.asset.size / 1024 / 1024).toFixed(1)} MB)</p>
-        <button type="button" disabled={downloading || checking} onClick={() => void downloadUpdate()}>{downloading ? t('ui.about.update.downloading') : t('ui.about.update.download')}</button>
-      </div>}
-      {downloading && progress && progress.tagName === candidate?.tagName && <p role="status">{t('ui.about.update.progress', Math.floor(progress.downloaded / progress.total * 100))}</p>}
-      {downloadPath && <p role="status">{t('ui.about.update.saved', downloadPath)}</p>}
-      {lookupError !== null && <p role="alert">{describeError(lookupError, language)}</p>}
-      {updateError && <p role="alert">{updateError}</p>}
-      <small>{t('ui.about.update.rule')}</small>
-      <small>{t('ui.about.update.manual')}</small>
-    </div>}
+
+
   </section>
 }

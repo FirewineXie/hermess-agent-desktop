@@ -9,6 +9,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/errors.rs`：原生命令的稳定错误封套；已注册的可失败命令均返回该封套，内部 Gateway/文件/HTTP 错误仍逐步细分类别。
 - `src-tauri/src/diagnostics.rs`：本机工具探测与诊断日志。
 - `src-tauri/src/storage.rs`：产品存储位置校验。
+- `src-tauri/src/paths.rs`：产品 Windows 路径统一为普通盘符或 UNC 写法；深路径只在内部文件系统调用时临时使用扩展写法，不向进程、前端或持久化配置传出。macOS 与 Linux 保持原样。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/process_manager.rs`：桌面创建的产品进程统一登记、封闭新启动与按用途退出；`process_manager/windows.rs` 用 Job Object 管理进程树，`process_manager/macos.rs` 用独立进程组和随主程序退出的守护进程回收组内成员，尚不能约束主动脱组的后代。
 - `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
@@ -20,7 +21,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
 - `src-tauri/src/runtime/retired_payload.rs`：Windows 发行版在新 Gateway 就绪后后台清理安装目录中带相邻 `.owner` 标记的旧运行时；占用或中断时保留标记，后续启动重试。
-- `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，启动自有 Hermes 实例前部署并注册为 `powershell_execute`；使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。
+- `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，在自有 Hermes 根目录及各命名 Profile 中部署并启用 `powershell_execute`；各 Profile 首次部署后仍可自行禁用。工具注册到仅桌面会话启用的 `desktop_ui` 工具集，使其在延迟工具搜索开启时仍直接出现在模型工具列表中。执行时使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。工具启动的脚本让常用文本读写命令默认使用 UTF-8；PowerShell 5.1 写入 UTF-8 时会带 BOM，显式 `-Encoding` 仍优先。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - 新建聊天会话可接收工作区目录；Rust 在调用网关前要求该目录是本机已存在的绝对目录，并向 `session.create` 传递明确的 `cwd`。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
@@ -47,3 +48,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
 离线安装包和发布仍按根目录 [发行流程](../../docs/release-process.md) 构建；普通前端构建不等于原生窗口或安装包验收。
 
 `pnpm build` 会混淆桌面发行前端的 JavaScript，并检查产物未携带 source map；`pnpm tauri:dev` 的开发服务器仍使用可调试代码。Rust release 构建裁剪符号。Hermes 离线载荷按锁定提交原样归档，见 [发行流程](../../docs/release-process.md)。
+
+## 设备偏好与快捷输入
+
+宿主将设备偏好保存在产品应用配置目录的 `desktop-preferences.json`；全局快捷键由同一 Tauri 进程注册，独立输入窗通过一次性请求交给主聊天控制器。Windows/macOS 保持唤醒分别使用原生 Power Request/IOKit，不启动辅助进程。托盘退出先释放这些资源，再按既有进程管理顺序关闭产品进程。功能及验收限制见 [本批设置能力记录](../../docs/settings-models-desktop-capabilities.md)。

@@ -288,11 +288,31 @@ Function PageReinstall
   ; we are downgrading or not.
   ${If} $PassiveMode = 1
     ${If} $WixMode = 0
-    ${AndIf} $R0 = 1
-      Abort ; compatible NSIS upgrades keep the existing install for replacement
+      ${If} $R0 = -1
+        SetErrorLevel 1 ; a passive downgrade cannot be confirmed
+        Quit
+      ${EndIf}
+      Abort ; compatible NSIS upgrades and reinstalls replace the existing install
     ${EndIf}
     Call PageLeaveReinstall
   ${Else}
+    ; An NSIS install can replace its own older version without uninstalling it.
+    ; Keep confirmation for reinstalling the same version or overwriting a newer one.
+    ${If} $WixMode = 0
+      ${If} $R0 = 1
+        Abort
+      ${ElseIf} $R0 = 0
+        MessageBox MB_ICONQUESTION|MB_YESNO "$(hermessReinstallConfirm)" IDYES +2
+        Quit
+        Abort
+      ${ElseIf} $R0 = -1
+        !if "${ALLOWDOWNGRADES}" == "true"
+          MessageBox MB_ICONEXCLAMATION|MB_YESNO "$(hermessDowngradeConfirm)" IDYES +2
+          Quit
+          Abort
+        !endif
+      ${EndIf}
+    ${EndIf}
     nsDialogs::Create 1018
     Pop $R4
     ${IfThen} $(^RTL) = 1 ${|} nsDialogs::SetRTL $(^RTL) ${|}
@@ -512,6 +532,8 @@ FunctionEnd
 {{#each languages}}
 !insertmacro MUI_LANGUAGE "{{this}}"
 LangString choowHowToInstall 0 ""
+LangString hermessReinstallConfirm 0 "${PRODUCTNAME} ${VERSION} is already installed. Reinstall this version?"
+LangString hermessDowngradeConfirm 0 "A newer version of ${PRODUCTNAME} is installed. Overwrite it with the older version ${VERSION}?"
 {{/each}}
 !insertmacro MUI_RESERVEFILE_LANGDLL
 {{#each language_files}}

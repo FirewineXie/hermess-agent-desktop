@@ -1,9 +1,13 @@
 use super::BackendState;
 use crate::errors::DesktopFailure;
+use crate::gateway::GatewayRequestError;
+use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 use tauri::State;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Deserialize, Serialize)]
@@ -97,11 +101,11 @@ fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, Deskto
     let Some(path) = cwd.filter(|path| !path.trim().is_empty()) else {
         return Ok(None);
     };
-    let directory = PathBuf::from(&path);
-    if !directory.is_absolute() || !directory.is_dir() {
+    let directory = plain_path(PathBuf::from(&path).as_path());
+    if !directory.is_absolute() || !filesystem_path(&directory).is_dir() {
         return Err(DesktopFailure::invalid_input());
     }
-    Ok(Some(path))
+    Ok(Some(directory.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -117,14 +121,52 @@ pub async fn submit_chat_prompt(
     if text.trim().is_empty() || text.len() > 64 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .request(
-            "prompt.submit",
-            json!({"session_id":session_id,"text":text,"submission_id":Uuid::new_v4().to_string()}),
+    let command = if text == "/retry" {
+        Some("retry")
+    } else if text == "/compress" || text.starts_with("/compress ") {
+        Some(
+            if text
+                .split_whitespace()
+                .any(|part| matches!(part, "--preview" | "--dry-run"))
+            {
+                "compress_preview"
+            } else {
+                "compress"
+            },
         )
-        .await
-        .map_err(Into::into)
+    } else {
+        None
+    };
+    let scope = state.resolve_profile(&profile).await?;
+    let params = prompt_submit_params(session_id.clone(), text);
+    let operation = params["submission_id"].as_str().unwrap_or("").to_owned();
+    if let Some(command) = command {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("composer_submit_start operation={operation} command={command} profile={profile} session={session_id}"),
+        );
+    }
+    let result = scope.gateway.request("prompt.submit", params).await;
+    if let Some(command) = command {
+        let outcome = if result.is_ok() { "admitted" } else { "failed" };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("composer_submit_{outcome} operation={operation} command={command} profile={profile} session={session_id}"),
+        );
+    }
+    result.map_err(Into::into)
+}
+
+fn prompt_submit_params(session_id: String, text: String) -> Value {
+    json!({
+        "session_id": session_id,
+        "text": text,
+        "submission_id": Uuid::new_v4().to_string(),
+        // This client speaks hermes-gateway-v1. Declaring the canonical batch capability makes
+        // clarify use the server request card this desktop already handles instead of the
+        // messaging adapter's one-question-at-a-time path.
+        "clarify_batch": true
+    })
 }
 
 #[tauri::command]
@@ -133,37 +175,34 @@ pub async fn list_composer_commands(
     profile: String,
     session_id: String,
 ) -> Result<Value, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
-        return Err(DesktopFailure::invalid_input());
-    }
+    let params = composer_catalog_params(&session_id)?;
     let gateway = state.resolve_profile(&profile).await?.gateway;
     gateway
-        .request("commands.catalog", json!({"session_id": session_id}))
+        .request("commands.catalog", params)
         .await
         .map_err(Into::into)
+}
+
+pub(super) fn composer_catalog_params(session_id: &str) -> Result<Value, DesktopFailure> {
+    if session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(if session_id.is_empty() {
+        json!({})
+    } else {
+        json!({"session_id": session_id})
+    })
 }
 
 #[tauri::command]
 pub async fn execute_composer_command(
     state: State<'_, BackendState>,
+    browser_bridge: State<'_, super::browser_bridge::BrowserBridgeState>,
     profile: String,
     session_id: String,
     command: String,
 ) -> Result<Value, DesktopFailure> {
-    if session_id.is_empty() || session_id.len() > 256 {
-        return Err(DesktopFailure::invalid_input());
-    }
-    if !command.starts_with('/') || command.len() > 64 * 1024 {
-        return Err(DesktopFailure::invalid_input());
-    }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .request(
-            "slash.exec",
-            json!({"session_id": session_id, "command": command}),
-        )
-        .await
-        .map_err(Into::into)
+    super::composer_commands::execute(&state, &browser_bridge, profile, session_id, command).await
 }
 
 #[tauri::command]
@@ -214,10 +253,11 @@ fn inspect_attachment_path(
     if !source.is_absolute() {
         return Err(DesktopFailure::invalid_input());
     }
-    let source = source
-        .canonicalize()
+    let source = filesystem_path(&source)
+        .canonicalize_plain()
         .map_err(|_| "无法读取附件路径".to_string())?;
-    let metadata = fs::metadata(&source).map_err(|_| "无法读取附件信息".to_string())?;
+    let metadata =
+        fs::metadata(filesystem_path(&source)).map_err(|_| "无法读取附件信息".to_string())?;
     if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 20 * 1024 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
@@ -239,7 +279,7 @@ fn inspect_attachment_path(
         Some("txt" | "md" | "json" | "yaml" | "yml" | "csv" | "tsv" | "py" | "js" | "ts" | "rs")
     );
     let preview = if is_text && metadata.len() <= 128 * 1024 {
-        fs::read_to_string(&source)
+        fs::read_to_string(filesystem_path(&source))
             .ok()
             .map(|content| content.chars().take(1000).collect::<String>())
     } else {
@@ -288,6 +328,45 @@ pub async fn attach_chat_file(
 }
 
 #[tauri::command]
+pub async fn attach_chat_image_bytes(
+    state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
+    content_base64: String,
+    name: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 || name.is_empty() || name.len() > 128 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    // Keep the desktop attachment limit aligned with path-based attachments.
+    if content_base64.is_empty() || content_base64.len() > 28 * 1024 * 1024 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let image = base64::engine::general_purpose::STANDARD
+        .decode(&content_base64)
+        .map_err(|_| DesktopFailure::invalid_input())?;
+    if image.is_empty() || image.len() > 20 * 1024 * 1024 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let gateway = state.resolve_profile(&profile).await?.gateway;
+    let result = gateway
+        .request(
+            "image.attach_bytes",
+            json!({"session_id": session_id, "content_base64": content_base64, "filename": name}),
+        )
+        .await?;
+    if result.get("attached").and_then(Value::as_bool) != Some(true)
+        || result.get("path").and_then(Value::as_str).is_none()
+    {
+        return Err("后端未接受图片附件".into());
+    }
+    Ok(
+        json!({"kind": "image", "name": name, "source_path": "clipboard",
+        "bytes": image.len(), "path": result.get("path")}),
+    )
+}
+
+#[tauri::command]
 pub async fn detach_chat_image(
     state: State<'_, BackendState>,
     profile: String,
@@ -322,7 +401,7 @@ pub async fn answer_gateway_request(
     choice: Option<String>,
     answers: Option<serde_json::Map<String, Value>>,
 ) -> Result<(), DesktopFailure> {
-    if !request_id.starts_with("srq-") || request_id.len() > 128 {
+    if request_id.is_empty() || request_id.len() > 128 || request_id.chars().any(char::is_control) {
         return Err(DesktopFailure::invalid_input());
     }
     let result = match method.as_str() {
@@ -351,10 +430,43 @@ pub async fn answer_gateway_request(
         return Err(DesktopFailure::invalid_input());
     }
     let gateway = state.resolve_profile(&profile).await?.gateway;
-    gateway
-        .answer(request_id, method, result, session_id)
-        .await
-        .map_err(Into::into)
+    if method == "clarify" {
+        let answers = result["answers"]
+            .as_object()
+            .ok_or_else(DesktopFailure::invalid_input)?;
+        if answers.is_empty() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        for (index, (question_id, answer)) in answers.iter().enumerate() {
+            let response = gateway
+                .request(
+                    "clarify.lock",
+                    json!({
+                        "request_id": request_id,
+                        "question_id": question_id,
+                        "answer": answer,
+                    }),
+                )
+                .await?;
+            if response.get("status").and_then(Value::as_str) != Some("ok") {
+                return Err(DesktopFailure::conflict());
+            }
+            if index + 1 == answers.len()
+                && !response
+                    .get("remaining")
+                    .and_then(Value::as_array)
+                    .is_some_and(Vec::is_empty)
+            {
+                return Err(DesktopFailure::conflict());
+            }
+        }
+        Ok(())
+    } else {
+        gateway
+            .answer(request_id, method, result, session_id)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[tauri::command]
@@ -368,6 +480,277 @@ pub async fn list_chat_sessions(
         .request("session.list", json!({"limit":50,"scope":"stored"}))
         .await?;
     Ok(merge_session_lists(&live, &stored))
+}
+
+#[tauri::command]
+pub async fn delete_chat_session(
+    state: State<'_, BackendState>,
+    profile: String,
+    session_id: String,
+    keep_view: bool,
+    view_session_id: String,
+) -> Result<Value, DesktopFailure> {
+    if session_id.is_empty() || session_id.len() > 256 {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let _delete_gate = state.4.lock().await;
+    let scope = state.resolve_profile(&profile).await?;
+    let operation = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "session_delete_start operation={operation} profile={profile} session={session_id}"
+        ),
+    );
+    let gateway = TracedDeleteGateway {
+        inner: &scope.gateway,
+        storage: &scope.storage,
+        operation,
+    };
+    let key = (
+        scope.home.to_string_lossy().into_owned(),
+        profile.clone(),
+        session_id.clone(),
+    );
+    let result = delete_chat_session_from_gateway(
+        &gateway,
+        &session_id,
+        keep_view,
+        &view_session_id,
+        &state.3,
+        key.clone(),
+    )
+    .await;
+    let outcome_unknown = result.is_err() && state.3.lock().await.contains_key(&key);
+    let outcome = if outcome_unknown {
+        "result_unknown"
+    } else if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "session_delete_{outcome} operation={operation} profile={profile} session={session_id}"
+        ),
+    );
+    if outcome_unknown {
+        return Err(DesktopFailure::timeout());
+    }
+    result.map_err(Into::into)
+}
+
+trait SessionDeleteGateway {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError>;
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError>;
+}
+
+struct TracedDeleteGateway<'a> {
+    inner: &'a super::profiles::ProfiledGateway,
+    storage: &'a std::path::Path,
+    operation: Uuid,
+}
+
+impl SessionDeleteGateway for TracedDeleteGateway<'_> {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
+        let result = self.inner.request_detailed(method, params).await;
+        let detail = match &result {
+            Ok(value) if method == "session.list" => {
+                format!("rows={}", value["sessions"].as_array().map_or(0, Vec::len))
+            }
+            Ok(value) if method == "session.resume" => format!(
+                "revision_present={} generation_present={} subscription_present={}",
+                value["revision"].as_u64().is_some(),
+                value["execution_generation"].as_u64().is_some(),
+                value["subscription_id"].as_str().is_some()
+            ),
+            Ok(value) if method == "session.mutate" => {
+                format!(
+                    "deleted_count={}",
+                    value["deleted_ids"].as_array().map_or(0, Vec::len)
+                )
+            }
+            Ok(value) if method == "session.detach" => {
+                format!("detached={}", value["detached"].as_bool().unwrap_or(false))
+            }
+            Ok(_) => "completed=true".to_owned(),
+            Err(GatewayRequestError::Rpc { code, .. }) => {
+                format!("failed=true kind=rpc code={code}")
+            }
+            Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
+        };
+        let _ = crate::diagnostics::append_client_event(
+            self.storage,
+            &format!(
+                "session_delete_rpc operation={} method={method} {detail}",
+                self.operation
+            ),
+        );
+        result
+    }
+
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError> {
+        let result = self.inner.retry_delete(params).await;
+        let detail = match &result {
+            Ok(value) => format!(
+                "deleted_count={}",
+                value["deleted_ids"].as_array().map_or(0, Vec::len)
+            ),
+            Err(GatewayRequestError::Rpc { code, .. }) => {
+                format!("failed=true kind=rpc code={code}")
+            }
+            Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
+        };
+        let _ = crate::diagnostics::append_client_event(
+            self.storage,
+            &format!(
+                "session_delete_retry operation={} method=session.mutate {detail}",
+                self.operation
+            ),
+        );
+        result
+    }
+}
+
+impl SessionDeleteGateway for super::profiles::ProfiledGateway {
+    async fn request(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
+        super::profiles::ProfiledGateway::request_detailed(self, method, params).await
+    }
+
+    async fn retry_delete(&self, params: Value) -> Result<Value, GatewayRequestError> {
+        super::profiles::ProfiledGateway::retry_delete(self, params).await
+    }
+}
+
+async fn delete_chat_session_from_gateway<G: SessionDeleteGateway>(
+    gateway: &G,
+    session_id: &str,
+    keep_view: bool,
+    view_session_id: &str,
+    pending: &Mutex<HashMap<(String, String, String), Value>>,
+    key: (String, String, String),
+) -> Result<Value, String> {
+    // An unknown write result must be retried with the exact original request, before any new read.
+    let retry = {
+        let requests = pending.lock().await;
+        requests.get(&key).cloned()
+    };
+    if let Some(params) = retry {
+        return settle_delete_mutation(gateway, session_id, pending, &key, params, true).await;
+    }
+    // The authority splits active rows from closed/legacy history. Both feeds are scoped.
+    let live = gateway
+        .request("session.list", json!({"limit":200}))
+        .await
+        .map_err(|error| error.to_string())?;
+    let found = live["sessions"].as_array().is_some_and(|rows| {
+        rows.iter()
+            .any(|row| row["id"].as_str() == Some(session_id))
+    });
+    if !found {
+        let stored = gateway
+            .request("session.list", json!({"limit":200,"scope":"stored"}))
+            .await
+            .map_err(|error| error.to_string())?;
+        if !stored["sessions"].as_array().is_some_and(|rows| {
+            rows.iter()
+                .any(|row| row["id"].as_str() == Some(session_id))
+        }) {
+            return Err("会话不存在或不属于目标 Profile".into());
+        }
+    }
+    // The locked authority owns the whole lineage and accepts only a fenced mutation.
+    let snapshot = gateway
+        .request("session.resume", json!({"session_id":session_id}))
+        .await
+        .map_err(|error| error.to_string())?;
+    let resolved_id = snapshot["session_id"].as_str().unwrap_or(session_id);
+    let subscription = snapshot["subscription_id"].as_str();
+    let keep_view = keep_view || (!view_session_id.is_empty() && view_session_id == resolved_id);
+    let params = match (
+        snapshot["revision"].as_u64(),
+        snapshot["execution_generation"].as_u64(),
+    ) {
+        (Some(revision), Some(generation)) => json!({
+            "session_id":session_id,
+            "request_id":Uuid::new_v4().to_string(),
+            "expected_revision":revision,
+            "expected_generation":generation,
+            "operation":"delete",
+            "payload":{},
+        }),
+        _ => {
+            if !keep_view {
+                detach_delete_subscription(gateway, resolved_id, subscription).await;
+            }
+            return Err("会话缺少修订版本或运行代次".into());
+        }
+    };
+    pending.lock().await.insert(key.clone(), params.clone());
+    let result = settle_delete_mutation(gateway, session_id, pending, &key, params, false).await;
+    if result.is_err() && !keep_view {
+        detach_delete_subscription(gateway, resolved_id, subscription).await;
+    }
+    result
+}
+
+async fn detach_delete_subscription<G: SessionDeleteGateway>(
+    gateway: &G,
+    resolved_id: &str,
+    subscription: Option<&str>,
+) {
+    if let Some(subscription_id) = subscription {
+        let _ = gateway
+            .request(
+                "session.detach",
+                json!({"session_id":resolved_id,"subscription_id":subscription_id}),
+            )
+            .await;
+    }
+}
+
+async fn settle_delete_mutation<G: SessionDeleteGateway>(
+    gateway: &G,
+    session_id: &str,
+    pending: &Mutex<HashMap<(String, String, String), Value>>,
+    key: &(String, String, String),
+    params: Value,
+    retry: bool,
+) -> Result<Value, String> {
+    let response = if retry {
+        gateway.retry_delete(params).await
+    } else {
+        gateway.request("session.mutate", params).await
+    };
+    let deleted = match response {
+        Ok(value) => value,
+        Err(GatewayRequestError::Rpc { message, code }) => {
+            pending.lock().await.remove(key);
+            return Err(format!("{message} ({code})"));
+        }
+        Err(error @ GatewayRequestError::Transport(_)) => return Err(error.to_string()),
+    };
+    if !deleted["deleted_ids"]
+        .as_array()
+        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(session_id)))
+    {
+        return Err("网关未确认会话删除".into());
+    }
+    pending.lock().await.remove(key);
+    Ok(deleted)
 }
 
 fn merge_session_lists(live: &Value, stored: &Value) -> Value {

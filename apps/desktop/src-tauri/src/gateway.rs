@@ -16,10 +16,32 @@ use tokio_tungstenite::{
 struct RpcRequest {
     method: &'static str,
     params: Value,
-    reply: oneshot::Sender<Result<Value, String>>,
+    reply: oneshot::Sender<Result<Value, GatewayRequestError>>,
 }
 
-type PendingRpc = HashMap<u64, (&'static str, oneshot::Sender<Result<Value, String>>)>;
+type PendingRpc = HashMap<
+    u64,
+    (
+        &'static str,
+        oneshot::Sender<Result<Value, GatewayRequestError>>,
+    ),
+>;
+type PendingAnswer = HashMap<u64, (String, oneshot::Sender<Result<(), String>>)>;
+
+#[derive(Debug)]
+pub(crate) enum GatewayRequestError {
+    Rpc { message: String, code: i64 },
+    Transport(String),
+}
+
+impl std::fmt::Display for GatewayRequestError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rpc { message, code } => write!(formatter, "{message} ({code})"),
+            Self::Transport(message) => formatter.write_str(message),
+        }
+    }
+}
 
 fn prune_abandoned_rpc(pending: &mut PendingRpc) {
     pending.retain(|_, (_, reply)| !reply.is_closed());
@@ -89,6 +111,42 @@ fn validate_server_answer(
     Ok(())
 }
 
+fn canonical_approval_request(
+    session_id: &str,
+    profile: Option<&str>,
+    prompt: &Value,
+) -> Option<GatewayServerRequest> {
+    let prompt_id = prompt.get("prompt_id")?.as_str()?;
+    let generation = prompt.get("execution_generation")?.as_u64()?;
+    let choices = prompt.get("choices")?.as_array()?;
+    if session_id.is_empty()
+        || prompt_id.is_empty()
+        || prompt_id.len() > 128
+        || choices.is_empty()
+        || choices.iter().any(|choice| {
+            !matches!(
+                choice.as_str(),
+                Some("once" | "session" | "always" | "deny")
+            )
+        })
+    {
+        return None;
+    }
+    Some(GatewayServerRequest {
+        id: prompt_id.to_owned(),
+        method: "approval".into(),
+        profile: profile.map(str::to_owned),
+        params: json!({
+            "session_id": session_id,
+            "request_id": prompt_id,
+            "execution_generation": generation,
+            "command": prompt.get("command").and_then(Value::as_str),
+            "description": prompt.get("description").and_then(Value::as_str),
+            "choices": choices,
+        }),
+    })
+}
+
 #[derive(Clone, Serialize)]
 struct GatewayEvent {
     kind: String,
@@ -115,7 +173,43 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "tool.complete"
             | "status.update"
             | "request.cancel"
+            | "background.complete"
+            | "btw.complete"
+            | "notification.show"
+            | "notification.clear"
     )
+}
+
+fn bound_notification_text(kind: &str, payload: &mut Value) {
+    if !matches!(
+        kind,
+        "background.complete" | "btw.complete" | "notification.show"
+    ) {
+        return;
+    }
+    // Keep a bounded result before the transport size gate. Background results
+    // are displayed in the task panel; other notices need only a short excerpt.
+    if let Some(object) = payload.as_object_mut() {
+        for key in ["text", "detail", "question"] {
+            if let Some(text) = object.get(key).and_then(Value::as_str) {
+                let excerpt: String = if kind == "background.complete" && key == "text" {
+                    let mut bytes = 0;
+                    text.chars()
+                        .take_while(|ch| {
+                            bytes += ch.len_utf8();
+                            bytes <= 16 * 1024
+                        })
+                        .collect()
+                } else {
+                    text.chars().take(1024).collect()
+                };
+                if kind == "background.complete" && key == "text" && excerpt.len() < text.len() {
+                    object.insert("truncated".to_owned(), Value::Bool(true));
+                }
+                object.insert(key.to_owned(), Value::String(excerpt));
+            }
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -207,6 +301,7 @@ impl GatewayClient {
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
             let mut pending = PendingRpc::new();
+            let mut pending_answers = PendingAnswer::new();
             let mut rpc_scopes = HashMap::<u64, (String, Value)>::new();
             let mut session_owners = HashMap::<String, Option<String>>::new();
             let mut server_requests = HashMap::<String, (String, Value)>::new();
@@ -221,8 +316,8 @@ impl GatewayClient {
                                 if request.reply.is_closed() { continue; }
                                 prune_abandoned_rpc(&mut pending);
                                 rpc_scopes.retain(|id, _| pending.contains_key(id));
-                                if pending.len() >= 64 {
-                                    let _ = request.reply.send(Err("待处理的网关请求过多".into()));
+                                if pending.len() + pending_answers.len() >= 64 {
+                                    let _ = request.reply.send(Err(GatewayRequestError::Transport("待处理的网关请求过多".into())));
                                     continue;
                                 }
                                 let id = next_id;
@@ -233,7 +328,7 @@ impl GatewayClient {
                                 }
                                 let frame = json!({"jsonrpc":"2.0","id":id,"method":request.method,"params":request.params});
                                 if writer.send(Message::Text(frame.to_string().into())).await.is_err() {
-                                    let _ = request.reply.send(Err("网关连接已断开".into()));
+                                    let _ = request.reply.send(Err(GatewayRequestError::Transport("网关连接已断开".into())));
                                     break;
                                 }
                                 pending.insert(id, (request.method, request.reply));
@@ -246,6 +341,30 @@ impl GatewayClient {
                                 }
                                 if let Err(error) = validate_server_answer(&server_requests, &id, &method, &result, &session_id) {
                                     let _ = reply.send(Err(error));
+                                    continue;
+                                }
+                                let canonical_generation = server_requests.get(&id)
+                                    .and_then(|(_, params)| params.get("execution_generation"))
+                                    .and_then(Value::as_u64);
+                                if let Some(execution_generation) = canonical_generation {
+                                    if pending.len() + pending_answers.len() >= 64 {
+                                        let _ = reply.send(Err("待处理的网关请求过多".into()));
+                                        continue;
+                                    }
+                                    let rpc_id = next_id;
+                                    next_id += 1;
+                                    let frame = json!({"jsonrpc":"2.0","id":rpc_id,"method":"approval.respond","params":{
+                                        "profile": profile,
+                                        "session_id": session_id,
+                                        "execution_generation": execution_generation,
+                                        "prompt_id": id,
+                                        "choice": result.get("choice").and_then(Value::as_str),
+                                    }});
+                                    if writer.send(Message::Text(frame.to_string().into())).await.is_err() {
+                                        let _ = reply.send(Err("网关连接已断开".into()));
+                                        break;
+                                    }
+                                    pending_answers.insert(rpc_id, (id, reply));
                                     continue;
                                 }
                                 server_requests.remove(&id);
@@ -270,11 +389,59 @@ impl GatewayClient {
                                 let outcome = if let Some(error) = value.get("error") {
                                     let code = error.get("code").and_then(Value::as_i64).unwrap_or(0);
                                     let message = error.get("message").and_then(Value::as_str).unwrap_or("未知 RPC 错误");
-                                    Err(format!("{message} ({code})"))
+                                    Err(GatewayRequestError::Rpc { message: message.to_owned(), code })
                                 } else {
-                                    let result = value.get("result").cloned().unwrap_or(Value::Null);
+                                    let mut result = value.get("result").cloned().unwrap_or(Value::Null);
                                     if let Some((profile, params)) = scope.as_ref() {
                                         result_session_owners(&mut session_owners, method, params, &result, profile);
+                                    }
+                                    if method == "session.resume" {
+                                        let session_id = result
+                                            .get("session_id")
+                                            .and_then(Value::as_str)
+                                            .map(str::to_owned);
+                                        let prompts = result
+                                            .get("prompts")
+                                            .and_then(Value::as_array)
+                                            .cloned()
+                                            .unwrap_or_default();
+                                        let profile = scope.as_ref().map(|(profile, _)| profile.clone());
+                                        if let (Some(session_id), Some(profile)) = (session_id, profile) {
+                                            let mut open_requests = result
+                                                .get("open_requests")
+                                                .and_then(Value::as_array)
+                                                .cloned()
+                                                .unwrap_or_default();
+                                            for prompt in prompts.iter().take(64) {
+                                                if prompt.get("kind").and_then(Value::as_str) != Some("approval") {
+                                                    continue;
+                                                }
+                                                if let Some(request) = canonical_approval_request(
+                                                    &session_id,
+                                                    Some(&profile),
+                                                    prompt,
+                                                ) {
+                                                    server_requests.insert(
+                                                        request.id.clone(),
+                                                        (request.method.clone(), request.params.clone()),
+                                                    );
+                                                    register_owner(
+                                                        &mut request_owners,
+                                                        &request.id,
+                                                        &profile,
+                                                    );
+                                                    if let Ok(request) = serde_json::to_value(request) {
+                                                        open_requests.push(request);
+                                                    }
+                                                }
+                                            }
+                                            if let Some(object) = result.as_object_mut() {
+                                                object.insert(
+                                                    "open_requests".into(),
+                                                    Value::Array(open_requests),
+                                                );
+                                            }
+                                        }
                                     }
                                     if matches!(method, "session.resume" | "session.events.since") {
                                         if let Some(requests) = result.get("open_requests").and_then(Value::as_array) {
@@ -295,6 +462,17 @@ impl GatewayClient {
                                         }
                                     }
                                     Ok(result)
+                                };
+                                let _ = reply.send(outcome);
+                            } else if let Some((request_id, reply)) = pending_answers.remove(&id) {
+                                let outcome = if let Some(error) = value.get("error") {
+                                    let code = error.get("code").and_then(Value::as_i64).unwrap_or(0);
+                                    let message = error.get("message").and_then(Value::as_str).unwrap_or("未知 RPC 错误");
+                                    Err(format!("{message} ({code})"))
+                                } else {
+                                    server_requests.remove(&request_id);
+                                    request_owners.remove(&request_id);
+                                    Ok(())
                                 };
                                 let _ = reply.send(outcome);
                             } else if value.get("method").is_some() {
@@ -333,14 +511,47 @@ impl GatewayClient {
                             }
                             continue;
                         }
-                        if kind == "request.cancel" {
-                            if let Some(id) = params.pointer("/payload/id").and_then(Value::as_str) { server_requests.remove(id); request_owners.remove(id); }
+                        if kind == "approval.request" {
+                            let session_id = params.get("session_id").and_then(Value::as_str);
+                            let profile = session_id
+                                .and_then(|session| session_owners.get(session))
+                                .and_then(Option::as_ref).cloned();
+                            let prompt = params.get("payload").unwrap_or(&Value::Null);
+                            if let (Some(session_id), Some(profile)) = (session_id, profile) {
+                                if let Some(request) = canonical_approval_request(
+                                    session_id,
+                                    Some(&profile),
+                                    prompt,
+                                ) {
+                                    server_requests.insert(
+                                        request.id.clone(),
+                                        (request.method.clone(), request.params.clone()),
+                                    );
+                                    register_owner(&mut request_owners, &request.id, &profile);
+                                    let _ = app.emit("hermes-request", request);
+                                }
+                            }
+                            continue;
                         }
-                        if !is_forwarded_event(kind) { continue; }
-                        let payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
+                        let settled_request_id = if kind == "request.cancel" || kind == "approval.settled" {
+                            params.pointer("/payload/id").or_else(|| params.pointer("/payload/prompt_id")).and_then(Value::as_str).map(str::to_owned)
+                        } else {
+                            None
+                        };
+                        if let Some(id) = settled_request_id.as_deref() {
+                                server_requests.remove(id);
+                                request_owners.remove(id);
+                        }
+                        let forwarded_kind = if kind == "approval.settled" { "request.cancel" } else { kind };
+                        if !is_forwarded_event(forwarded_kind) { continue; }
+                        let mut payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
+                        if let (Some(id), Some(object)) = (settled_request_id, payload.as_object_mut()) {
+                            object.insert("id".into(), Value::String(id));
+                        }
+                        bound_notification_text(forwarded_kind, &mut payload);
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
-                            kind: kind.into(),
+                            kind: forwarded_kind.into(),
                             profile: params.get("session_id").and_then(Value::as_str)
                                 .and_then(|session| session_owners.get(session))
                                 .and_then(Option::as_ref).cloned(),
@@ -353,6 +564,9 @@ impl GatewayClient {
                 }
             }
             for (_, (_, reply)) in pending {
+                let _ = reply.send(Err(GatewayRequestError::Transport("网关连接已断开".into())));
+            }
+            for (_, (_, reply)) in pending_answers {
                 let _ = reply.send(Err("网关连接已断开".into()));
             }
             let _ = app.emit("hermes-disconnected", ());
@@ -387,6 +601,16 @@ impl GatewayClient {
     }
 
     pub async fn request(&self, method: &'static str, params: Value) -> Result<Value, String> {
+        self.request_detailed(method, params)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    pub(crate) async fn request_detailed(
+        &self,
+        method: &'static str,
+        params: Value,
+    ) -> Result<Value, GatewayRequestError> {
         let (reply, received) = oneshot::channel();
         timeout(Duration::from_secs(30), async {
             self.sender
@@ -396,11 +620,15 @@ impl GatewayClient {
                     reply,
                 }))
                 .await
-                .map_err(|_| "网关连接已断开".to_string())?;
-            received.await.map_err(|_| "网关连接已断开".to_string())?
+                .map_err(|_| GatewayRequestError::Transport("网关连接已断开".into()))?;
+            received
+                .await
+                .map_err(|_| GatewayRequestError::Transport("网关连接已断开".into()))?
         })
         .await
-        .map_err(|_| "网关请求超时；写操作结果未知，请先恢复会话".to_string())?
+        .map_err(|_| {
+            GatewayRequestError::Transport("网关请求超时；写操作结果未知，请先恢复会话".into())
+        })?
     }
 
     pub async fn answer(

@@ -1,0 +1,17 @@
+.delegation-settings { max-width: 1000px; }
+.delegation-settings fieldset { padding: 0; border: 0; min-width: 0; }
+.delegation-settings label { display: grid; gap: 7px; margin: 12px 0; font-size: 14px; }
+.delegation-grid, .delegation-defaults { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.delegation-route { border-top: 1px solid #e3e8ef; margin: 24px 0; padding-top: 20px; }
+.delegation-settings input, .delegation-settings select, .delegation-settings textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.delegation-settings input, .delegation-settings select, .delegation-settings textarea { border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font: inherit; }
+.delegation-settings button { border: 1px solid #e3e8ef; border-radius: 9px; padding: 8px 12px; background: #fff; font: inherit; cursor: pointer; }
+.delegation-settings button.primary { background: #1b6ffd; color: #fff; }
+.delegation-settings button:disabled { opacity: .5; cursor: default; }
+.provider-copy-dialog { max-height: calc(100dvh - 48px); overflow-y: auto; width: min(600px, calc(100vw - 48px)); }
+.provider-copy-targets > div { padding: 12px 0; border-top: 1px solid #e3e8ef; }
+.delegation-settings textarea { min-height: 90px; }
+.delegation-fallback { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.delegation-fallback input { flex: 1; }
+.delegation-fallback button { flex-shrink: 0; }
+@media (max-width: 720px) { .delegation-grid, .delegation-defaults { grid-template-columns: 1fr; } .delegation-fallback { flex-wrap: wrap; } }

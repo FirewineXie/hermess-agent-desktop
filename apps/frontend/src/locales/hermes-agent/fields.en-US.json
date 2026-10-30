@@ -1651,6 +1651,9 @@
   "delegation.api_mode": {
     "label": "delegation / api mode"
   },
+  "delegation.request_overrides": {
+    "label": "delegation / request overrides"
+  },
   "delegation.compression_threshold_tokens": {
     "label": "delegation / compression threshold tokens"
   },

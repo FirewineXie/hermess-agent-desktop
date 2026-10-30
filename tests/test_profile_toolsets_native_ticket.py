@@ -28,6 +28,54 @@ def test_toolset_list_uses_the_native_tickets_profile(daemon):
     assert beta_rows["web"]["enabled"] is True
 
 
+def test_learning_timeline_uses_the_native_tickets_profile(daemon):
+    """The Journey page reads the same profile-scoped Dashboard route as production Rust."""
+    for home, label in ((daemon.launch, "launch"), (daemon.beta, "beta")):
+        skill = home / "skills" / f"{label}-journey"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(
+            f"---\nname: {label}-journey\ndescription: Journey test\n---\n\n# {label}\n",
+            encoding="utf-8",
+        )
+        (home / "skills" / ".usage.json").write_text(
+            json.dumps({f"{label}-journey": {"created_by": "learn"}}), encoding="utf-8",
+        )
+    launch = daemon.client.get("/api/learning/graph", headers=daemon.owner)
+    beta = daemon.client.get("/api/learning/graph", headers=daemon.beta_ticket())
+    assert launch.status_code == beta.status_code == 200
+    launch_names = {node["label"] for node in launch.json()["nodes"]}
+    beta_names = {node["label"] for node in beta.json()["nodes"]}
+    assert "launch-journey" in launch_names and "beta-journey" not in launch_names
+    assert "beta-journey" in beta_names and "launch-journey" not in beta_names
+
+
+def test_learning_node_edits_and_deletion_use_the_native_tickets_profile(daemon):
+    """Exercise the exact Dashboard GET/PUT/DELETE routes used by the Journey page."""
+    for home in (daemon.launch, daemon.beta):
+        skill = home / "skills" / "shared-journey"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(
+            "---\nname: shared-journey\ndescription: Journey test\n---\n\n# Before\n",
+            encoding="utf-8",
+        )
+    owner = daemon.owner
+    path = "/api/learning/node"
+    detail = daemon.client.get(path, params={"id": "shared-journey"}, headers=daemon.beta_ticket())
+    assert detail.status_code == 200, detail.text
+    assert "# Before" in detail.json()["content"]
+    revised = "---\nname: shared-journey\ndescription: Journey test\n---\n\n# After\n"
+    edited = daemon.client.put(path, json={"id": "shared-journey", "content": revised}, headers=daemon.beta_ticket())
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["ok"] is True
+    assert "# After" in (daemon.beta / "skills/shared-journey/SKILL.md").read_text(encoding="utf-8")
+    assert "# Before" in (daemon.launch / "skills/shared-journey/SKILL.md").read_text(encoding="utf-8")
+    deleted = daemon.client.request("DELETE", path, json={"id": "shared-journey"}, headers=daemon.beta_ticket())
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["ok"] is True
+    assert (daemon.launch / "skills/shared-journey/SKILL.md").exists()
+    assert daemon.client.get(path, params={"id": "shared-journey"}, headers=owner).status_code == 200
+
+
 def test_analytics_reads_the_native_tickets_profile(daemon, monkeypatch):
     """The two Desktop statistics calls must resolve the same Profile home."""
     from hermes_cli.web_routers import analytics

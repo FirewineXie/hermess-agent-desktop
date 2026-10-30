@@ -1,6 +1,6 @@
 name: hermess-windows-powershell
 version: 0.1.0
-description: Run PowerShell commands in the current Windows user's environment.
+description: On Windows, use this instead of terminal for local commands; terminal requires bash.
 kind: standalone
 platforms:
   - windows

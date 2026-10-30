@@ -1,6 +1,8 @@
 //! Client for the pinned Hermes Gateway private control protocol (v1).
 //! The desktop owns the launched process; never discover an arbitrary local Gateway.
 
+use crate::paths::{plain_path, CanonicalizePlain};
+
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, time::Duration};
@@ -84,25 +86,17 @@ fn lock_pid(home: &Path) -> Result<Option<u32>, String> {
 }
 
 fn home_hash(home: &Path) -> Result<String, String> {
-    let canonical = home.canonicalize().map_err(|_| "无法解析网关存储路径")?;
-    hash_canonical_home(home, &canonical)
+    let canonical = home
+        .canonicalize_plain()
+        .map_err(|_| "无法解析网关存储路径")?;
+    hash_canonical_home(&canonical)
 }
 
-fn hash_canonical_home(home: &Path, canonical: &Path) -> Result<String, String> {
-    let path = canonical.to_str().ok_or("网关存储路径不是 UTF-8")?;
+fn hash_canonical_home(canonical: &Path) -> Result<String, String> {
+    let plain = plain_path(canonical);
+    let path = plain.to_str().ok_or("网关存储路径不是 UTF-8")?;
     #[cfg(windows)]
-    let path = {
-        // Python's Path.resolve() preserves an existing extended-length prefix but does not
-        // introduce one for a regular path. Rust canonicalize() always introduces it.
-        let resolved = if home.to_string_lossy().starts_with(r"\\?\") {
-            path.to_owned()
-        } else if let Some(unc) = path.strip_prefix(r"\\?\UNC\") {
-            format!(r"\\{unc}")
-        } else {
-            path.strip_prefix(r"\\?\").unwrap_or(path).to_owned()
-        };
-        resolved.replace('/', "\\").to_lowercase()
-    };
+    let path = path.replace('/', "\\").to_lowercase();
     let digest = Sha256::digest(path.as_bytes());
     Ok(digest[..8]
         .iter()
@@ -403,10 +397,10 @@ pub(super) async fn discover(
 }
 
 fn same_home(path: &str, home: &Path) -> bool {
-    let Ok(left) = Path::new(path).canonicalize() else {
+    let Ok(left) = Path::new(path).canonicalize_plain() else {
         return false;
     };
-    let Ok(right) = home.canonicalize() else {
+    let Ok(right) = home.canonicalize_plain() else {
         return false;
     };
     #[cfg(windows)]

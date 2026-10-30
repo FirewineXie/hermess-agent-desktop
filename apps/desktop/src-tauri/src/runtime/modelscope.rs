@@ -1,5 +1,7 @@
 //! Client-owned ModelScope catalog adapter. No Hermes fork code is changed.
 
+use crate::paths::{filesystem_path, CanonicalizePlain};
+
 use crate::errors::DesktopFailure;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -295,11 +297,11 @@ pub(super) async fn scan(identifier: &str) -> Result<Value, DesktopFailure> {
 
 fn owned_subdir(storage: &Path, name: &str) -> Result<PathBuf, DesktopFailure> {
     let root = storage
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     let directory = storage
         .join(name)
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     if !directory.starts_with(&root) || directory == root {
         return Err(DesktopFailure::invalid_input());
@@ -313,7 +315,7 @@ fn manifest_path(storage: &Path, home: &Path) -> Result<PathBuf, DesktopFailure>
     } else {
         let root = owned_subdir(storage, "hermes-home")?;
         let resolved = home
-            .canonicalize()
+            .canonicalize_plain()
             .map_err(|_| DesktopFailure::operation_failed())?;
         if !resolved.starts_with(&root) || resolved == root {
             return Err(DesktopFailure::invalid_input());
@@ -327,11 +329,13 @@ fn read_manifest(
     home: &Path,
 ) -> Result<BTreeMap<String, InstalledSkill>, DesktopFailure> {
     let path = manifest_path(storage, home)?;
-    if !path.exists() {
+    if !filesystem_path(&path).exists() {
         return Ok(BTreeMap::new());
     }
-    serde_json::from_slice(&fs::read(path).map_err(|_| DesktopFailure::operation_failed())?)
-        .map_err(|_| DesktopFailure::operation_failed())
+    serde_json::from_slice(
+        &fs::read(filesystem_path(&path)).map_err(|_| DesktopFailure::operation_failed())?,
+    )
+    .map_err(|_| DesktopFailure::operation_failed())
 }
 
 fn write_manifest(
@@ -340,23 +344,24 @@ fn write_manifest(
     entries: &BTreeMap<String, InstalledSkill>,
 ) -> Result<(), DesktopFailure> {
     fs::write(
-        manifest_path(storage, home)?,
+        filesystem_path(&manifest_path(storage, home)?),
         serde_json::to_vec_pretty(entries).map_err(|_| DesktopFailure::operation_failed())?,
     )
     .map_err(|_| DesktopFailure::operation_failed())
 }
 
 fn skills_root(home: &Path) -> Result<PathBuf, DesktopFailure> {
-    if !home.exists() {
-        fs::create_dir_all(home).map_err(|_| DesktopFailure::operation_failed())?;
+    if !filesystem_path(home).exists() {
+        fs::create_dir_all(filesystem_path(home))
+            .map_err(|_| DesktopFailure::operation_failed())?;
     }
     let home = home
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     let skills = home.join("skills");
-    fs::create_dir_all(&skills).map_err(|_| DesktopFailure::operation_failed())?;
+    fs::create_dir_all(filesystem_path(&skills)).map_err(|_| DesktopFailure::operation_failed())?;
     let skills = skills
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|_| DesktopFailure::operation_failed())?;
     if !skills.starts_with(&home) || skills == home {
         return Err(DesktopFailure::invalid_input());
@@ -436,21 +441,25 @@ pub(super) async fn install(
         let root = skills_root(&home)?;
         let directory = local_name(&id);
         let destination = root.join(&directory);
-        if destination.exists() {
+        if filesystem_path(&destination).exists() {
             return Err(DesktopFailure::conflict());
         }
         let staging =
             owned_subdir(&storage, "control")?.join(format!("modelscope-stage-{}", Uuid::new_v4()));
-        fs::create_dir(&staging).map_err(|_| DesktopFailure::operation_failed())?;
+        fs::create_dir(filesystem_path(&staging))
+            .map_err(|_| DesktopFailure::operation_failed())?;
         let write_result = (|| {
             for (relative, content) in files {
                 let path = staging.join(relative);
                 if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(|_| DesktopFailure::operation_failed())?;
+                    fs::create_dir_all(filesystem_path(parent))
+                        .map_err(|_| DesktopFailure::operation_failed())?;
                 }
-                fs::write(path, content).map_err(|_| DesktopFailure::operation_failed())?;
+                fs::write(filesystem_path(&path), content)
+                    .map_err(|_| DesktopFailure::operation_failed())?;
             }
-            fs::rename(&staging, &destination).map_err(|_| DesktopFailure::operation_failed())?;
+            fs::rename(filesystem_path(&staging), filesystem_path(&destination))
+                .map_err(|_| DesktopFailure::operation_failed())?;
             entries.insert(
                 id.clone(),
                 InstalledSkill {
@@ -460,13 +469,13 @@ pub(super) async fn install(
                 },
             );
             if let Err(error) = write_manifest(&storage, &home, &entries) {
-                let _ = fs::remove_dir_all(&destination);
+                let _ = fs::remove_dir_all(filesystem_path(&destination));
                 return Err(error);
             }
             Ok(json!({"ok": true, "name": name}))
         })();
         if write_result.is_err() {
-            let _ = fs::remove_dir_all(&staging);
+            let _ = fs::remove_dir_all(filesystem_path(&staging));
         }
         write_result
     })
@@ -492,11 +501,12 @@ pub(super) fn uninstall(storage: &Path, home: &Path, name: &str) -> Result<Value
     }
     let root = skills_root(home)?;
     let target = root.join(&entry.directory);
-    if target.exists() {
-        if target.is_symlink() || !target.is_dir() {
+    if filesystem_path(&target).exists() {
+        if filesystem_path(&target).is_symlink() || !filesystem_path(&target).is_dir() {
             return Err(DesktopFailure::invalid_input());
         }
-        fs::remove_dir_all(target).map_err(|_| DesktopFailure::operation_failed())?;
+        fs::remove_dir_all(filesystem_path(&target))
+            .map_err(|_| DesktopFailure::operation_failed())?;
     }
     write_manifest(storage, home, &entries)?;
     Ok(json!({"ok": true, "name": name}))

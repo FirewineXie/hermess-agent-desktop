@@ -8,8 +8,10 @@ import type { LocalSkill, McpServer } from '../extensions/model'
 import LocalMcp from '../extensions/LocalMcp'
 import { labels } from '../extensions/labels'
 import ProfileDataView from './ProfileDataView'
+import ProfileHermesPlugins from './ProfileHermesPlugins'
+import JourneyView from '../journey/JourneyView'
 
-type Tab = 'overview' | 'tools' | 'skills' | 'mcp' | 'memory' | 'data'
+type Tab = 'overview' | 'tools' | 'skills' | 'plugins' | 'mcp' | 'memory' | 'journey' | 'data'
 type CardIconKind = 'tools' | 'settings' | 'skills' | 'mcp' | 'memory' | 'data' | 'channels' | 'usage'
 
 function CardIcon({ kind }: { kind: CardIconKind }) {
@@ -29,14 +31,19 @@ type Props = {
   connected: boolean
   epoch: string | null
   profiles: ProfilesSnapshot | null
+  toolsetsRequest: number
   onNewChat: () => void
+  onDeleteProfile: () => void
+  onRenameProfile: () => void
+  profileBusy: boolean
   onOpenMemory: () => void
-  onOpenAgentSettings: () => void
+  onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
+  onOpenExtensions: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, onNewChat, onOpenMemory, onOpenAgentSettings, onOpenChannels, onOpenUsage }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, toolsetsRequest, onNewChat, onDeleteProfile, onRenameProfile, profileBusy, onOpenMemory, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -45,6 +52,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
   let stateSlot = 0
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `profile-overview:${stateSlot++}`)
   const [tab, setTab] = useState<Tab>('overview')
+  React.useEffect(() => { if (toolsetsRequest) setTab('tools') }, [toolsetsRequest])
   const [skills, setSkills] = useState<LocalSkill[] | null>(null)
   const [toolsets, setToolsets] = useState<ProfileToolset[] | null>(null)
   const [servers, setServers] = useState<McpServer[] | null>(null)
@@ -104,8 +112,8 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
   }, [connected, epoch, profiles?.selected, extensions, personalFiles, profileApi, language])
 
   const tabs: Array<[Tab, string]> = zh
-    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['mcp', 'MCP'], ['memory', '记忆'], ['data', '数据目录']]
-    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['mcp', 'MCP'], ['memory', 'Memory'], ['data', 'Data directory']]
+    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['journey', '学习时间线'], ['data', '数据目录']]
+    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['journey', 'Learning timeline'], ['data', 'Data directory']]
   const enabledToolsets = toolsets?.filter(toolset => toolset.enabled) || []
   const skillNames = skills?.filter(skill => skill.enabled).map(skill => skill.name) || []
   const filteredSkills = skills?.filter(skill => `${skill.name} ${skill.description || ''}`.toLocaleLowerCase().includes(skillQuery.trim().toLocaleLowerCase())) || []
@@ -195,13 +203,17 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
     <div className="profile-breadcrumb">{zh ? '专家管理' : 'Manage experts'} <span aria-hidden="true">/</span> <strong>{name}</strong></div>
     <div className="profile-heading">
       <div className="profile-identity"><span className="profile-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span><div><h1>{name}</h1><p><span className={`status-dot ${served ? 'ready' : ''}`} />{!connected ? (zh ? '本地 · 未连接' : 'Local · Disconnected') : served ? (zh ? '本地 Agent · 已运行' : 'Local agent · Running') : (zh ? '等待 Gateway 启用' : 'Waiting for Gateway')}</p></div></div>
-      <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}>{zh ? '＋ 新建会话' : '＋ New chat'}</button>
+      <div className="profile-heading-actions">
+        {profile && <button className="profile-rename" type="button" disabled={!connected || profileBusy} onClick={onRenameProfile}>{zh ? '重命名' : 'Rename'}</button>}
+        {profile && profile.name !== 'default' && <button className="profile-delete" type="button" disabled={!connected || profileBusy} onClick={onDeleteProfile}>{zh ? '删除专家' : 'Delete expert'}</button>}
+        <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}>{zh ? '＋ 新建会话' : '＋ New chat'}</button>
+      </div>
     </div>
     <div className="profile-tabs" role="tablist" aria-label={zh ? 'Profile 内容' : 'Profile content'}>{tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}{id === 'skills' && skills !== null ? ` (${skills.length})` : ''}</button>)}</div>
     {errors.length > 0 && <p className="profile-load-error" role="alert">{zh ? '部分资料读取失败：' : 'Some details could not be loaded: '}{errors.join('；')}</p>}
     {tab === 'overview' && <>
       <section className="profile-info-panel" aria-label={zh ? '基本信息' : 'Basic information'}>
-        <div className="profile-info-panel-heading"><h3>{zh ? '基本信息' : 'Basic information'}</h3><button type="button" onClick={onOpenAgentSettings}>{zh ? '查看配置' : 'View settings'} <span aria-hidden="true">›</span></button></div>
+        <div className="profile-info-panel-heading"><h3>{zh ? '基本信息' : 'Basic information'}</h3><button type="button" onClick={() => onOpenConfiguration('advanced-runtime')}>{zh ? '查看配置' : 'View settings'} <span aria-hidden="true">›</span></button></div>
         <dl className="profile-info-list">
           <div><dt>{zh ? '名称' : 'Name'}</dt><dd>{name}</dd></div>
           <div><dt>{zh ? 'Profile 标识' : 'Profile ID'}</dt><dd>{profile?.name || '—'}</dd></div>
@@ -212,11 +224,15 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
       <div className="profile-section-heading"><h3>{zh ? '能力与数据' : 'Capabilities and data'}</h3><p>{zh ? '当前专家的配置和资料' : 'Settings and information for this expert'}</p></div>
       <div className="profile-overview-grid">
       {card(zh ? 'Agent 工具集' : 'Agent toolsets', zh ? '查看工具集' : 'View toolsets', () => setTab('tools'), toolsContent, 'tools')}
-      {card(zh ? 'Agent 配置' : 'Agent settings', zh ? '查看配置' : 'View settings', onOpenAgentSettings,
-        zh ? '管理此专家的模型、行为及运行相关设置。' : 'Manage this expert’s model, behavior, and runtime settings.', 'settings')}
+      {card(zh ? '运行参数' : 'Runtime parameters', zh ? '查看配置' : 'View settings', () => onOpenConfiguration('advanced-runtime'),
+        zh ? '管理此专家的运行参数；模型配置位于统一设置的模型分类。' : 'Manage runtime parameters. Model configuration is in the Models category of Settings.', 'settings')}
       {card(zh ? '技能' : 'Skills', zh ? '查看技能' : 'View skills', () => setTab('skills'), skillsContent, 'skills')}
+      {card(zh ? 'Hermes 插件' : 'Hermes plugins', zh ? '查看已安装' : 'View installed', () => setTab('plugins'),
+        zh ? '查看并管理此 Agent 已安装的 Hermes 插件。' : 'View and manage Hermes plugins installed for this Agent.', 'skills')}
       {card('MCP', zh ? '管理 MCP' : 'Manage MCP', () => setTab('mcp'), mcpContent, 'mcp')}
       {card(zh ? '记忆' : 'Memory', zh ? '查看记忆' : 'View memory', onOpenMemory, memoryContent, 'memory')}
+      {card(zh ? '学习时间线' : 'Learning timeline', zh ? '查看时间线' : 'View timeline', () => setTab('journey'),
+        zh ? '查看此专家学到或使用过的 Skill 与记忆记录。' : 'Explore skills learned or used by this expert and its memory records.', 'memory', !served)}
       {card(zh ? '数据目录' : 'Data directory', zh ? '查看目录' : 'Browse folder', () => setTab('data'), dataContent, 'data', !served)}
       {card(zh ? '渠道' : 'Channels', zh ? '管理渠道' : 'Manage channels', onOpenChannels,
         zh ? '查看和管理此专家的消息渠道。' : 'View and manage this expert’s message channels.', 'channels')}
@@ -224,7 +240,8 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
         zh ? '查看此专家的使用量和模型统计。' : 'View usage and model statistics for this expert.', 'usage')}
       </div>
     </>}
-    {tab === 'tools' && card(zh ? '此 Profile 的工具集配置' : 'Toolset settings for this profile', zh ? '打开 Agent 设置' : 'Open Agent settings', onOpenAgentSettings,
+    {tab === 'journey' && <JourneyView key={workspace} connected={served} profile={profiles?.selected || null} epoch={epoch} embedded />}
+    {tab === 'tools' && card(zh ? '此 Profile 的工具集配置' : 'Toolset settings for this profile', zh ? '打开工具设置' : 'Open tool settings', () => onOpenConfiguration('advanced-tools'),
       <><p>{zh ? '这里显示当前 Profile 的配置，不代表某个已有会话实际可调用的工具。' : 'These are this Profile’s settings, not the tools available to a particular existing session.'}</p>
         {toolsets === null ? toolsContent : toolsets.length === 0 ? (zh ? '没有可配置的工具集。' : 'No configurable toolsets.')
           : <div className="toolset-list">{toolsets.map(item => <details key={item.name} className="tool-item">
@@ -249,6 +266,7 @@ export default function ProfileOverview({ connected, epoch, profiles, onNewChat,
         </button>
       </li>)}</ul> : <p className="profile-skill-empty">{skillQuery.trim() ? (zh ? '没有匹配的技能。' : 'No matching skills.') : (zh ? '此 Profile 暂无技能。' : 'No skills in this profile.')}</p>)}
     </section>}
+    {tab === 'plugins' && <ProfileHermesPlugins key={workspace} profile={profiles?.selected || null} served={served} onOpenSources={onOpenExtensions} />}
     {tab === 'mcp' && <section className="profile-skills-panel profile-mcp-panel" aria-label={zh ? '此 Profile 的 MCP' : 'MCP in this profile'}>
       <div className="profile-skills-heading"><div><h3>{zh ? '此 Profile 的 MCP' : 'MCP in this profile'}</h3><p>{servers === null ? (zh ? '读取 MCP 中…' : 'Loading MCP…') : (zh ? `${servers.length} 个已配置 MCP` : `${servers.length} configured MCP servers`)}</p></div>
         <button type="button" disabled={!served || mcpBusy} onClick={() => void refreshMcp()}>{zh ? '刷新' : 'Refresh'}</button></div>

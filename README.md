@@ -25,7 +25,7 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 - 本地文件和图片附件，含原生选择、拖入及短文本预览。
 - 独立数据根、固定上游提交与离线运行时。v0.1.7 开发分支将运行时放在安装目录：Windows 安装时解包到暂存目录并切换到固定路径，相同运行时跳过再次解包，旧目录在新网关启动后后台清理；macOS/Linux 从应用资源目录直接运行。真实覆盖升级、后台清理与跨平台原生操作仍待验收。
 - 按正式或预发布版本 tag 默认构建 Windows x64 与 macOS Apple Silicon 安装包并汇总到 Release；macOS Intel 与 Linux x64 可按需为同一 tag 补发。
-- 「关于」页展示产品与锁定上游版本、两份离线许可证及工具来源；软件更新页可保存正式版或 RC 渠道偏好，并从公开的 GitHub Release 检查、校验和下载适用安装包。下载后仍需手动运行安装程序。
+- 「关于」页展示产品与锁定上游版本、两份离线许可证及工具来源；软件更新页可保存正式版或 RC 渠道偏好，并从公开的 GitHub Release 检查、校验和下载适用安装包。校验成功后会打开系统安装包，安装步骤仍由安装器处理。
 - 「渠道接入」页提供飞书和微信二维码授权；桌面使用一个自有 Hermes 网关进程承载聊天与消息渠道。关闭窗口时收起到系统托盘，托盘菜单可恢复窗口或退出。
 
 这些能力在各平台的验证层次不同。当前的 Windows 假模型和静默安装结果不代表原生窗口或真实模型已通过验收，详见 [能力矩阵](docs/capability-matrix.md)。
@@ -63,18 +63,20 @@ pnpm build
 | 命令 | 作用 |
 | --- | --- |
 | `pnpm deps` | 下载并准备当前系统的依赖与离线载荷 |
-| `pnpm start` | 在 Windows 或 macOS 启动桌面开发版 |
+| `pnpm start` | 在 Windows 或 macOS 同时管理前端开发服务与桌面开发版；任一命令退出时结束另一命令 |
 | `pnpm pack:win` | 在 Windows x64 生成 NSIS `.exe` |
 | `pnpm pack:mac` | 在 macOS Apple Silicon 或 Intel 生成 `.dmg` |
 | `pnpm pack:linux` | 在 Linux x64 生成 `.AppImage` 和 `.deb` |
 
-安装包输出到 `apps/desktop/src-tauri/target/release/bundle/` 下对应格式的目录。打包命令按当前操作系统检查目标平台，不执行跨平台交叉编译；macOS 本地包使用临时签名，正式发布仍须遵循发行流程。若机器上的 CPython 3.14 没有常用命令名，可通过 `HERMESS_PYTHON` 指定其绝对路径。`pnpm start` 是开发窗口，不代表安装包验收。
+安装包输出到 `apps/desktop/src-tauri/target/release/bundle/` 下对应格式的目录。打包命令按当前操作系统检查目标平台，不执行跨平台交叉编译；macOS 本地包使用临时签名，正式发布仍须遵循发行流程。若机器上的 CPython 3.14 没有常用命令名，可通过 `HERMESS_PYTHON` 指定其绝对路径。`pnpm start` 是开发窗口，不代表安装包验收；按 Ctrl+C 或在托盘选择「退出 Hermess」会结束开发会话，关闭窗口只会隐藏到托盘。
 
 Hermes fork 桌面分支的 SHA 锁定与官方 Release 升级步骤见 [源码流程](docs/upstream-source.md)。
 
 ## 版本构建
 
 推送预发布 tag（例如 `v0.1.5-rc.1`）触发 `.github/workflows/tagged-release.yml`；从当前 `main` 提交推送正式版 `vX.Y.Z` tag 触发 `.github/workflows/stable-release.yml`，工作流核对 tag 指向 `main` HEAD 且该提交的最新必需检查成功，再构建并发布。仓库只在 Cargo 清单保存开发态版本，发行构建从 tag 在临时工作区写入实际版本；每个 tag 须有 `releases/<tag>.md`。发布任务在 GitHub runner 上复用已有依赖缓存，缓存缺失时自行下载并构建，无需提前预热。Windows x64 和 macOS Apple Silicon 构建成功后建立带两个安装包和 SHA-256 文件的 Release；macOS Intel、Linux x64 可用 `.github/workflows/optional-release.yml` 按需补发并更新清单。具体步骤见 [发行流程](docs/release-process.md)。
+
+Release 正文只展示新增功能、修复问题和 Hermes fork 版本；验证记录与未完成项继续在 [路线图](ROADMAP.md) 中维护，版本说明格式见 [模板](releases/TEMPLATE.md)。
 
 ## 许可
 

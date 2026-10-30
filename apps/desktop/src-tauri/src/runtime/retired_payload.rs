@@ -1,4 +1,5 @@
 use crate::diagnostics::append_client_event;
+use crate::paths::CanonicalizePlain;
 use std::{
     fs,
     os::windows::fs::MetadataExt,
@@ -110,9 +111,11 @@ fn cleanup_old_executable(resource: &Path) -> Result<(), String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let executable_parent = executable.parent().ok_or("无法定位程序目录")?;
     if executable_parent
-        .canonicalize()
+        .canonicalize_plain()
         .map_err(|error| error.to_string())?
-        != resource.canonicalize().map_err(|error| error.to_string())?
+        != resource
+            .canonicalize_plain()
+            .map_err(|error| error.to_string())?
     {
         return Ok(());
     }

@@ -1,0 +1,18 @@
+.desktop-settings { max-width: 880px; }
+.desktop-shortcut-form { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+.desktop-shortcut-form label { display: grid; gap: 8px; flex: 1; min-width: 240px; }
+.desktop-settings small { display: block; margin-top: 6px; color: #66758c; }
+.desktop-settings input:not([type="checkbox"]) { box-sizing: border-box; width: 100%; border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font: inherit; }
+.desktop-settings button { border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 14px; background: #fff; font: inherit; cursor: pointer; }
+.desktop-settings button:disabled { opacity: .5; cursor: default; }
+.quick-composer { box-sizing: border-box; height: 100dvh; display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; background: #fefefe; color: #111827; font: 14px system-ui, sans-serif; }
+.quick-composer * { box-sizing: border-box; }
+.quick-composer header, .quick-composer footer { display: flex; gap: 12px; align-items: center; }
+.quick-composer header strong, .quick-composer footer span { flex: 1; min-width: 0; }
+.quick-composer button { border: 1px solid #e3e8ef; border-radius: 8px; padding: 7px 12px; background: #fff; color: #334155; cursor: pointer; }
+.quick-composer button:disabled { opacity: .5; cursor: default; }
+.quick-composer footer button { background: #1b6ffd; color: #fff; }
+.quick-composer textarea { flex: 1; min-height: 50px; resize: none; border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px; font: inherit; }
+.quick-composer textarea:focus { outline: 2px solid #1b6ffd; outline-offset: 1px; }
+.quick-target, .quick-composer footer span { overflow-wrap: anywhere; font-size: 12px; color: #66758c; }
+body:has(.quick-composer) { margin: 0; }

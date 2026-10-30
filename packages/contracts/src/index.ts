@@ -1,3 +1,6 @@
+import type { ProviderCopyPreview, ProviderCopyResult, DelegationRouting, DevicePreferences, DeviceStatus, QuickTarget, QuickSubmission } from './settings-capabilities'
+import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult } from './configuration'
+export * from './configuration'
 export type Unsubscribe = () => void
 
 /** Every profile-owned operation carries its owner explicitly. */
@@ -57,21 +60,38 @@ export type ProfileToolset = {
 export type AgentConfigField = { type: string; description?: string; category?: string; options?: unknown[] }
 export type AgentConfigSchema = { fields: Record<string, AgentConfigField>; category_order: string[] }
 export type AgentRawConfig = { yaml: string; path: string }
+export * from './settings-capabilities'
 export type PersonalFileKind = 'soul' | 'memory' | 'user'
 export type PersonalFile = {
   kind: PersonalFileKind; path: string; exists: boolean; content: string; entries: string[]
   version: string; limit: number | null; enabled: boolean | null
 }
 export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
+export type MemoryProviderSummary = { name: string; description: string; available: boolean; configured: boolean; status: string }
+export type MemoryProviderField = { key: string; label: string; kind: 'bool' | 'json' | 'number' | 'secret' | 'select' | 'text'; description: string; placeholder: string; group: string; is_set: boolean; value: string; options: Array<{ value: string; label: string }> }
+export type MemoryProviderConfig = { name: string; label: string; fields: MemoryProviderField[] }
+export type MemoryOAuthStatus = { state: 'idle' | 'pending' | 'connected' | 'error'; connected: boolean }
 export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
+export type MoaModelSlot = { provider: string; model: string; reasoning_effort?: string; enabled?: boolean }
+export type MoaPreset = {
+  aggregator: MoaModelSlot
+  aggregator_temperature: number | null
+  degraded_reference_policy: 'loud' | 'silent'
+  enabled: boolean
+  reference_models: MoaModelSlot[]
+  reference_temperature: number | null
+  fanout?: string
+  reference_timeout: number | null
+}
+export type MoaConfig = MoaPreset & { default_preset: string; active_preset: string; presets: Record<string, MoaPreset> }
 export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
-export type SessionRow = { id: string; title?: string; preview?: string; source?: string; message_count?: number }
+export type SessionRow = { id: string; session_id?: string; title?: string; preview?: string; source?: string; message_count?: number; running?: boolean }
 export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null }
 export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
@@ -85,11 +105,18 @@ export type PersonalityEntry = { name: string; description: string; source: 'her
 export type PersonalitiesSnapshot = { profile: string; active: string; entries: PersonalityEntry[] }
 export type ProfilePresetSelection = { personalityName: string; personalityPrompt: string; skills: string[]; mcp: string[] }
 export type ProfileCreateResult = { ok?: boolean; name: string; personality_applied?: boolean; warnings?: string[] }
-export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; path?: string; ref_text?: string }
+export type WorkBuddyImportPreview = {
+  packageName: string; version: string; displayName: string; profileName: string
+  lead: string; members: string[]; skills: string[]; mcpCount: number
+  scriptCount: number; fileCount: number; totalBytes: number; digest: string; soul: string
+  notices: string[]
+}
+export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; image_preview?: string; path?: string; ref_text?: string; content_base64?: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
   skills: Record<string, { usage: number; origin: string }>
-  commands: Record<string, { desktop?: string | null }>
+  commands: Record<string, { desktop?: string | null; argument_mode?: string | null; desktop_subcommands?: string[] }>
+  sub?: Record<string, string[]>
   categories?: Array<{ name: string; pairs: Array<[string, string]> }>
   plugin_commands?: Record<string, string>
   warning?: string
@@ -143,13 +170,26 @@ export type UpdateRelease = {
   eligible: boolean
   asset: UpdateAsset | null
 }
-export type UpdateLookup = { status: 'available' | 'unavailable'; releases: UpdateRelease[] }
-export type UpdateDownloadProgress = { tagName: string; downloaded: number; total: number }
+export type UpdateLookup = { status: 'available' | 'unavailable' | 'rate_limited'; releases: UpdateRelease[] }
+export type UpdateDownloadStatus = { state: 'idle' | 'downloading' | 'completed' | 'failed'; tagName: string; assetId: number; downloaded: number; total: number; path: string | null; error: DesktopFailure | null }
 
 export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
+
+export type NotificationTarget = {
+  connectionId: string
+  profile: string
+  sessionId: string
+  approvalRequestId?: string
+  locale: 'zh-CN' | 'en-US'
+}
+export type NotificationAction = {
+  target: NotificationTarget
+  kind: 'open' | 'approval'
+  choice?: 'once' | 'deny'
+}
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
@@ -161,7 +201,12 @@ export interface DesktopApi {
     minimize(): Promise<void>
     toggleMaximize(): Promise<void>
     close(): Promise<void>
-    setFrontendDebugEnabled(enabled: boolean): Promise<void>
+  }
+  notifications: {
+    permission(): Promise<boolean>
+    requestPermission(): Promise<boolean>
+    show(title: string, body: string, target?: NotificationTarget): Promise<void>
+    onAction(handler: (action: NotificationAction) => void): Promise<Unsubscribe>
   }
   workspacePanel: {
     listDirectory(scope: WorkspaceScope, path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
@@ -173,6 +218,9 @@ export interface DesktopApi {
     closeTerminal(scope: WorkspaceScope, id: string): Promise<void>
     onTerminalOutput(handler: (event: { id: string; scope: WorkspaceScope; data: string; closed: boolean }) => void): Promise<Unsubscribe>
   }
+  localPreview: {
+    readHtml(path: string): Promise<{ path: string; content: string }>
+  }
   channels: {
     status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
@@ -182,8 +230,9 @@ export interface DesktopApi {
   about: {
     productInfo(): Promise<ProductInfo>
     checkUpdates(): Promise<UpdateLookup>
-    downloadUpdate(tagName: string, assetId: number): Promise<string>
-    onDownloadProgress(handler: (progress: UpdateDownloadProgress) => void): Promise<Unsubscribe>
+    startUpdateDownload(tagName: string, assetId: number): Promise<UpdateDownloadStatus>
+    getUpdateDownloadStatus(): Promise<UpdateDownloadStatus>
+    onUpdateDownloadStatus(handler: (status: UpdateDownloadStatus) => void): Promise<Unsubscribe>
   }
   extensions: {
     request<T>(scope: ProfileScope, operation: string, payload?: Record<string, unknown>): Promise<T>
@@ -205,6 +254,10 @@ export interface DesktopApi {
     listDataDirectory(scope: ProfileScope, relativePath?: string): Promise<ProfileDataListing>
     openDataDirectory(scope: ProfileScope): Promise<void>
     create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
+    delete(name: string): Promise<{ settlement_pending: boolean }>
+    setDisplayName(name: string, displayName: string): Promise<{ display_name: string }>
+    inspectImport(path: string): Promise<WorkBuddyImportPreview>
+    importPackage(path: string, profileName: string, expectedDigest: string): Promise<ProfileCreateResult>
     select(name: string): Promise<void>
     listPersonalities(scope: ProfileScope): Promise<PersonalitiesSnapshot>
     listToolsets(scope: ProfileScope): Promise<ProfileToolset[]>
@@ -227,14 +280,28 @@ export interface DesktopApi {
     config(scope: ProfileScope): Promise<Record<string, unknown>>
     raw(scope: ProfileScope): Promise<AgentRawConfig>
     saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
-    saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<void>
+    saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<RawConfigWriteResult>
     saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<void>
+  }
+  security: {
+    consent(scope: ProfileScope): Promise<SharedMetricsConsent>
+    saveConsent(scope: ProfileScope, enabled: boolean, send: boolean): Promise<SharedMetricsConsent>
+    checkpoints(scope: ProfileScope): Promise<CheckpointInventory>
+  }
+  memory: {
+    providers(scope: ProfileScope): Promise<{ active: string; providers: MemoryProviderSummary[] }>
+    config(scope: ProfileScope, provider: string): Promise<MemoryProviderConfig>
+    save(scope: ProfileScope, provider: string, values: Record<string, string>): Promise<void>
+    oauthStart(scope: ProfileScope, provider: string): Promise<MemoryOAuthStatus>
+    oauthStatus(scope: ProfileScope, provider: string): Promise<MemoryOAuthStatus>
   }
   personalFiles: {
     read(scope: ProfileScope, kind: PersonalFileKind): Promise<PersonalFile>
     save(scope: ProfileScope, args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
   }
   models: {
+    previewCopy(scope: ProfileScope, endpointId: string, target: string): Promise<ProviderCopyPreview>
+    copy(scope: ProfileScope, preview: ProviderCopyPreview): Promise<ProviderCopyResult>
     options(scope: ProfileScope | SessionScope, args: { refresh: boolean; includeUnconfigured?: boolean }): Promise<ModelOptions>
     savedConfig(scope: ProfileScope): Promise<SavedModelConfig>
     endpoints(scope: ProfileScope): Promise<{ endpoints: CustomEndpoint[] }>
@@ -247,6 +314,20 @@ export interface DesktopApi {
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
     selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
+    moa(scope: ProfileScope): Promise<MoaConfig>
+    saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig>
+  }
+  delegation: {
+    read(scope: ProfileScope): Promise<DelegationRouting>
+    save(scope: ProfileScope, draft: DelegationRouting): Promise<{ routing: DelegationRouting; activated: boolean }>
+  }
+  device: {
+    status(): Promise<DeviceStatus>
+    save(preferences: DevicePreferences): Promise<DeviceStatus>
+    setQuickTarget(target: QuickTarget | null): Promise<void>
+    onQuickSubmit(handler: (submission: QuickSubmission) => void): Promise<Unsubscribe>
+    takeQuickSubmission(requestId: string): Promise<QuickSubmission>
+    finishQuickSubmission(requestId: string, error: string | null): Promise<void>
   }
   usage: {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
@@ -255,19 +336,25 @@ export interface DesktopApi {
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
+    deleteSession(scope: SessionScope & { keepView: boolean; viewSessionId: string }): Promise<{ deleted_ids: string[] }>
     submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
     interruptSession(scope: SessionScope): Promise<{ status: string }>
+    steerSession(scope: SessionScope, text: string): Promise<{ status: string; delivered?: boolean }>
+    askSideQuestion(scope: SessionScope, question: string): Promise<{ task_id?: string; status?: string }>
+    startBackgroundTask(scope: SessionScope, prompt: string): Promise<{ task_id?: string; status?: string }>
     replayEvents(scope: SessionScope, lastSeen: number, replayEpoch: string): Promise<ReplayResult>
     usage(scope: SessionScope): Promise<ChatUsage>
     reasoning(scope: ProfileScope | SessionScope): Promise<{ value?: string }>
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
-    commands(scope: SessionScope): Promise<CommandCatalog>
+    commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    exportSession(scope: SessionScope, format: 'json' | 'md' | 'html', redact: boolean, filename?: string): Promise<string | null>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
+    attachImageBytes(scope: SessionScope, contentBase64: string, name: string): Promise<PendingAttachment>
     inspectFile(path: string): Promise<PendingAttachment>
     detachImage(scope: SessionScope, path: string): Promise<void>
-    answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string> }): Promise<void>
+    answerRequest(scope: SessionScope, args: { requestId: string; method: 'approval' | 'clarify'; choice?: ApprovalChoice; answers?: Record<string, string | null> }): Promise<void>
   }
   events: {
     onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>

@@ -53,7 +53,7 @@ function appendTool(items: TimelineItem[], step: ToolStep): TimelineItem[] {
   return [...items, { kind: 'tools', steps: [step] }]
 }
 
-export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
+export function historyTimeline(rows: HistoryRow[], running = false): TimelineItem[] {
   let items: TimelineItem[] = []
   let pendingUserIndex = -1
   let pendingUserTimestamp: number | undefined
@@ -76,7 +76,7 @@ export function historyTimeline(rows: HistoryRow[]): TimelineItem[] {
       if (!text.trim() && !thinking) continue
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
-      if (pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
+      if (!running && text.trim() && pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
         const user = items[pendingUserIndex]
         if (user.kind === 'message' && user.role === 'user') {
           items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }

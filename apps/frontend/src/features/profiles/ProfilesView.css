@@ -40,17 +40,10 @@ section.settings-panel.flat-settings-panel.profile-management {
 .profile-directory-item-text small { color: #526179; font-size: 11px; }
 .profile-directory-selected-mark { flex: none; color: #1b6ffd; font-size: 20px; }
 .profile-directory-empty, .profile-directory-error { margin: 14px 8px; color: #66758c; font-size: 12px; line-height: 1.5; }
+.profile-directory-notice { margin: 8px; color: #155acb; font-size: 12px; line-height: 1.5; }
 .profile-management button.profile-directory-create { flex: none; width: 100%; margin-top: 10px; padding: 14px 8px 0; border: 0; border-top: 1px solid #e3e8ef; border-radius: 0; color: #155acb; background: transparent; text-align: left; font-size: 12px; line-height: 1.5; }
 .profile-management button.profile-directory-create:hover:not(:disabled) { background: transparent; text-decoration: underline; }
 .profile-detail-scroll { min-width: 0; min-height: 0; overflow-y: auto; padding: 28px 36px 48px; }
-.profile-agent-settings { width: 100%; max-width: 1120px; margin: 0 auto; }
-.profile-agent-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
-.profile-agent-settings-heading span { color: #66758c; font-size: 12px; }
-.profile-agent-settings-heading h2 { margin: 8px 0 0; color: #111827; font-size: 24px; }
-.profile-management button.profile-agent-settings-close { display: grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #66758c; font-size: 28px; line-height: 1; }
-.profile-management button.profile-agent-settings-close:hover { background: #eef3f8; }
-.profile-management button.profile-agent-settings-close:focus-visible { outline: 2px solid #1b6ffd; outline-offset: 2px; }
-.profile-management .profile-agent-settings > .agent-settings { width: 100%; margin: 0; overflow: visible; }
 .profile-management .personal-files-panel { width: 100%; margin: 0; overflow: visible; }
 .profile-management .personal-files-heading-actions { display: flex; align-items: center; gap: 8px; }
 .profile-management button.personal-files-close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; background: transparent; color: #66758c; font-size: 26px; line-height: 1; }
@@ -58,6 +51,24 @@ section.settings-panel.flat-settings-panel.profile-management {
 .profile-breadcrumb { display: flex; align-items: center; gap: 12px; margin: 0 0 24px; color: #66758c; font-size: 12px; }
 .profile-breadcrumb strong { color: #425066; font-weight: 600; }
 .profile-management .profile-heading { min-height: 0; padding-bottom: 20px; }
+.profile-heading-actions { display: flex; flex: none; align-items: center; gap: 10px; }
+.profile-management button.profile-rename { border: 1px solid #cbd5e1; background: #fff; color: #334155; padding: 9px 12px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
+.profile-management button.profile-rename:hover:not(:disabled) { background: #f1f5f9; }
+.profile-management button.profile-rename:disabled { opacity: .55; cursor: not-allowed; }
+.profile-management button.profile-delete { border: 1px solid #f3c3c3; background: #fff; color: #b4232d; padding: 9px 12px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
+.profile-management button.profile-delete:hover:not(:disabled) { background: #fff2f2; }
+.profile-management button.profile-delete:disabled { opacity: .55; cursor: not-allowed; }
+.profile-delete-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgb(15 23 42 / 48%); }
+.profile-delete-dialog { width: min(100%, 440px); padding: 24px; border-radius: 12px; background: #fff; box-shadow: 0 20px 60px rgb(15 23 42 / 25%); color: #111827; }
+.profile-delete-dialog h2 { margin: 0 0 14px; font-size: 20px; }
+.profile-delete-dialog p { line-height: 1.55; }
+.profile-delete-dialog label { display: grid; gap: 7px; margin: 18px 0; font-size: 13px; }
+.profile-delete-dialog input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+.profile-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.profile-delete-actions button { padding: 9px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #111827; }
+.profile-delete-actions button[type="submit"] { border-color: #b4232d; background: #b4232d; color: #fff; }
+.profile-rename-dialog .profile-delete-actions button[type="submit"] { border-color: #1b6ffd; background: #1b6ffd; }
+.profile-delete-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .profile-management .profile-avatar { width: 58px; height: 58px; font-size: 27px; }
 .settings-panel.profile-management .profile-identity h1 { margin: 0 0 7px; color: #111827; font-size: 29px; line-height: 1.1; font-weight: 750; overflow-wrap: anywhere; }
 .profile-management .profile-tabs { margin-top: 23px; }

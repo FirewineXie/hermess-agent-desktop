@@ -1,11 +1,12 @@
-//! Read public GitHub releases and download an installer without installing it.
+//! Read public GitHub releases, verify an installer, and hand it to the OS.
 
 use crate::errors::DesktopFailure;
+use crate::paths::{filesystem_path, plain_path};
 use reqwest::{Client, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{path::Path, time::Duration};
-use tauri::{AppHandle, Emitter, Manager};
+use std::{path::Path, sync::Mutex, time::Duration};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const REPO: &str = "FirewineXie/hermess-agent-desktop";
@@ -58,10 +59,113 @@ pub struct UpdateLookup {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct DownloadProgress {
+pub struct DownloadStatus {
+    state: &'static str,
     tag_name: String,
+    asset_id: u64,
     downloaded: u64,
     total: u64,
+    path: Option<String>,
+    error: Option<DesktopFailure>,
+}
+
+#[derive(Default)]
+pub struct UpdateDownloadState(Mutex<DownloadStatus>);
+
+impl Default for DownloadStatus {
+    fn default() -> Self {
+        Self {
+            state: "idle",
+            tag_name: String::new(),
+            asset_id: 0,
+            downloaded: 0,
+            total: 0,
+            path: None,
+            error: None,
+        }
+    }
+}
+
+fn publish_download_status(app: &AppHandle, status: DownloadStatus) {
+    if let Some(state) = app.try_state::<UpdateDownloadState>() {
+        *state
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = status.clone();
+    }
+    let _ = app.emit("update-download-status", status);
+}
+
+#[tauri::command]
+pub fn get_update_download_status(state: State<'_, UpdateDownloadState>) -> DownloadStatus {
+    state
+        .0
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+}
+
+#[tauri::command]
+pub fn start_update_download(
+    app: AppHandle,
+    state: State<'_, UpdateDownloadState>,
+    tag_name: String,
+    asset_id: u64,
+) -> Result<DownloadStatus, DesktopFailure> {
+    if release_channel(&tag_name).is_none() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut current = state
+        .0
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if current.state == "downloading" {
+        return if current.tag_name == tag_name && current.asset_id == asset_id {
+            Ok(current.clone())
+        } else {
+            Err(DesktopFailure::conflict())
+        };
+    }
+    let next = DownloadStatus {
+        state: "downloading",
+        tag_name: tag_name.clone(),
+        asset_id,
+        ..Default::default()
+    };
+    *current = next.clone();
+    drop(current);
+    let _ = app.emit("update-download-status", next.clone());
+    let task_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = download_update(task_app.clone(), tag_name.clone(), asset_id).await;
+        let mut status = get_update_download_status(task_app.state::<UpdateDownloadState>());
+        if status.tag_name != tag_name || status.asset_id != asset_id {
+            return;
+        }
+        match result {
+            Ok(path) => {
+                status.downloaded = status.total;
+                status.path = Some(path.clone());
+                match tauri_plugin_opener::open_path(&path, None::<&str>) {
+                    Ok(()) => {
+                        status.state = "completed";
+                        crate::diagnostics::log_client_event("update installer opened");
+                    }
+                    Err(_) => {
+                        status.state = "failed";
+                        status.error = Some(DesktopFailure::operation_failed());
+                        crate::diagnostics::log_client_event("ERROR update installer open failed");
+                    }
+                }
+            }
+            Err(error) => {
+                status.state = "failed";
+                status.error = Some(error);
+            }
+        }
+        publish_download_status(&task_app, status);
+    });
+    Ok(next)
 }
 
 fn client() -> Result<Client, DesktopFailure> {
@@ -163,22 +267,41 @@ fn to_candidate(release: GithubRelease) -> Option<UpdateRelease> {
 
 #[tauri::command]
 pub async fn check_updates() -> Result<UpdateLookup, DesktopFailure> {
+    crate::diagnostics::log_client_event("update check requested");
     let response = client()?
         .get(format!("{RELEASES_URL}?per_page=100"))
         .header("Accept", "application/vnd.github+json")
         .send()
         .await
-        .map_err(|_| DesktopFailure::operation_failed())?;
+        .map_err(|_| {
+            crate::diagnostics::log_client_event("ERROR update check: GitHub request failed");
+            DesktopFailure::operation_failed()
+        })?;
+    if response.status() == StatusCode::FORBIDDEN
+        && response
+            .headers()
+            .get("x-ratelimit-remaining")
+            .and_then(|value| value.to_str().ok())
+            == Some("0")
+    {
+        crate::diagnostics::log_client_event("ERROR update check: GitHub API rate limit exceeded");
+        return Ok(UpdateLookup {
+            status: "rate_limited",
+            releases: Vec::new(),
+        });
+    }
     if matches!(
         response.status(),
         StatusCode::NOT_FOUND | StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
     ) {
+        crate::diagnostics::log_client_event("ERROR update check: GitHub Release unavailable");
         return Ok(UpdateLookup {
             status: "unavailable",
             releases: Vec::new(),
         });
     }
     if !response.status().is_success() {
+        crate::diagnostics::log_client_event("ERROR update check: GitHub API returned an error");
         return Err(DesktopFailure::operation_failed());
     }
     let releases: Vec<GithubRelease> = response
@@ -206,7 +329,7 @@ async fn sha256_file(path: &Path) -> Result<String, DesktopFailure> {
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 64 * 1024];
+    let mut buffer = vec![0u8; 64 * 1024];
     loop {
         let count = file
             .read(&mut buffer)
@@ -239,7 +362,7 @@ async fn stream_installer(
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(temp)
+        .open(filesystem_path(temp))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     let mut hasher = Sha256::new();
@@ -261,14 +384,7 @@ async fn stream_installer(
             .map_err(|_| DesktopFailure::operation_failed())?;
         hasher.update(&chunk);
         if downloaded - last_reported >= 1024 * 1024 {
-            let _ = app.emit(
-                "update-download-progress",
-                DownloadProgress {
-                    tag_name: tag.to_owned(),
-                    downloaded,
-                    total: asset.size,
-                },
-            );
+            update_download_progress(app, tag, downloaded, asset.size);
             last_reported = downloaded;
         }
     }
@@ -278,15 +394,25 @@ async fn stream_installer(
     if downloaded != asset.size || format!("{:x}", hasher.finalize()) != expected_sha256 {
         return Err(DesktopFailure::operation_failed());
     }
-    let _ = app.emit(
-        "update-download-progress",
-        DownloadProgress {
-            tag_name: tag.to_owned(),
-            downloaded,
-            total: asset.size,
-        },
-    );
+    update_download_progress(app, tag, downloaded, asset.size);
     Ok(())
+}
+
+fn update_download_progress(app: &AppHandle, tag: &str, downloaded: u64, total: u64) {
+    if let Some(state) = app.try_state::<UpdateDownloadState>() {
+        let mut current = state
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if current.state != "downloading" || current.tag_name != tag {
+            return;
+        }
+        current.downloaded = current.downloaded.max(downloaded);
+        current.total = total;
+        let snapshot = current.clone();
+        drop(current);
+        let _ = app.emit("update-download-status", snapshot);
+    }
 }
 
 #[tauri::command]
@@ -295,6 +421,7 @@ pub async fn download_update(
     tag_name: String,
     asset_id: u64,
 ) -> Result<String, DesktopFailure> {
+    crate::diagnostics::log_client_event("update download requested");
     if release_channel(&tag_name).is_none() {
         return Err(DesktopFailure::invalid_input());
     }
@@ -305,6 +432,7 @@ pub async fn download_update(
         .send()
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
+    crate::diagnostics::log_client_event("update release metadata received");
     if !response.status().is_success() {
         return Err(DesktopFailure::operation_failed());
     }
@@ -331,16 +459,19 @@ pub async fn download_update(
     if !trusted_download_url(asset, &tag_name) {
         return Err(DesktopFailure::invalid_input());
     }
+    crate::diagnostics::log_client_event("update asset verified");
 
     let downloads = app
         .path()
         .download_dir()
+        .map(|path| plain_path(&path))
         .map_err(|_| DesktopFailure::operation_failed())?;
-    tokio::fs::create_dir_all(&downloads)
+    crate::diagnostics::log_client_event("update download directory resolved");
+    tokio::fs::create_dir_all(filesystem_path(&downloads))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     let destination = downloads.join(&selected.name);
-    if tokio::fs::try_exists(&destination)
+    if tokio::fs::try_exists(filesystem_path(&destination))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?
     {
@@ -350,17 +481,21 @@ pub async fn download_update(
         return Err(DesktopFailure::conflict());
     }
     let temp = downloads.join(format!(".{}.{}.part", selected.name, uuid::Uuid::new_v4()));
+    crate::diagnostics::log_client_event("update installer transfer starting");
     if let Err(error) =
         stream_installer(&app, &client, &tag_name, asset, &temp, &selected.sha256).await
     {
-        let _ = tokio::fs::remove_file(&temp).await;
+        let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
         return Err(error);
     }
-    if tokio::fs::hard_link(&temp, &destination).await.is_err() {
-        let _ = tokio::fs::remove_file(&temp).await;
+    if tokio::fs::hard_link(filesystem_path(&temp), filesystem_path(&destination))
+        .await
+        .is_err()
+    {
+        let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
         return Err(DesktopFailure::conflict());
     }
-    let _ = tokio::fs::remove_file(&temp).await;
+    let _ = tokio::fs::remove_file(filesystem_path(&temp)).await;
     Ok(destination.to_string_lossy().into_owned())
 }
 
