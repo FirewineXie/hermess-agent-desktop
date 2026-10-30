@@ -5,7 +5,7 @@ use std::fs;
 #[test]
 fn deep_package_scan_keeps_relative_paths_plain() {
     use super::collect;
-    use crate::paths::filesystem_path;
+    use crate::paths::{filesystem_path, CanonicalizePlain};
 
     let base = std::env::temp_dir().join(format!("workbuddy-deep-{}", uuid::Uuid::new_v4()));
     let root = (0..5).fold(base.clone(), |path, index| {
@@ -14,6 +14,7 @@ fn deep_package_scan_keeps_relative_paths_plain() {
     let nested = root.join("nested");
     fs::create_dir_all(filesystem_path(&nested)).unwrap();
     fs::write(filesystem_path(&nested.join("note.txt")), b"content").unwrap();
+    let root = root.canonicalize_plain().unwrap();
 
     let mut files = Vec::new();
     let mut total = 0;
