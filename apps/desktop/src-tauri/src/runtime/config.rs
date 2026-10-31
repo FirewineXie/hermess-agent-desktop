@@ -187,15 +187,35 @@ pub async fn save_auxiliary_route(
             route["timeout"] = json!(value);
         }
     }
+    let compression_change = task == "compression";
+    let operation = uuid::Uuid::new_v4();
+    if compression_change {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("compression_model_save_start operation={operation} profile={profile}"),
+        );
+    }
     auxiliary.insert(task, route);
-    config_request_for_scope(
+    let result = config_request_for_scope(
         &state,
         &scope,
         reqwest::Method::PUT,
         "/api/config",
         Some(json!({"config": {"auxiliary": auxiliary}})),
     )
-    .await
+    .await;
+    if compression_change {
+        let outcome = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("compression_model_save_{outcome} operation={operation} profile={profile}"),
+        );
+    }
+    result
 }
 
 #[tauri::command]

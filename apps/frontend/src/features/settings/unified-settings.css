@@ -75,6 +75,10 @@
 .memory-settings-fields { min-width: 0; padding: 4px 16px; border-radius: 14px; background: #f7f8fa; }
 .memory-settings-fields .config-field { padding: 12px 0; border-bottom: 1px solid #e7ebf0; }
 .memory-settings-fields .config-field:last-child { border-bottom: 0; }
+.memory-settings-fields .compression-route-picker { padding: 0 0 12px; border-bottom: 1px solid #e7ebf0; }
+.memory-settings-fields .compression-route-picker .auxiliary-card { padding: 12px 0; border: 0; border-radius: 0; }
+.memory-settings-fields .compression-route-picker > small,
+.memory-settings-fields .compression-route-picker > p { display: block; margin: 0 0 4px; color: var(--settings-muted); font-size: 13px; line-height: 1.5; }
 .memory-settings-fields .config-field-preview { width: 100%; min-height: 42px; padding: 0; border: 0; background: transparent; text-align: left; }
 .memory-settings-fields .config-field-name { color: #273348; font-size: 14px; font-weight: 550; }
 .memory-settings-fields .config-field-value { color: var(--settings-muted); font-size: 13px; }

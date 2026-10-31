@@ -1,6 +1,7 @@
 import React from 'react'
 import type { Language } from '../../i18n'
 import ConfigFieldEditor from './components/ConfigFieldEditor'
+import CompressionRoutePicker from './CompressionRoutePicker'
 import MemoryProviderSettings from './MemoryProviderSettings'
 import type { MemorySettingsPage } from './memoryContextModel'
 import { useMemoryContextSettings } from './useMemoryContextSettings'
@@ -8,23 +9,26 @@ import { useMemoryContextSettings } from './useMemoryContextSettings'
 type Props = {
   connected: boolean
   profile: string | null
+  storagePath: string
   page: MemorySettingsPage
   language: Language
   onDirtyChange: (dirty: boolean) => void
   onBusyChange: (busy: boolean) => void
 }
 
-export default function MemoryContextSettings({ connected, profile, page, language, onDirtyChange, onBusyChange }: Props) {
+export default function MemoryContextSettings({ connected, profile, storagePath, page, language, onDirtyChange, onBusyChange }: Props) {
   const zh = language === 'zh-CN'
   const [fieldDirty, setFieldDirty] = React.useState(false)
   const [providerDirty, setProviderDirty] = React.useState(false)
+  const [routeDirty, setRouteDirty] = React.useState(false)
   const [fieldBusy, setFieldBusy] = React.useState(false)
   const [providerBusy, setProviderBusy] = React.useState(false)
-  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty) }, [fieldDirty, providerDirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy) }, [fieldBusy, providerBusy, onBusyChange])
+  const [routeBusy, setRouteBusy] = React.useState(false)
+  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty || routeDirty) }, [fieldDirty, providerDirty, routeDirty, onDirtyChange])
+  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy || routeBusy) }, [fieldBusy, providerBusy, routeBusy, onBusyChange])
   const controller = useMemoryContextSettings({ connected, profile, page, language, onDirtyChange: setFieldDirty, onBusyChange: setFieldBusy })
   const {
-    config, drafts, setDrafts, editingKey, loading, saving, loaded, status, groups, sensitiveCount, unsupportedCount,
+    schema, config, drafts, setDrafts, editingKey, loading, saving, loaded, status, groups, sensitiveCount, unsupportedCount,
     editField, cancelEdit, reload, saveField,
   } = controller
   const title = page === 'memory-persistent' ? (zh ? '持久记忆' : 'Persistent memory') : (zh ? '上下文与压缩' : 'Context & compression')
@@ -56,7 +60,11 @@ export default function MemoryContextSettings({ connected, profile, page, langua
       {groups.map(group => group.fields.length > 0 && <section className="memory-settings-group" key={group.id}>
         <div className="memory-settings-group-copy"><h3>{zh ? group.zh : group.en}</h3><p>{zh ? group.descriptionZh : group.descriptionEn}</p></div>
         <div className="memory-settings-fields">
-          {group.fields.map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
+          {group.id === 'compression-model' && profile && schema?.fields['auxiliary.compression.provider'] && schema.fields['auxiliary.compression.model'] && <CompressionRoutePicker
+            profile={profile} storagePath={storagePath} config={config} schema={schema} language={language} disabled={fieldDirty || saving}
+            onSaved={reload} onDirtyChange={setRouteDirty} onBusyChange={setRouteBusy} />}
+          {group.fields.filter(([key]) => group.id !== 'compression-model' || !schema?.fields['auxiliary.compression.model']
+            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key)).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
             editing={editingKey === entry[0]} busy={saving} language={language} t={t}
             onEdit={editField} onChange={(key, value) => setDrafts({ [key]: value })}
             onSave={([key, field]) => void saveField(key, field)} onCancel={cancelEdit} />)}
