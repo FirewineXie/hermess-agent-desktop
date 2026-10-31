@@ -177,6 +177,7 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "btw.complete"
             | "notification.show"
             | "notification.clear"
+            | "sessions.changed"
     )
 }
 

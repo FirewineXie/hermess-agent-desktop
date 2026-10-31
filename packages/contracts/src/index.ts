@@ -23,6 +23,8 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   timeout: 'connection',
   conflict: 'validation',
   invalid_input: 'validation',
+  pairing_not_found: 'validation',
+  pairing_locked: 'validation',
   session_owner_unknown: 'validation',
   session_profile_mismatch: 'validation',
 }
@@ -173,9 +175,19 @@ export type UpdateRelease = {
 export type UpdateLookup = { status: 'available' | 'unavailable' | 'rate_limited'; releases: UpdateRelease[] }
 export type UpdateDownloadStatus = { state: 'idle' | 'downloading' | 'completed' | 'failed'; tagName: string; assetId: number; downloaded: number; total: number; path: string | null; error: DesktopFailure | null }
 
-export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; state?: string; error_code?: string | null }
+export type ChannelField = { key: string; prompt: string; help: string; required: boolean; is_set: boolean; is_password: boolean; is_list: boolean; value?: string | null }
+export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; supported: boolean; state?: string; error_code?: string | null; fields?: ChannelField[] }
+export type ChannelTest = { ok: boolean; state: string; auth_posture?: string | null }
+export type TelegramSetupStart = { id: string; url: string; expires_in: number }
+export type TelegramSetupPoll = { status: 'waiting' | 'ready' | 'expired'; owner_user_id?: string | null }
+export type VendorQrStart = { id: string; url: string; poll_interval: number }
+export type VendorQrPoll = { status: 'waiting' | 'ready' | 'expired' }
+export type WhatsAppQr = { id: string; status: 'waiting' | 'ready'; qr_payload?: string | null }
+export type WhatsAppQrPoll = { status: 'waiting' | 'ready' | 'expired' | 'failed'; qr_payload?: string | null }
+export type ChannelSave = { env: Record<string, string>; clear_env: string[]; enabled?: boolean }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
+export type ChannelAccess = 'pairing' | 'open'
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
 
 export type NotificationTarget = {
@@ -223,8 +235,23 @@ export interface DesktopApi {
   }
   channels: {
     status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
+    save(scope: ProfileScope, platform: string, update: ChannelSave): Promise<{ hot_served: boolean }>
+    test(scope: ProfileScope, platform: string): Promise<ChannelTest>
+    telegramStart(scope: ProfileScope): Promise<TelegramSetupStart>
+    telegramPoll(scope: ProfileScope, id: string): Promise<TelegramSetupPoll>
+    telegramApply(scope: ProfileScope, id: string, allowedUserId: string): Promise<void>
+    telegramCancel(scope: ProfileScope, id: string): Promise<void>
+    vendorQrStart(scope: ProfileScope, platform: 'dingtalk' | 'wecom' | 'qqbot'): Promise<VendorQrStart>
+    vendorQrPoll(scope: ProfileScope, id: string): Promise<VendorQrPoll>
+    vendorQrApply(scope: ProfileScope, id: string): Promise<void>
+    vendorQrCancel(scope: ProfileScope, id: string): Promise<void>
+    whatsappStart(scope: ProfileScope): Promise<WhatsAppQr>
+    whatsappPoll(scope: ProfileScope, id: string): Promise<WhatsAppQrPoll>
+    whatsappApply(scope: ProfileScope, id: string): Promise<void>
+    whatsappCancel(scope: ProfileScope, id: string): Promise<void>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
-    poll(scope: ProfileScope, id: string): Promise<ChannelQrPoll>
+    poll(scope: ProfileScope, id: string, access: ChannelAccess): Promise<ChannelQrPoll>
+    approvePairing(scope: ProfileScope, platform: string, code: string): Promise<void>
     cancel(scope: ProfileScope, id: string): Promise<void>
   }
   about: {

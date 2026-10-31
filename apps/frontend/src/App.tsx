@@ -32,6 +32,7 @@ import JourneyView from './features/journey/JourneyView'
 import WorkspacesView from './features/workspaces/WorkspacesView'
 import { useWorkspaces } from './features/workspaces/useWorkspaces'
 import { useRuntimeController } from './features/runtime/useRuntimeController'
+import { useGatewayLanguage } from './features/runtime/useGatewayLanguage'
 import { useProfiles } from './features/profiles/useProfiles'
 import ProfilesView from './features/profiles/ProfilesView'
 import Sidebar from './app/Sidebar'
@@ -47,7 +48,7 @@ import NotificationsSettings from './features/notifications/NotificationsSetting
 import { useNativeNotifications } from './features/notifications/useNativeNotifications'
 
 function App() {
-  const { chat, windowChrome } = useDesktop()
+  const { chat, events, windowChrome } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -79,6 +80,14 @@ function App() {
     restart: () => restartBackend(),
   })
   const viewedProfile = profileController.snapshot?.selected || null
+  useGatewayLanguage({
+    profiles: profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [],
+    epoch: backend?.replay_epoch || null,
+    language,
+    storagePath,
+    restart: restartBackend,
+    reportError: setBackendStatus,
+  })
   const [activeModel, setActiveModel] = useProfileState<ModelPick | null>(workspaceKey(backend?.replay_epoch, viewedProfile), null, 'app:active-model')
   const commandFinishedRef = React.useRef<(profile: string, sessionId: string) => void>(() => {})
   const chatController = useChatController({
@@ -156,7 +165,11 @@ function App() {
     const version = ++otherSessionsVersion.current
     const names = [...new Set(servedProfileNames.split('|').filter(Boolean))]
     const results = await Promise.allSettled(names.map(name => chat.listSessions({ kind: 'profile', profile: name })))
-    if (version === otherSessionsVersion.current) setOtherProfileSessions(Object.fromEntries(results.map((result, index) => [names[index], result.status === 'fulfilled' ? result.value.sessions : []])))
+    if (version === otherSessionsVersion.current) {
+      setOtherProfileSessions(current => Object.fromEntries(results.map((result, index) => [
+        names[index], result.status === 'fulfilled' ? result.value.sessions : current[names[index]] || [],
+      ])))
+    }
   }
   React.useEffect(() => {
     const version = ++otherSessionsVersion.current
@@ -172,6 +185,27 @@ function App() {
     void loadSessions(true)
     void refreshOtherProfileSessions()
   }, [loadSessions, servedProfileNames, chat])
+  const refreshSessionActivityRef = React.useRef(refreshSessionActivity)
+  refreshSessionActivityRef.current = refreshSessionActivity
+  React.useEffect(() => {
+    if (!backend) return
+    let active = true
+    let unlisten: (() => void) | undefined
+    const refreshVisibleSessions = () => {
+      if (document.visibilityState === 'visible') refreshSessionActivityRef.current()
+    }
+    void events.onGatewayEvent(event => {
+      if (active && event.kind === 'sessions.changed') refreshVisibleSessions()
+    }).then(stop => { if (active) unlisten = stop; else stop() }).catch(() => {})
+    window.addEventListener('focus', refreshVisibleSessions)
+    document.addEventListener('visibilitychange', refreshVisibleSessions)
+    return () => {
+      active = false
+      unlisten?.()
+      window.removeEventListener('focus', refreshVisibleSessions)
+      document.removeEventListener('visibilitychange', refreshVisibleSessions)
+    }
+  }, [backend?.replay_epoch, events])
   const { activity: sessionActivity, markViewed, settleCommand, keyFor: activityKey } = useSessionActivity(
     storagePath, backend?.replay_epoch || null, viewedProfile, sessions, otherProfileSessions,
     storedSessionRef.current, sessionId, serverRequests, view === 'chat', turnBusy, refreshSessionActivity,

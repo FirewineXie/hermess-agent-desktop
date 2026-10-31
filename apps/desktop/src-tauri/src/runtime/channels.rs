@@ -1,5 +1,6 @@
 use super::{
     config::{config_request_for_scope, config_request_to_profile},
+    profile_scope::ResolvedProfileScope,
     BackendState,
 };
 use crate::errors::DesktopFailure;
@@ -91,11 +92,58 @@ fn weixin_request(base: &str, path: &str) -> Result<reqwest::RequestBuilder, Des
         .header("iLink-App-ClientVersion", WEIXIN_CLIENT_VERSION))
 }
 
+fn channel_access_env(platform: &str, access: &str) -> Result<Value, DesktopFailure> {
+    let allow_all = match access {
+        "pairing" => "false",
+        "open" => "true",
+        _ => return Err(DesktopFailure::invalid_input()),
+    };
+    match platform {
+        "feishu" => Ok(json!({"FEISHU_ALLOW_ALL_USERS": allow_all})),
+        "weixin" => Ok(
+            json!({"WEIXIN_DM_POLICY": access, "WEIXIN_ALLOW_ALL_USERS": allow_all,
+            "WEIXIN_GROUP_POLICY": "disabled"}),
+        ),
+        _ => Err(DesktopFailure::invalid_input()),
+    }
+}
+
+async fn save_access_flag(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    platform: &str,
+    access_env: &Value,
+) -> Result<(), DesktopFailure> {
+    let key = if platform == "feishu" {
+        "FEISHU_ALLOW_ALL_USERS"
+    } else {
+        "WEIXIN_ALLOW_ALL_USERS"
+    };
+    let value = access_env[key]
+        .as_str()
+        .ok_or(DesktopFailure::invalid_input())?;
+    let result = config_request_for_scope(
+        state,
+        scope,
+        reqwest::Method::PUT,
+        "/api/env",
+        Some(json!({"profile": scope.profile, "key": key, "value": value})),
+    )
+    .await?;
+    if result.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(())
+    } else {
+        Err(DesktopFailure::operation_failed())
+    }
+}
+
 #[tauri::command]
 pub async fn channel_status(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
+    let scope = state.resolve_profile(&profile).await?;
+    let whatsapp_linked = super::channel_manage::whatsapp_session_linked(&scope.home);
     let result = config_request_to_profile(
         &state,
         &profile,
@@ -104,6 +152,7 @@ pub async fn channel_status(
         None,
     )
     .await?;
+    scope.ensure_current(&state).await?;
     // Never return the dashboard's environment fields to the WebView.
     let platforms = result
         .get("platforms")
@@ -113,9 +162,82 @@ pub async fn channel_status(
     Ok(
         json!({"platforms": platforms.iter().filter(|p| p.get("id").and_then(Value::as_str).is_some())
         .map(|p| json!({"id": p.get("id"), "name": p.get("name"), "enabled": p.get("enabled"),
-            "configured": p.get("configured"), "state": p.get("state"),
-            "error_code": p.get("error_code")})).collect::<Vec<_>>() }),
+            "supported": !(cfg!(windows) && p.get("id").and_then(Value::as_str) == Some("matrix")),
+            "configured": if p.get("id").and_then(Value::as_str) == Some("whatsapp") { json!(whatsapp_linked) } else { p.get("configured").cloned().unwrap_or(Value::Bool(false)) }, "state": p.get("state"),
+            "error_code": p.get("error_code"),
+            "fields": p.get("env_vars").and_then(Value::as_array).map(|fields| fields.iter().map(|field| json!({
+                "key": field.get("key"), "prompt": field.get("prompt"), "help": field.get("help"),
+                "required": field.get("required"), "is_set": field.get("is_set"),
+                "is_password": field.get("is_password"), "is_list": field.get("is_list"),
+                "value": if field.get("is_list").and_then(Value::as_bool) == Some(true) { field.get("value") } else { None }
+            })).collect::<Vec<_>>())})).collect::<Vec<_>>() }),
     )
+}
+
+#[tauri::command]
+pub async fn channel_pairing_approve(
+    state: State<'_, BackendState>,
+    profile: String,
+    platform: String,
+    code: String,
+) -> Result<(), DesktopFailure> {
+    if platform.is_empty()
+        || platform.len() > 64
+        || !platform.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+        })
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let code: String = code
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    if code.len() != 8
+        || !code
+            .bytes()
+            .all(|byte| b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(&byte))
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let scope = state.resolve_profile(&profile).await?;
+    let operation = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(&scope.storage,
+        &format!("channel_pairing_approve_start operation={operation} profile={profile} platform={platform}"));
+    let result = async {
+        scope.ensure_current(&state).await?;
+        let (port, auth_header, token) = scope.http_auth().await?;
+        scope.ensure_current(&state).await?;
+        let response = Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(20))
+            .build()
+            .map_err(|_| DesktopFailure::connection_lost())?
+            .post(format!("http://127.0.0.1:{port}/api/pairing/approve"))
+            .header(auth_header, token)
+            .json(&json!({"profile": profile, "platform": platform, "code": code}))
+            .send()
+            .await
+            .map_err(|_| DesktopFailure::connection_lost())?;
+        scope.ensure_current(&state).await?;
+        match response.status().as_u16() {
+            200 => Ok(()),
+            404 => Err(DesktopFailure::pairing_not_found()),
+            429 => Err(DesktopFailure::pairing_locked()),
+            _ => Err(DesktopFailure::operation_failed()),
+        }
+    }
+    .await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(&scope.storage,
+        &format!("channel_pairing_approve_{outcome} operation={operation} profile={profile} platform={platform}"));
+    result
 }
 
 #[tauri::command]
@@ -198,6 +320,10 @@ pub async fn channel_qr_start(
     };
     let id = Uuid::new_v4().to_string();
     scope.ensure_current(&state).await?;
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("channel_qr_started operation={id} profile={profile} platform={platform}"),
+    );
     let mut active = channels.0.lock().await;
     active.retain(|_, pending| {
         pending.expires > Instant::now()
@@ -228,7 +354,13 @@ pub async fn channel_qr_poll(
     channels: State<'_, ChannelState>,
     profile: String,
     id: String,
+    access: String,
 ) -> Result<QrPoll, DesktopFailure> {
+    let access_env = {
+        let pending = channels.0.lock().await;
+        let request = pending.get(&id).ok_or(DesktopFailure::invalid_input())?;
+        channel_access_env(&request.platform, &access)?
+    };
     let pending = channels
         .0
         .lock()
@@ -246,6 +378,13 @@ pub async fn channel_qr_poll(
     }
     if pending.expires <= Instant::now() {
         channels.0.lock().await.remove(&id);
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!(
+                "channel_qr_expired operation={id} profile={profile} platform={}",
+                pending.platform
+            ),
+        );
         return Ok(QrPoll {
             status: "expired",
             restart_required: false,
@@ -297,17 +436,31 @@ pub async fn channel_qr_poll(
             } else {
                 "feishu"
             };
-            config_request_for_scope(
+            let _ = crate::diagnostics::append_client_event(&scope.storage,
+                &format!("channel_qr_confirmed operation={id} profile={profile} platform=feishu access={access}"));
+            if let Err(error) = save_access_flag(&state, &scope, "feishu", &access_env).await {
+                let _ = crate::diagnostics::append_client_event(&scope.storage,
+                    &format!("channel_qr_flag_failed operation={id} profile={profile} platform=feishu access={access}"));
+                return Err(error);
+            }
+            let saved = config_request_for_scope(
                 &state,
                 &scope,
                 reqwest::Method::PUT,
                 "/api/messaging/platforms/feishu",
                 Some(
-                    json!({"enabled":true,"env":{"FEISHU_APP_ID":app_id,"FEISHU_APP_SECRET":secret,
-                    "FEISHU_DOMAIN":domain}}),
+                    json!({"enabled":true,"profile": profile,"env":{"FEISHU_APP_ID":app_id,"FEISHU_APP_SECRET":secret,
+                    "FEISHU_DOMAIN":domain}, "clear_env": ["FEISHU_ALLOWED_USERS"]}),
                 ),
             )
-            .await?;
+            .await;
+            if let Err(error) = saved {
+                let _ = crate::diagnostics::append_client_event(&scope.storage,
+                    &format!("channel_qr_config_failed operation={id} profile={profile} platform=feishu access={access}"));
+                return Err(error);
+            }
+            let _ = crate::diagnostics::append_client_event(&scope.storage,
+                &format!("channel_qr_completed operation={id} profile={profile} platform=feishu access={access}"));
             channels.0.lock().await.remove(&id);
             return Ok(QrPoll {
                 status: "connected",
@@ -318,6 +471,10 @@ pub async fn channel_qr_poll(
             .contains(&result.get("error").and_then(Value::as_str).unwrap_or(""))
         {
             channels.0.lock().await.remove(&id);
+            let _ = crate::diagnostics::append_client_event(
+                &scope.storage,
+                &format!("channel_qr_expired operation={id} profile={profile} platform=feishu"),
+            );
             return Ok(QrPoll {
                 status: "expired",
                 restart_required: false,
@@ -337,6 +494,10 @@ pub async fn channel_qr_poll(
             }
             "expired" => {
                 channels.0.lock().await.remove(&id);
+                let _ = crate::diagnostics::append_client_event(
+                    &scope.storage,
+                    &format!("channel_qr_expired operation={id} profile={profile} platform=weixin"),
+                );
                 return Ok(QrPoll {
                     status: "expired",
                     restart_required: false,
@@ -372,10 +533,25 @@ pub async fn channel_qr_poll(
                 if !valid_weixin_base(base) {
                     return Err(DesktopFailure::invalid_input());
                 }
-                config_request_for_scope(&state, &scope, reqwest::Method::PUT, "/api/messaging/platforms/weixin",
-                    Some(json!({"enabled":true,"env":{"WEIXIN_ACCOUNT_ID":account,"WEIXIN_TOKEN":token,
-                        "WEIXIN_BASE_URL":base,"WEIXIN_DM_POLICY":"pairing",
-                        "WEIXIN_GROUP_POLICY":"disabled"}}))).await?;
+                let _ = crate::diagnostics::append_client_event(&scope.storage,
+                    &format!("channel_qr_confirmed operation={id} profile={profile} platform=weixin access={access}"));
+                if let Err(error) = save_access_flag(&state, &scope, "weixin", &access_env).await {
+                    let _ = crate::diagnostics::append_client_event(&scope.storage,
+                        &format!("channel_qr_flag_failed operation={id} profile={profile} platform=weixin access={access}"));
+                    return Err(error);
+                }
+                let saved = config_request_for_scope(&state, &scope, reqwest::Method::PUT, "/api/messaging/platforms/weixin",
+                    Some(json!({"enabled":true,"profile": profile,"env":{"WEIXIN_ACCOUNT_ID":account,"WEIXIN_TOKEN":token,
+                        "WEIXIN_BASE_URL":base,"WEIXIN_DM_POLICY": access_env["WEIXIN_DM_POLICY"],
+                        "WEIXIN_GROUP_POLICY":"disabled"},
+                        "clear_env": ["WEIXIN_ALLOWED_USERS"]}))).await;
+                if let Err(error) = saved {
+                    let _ = crate::diagnostics::append_client_event(&scope.storage,
+                        &format!("channel_qr_config_failed operation={id} profile={profile} platform=weixin access={access}"));
+                    return Err(error);
+                }
+                let _ = crate::diagnostics::append_client_event(&scope.storage,
+                    &format!("channel_qr_completed operation={id} profile={profile} platform=weixin access={access}"));
                 channels.0.lock().await.remove(&id);
                 return Ok(QrPoll {
                     status: "connected",
@@ -398,7 +574,7 @@ pub async fn channel_qr_cancel(
     profile: String,
     id: String,
 ) -> Result<(), DesktopFailure> {
-    state.resolve_profile(&profile).await?;
+    let scope = state.resolve_profile(&profile).await?;
     let mut pending = channels.0.lock().await;
     if pending
         .get(&id)
@@ -406,7 +582,15 @@ pub async fn channel_qr_cancel(
     {
         return Err(DesktopFailure::conflict());
     }
-    pending.remove(&id);
+    if let Some(request) = pending.remove(&id) {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!(
+                "channel_qr_cancelled operation={id} profile={profile} platform={}",
+                request.platform
+            ),
+        );
+    }
     Ok(())
 }
 

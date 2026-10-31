@@ -26,6 +26,11 @@ fn forwards_runtime_notification_and_background_events() {
 }
 
 #[test]
+fn forwards_session_list_change_signal() {
+    assert!(is_forwarded_event("sessions.changed"));
+}
+
+#[test]
 fn large_notification_text_keeps_identity_and_does_not_change_chat_events() {
     let original = json!({"task_id":"task", "text":"中文".repeat(40000)});
     let mut notice = original.clone();

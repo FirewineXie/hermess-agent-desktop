@@ -47,6 +47,9 @@ fn main() {
         .manage(runtime::BackendState::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
+        .manage(runtime::channel_telegram::TelegramSetupState::default())
+        .manage(runtime::channel_vendor_qr::VendorQrState::default())
+        .manage(runtime::channel_whatsapp::WhatsAppSetupState::default())
         .manage(panel_terminal::TerminalState::default())
         .manage(updates::UpdateDownloadState::default())
         .setup(|app| {
@@ -120,8 +123,23 @@ fn main() {
             updates::start_update_download,
             updates::get_update_download_status,
             runtime::channels::channel_status,
+            runtime::channel_manage::channel_save,
+            runtime::channel_manage::channel_test,
+            runtime::channel_telegram::channel_telegram_start,
+            runtime::channel_telegram::channel_telegram_poll,
+            runtime::channel_telegram::channel_telegram_apply,
+            runtime::channel_telegram::channel_telegram_cancel,
+            runtime::channel_vendor_qr::channel_vendor_qr_start,
+            runtime::channel_vendor_qr::channel_vendor_qr_poll,
+            runtime::channel_vendor_qr::channel_vendor_qr_apply,
+            runtime::channel_vendor_qr::channel_vendor_qr_cancel,
+            runtime::channel_whatsapp::channel_whatsapp_start,
+            runtime::channel_whatsapp::channel_whatsapp_poll,
+            runtime::channel_whatsapp::channel_whatsapp_apply,
+            runtime::channel_whatsapp::channel_whatsapp_cancel,
             runtime::channels::channel_qr_start,
             runtime::channels::channel_qr_poll,
+            runtime::channels::channel_pairing_approve,
             runtime::channels::channel_qr_cancel,
             runtime::chat::create_chat_session,
             runtime::chat::submit_chat_prompt,

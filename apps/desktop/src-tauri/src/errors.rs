@@ -43,6 +43,14 @@ impl DesktopFailure {
         Self::new("invalid_input", "validation")
     }
 
+    pub fn pairing_not_found() -> Self {
+        Self::new("pairing_not_found", "validation")
+    }
+
+    pub fn pairing_locked() -> Self {
+        Self::new("pairing_locked", "validation")
+    }
+
     pub fn session_owner_unknown() -> Self {
         Self::new(SESSION_OWNER_UNKNOWN, "validation")
     }

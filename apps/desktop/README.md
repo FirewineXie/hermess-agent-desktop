@@ -12,7 +12,9 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/paths.rs`：产品 Windows 路径统一为普通盘符或 UNC 写法；深路径只在内部文件系统调用时临时使用扩展写法，不向进程、前端或持久化配置传出。macOS 与 Linux 保持原样。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/process_manager.rs`：桌面创建的产品进程统一登记、封闭新启动与按用途退出；`process_manager/windows.rs` 用 Job Object 管理进程树，`process_manager/macos.rs` 用独立进程组和随主程序退出的守护进程回收组内成员，尚不能约束主动脱组的后代。
-- `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
+- `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入、私聊放行或配对审批模式、配对码批准与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
+- `src-tauri/src/runtime/channel_manage.rs`：按当前 Profile 代理锁定 Gateway 的渠道配置与测试接口，启用前检查必填字段，返回给前端的渠道目录只含字段元数据。
+- `src-tauri/src/runtime/channel_telegram.rs`、`channel_vendor_qr.rs`：Telegram、钉钉、企微群机器人及 QQ Bot 的扫码状态与临时凭据；QQ 返回的密钥在 Rust 中解密。成功后经产品自有 Gateway 配置接口保存，不调用上游自带的自动重启。
 - `src-tauri/src/runtime/modelscope.rs`：客户端自有的 ModelScope Skill 搜索、ZIP 检查与安装适配；只写入本产品的 Hermes 数据目录，不修改固定上游源码。
 - `src-tauri/src/runtime/mcp_registry.rs`：公开 MCP Registry 的只读搜索、详情及可直接配置的 HTTPS 远程条目筛选；实际安装经当前自有 Hermes 的 MCP 配置接口。
 - `src-tauri/src/runtime/modelscope_mcp.rs`：ModelScope MCP 广场的公开搜索与详情适配；仅在公开详情提供静态 HTTPS 地址时经当前自有 Hermes 安装，不代管 ModelScope 账号部署。

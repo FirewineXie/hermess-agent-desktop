@@ -12,7 +12,7 @@ React 界面代码位于 `src/`。桌面客户端通过 `mountApp(root, api)` �
 - `src/features/agent-settings/components/`：配置字段、分组树、辅助模型任务卡片与完整 YAML 编辑器；View 组合组件并呈现控制器状态。
 - `src/features/about/`：「关于」三个 Tab，以及左侧独立的「软件更新」页、RC/正式版渠道偏好和纯版本比较规则；无可信发行源时不报告更新结果。
 - `src/features/runtime/`：运行时与存储设置、独立的开发者诊断页。诊断页默认隐藏入口，在主聊天页面空白区域连续点击五次后打开。
-- `src/features/channels/`：飞书和微信二维码、扫码状态及接入后的排空重启；其他 Hermes 消息渠道显示只读状态。超时后提供继续等待和确认强制重启，凭据不进入前端状态。
+- `src/features/channels/`：飞书、微信、Telegram、钉钉、企微群机器人、QQ Bot 与 WhatsApp 优先扫码；其他消息渠道按锁定 Gateway 返回的字段配置、启停并测试连接。扫码凭据由 Rust 保管，前端只显示二维码和非敏感状态；WhatsApp 扫码复用锁定 Dashboard 的配对记录，配置保存后由桌面端负责重启，不调用 fork 的自动重启接口。异常退出时 WhatsApp Node 进程的桌面兜底回收尚待双平台原生验收。
 - `src/features/workspaces/`：本地工作区目录快捷入口、当前新会话目录选择；选中的目录在创建新会话时传给桌面宿主，恢复旧会话不改其原目录。
 - `src/preview/`：浏览器预览的模拟宿主。
 - `src/locales/`：界面文案与 Agent 配置翻译。

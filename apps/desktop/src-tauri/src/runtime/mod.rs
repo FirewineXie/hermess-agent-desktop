@@ -1,6 +1,10 @@
 use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
 pub mod browser_bridge;
+pub mod channel_manage;
+pub mod channel_telegram;
+pub mod channel_vendor_qr;
+pub mod channel_whatsapp;
 pub mod channels;
 pub mod chat;
 mod composer_agents;
@@ -649,6 +653,7 @@ async fn restart_status(client: &Client, port: u16) -> Result<Value, DesktopFail
 pub async fn restart_backend_gracefully(
     app: AppHandle,
     state: State<'_, BackendState>,
+    whatsapp_setups: State<'_, channel_whatsapp::WhatsAppSetupState>,
 ) -> Result<GracefulRestartResult, DesktopFailure> {
     let _restart_gate = state.1.try_lock().map_err(|_| DesktopFailure::conflict())?;
     let (pid, port, token, hermes, storage, disable_lazy_installs) = {
@@ -722,6 +727,7 @@ pub async fn restart_backend_gracefully(
         sleep(Duration::from_secs(1)).await;
     }
 
+    channel_whatsapp::cancel_all(&state, &whatsapp_setups).await;
     let mut owned = state.0.lock().await;
     let backend = owned
         .as_mut()
@@ -781,9 +787,11 @@ pub async fn restart_backend_gracefully(
 pub async fn stop_backend(
     state: State<'_, BackendState>,
     browser_bridge: State<'_, browser_bridge::BrowserBridgeState>,
+    whatsapp_setups: State<'_, channel_whatsapp::WhatsAppSetupState>,
 ) -> Result<(), DesktopFailure> {
     // The browser's detach request needs the gateway, so end CDP first.
     browser_bridge.stop_all().await;
+    channel_whatsapp::cancel_all(&state, &whatsapp_setups).await;
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");
