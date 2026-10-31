@@ -64,7 +64,7 @@ export default function MemoryContextSettings({ connected, profile, storagePath,
             profile={profile} storagePath={storagePath} config={config} schema={schema} language={language} disabled={fieldDirty || saving}
             onSaved={reload} onDirtyChange={setRouteDirty} onBusyChange={setRouteBusy} />}
           {group.fields.filter(([key]) => group.id !== 'compression-model' || !schema?.fields['auxiliary.compression.model']
-            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key)).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
+            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.base_url', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key)).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
             editing={editingKey === entry[0]} busy={saving} language={language} t={t}
             onEdit={editField} onChange={(key, value) => setDrafts({ [key]: value })}
             onSave={([key, field]) => void saveField(key, field)} onCancel={cancelEdit} />)}

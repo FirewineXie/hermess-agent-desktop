@@ -112,6 +112,8 @@ export default function CompressionRoutePicker({ profile, storagePath, config, s
       t={key => key === 'ui.edit' ? (zh ? '按厂商选择' : 'Choose provider') : key === 'ui.save.setting' ? (zh ? '保存设置' : 'Save setting') : (zh ? '取消' : 'Cancel')}
       onEdit={() => void edit()} onProviderChange={setProvider} onModelChange={setModel} onEffortChange={setEffort}
       onTimeoutChange={setTimeoutValue} onSave={() => void save()} onCancel={() => { ++request.current; setEditing(false); setStatus('') }} />
+    {!editing && schema.fields['auxiliary.compression.reasoning_effort'] && <small>{zh ? '推理强度' : 'Reasoning effort'}：{String(current?.reasoning_effort || (zh ? '继承默认' : 'Inherit default'))}</small>}
+    {!editing && schema.fields['auxiliary.compression.timeout'] && <small>{zh ? '超时' : 'Timeout'}：{current?.timeout == null || current.timeout === '' ? (zh ? '未设置' : 'Not set') : `${String(current.timeout)} ${zh ? '秒' : 'seconds'}`}</small>}
     {editing && <small>{zh ? '从当前 Profile 已配置的厂商与模型中选择；也可输入该厂商的其他模型 ID。' : 'Choose a configured provider and model for this Profile, or enter another model ID.'}</small>}
     {editing && providers.length === 0 && <small>{zh ? '没有可选厂商。请先在“模型设置”中配置并保存一个厂商。' : 'No providers are available. Configure one in Model settings first.'}</small>}
     {status && <p role="status">{status}</p>}
