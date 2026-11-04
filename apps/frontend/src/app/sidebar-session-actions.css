@@ -1,0 +1,21 @@
+.sidebar-sessions .sidebar-session-archive {
+  flex: none;
+  justify-content: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  color: #66758c;
+  background: transparent;
+  font-size: 15px;
+  opacity: .7;
+}
+
+.sidebar-session-entry:hover .sidebar-session-archive,
+.sidebar-session-archive:focus-visible {
+  opacity: 1;
+}
+
+.sidebar-sessions .sidebar-session-archive:hover:not(:disabled) {
+  color: #245bc2;
+  background: #eaf2ff;
+}

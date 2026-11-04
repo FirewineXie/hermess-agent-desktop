@@ -4,7 +4,7 @@ use super::{
     BackendState,
 };
 use crate::errors::DesktopFailure;
-use reqwest::Client;
+use reqwest::{Client, Url};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -162,9 +162,14 @@ pub async fn channel_status(
     Ok(
         json!({"platforms": platforms.iter().filter(|p| p.get("id").and_then(Value::as_str).is_some())
         .map(|p| json!({"id": p.get("id"), "name": p.get("name"), "enabled": p.get("enabled"),
+            "description": safe_status_message(p.get("description")),
+            "docs_url": safe_status_url(p.get("docs_url"), true),
             "supported": !(cfg!(windows) && p.get("id").and_then(Value::as_str) == Some("matrix")),
             "configured": if p.get("id").and_then(Value::as_str) == Some("whatsapp") { json!(whatsapp_linked) } else { p.get("configured").cloned().unwrap_or(Value::Bool(false)) }, "state": p.get("state"),
             "error_code": p.get("error_code"),
+            "error_message": safe_status_message(p.get("error_message")),
+            "ingress_url": safe_status_url(p.get("ingress_url"), false),
+            "whatsapp_setup": if p.get("id").and_then(Value::as_str) == Some("whatsapp") { whatsapp_setup_summary(p) } else { None },
             "fields": p.get("env_vars").and_then(Value::as_array).map(|fields| fields.iter().map(|field| json!({
                 "key": field.get("key"), "prompt": field.get("prompt"), "help": field.get("help"),
                 "required": field.get("required"), "is_set": field.get("is_set"),
@@ -172,6 +177,45 @@ pub async fn channel_status(
                 "value": if field.get("is_list").and_then(Value::as_bool) == Some(true) { field.get("value") } else { None }
             })).collect::<Vec<_>>())})).collect::<Vec<_>>() }),
     )
+}
+
+fn safe_status_message(value: Option<&Value>) -> Option<&str> {
+    value.and_then(Value::as_str).filter(|message| {
+        !message.is_empty()
+            && message.len() <= 2048
+            && !message
+                .chars()
+                .any(|ch| ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
+    })
+}
+
+fn safe_status_url(value: Option<&Value>, https_only: bool) -> Option<&str> {
+    let raw = value
+        .and_then(Value::as_str)
+        .filter(|raw| !raw.is_empty() && raw.len() <= 2048 && !raw.chars().any(char::is_control))?;
+    let parsed = Url::parse(raw).ok()?;
+    let valid_scheme = parsed.scheme() == "https" || (!https_only && parsed.scheme() == "http");
+    (valid_scheme && parsed.username().is_empty() && parsed.password().is_none()).then_some(raw)
+}
+
+fn whatsapp_setup_summary(platform: &Value) -> Option<Value> {
+    let setup = platform.get("whatsapp_setup")?.as_object()?;
+    let mode = match setup.get("mode").and_then(Value::as_str) {
+        Some("bot") => "bot",
+        Some("self-chat") => "self-chat",
+        _ => "",
+    };
+    Some(json!({
+        "mode": mode,
+        "allowed_users_set": setup
+            .get("allowed_users_set")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "home_channel_set": setup
+            .get("home_channel_set")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    }))
 }
 
 #[tauri::command]
@@ -209,13 +253,9 @@ pub async fn channel_pairing_approve(
         scope.ensure_current(&state).await?;
         let (port, auth_header, token) = scope.http_auth().await?;
         scope.ensure_current(&state).await?;
-        let response = Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(20))
-            .build()
-            .map_err(|_| DesktopFailure::connection_lost())?
+        let response = super::local_http::client()?
             .post(format!("http://127.0.0.1:{port}/api/pairing/approve"))
+            .timeout(Duration::from_secs(20))
             .header(auth_header, token)
             .json(&json!({"profile": profile, "platform": platform, "code": code}))
             .send()

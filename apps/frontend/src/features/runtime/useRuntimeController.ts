@@ -54,7 +54,7 @@ export function useRuntimeController({ t, onReset }: Options) {
     return () => { active = false }
   }, [])
 
-  async function startBackend(selectedStoragePath = storagePath, selectedPythonPath = pythonPath) {
+  async function startBackendOperation(selectedStoragePath: string, selectedPythonPath: string, propagate: boolean) {
     setBusy(true)
     setBackendStatus(t("ui.starting.and.authenticating"))
     try {
@@ -64,6 +64,7 @@ export function useRuntimeController({ t, onReset }: Options) {
       setBackend(info)
       setBackendStatus(t("ui.ready.websocket.ping.succeeded"))
       if (!import.meta.env.DEV) setStorageLocked(true)
+      return info
     } catch (cause) {
       void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
       if (!backend) {
@@ -71,7 +72,17 @@ export function useRuntimeController({ t, onReset }: Options) {
         onReset()
       }
       setBackendStatus(t("ui.startup.failed.arg", describeError(cause, language)))
+      if (propagate) throw cause
+      return null
     } finally { setBusy(false) }
+  }
+
+  async function startBackend(selectedStoragePath = storagePath, selectedPythonPath = pythonPath) {
+    await startBackendOperation(selectedStoragePath, selectedPythonPath, false)
+  }
+
+  async function startBackendStrict(selectedStoragePath = storagePath, selectedPythonPath = pythonPath) {
+    return startBackendOperation(selectedStoragePath, selectedPythonPath, true)
   }
 
   async function chooseStoragePath() {
@@ -93,19 +104,27 @@ export function useRuntimeController({ t, onReset }: Options) {
     finally { setBusy(false) }
   }
 
-  async function stopBackend() {
+  async function stopBackendOperation(propagate: boolean) {
+    const previous = backend
     setBusy(true)
     try {
       await runtime.stop()
       setBackend(null)
       onReset()
       setBackendStatus(t("ui.stopped"))
+      return previous
     } catch (cause) {
       void diagnostics.recordEvent(storagePath, 'stop_failed').catch(() => {})
       setBackendStatus(t("ui.stop.failed.arg", describeError(cause, language)))
+      if (propagate) throw cause
+      return null
     }
     finally { setBusy(false) }
   }
+
+  async function stopBackend() { await stopBackendOperation(false) }
+
+  async function stopBackendStrict() { return stopBackendOperation(true) }
 
   async function restartBackend() {
     setBusy(true)
@@ -152,6 +171,7 @@ export function useRuntimeController({ t, onReset }: Options) {
   return {
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
-    startBackend, chooseStoragePath, pingBackend, stopBackend, restartBackend, forceRestartBackend,
+    startBackend, startBackendStrict, chooseStoragePath, pingBackend, stopBackend, stopBackendStrict,
+    restartBackend, forceRestartBackend,
   }
 }

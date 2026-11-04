@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
-import { isDesktopFailure, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
+import { isDesktopFailure, type DashboardPluginSocketEvent, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type HermesConsoleSocketEvent, type KanbanEventMessage, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
 import { notificationApprovalChoice } from './notificationActions'
 
 const notificationTargets = new Map<number, NotificationTarget>()
@@ -106,8 +106,93 @@ function supportedRequests(value: unknown, profile: string): GatewayRequest[] {
 }
 
 export const tauriDesktopApi: DesktopApi = {
+  hermesConsole: {
+    socket: async (scope, handler) => {
+      const subscription = crypto.randomUUID()
+      let ready = false
+      const queued: HermesConsoleSocketEvent[] = []
+      const unlisten = await listenPayload<HermesConsoleSocketEvent>('hermes-console-event', event => {
+        if (event.subscription !== subscription) return
+        if (ready) handler(event)
+        else queued.push(event)
+      })
+      try {
+        await invoke('console_socket_subscribe', { profile: scope.profile, subscription })
+      } catch (cause) {
+        unlisten()
+        throw cause
+      }
+      ready = true
+      for (const event of queued) handler(event)
+      return {
+        send: frame => invoke('console_socket_send', { profile: scope.profile, subscription, data: JSON.stringify(frame) }),
+        close: () => {
+          unlisten()
+          void invoke('console_socket_unsubscribe', { profile: scope.profile, subscription }).catch(() => {})
+        },
+      }
+    },
+  },
+  dashboardPlugins: {
+    socket: async (scope, path, handler) => {
+      const subscription = crypto.randomUUID()
+      let ready = false
+      const queued: DashboardPluginSocketEvent[] = []
+      const unlisten = await listenPayload<DashboardPluginSocketEvent>('dashboard-plugin-socket-event', event => {
+        if (event.subscription !== subscription) return
+        if (ready) handler(event)
+        else queued.push(event)
+      })
+      try {
+        await invoke('dashboard_plugin_socket_subscribe', { profile: scope.profile, subscription, path })
+      } catch (cause) {
+        unlisten()
+        throw cause
+      }
+      ready = true
+      for (const event of queued) handler(event)
+      return {
+        send: (data, binary = false) => invoke('dashboard_plugin_socket_send', { profile: scope.profile, subscription, data, binary }),
+        close: () => {
+          unlisten()
+          void invoke('dashboard_plugin_socket_unsubscribe', { profile: scope.profile, subscription }).catch(() => {})
+        },
+      }
+    },
+  },
+  kanbanDashboard: {
+    request: (path, method, body, upload) => invoke('kanban_dashboard_request', { path, method, body: body ?? null, upload: upload ?? null }),
+    events: async (board, since, handler) => {
+      const subscription = crypto.randomUUID()
+      const unlisten = await listenPayload<KanbanEventMessage>('kanban-dashboard-event', message => {
+        if (message.subscription === subscription) handler(message)
+      })
+      try {
+        await invoke('kanban_dashboard_subscribe', { subscription, board, since })
+      } catch (cause) {
+        unlisten()
+        throw cause
+      }
+      return () => {
+        unlisten()
+        void invoke('kanban_dashboard_unsubscribe', { subscription }).catch(() => {})
+      }
+    },
+  },
+  personalTasks: {
+    capabilities: scope => invoke('personal_task_request', { profile: scope.profile, action: 'capabilities', payload: {} }),
+    list: scope => invoke('personal_task_request', { profile: scope.profile, action: 'list', payload: {} }),
+    create: (scope, requestId, title, body, triage = false) => invoke('personal_task_request', { profile: scope.profile, action: 'create', payload: { request_id: requestId, title, body, triage } }),
+    detail: (scope, taskId) => invoke('personal_task_request', { profile: scope.profile, action: 'detail', payload: { task_id: taskId } }),
+    decompose: (scope, taskId) => invoke('personal_task_request', { profile: scope.profile, action: 'decompose', payload: { task_id: taskId } }),
+    reply: (scope, taskId, requestId, body) => invoke('personal_task_request', { profile: scope.profile, action: 'reply', payload: { task_id: taskId, request_id: requestId, body } }),
+    resume: (scope, taskId, requestId) => invoke('personal_task_request', { profile: scope.profile, action: 'resume', payload: { task_id: taskId, request_id: requestId } }),
+    archive: (scope, taskId) => invoke('personal_task_request', { profile: scope.profile, action: 'archive', payload: { task_id: taskId } }),
+    events: (scope, after) => invoke('personal_task_request', { profile: scope.profile, action: 'events', payload: { after } }),
+  },
   links: {
     openRepository: () => nativeCall(() => openUrl('https://github.com/FirewineXie/hermess-agent-desktop')),
+    openDocumentation: () => nativeCall(() => openUrl('https://hermes-agent.nousresearch.com/docs/')),
   },
   windowChrome: {
     customTitlebar: navigator.platform.startsWith('Win'),
@@ -168,12 +253,19 @@ export const tauriDesktopApi: DesktopApi = {
     dataDirectory: scope => invoke('get_profile_data_directory', { profile: scope.profile }),
     listDataDirectory: (scope, relativePath) => invoke('list_profile_data_directory', { profile: scope.profile, relativePath }),
     openDataDirectory: scope => invoke('open_profile_data_directory', { profile: scope.profile }),
-    create: (name, preset) => invoke('create_profile', { name, preset }),
+    create: (name, options) => invoke('create_profile', { name, options }),
+    exportArchive: (name, destination) => invoke('export_profile_archive', { name, destination }),
+    importArchive: (archive, name) => invoke('import_profile_archive', { archive, name }),
     delete: name => invoke('delete_profile', { name }),
     setDisplayName: (name, displayName) => invoke('set_profile_display_name', { name, displayName }),
+    identity: name => invoke('get_profile_identity', { name }),
+    setupCommand: name => invoke('get_profile_setup_command', { name }),
+    renameId: (name, newName) => invoke('rename_profile_id', { name, newName }),
+    saveDescription: (name, description) => invoke('save_profile_description', { name, description }),
+    describeAuto: (name, overwrite) => invoke('describe_profile_auto', { name, overwrite }),
     inspectImport: path => invoke('inspect_workbuddy_import', { path }),
     importPackage: (path, profileName, expectedDigest) => invoke('import_workbuddy_package', { path, profileName, expectedDigest }),
-    select: name => invoke('select_profile', { name }),
+    activate: name => invoke('activate_profile', { name }),
     listPersonalities: scope => invoke('list_personalities', { profile: scope.profile }),
     listToolsets: scope => invoke('list_profile_toolsets', { profile: scope.profile }),
     applyPersonality: (scope, name, prompt) => invoke('apply_personality', { profile: scope.profile, name, prompt }),
@@ -184,15 +276,15 @@ export const tauriDesktopApi: DesktopApi = {
     test: (scope, platform) => invoke('channel_test', { profile: scope.profile, platform }),
     telegramStart: scope => invoke('channel_telegram_start', { profile: scope.profile }),
     telegramPoll: (scope, id) => invoke('channel_telegram_poll', { profile: scope.profile, id }),
-    telegramApply: (scope, id, allowedUserId) => invoke('channel_telegram_apply', { profile: scope.profile, id, allowedUserId }),
+    telegramApply: (scope, id, allowedUserIds) => invoke('channel_telegram_apply', { profile: scope.profile, id, allowedUserIds }),
     telegramCancel: (scope, id) => invoke('channel_telegram_cancel', { profile: scope.profile, id }),
     vendorQrStart: (scope, platform) => invoke('channel_vendor_qr_start', { profile: scope.profile, platform }),
     vendorQrPoll: (scope, id) => invoke('channel_vendor_qr_poll', { profile: scope.profile, id }),
     vendorQrApply: (scope, id) => invoke('channel_vendor_qr_apply', { profile: scope.profile, id }),
     vendorQrCancel: (scope, id) => invoke('channel_vendor_qr_cancel', { profile: scope.profile, id }),
-    whatsappStart: scope => invoke('channel_whatsapp_start', { profile: scope.profile }),
+    whatsappStart: (scope, options) => invoke('channel_whatsapp_start', { profile: scope.profile, ...options }),
     whatsappPoll: (scope, id) => invoke('channel_whatsapp_poll', { profile: scope.profile, id }),
-    whatsappApply: (scope, id) => invoke('channel_whatsapp_apply', { profile: scope.profile, id }),
+    whatsappApply: (scope, id, options) => invoke('channel_whatsapp_apply', { profile: scope.profile, id, ...options }),
     whatsappCancel: (scope, id) => invoke('channel_whatsapp_cancel', { profile: scope.profile, id }),
     start: (scope, platform) => invoke('channel_qr_start', { profile: scope.profile, platform }),
     poll: (scope, id, access) => invoke('channel_qr_poll', { profile: scope.profile, id, access }),
@@ -208,6 +300,11 @@ export const tauriDesktopApi: DesktopApi = {
   },
   extensions: {
     request: (scope, operation, payload = {}) => invoke('extension_request', { profile: scope.profile, operation, payload }),
+    cancelMcpOAuth: (scope, flowId) => invoke('extension_request', {
+      profile: scope.profile,
+      operation: 'mcp.auth.cancel',
+      payload: { flow_id: flowId },
+    }),
   },
   runtime: {
     devDefaults: () => invoke('dev_backend_defaults'),
@@ -219,6 +316,7 @@ export const tauriDesktopApi: DesktopApi = {
     restartGracefully: () => invoke('restart_backend_gracefully'),
     stop: () => invoke('stop_backend'),
     probeLocalTools: () => invoke('probe_local_tools'),
+    systemStats: () => invoke('get_system_stats'),
   },
   tools: {
     listBundledTools: () => invoke('list_bundled_tools'),
@@ -235,10 +333,16 @@ export const tauriDesktopApi: DesktopApi = {
   agentSettings: {
     schema: scope => invoke('get_agent_config_schema', { profile: scope.profile }),
     config: scope => invoke('get_agent_config', { profile: scope.profile }),
+    defaults: scope => invoke('get_agent_config_defaults', { profile: scope.profile }),
     raw: scope => invoke('get_agent_config_raw', { profile: scope.profile }),
     saveField: (scope, key, value) => invoke('save_agent_config_field', { profile: scope.profile, key, value }),
+    saveConfig: (scope, config) => invoke('save_agent_config', { profile: scope.profile, config }),
     saveRaw: (scope, yamlText, expectedYaml) => invoke('save_agent_config_raw', { profile: scope.profile, yamlText, expectedYaml }),
+    importJson: (scope, path) => invoke('import_agent_config_json', { profile: scope.profile, path }),
+    exportJson: (scope, path, config) => invoke('export_agent_config_json', { profile: scope.profile, path, config }),
+    auxiliary: scope => invoke('get_auxiliary_models', { profile: scope.profile }),
     saveAuxiliary: (scope, route) => invoke('save_auxiliary_route', { profile: scope.profile, ...route }),
+    resetAuxiliary: scope => invoke('reset_auxiliary_models', { profile: scope.profile }),
   },
   security: {
     consent: scope => invoke('get_shared_metrics_consent', { profile: scope.profile }),
@@ -255,6 +359,7 @@ export const tauriDesktopApi: DesktopApi = {
   personalFiles: {
     read: (scope, kind) => invoke('read_personal_file', { profile: scope.profile, kind }),
     save: (scope, args) => invoke('save_personal_file', { profile: scope.profile, ...args }),
+    reset: (scope, target) => invoke('reset_personal_memory', { profile: scope.profile, target }),
   },
   delegation: {
     read: scope => invoke('get_delegation_routing', { profile: scope.profile }),
@@ -285,9 +390,15 @@ export const tauriDesktopApi: DesktopApi = {
     selectChat: (scope, args) => invoke('select_chat_model', { profile: scope.profile, sessionId: scope.sessionId, ...args }),
     moa: scope => invoke('get_moa_config', { profile: scope.profile }),
     saveMoa: (scope, config) => invoke('save_moa_config', { profile: scope.profile, config }),
+    oauthProviders: scope => invoke('list_model_oauth_providers', { profile: scope.profile }),
+    oauthStart: (scope, provider) => invoke('start_model_oauth', { profile: scope.profile, provider }),
+    oauthPoll: (scope, provider, sessionId) => invoke('poll_model_oauth', { profile: scope.profile, provider, sessionId }),
+    oauthCancel: (scope, sessionId) => invoke('cancel_model_oauth', { profile: scope.profile, sessionId }),
+    oauthDisconnect: (scope, provider) => invoke('disconnect_model_oauth', { profile: scope.profile, provider }),
   },
   usage: {
     statistics: (scope, days) => invoke('get_usage_statistics', { profile: scope.profile, days }),
+    models: (scope, days) => invoke('get_model_usage_statistics', { profile: scope.profile, days }),
   },
   chat: {
     createSession: (scope, args) => invoke('create_chat_session', { profile: scope.profile, ...args }),
@@ -297,7 +408,7 @@ export const tauriDesktopApi: DesktopApi = {
     },
     listSessions: scope => invoke('list_chat_sessions', { profile: scope.profile }),
     deleteSession: scope => invoke('delete_chat_session', { profile: scope.profile, sessionId: scope.sessionId, keepView: scope.keepView, viewSessionId: scope.viewSessionId }),
-    submitPrompt: (scope, text) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text }),
+    submitPrompt: (scope, text, images) => invoke('submit_chat_prompt', { profile: scope.profile, sessionId: scope.sessionId, text, images }),
     interruptSession: scope => invoke('interrupt_chat_session', { profile: scope.profile, sessionId: scope.sessionId }),
     steerSession: (scope, text) => invoke('steer_chat_session', { profile: scope.profile, sessionId: scope.sessionId, text }),
     askSideQuestion: (scope, question) => invoke('ask_side_question', { profile: scope.profile, sessionId: scope.sessionId, question }),
@@ -311,6 +422,9 @@ export const tauriDesktopApi: DesktopApi = {
     setReasoning: (scope, value) => invoke('set_chat_reasoning', { profile: scope.profile, sessionId: scope.sessionId, value }),
     commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
+    rollbackList: scope => invoke('list_chat_rollback_checkpoints', { profile: scope.profile, sessionId: scope.sessionId }),
+    rollbackDiff: (scope, hash) => invoke('diff_chat_rollback_checkpoint', { profile: scope.profile, sessionId: scope.sessionId, hash }),
+    rollbackRestore: (scope, args) => invoke('restore_chat_rollback_checkpoint', { profile: scope.profile, sessionId: scope.sessionId, hash: args.hash, filePath: args.filePath, all: args.all }),
     exportSession: async (scope, format, redact, filename) => {
       const path = await nativeCall(() => save({
         defaultPath: filename || `hermes_conversation.${format}`,
@@ -335,6 +449,7 @@ export const tauriDesktopApi: DesktopApi = {
   },
   nativeFiles: {
     choose: options => nativeCall(() => open(options)),
+    save: defaultPath => nativeCall(() => save({ defaultPath })),
     onDrop: handler => nativeCall(() => getCurrentWebview().onDragDropEvent(event => {
       const payload = event.payload
       const mapped: NativeDropEvent = payload.type === 'drop'

@@ -11,11 +11,11 @@ export const DESKTOP_GATEWAY_COMMANDS = new Set([
   'loop', 'heartbeat', 'review', 'refine', 'curator', 'login', 'autoprune',
   'plan', 'learn', 'init', 'moa', 'blueprint', 'egress', 'reasoning', 'approvals',
   'codex-runtime', 'fast', 'personality',
-  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save', 'reload-mcp', 'reload-skills', 'browser',
+  'approve', 'deny', 'new', 'sessions', 'model', 'history', 'resume', 'retry', 'compress', 'agents', 'branch', 'undo', 'rollback', 'steer', 'queue', 'btw', 'stop', 'config', 'tools', 'toolsets', 'cron', 'plugins', 'save', 'reload-mcp', 'reload-skills', 'browser',
 ])
 export const DESKTOP_DEDICATED_COMMANDS = new Set(['/bg', '/journey'])
 export const DESKTOP_DENIED_COMMANDS = new Set([
-  '/rollback', '/bg', '/worktree', '/snapshot', '/export', '/import',
+  '/bg', '/worktree', '/snapshot', '/export', '/import',
   '/reload',
   '/clear', '/redraw', '/prompt', '/statusbar', '/battery', '/timestamps', '/focus',
   '/skin', '/indicator', '/palette', '/copy', '/paste', '/image', '/quit',
@@ -25,9 +25,6 @@ export const DESKTOP_DENIED_COMMANDS = new Set([
 
 export function deniedCommandNotice(name: string, language: 'zh-CN' | 'en-US'): string {
   if (!DESKTOP_DENIED_COMMANDS.has(name) || DESKTOP_DEDICATED_COMMANDS.has(name)) return ''
-  if (name === '/rollback') return language === 'zh-CN'
-    ? '桌面端暂不支持 /rollback：文件恢复的安全预览与保护尚未完成。'
-    : 'The desktop app does not support /rollback yet: safe file restore preview and protection are incomplete.'
   return language === 'zh-CN' ? `桌面端暂不支持 ${name}。` : `The desktop app does not support ${name} yet.`
 }
 
@@ -81,13 +78,14 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/tools': ['打开客户端工具页面', 'Open desktop tools'],
       '/toolsets': ['查看当前专家的工具集配置', 'View toolset configuration for this Profile'],
       '/cron': ['打开定时任务页面', 'Open scheduled tasks'],
-      '/plugins': ['打开扩展中心', 'Open Extension Hub'],
+      '/plugins': ['管理当前 Profile 的插件', 'Manage plugins for the current Profile'],
       '/save': ['导出当前会话：/save json|md|html [文件名] [redact]', 'Export current session: /save json|md|html [filename] [redact]'],
       '/retry': ['重新运行上一条用户请求', 'Retry the last user request'],
       '/compress': ['压缩当前会话：/compress [here N | focus 主题] [--preview]', 'Compress current session: /compress [here N | focus topic] [--preview]'],
       '/agents': ['查看当前会话的子代理与失败任务', 'View subagents and failed tasks for this session'],
       '/branch': ['从当前会话创建分支：/branch [标题]', 'Branch this session: /branch [title]'],
       '/undo': ['回退会话回合：/undo [数量]，先预览再确认', 'Undo session turns: /undo [count], preview before applying'],
+      '/rollback': ['打开文件检查点，预览差异并安全恢复', 'Open file checkpoints, review diffs, and restore safely'],
       '/steer': ['运行中插入消息：/steer 内容', 'Send guidance to the running turn: /steer text'],
       '/queue': ['管理当前会话队列：/queue list|add|edit|rm|clear', 'Manage this session queue: /queue list|add|edit|rm|clear'],
       '/btw': ['顺带提问：/btw 问题；主回合继续运行', 'Ask a side question: /btw question; main turn continues'],

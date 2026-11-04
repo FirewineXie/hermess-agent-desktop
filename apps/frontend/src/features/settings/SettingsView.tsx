@@ -45,11 +45,11 @@ export default function SettingsView({ language, page, connected, profile, profi
       <header className="settings-content-heading">
         <div><h1>{zh ? categoryDefinition.zh : categoryDefinition.en}</h1>
           {(categoryDefinition.descriptionZh || categoryDefinition.descriptionEn) && <p>{zh ? categoryDefinition.descriptionZh : categoryDefinition.descriptionEn}</p>}</div>
-        {categoryDefinition.profileScoped && <label className="settings-profile-scope">{zh ? '当前 Profile' : 'Current Profile'}
+        {categoryDefinition.profileScoped && <label className="settings-profile-scope">{page === 'system-operations' ? (zh ? '操作 Profile' : 'Operation Profile') : (zh ? '当前 Profile' : 'Current Profile')}
           <select value={profile || ''} disabled={!connected || profileBusy || profiles.length === 0} onChange={event => selectProfile(event.target.value)}>
             {!profile && <option value="">{zh ? '未选择' : 'Not selected'}</option>}
             {profiles.map(item => <option key={item.name} value={item.name}>{item.display_name || item.name}</option>)}
-          </select><small>{zh ? '此分类的配置按 Profile 隔离' : 'Settings in this category are isolated by Profile'}</small>
+          </select><small>{page === 'system-operations' ? (zh ? '诊断按当前 Profile 执行' : 'Diagnostics run for this Profile') : (zh ? '此分类的配置按 Profile 隔离' : 'Settings in this category are isolated by Profile')}</small>
           {error && <small role="alert">{error}</small>}
         </label>}
       </header>

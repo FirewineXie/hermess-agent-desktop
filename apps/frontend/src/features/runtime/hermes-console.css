@@ -1,0 +1,17 @@
+.hermes-console-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; background: rgb(11 17 26 / 78%); }
+.hermes-console-dialog { display: flex; width: min(980px, 100%); height: min(760px, 84vh); min-height: 420px; flex-direction: column; overflow: hidden; border: 1px solid #34465b; border-radius: 16px; background: #101923; box-shadow: 0 24px 70px rgb(0 0 0 / 42%); }
+.hermes-console-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; border-bottom: 1px solid #2a394b; color: #e7edf6; }
+.hermes-console-dialog h2 { margin: 0; color: inherit; font-size: 18px; }
+.hermes-console-dialog header p { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; color: #9aa8bb; font-size: 12px; }
+.hermes-console-dialog header span { padding: 2px 8px; border-radius: 999px; color: #98d9b6; background: #18392c; font-weight: 650; }
+.hermes-console-dialog header span[data-state='connecting'], .hermes-console-dialog header span[data-state='running'] { color: #f1c377; background: #3e2f18; }
+.hermes-console-dialog header span[data-state='closed'], .hermes-console-dialog header span[data-state='error'] { color: #ff9aa2; background: #451f27; }
+.hermes-console-dialog header code { color: #b8c7da; }
+.hermes-console-actions { display: flex; align-items: center; gap: 8px; }
+.hermes-console-actions button { min-height: 36px; padding: 6px 11px; border: 1px solid #40546b; border-radius: 8px; color: #e7edf6; background: #1b2939; font: inherit; cursor: pointer; }
+.hermes-console-actions button:last-child { width: 36px; padding: 0; border: 0; background: transparent; font-size: 25px; }
+.hermes-console-terminal { min-height: 0; flex: 1; padding: 10px; overflow: hidden; background: #0b111a; }
+.hermes-console-terminal .xterm { height: 100%; }
+.hermes-console-terminal .xterm-viewport { background: transparent !important; }
+.hermes-console-dialog > footer { padding: 9px 18px; border-top: 1px solid #2a394b; color: #8292a6; font-size: 12px; }
+@media (max-width: 650px) { .hermes-console-backdrop { padding: 0; } .hermes-console-dialog { width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; } }

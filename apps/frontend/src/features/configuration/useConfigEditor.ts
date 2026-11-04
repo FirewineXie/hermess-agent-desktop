@@ -6,12 +6,15 @@ import type { Language } from '../../i18n'
 import { getField, fieldText } from '../agent-settings/model'
 import { configValuesEqual } from '../agent-settings/memoryContextModel'
 import { parseField, type ConfigurationPage } from './model'
+import { isConfigDocument, resetConfigFields } from './configDocumentModel'
 
 type Options = { connected: boolean; profile: string | null; page: ConfigurationPage; language: Language; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void }
 export function useConfigEditor({ connected,profile,page,language,onDirtyChange,onBusyChange }: Options) {
   const { agentSettings } = useDesktop()
   const [schema,setSchema] = React.useState<AgentConfigSchema | null>(null)
   const [config,setConfig] = React.useState<Record<string,unknown>>({})
+  const [savedConfig,setSavedConfig] = React.useState<Record<string,unknown>>({})
+  const [defaults,setDefaults] = React.useState<Record<string,unknown>>({})
   const [drafts,setDrafts] = React.useState<Record<string,string>>({})
   const [editingKey,setEditingKey] = React.useState<string | null>(null)
   const [expandedPaths,setExpandedPaths] = React.useState<Set<string>>(new Set())
@@ -24,7 +27,8 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
   const request = React.useRef(0)
   const inFlight = React.useRef(false)
   const scope = profile ? {kind:'profile' as const,profile} : null
-  const dirty = Object.entries(drafts).some(([key,value]) => value !== fieldText(getField(config,key),schema?.fields[key]?.type || 'string')) || raw !== null && yaml !== raw.yaml
+  const documentDirty = !configValuesEqual(config,savedConfig)
+  const dirty = documentDirty || Object.entries(drafts).some(([key,value]) => value !== fieldText(getField(config,key),schema?.fields[key]?.type || 'string')) || raw !== null && yaml !== raw.yaml
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) },[dirty,onDirtyChange])
   React.useEffect(() => { onBusyChange(busy); return () => onBusyChange(false) },[busy,onBusyChange])
   const message = (error: unknown) => error instanceof Error ? error.message : describeError(error,language)
@@ -34,14 +38,14 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
     const current = ++request.current
     inFlight.current = true; setBusy(true); setStatus('')
     try {
-      const [nextSchema,nextConfig,nextRaw] = await Promise.all([agentSettings.schema(scope),agentSettings.config(scope),nextMode === 'yaml' ? agentSettings.raw(scope) : Promise.resolve(null)])
+      const [nextSchema,nextConfig,nextDefaults,nextRaw] = await Promise.all([agentSettings.schema(scope),agentSettings.config(scope),agentSettings.defaults(scope),nextMode === 'yaml' ? agentSettings.raw(scope) : Promise.resolve(null)])
       if (current !== request.current) return
-      setSchema(nextSchema);setConfig(nextConfig);setRaw(nextRaw);setYaml(nextRaw?.yaml || '');setDrafts({});setEditingKey(null);setMode(nextMode)
+      setSchema(nextSchema);setConfig(nextConfig);setSavedConfig(nextConfig);setDefaults(nextDefaults);setRaw(nextRaw);setYaml(nextRaw?.yaml || '');setDrafts({});setEditingKey(null);setMode(nextMode)
     } catch (cause) { if (current === request.current) setStatus(message(cause)) }
     finally { if (current === request.current) { inFlight.current=false;setBusy(false) } }
   }
   React.useEffect(() => {
-    setSchema(null);setConfig({});setDrafts({});setRaw(null);setYaml('');setMode('schema');inFlight.current=false
+    setSchema(null);setConfig({});setSavedConfig({});setDefaults({});setDrafts({});setRaw(null);setYaml('');setMode('schema');inFlight.current=false
     void load('schema')
     return () => { ++request.current }
   },[connected,profile,page])
@@ -51,7 +55,7 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
   const cancel = () => { if (!inFlight.current && canDiscard()) {setDrafts({});setEditingKey(null)} }
   const save = async (key:string) => {
     const field = schema?.fields[key]
-    if (!scope || !field || drafts[key] === undefined || inFlight.current) return
+    if (!scope || !field || drafts[key] === undefined || inFlight.current || documentDirty) return
     let value:unknown
     try { value=parseField(drafts[key],field) } catch(cause) {setStatus(message(cause));return}
     const current=++request.current
@@ -61,7 +65,7 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
       const [nextConfig,nextSchema]=await Promise.all([agentSettings.config(scope),agentSettings.schema(scope)])
       if(current!==request.current)return
       if(!configValuesEqual(getField(nextConfig,key),value))throw new Error('已提交，但回读值不一致。请重新读取检查，勿重复提交。')
-      setConfig(nextConfig);setSchema(nextSchema);setDrafts({});setEditingKey(null);setStatus(language==='zh-CN'?'已保存并核实；部分配置在新会话或重启运行时后生效。':'Saved and verified. Some settings apply to new sessions or after a runtime restart.')
+      setConfig(nextConfig);setSavedConfig(nextConfig);setSchema(nextSchema);setDrafts({});setEditingKey(null);setStatus(language==='zh-CN'?'已保存并核实；部分配置在新会话或重启运行时后生效。':'Saved and verified. Some settings apply to new sessions or after a runtime restart.')
     }catch(cause){if(current===request.current)setStatus(message(cause))}
     finally{if(current===request.current){inFlight.current=false;setBusy(false)}}
   }
@@ -77,5 +81,30 @@ export function useConfigEditor({ connected,profile,page,language,onDirtyChange,
     }catch(cause){if(current===request.current)setStatus(message(cause))}
     finally{if(current===request.current){inFlight.current=false;setBusy(false)}}
   }
-  return {schema,config,drafts,setDrafts,editingKey,expandedPaths,setExpandedPaths,query,setQuery,mode,raw,yaml,setYaml,busy,status,dirty,load,reload,switchMode,edit,cancel,save,saveYaml}
+  const replaceDocument=(value:unknown,notice:string)=>{
+    if(!isConfigDocument(value))throw new Error(language==='zh-CN'?'配置 JSON 根节点必须是对象。':'The config JSON root must be an object.')
+    if(!canDiscard())return false
+    setConfig(value);setDrafts({});setEditingKey(null);setStatus(notice);return true
+  }
+  const resetFields=(keys:string[])=>{
+    if(!keys.length||!canDiscard())return false
+    setConfig(current=>resetConfigFields(current,defaults,keys));setDrafts({});setEditingKey(null)
+    setStatus(language==='zh-CN'?'已载入默认值；检查后点击“保存全部修改”。':'Defaults loaded. Review them, then select “Save all changes”.')
+    return true
+  }
+  const discardDocument=()=>{setConfig(savedConfig);setDrafts({});setEditingKey(null);setStatus('')}
+  const saveDocument=async()=>{
+    if(!scope||!documentDirty||inFlight.current)return
+    const current=++request.current
+    inFlight.current=true;setBusy(true);setStatus('')
+    try{
+      const result=await agentSettings.saveConfig(scope,config)
+      if(current!==request.current)return
+      if(!result.verified)throw new Error(language==='zh-CN'?'完整配置已提交但回读不一致；请重新读取核对，不要重复保存。':'The full config was submitted but readback differs. Reload to inspect it; do not save again yet.')
+      setConfig(result.config);setSavedConfig(result.config);setDrafts({});setEditingKey(null)
+      setStatus(language==='zh-CN'?'完整配置已保存并核实。部分配置需要新会话或重启运行时。':'Full configuration saved and verified. Some changes require a new session or runtime restart.')
+    }catch(cause){if(current===request.current)setStatus(message(cause))}
+    finally{if(current===request.current){inFlight.current=false;setBusy(false)}}
+  }
+  return {schema,config,defaults,drafts,setDrafts,editingKey,expandedPaths,setExpandedPaths,query,setQuery,mode,raw,yaml,setYaml,busy,status,dirty,documentDirty,load,reload,switchMode,edit,cancel,save,saveYaml,replaceDocument,resetFields,discardDocument,saveDocument}
 }

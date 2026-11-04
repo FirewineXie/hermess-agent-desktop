@@ -1,6 +1,8 @@
+import type { UsageStatistics } from '@hermess/contracts'
 import { useLanguage, translateApp } from '../../i18n'
 import { useUsageStatistics } from './useUsageStatistics'
 import UsageChart from './UsageChart'
+import UsageBreakdown from './UsageBreakdown'
 
 function amount(value: number | null | undefined, language: string): string {
   return typeof value === 'number' && Number.isFinite(value)
@@ -15,10 +17,32 @@ function estimatedCost(value: number | null | undefined, language: string): stri
     maximumFractionDigits: value < 0.01 ? 4 : 2 })}`
 }
 
-export default function UsageView({ connected, profile, epoch }: { connected: boolean; profile: string | null; epoch: string | null }) {
+function ModelIdentity({ row, language, t }: {
+  row: UsageStatistics['models'][number]
+  language: string
+  t: (key: string) => string
+}) {
+  const caps = row.capabilities
+  return <div className="usage-model-identity">
+    <strong>{row.model}</strong><small>{row.provider || t('ui.usage.unknown.provider')}</small>
+    {caps && <div className="usage-model-capabilities">
+      {caps.supports_tools && <span>{t('ui.usage.cap.tools')}</span>}
+      {caps.supports_vision && <span>{t('ui.usage.cap.vision')}</span>}
+      {caps.supports_reasoning && <span>{t('ui.usage.cap.reasoning')}</span>}
+      {caps.model_family && <span>{caps.model_family}</span>}
+      {Boolean(caps.context_window) && <span>{t('ui.usage.cap.context')} {amount(caps.context_window, language)}</span>}
+      {Boolean(caps.max_output_tokens) && <span>{t('ui.usage.cap.output')} {amount(caps.max_output_tokens, language)}</span>}
+    </div>}
+  </div>
+}
+
+export default function UsageView({ connected, profile, epoch, onOpenConfiguration, onOpenModelSettings }: {
+  connected: boolean; profile: string | null; epoch: string | null; onOpenConfiguration: () => void
+  onOpenModelSettings: (page: 'main' | 'auxiliary') => void
+}) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
-  const { days, setDays, data, loading, failed, refresh } = useUsageStatistics(connected, profile, epoch)
+  const { days, setDays, data, modelData, loading, failed, enabled, refresh } = useUsageStatistics(connected, profile, epoch)
   const totals = data?.totals
   const metrics = [
     ['ui.usage.input', totals?.total_input],
@@ -44,7 +68,28 @@ export default function UsageView({ connected, profile, epoch }: { connected: bo
     {!connected && <p role="status">{t('ui.usage.start')}</p>}
     {connected && loading && <p role="status">{t('ui.usage.loading')}</p>}
     {connected && failed && <p role="alert">{t('ui.usage.failed')}</p>}
-    {connected && data && <>
+    {connected && enabled === false && <div className="usage-hidden"><h3>{t('ui.usage.hidden.title')}</h3>
+      <p>{t('ui.usage.hidden.explanation')}</p><p>{t('ui.usage.hidden.billing')}</p>
+      <button type="button" onClick={onOpenConfiguration}>{t('ui.usage.hidden.configure')}</button>
+    </div>}
+    {connected && enabled === false && modelData && <div className="usage-section">
+      <div className="usage-model-heading"><h3>{t('ui.usage.models')}</h3><div>
+        <button type="button" onClick={() => onOpenModelSettings('main')}>{t('ui.usage.configure.main')}</button>
+        <button type="button" onClick={() => onOpenModelSettings('auxiliary')}>{t('ui.usage.configure.auxiliary')}</button>
+      </div></div>
+      <p className="usage-note">{t('ui.usage.models.count.note')}</p>
+      <div className="usage-metrics">
+        <div className="usage-metric"><span>{t('ui.usage.models.count')}</span><strong>{amount(modelData.totals.distinct_models, language)}</strong></div>
+        <div className="usage-metric"><span>{t('ui.usage.sessions')}</span><strong>{amount(modelData.totals.total_sessions, language)}</strong></div>
+      </div>
+      {modelData.models.length === 0 ? <p role="status">{t('ui.usage.models.empty')}</p>
+        : <UsageBreakdown rows={modelData.models} initialSort="sessions" rowKey={row => `${row.provider}:${row.model}`} columns={[
+          { key: 'model', label: t('ui.usage.model'), render: row => <ModelIdentity row={row} language={language} t={t} /> },
+          { key: 'sessions', label: t('ui.usage.sessions'), render: row => amount(row.sessions, language) },
+          { key: 'last_used_at', label: t('ui.usage.last.used'), render: row => row.last_used_at ? new Date(row.last_used_at * 1000).toLocaleString(language) : '—' },
+        ]} />}
+    </div>}
+    {connected && enabled === true && data && <>
       <div className="usage-metrics">
         {metrics.map(([label, value]) => <div className="usage-metric" key={label}>
           <span>{t(label)}</span><strong>{amount(value, language)}</strong>
@@ -59,27 +104,43 @@ export default function UsageView({ connected, profile, epoch }: { connected: bo
         <h3>{t('ui.usage.trend')}</h3>
         <UsageChart daily={data.daily} days={days} language={language} />
         <h3 className="usage-daily-heading">{t('ui.usage.daily')}</h3>
-        <div className="usage-table-scroll"><table><thead><tr>
-          <th>{t('ui.usage.date')}</th><th>{t('ui.usage.input')}</th><th>{t('ui.usage.output')}</th>
-          <th>{t('ui.usage.reasoning')}</th><th>{t('ui.usage.calls')}</th><th>{t('ui.usage.estimated.cost')}</th>
-        </tr></thead><tbody>{[...data.daily].reverse().map(row => <tr key={row.day}>
-          <td>{row.day}</td><td>{amount(row.input_tokens, language)}</td><td>{amount(row.output_tokens, language)}</td>
-          <td>{amount(row.reasoning_tokens, language)}</td><td>{amount(row.api_calls, language)}</td>
-          <td>{estimatedCost(row.estimated_cost, language)}</td>
-        </tr>)}</tbody></table></div>
+        <UsageBreakdown rows={data.daily} initialSort="day" rowKey={row => row.day} columns={[
+          { key: 'day', label: t('ui.usage.date'), render: row => row.day },
+          { key: 'sessions', label: t('ui.usage.sessions'), render: row => amount(row.sessions, language) },
+          { key: 'input_tokens', label: t('ui.usage.input'), render: row => amount(row.input_tokens, language) },
+          { key: 'output_tokens', label: t('ui.usage.output'), render: row => amount(row.output_tokens, language) },
+          { key: 'reasoning_tokens', label: t('ui.usage.reasoning'), render: row => amount(row.reasoning_tokens, language) },
+          { key: 'api_calls', label: t('ui.usage.calls'), render: row => amount(row.api_calls, language) },
+          { key: 'estimated_cost', label: t('ui.usage.estimated.cost'), render: row => estimatedCost(row.estimated_cost, language) },
+        ]} />
       </div>}
       {data.models.length > 0 && <div className="usage-section">
-        <h3>{t('ui.usage.models')}</h3>
-        <div className="usage-table-scroll"><table><thead><tr>
-          <th>{t('ui.usage.model')}</th><th>{t('ui.usage.input')}</th><th>{t('ui.usage.output')}</th>
-          <th>{t('ui.usage.reasoning')}</th><th>{t('ui.usage.cache')}</th><th>{t('ui.usage.calls')}</th>
-          <th>{t('ui.usage.estimated.cost')}</th>
-        </tr></thead><tbody>{data.models.map((row, index) => <tr key={`${row.provider}:${row.model}:${index}`}>
-          <td><strong>{row.model}</strong><small>{row.provider || t('ui.usage.unknown.provider')}</small></td>
-          <td>{amount(row.input_tokens, language)}</td><td>{amount(row.output_tokens, language)}</td>
-          <td>{amount(row.reasoning_tokens, language)}</td><td>{amount(row.cache_read_tokens, language)}</td>
-          <td>{amount(row.api_calls, language)}</td><td>{estimatedCost(row.estimated_cost, language)}</td>
-        </tr>)}</tbody></table></div>
+        <div className="usage-model-heading"><h3>{t('ui.usage.models')}</h3><div>
+          <button type="button" onClick={() => onOpenModelSettings('main')}>{t('ui.usage.configure.main')}</button>
+          <button type="button" onClick={() => onOpenModelSettings('auxiliary')}>{t('ui.usage.configure.auxiliary')}</button>
+        </div></div>
+        <UsageBreakdown rows={data.models} initialSort="input_tokens" rowKey={row => `${row.provider}:${row.model}`} columns={[
+          { key: 'model', label: t('ui.usage.model'), render: row => <ModelIdentity row={row} language={language} t={t} /> },
+          { key: 'sessions', label: t('ui.usage.sessions'), render: row => amount(row.sessions, language) },
+          { key: 'last_used_at', label: t('ui.usage.last.used'), render: row => row.last_used_at ? new Date(row.last_used_at * 1000).toLocaleString(language) : '—' },
+          { key: 'input_tokens', label: t('ui.usage.input'), render: row => amount(row.input_tokens, language) },
+          { key: 'output_tokens', label: t('ui.usage.output'), render: row => amount(row.output_tokens, language) },
+          { key: 'reasoning_tokens', label: t('ui.usage.reasoning'), render: row => amount(row.reasoning_tokens, language) },
+          { key: 'cache_read_tokens', label: t('ui.usage.cache'), render: row => amount(row.cache_read_tokens, language) },
+          { key: 'api_calls', label: t('ui.usage.calls'), render: row => amount(row.api_calls, language) },
+          { key: 'tool_calls', label: t('ui.usage.tool.calls'), render: row => amount(row.tool_calls, language) },
+          { key: 'avg_tokens_per_session', label: t('ui.usage.avg.per.session'), render: row => amount(row.avg_tokens_per_session, language) },
+          { key: 'estimated_cost', label: t('ui.usage.estimated.cost'), render: row => estimatedCost(row.estimated_cost, language) },
+        ]} />
+      </div>}
+      {data.skills.length > 0 && <div className="usage-section"><h3>{t('ui.usage.skills')}</h3>
+        <UsageBreakdown rows={data.skills} initialSort="total_count" rowKey={row => row.skill} columns={[
+          { key: 'skill', label: t('ui.usage.skill'), render: row => row.skill },
+          { key: 'view_count', label: t('ui.usage.loads'), render: row => amount(row.view_count, language) },
+          { key: 'manage_count', label: t('ui.usage.edits'), render: row => amount(row.manage_count, language) },
+          { key: 'total_count', label: t('ui.usage.total'), render: row => amount(row.total_count, language) },
+          { key: 'last_used_at', label: t('ui.usage.last.used'), render: row => row.last_used_at ? new Date(row.last_used_at * 1000).toLocaleString(language) : '—' },
+        ]} />
       </div>}
       <p className="usage-note">{t('ui.usage.method')}</p>
     </>}

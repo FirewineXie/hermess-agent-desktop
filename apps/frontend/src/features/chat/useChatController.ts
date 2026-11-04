@@ -19,7 +19,10 @@ import { useSideQuestions } from './sideQuestions'
 import { runBtwCommand } from './btwCommand'
 import { useBackgroundTasks } from './backgroundTasks'
 import { runBgCommand } from './bgCommand'
+import { stageClipboardImage } from './clipboardImages'
+import { sentAttachments } from './sentAttachments'
 import type { ChatControllerOptions } from './chatControllerOptions'
+import { useRollbackController } from './useRollbackController'
 
 export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
@@ -33,14 +36,14 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   viewedProfileRef.current = profile
   const sessionProfileRef = useRef('')
   function profileScope(): ProfileScope {
-    const owner = viewedProfileRef.current
-    if (!owner) throw new Error('No active Profile')
-    return { kind: 'profile', profile: owner }
+    const profile = viewedProfileRef.current
+    if (!profile) throw new Error('No active Profile')
+    return { kind: 'profile', profile }
   }
   function sessionScope(id: string): SessionScope {
-    const owner = sessionProfileRef.current
-    if (!owner || !id) throw new Error('Session has no Profile owner')
-    return { kind: 'session', profile: owner, sessionId: id }
+    const profile = sessionProfileRef.current
+    if (!profile || !id) throw new Error('Session has no Profile owner')
+    return { kind: 'session', profile, sessionId: id }
   }
   const [sessionId, setSessionId] = useState('')
   const lastSessionByProfile = React.useRef<Record<string, string>>({})
@@ -89,10 +92,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const clarifyAnswers = clarifyDraft.requestId === serverRequest?.id ? clarifyDraft.answers : {}
   function setClarifyAnswer(qid: string, value: string) {
     if (!serverRequest || serverRequest.method !== 'clarify') return
-    setClarifyDraft(current => ({
-      requestId: serverRequest.id,
-      answers: { ...(current.requestId === serverRequest.id ? current.answers : {}), [qid]: value },
-    }))
+    setClarifyDraft(current => ({ requestId: serverRequest.id,
+      answers: { ...(current.requestId === serverRequest.id ? current.answers : {}), [qid]: value } }))
   }
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [sessionsState, setSessionsState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -111,6 +112,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const eventProcessors = React.useRef<Record<string, (data: GatewayEvent) => void>>({})
   const requestProcessors = React.useRef<Record<string, (request: GatewayRequest) => void>>({})
   const disconnectProcessors = React.useRef<Record<string, () => void>>({})
+  const rollback = useRollbackController(sessionId ? sessionScope(sessionId) : null, language, async () => {
+    const owner = sessionProfileRef.current, id = storedSessionRef.current || sessionRef.current
+    return Boolean(owner && id && await resumeSession(id, true, backend?.replay_epoch || '', owner, true))
+  })
 
   eventProcessorRef.current = data => {
     sideQuestions.handleEvent(data)
@@ -436,25 +441,23 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   async function pasteImages(images: File[]) {
     if (!backend || turnBusy || attachmentBusy || navigationBusy || !images.length) return
     if (images.length + attachments.length > 10) { setChatStatus(t('ui.up.to.10.attachments.can.be.temporarily.saved.per.round')); return }
+    const operation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
     setAttachmentBusy(true)
+    void diagnostics.recordEvent(storagePath, `clipboard_images_stage_start operation=${operation} count=${images.length}`).catch(() => {})
     try {
       for (const image of images) {
         if (!image.size || image.size > 20 * 1024 * 1024) throw new Error(language === 'zh-CN' ? '图片不能为空，且不能超过 20 MiB' : 'Image must be between 1 byte and 20 MiB')
-        const contentBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
-          reader.onerror = () => reject(reader.error)
-          reader.readAsDataURL(image)
-        })
-        const name = image.name || 'pasted-image.png'
-        const attached: PendingAttachment = sessionRef.current
-          ? await chat.attachImageBytes(sessionScope(sessionRef.current), contentBase64, name)
-          : { kind: 'image', name, source_path: 'clipboard', bytes: image.size, content_base64: contentBase64 }
-        attached.image_preview = `data:${image.type || 'image/png'};base64,${contentBase64}`
+        const attached = await stageClipboardImage(image, (contentBase64, name) => sessionRef.current
+          ? chat.attachImageBytes(sessionScope(sessionRef.current), contentBase64, name)
+          : Promise.resolve({ kind: 'image', name, source_path: 'clipboard', bytes: image.size, content_base64: contentBase64 }))
         setAttachments(current => [...current, attached])
       }
       setChatStatus(t('ui.arg.attachments.staged.they.will.be.included.with.the.next.message', images.length))
-    } catch (cause) { setChatStatus(t('ui.failed.to.temporarily.save.attachment.arg', describeError(cause, language))) }
+      void diagnostics.recordEvent(storagePath, `clipboard_images_stage_completed operation=${operation} count=${images.length}`).catch(() => {})
+    } catch (cause) {
+      void diagnostics.recordEvent(storagePath, `ERROR clipboard_images_stage_failed operation=${operation} error=${cause instanceof Error ? cause.name : 'unknown'}`).catch(() => {})
+      setChatStatus(t('ui.failed.to.temporarily.save.attachment.arg', describeError(cause, language)))
+    }
     finally { setAttachmentBusy(false) }
   }
 
@@ -502,6 +505,10 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       else setChatStatus(t('ui.there.are.currently.no.tasks.running'))
       setDraft('')
       return true
+    }
+    if (/^\/rollback(?:\s|$)/.test(typed)) {
+      if (typed !== '/rollback') { setChatStatus(language === 'zh-CN' ? '请使用 /rollback 打开恢复界面。' : 'Use /rollback to open the restore dialog.'); return false }
+      setDraft(''); return rollback.show()
     }
     if (!text || turnBusy || submittingRef.current || attachmentBusy || reasoningChangeInFlightRef.current) return
     const slash = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(typed)
@@ -583,11 +590,12 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setNavigationBusy(true)
     setTurnBusy(true)
     setChatStatus(t("ui.submitting"))
+    const sent = sentAttachments(attachments)
     // Show the prompt before model lookup and session creation finish.
     const optimisticStartedAt = !isCommand ? Date.now() : null
     if (optimisticStartedAt != null) {
       turnStartedAtRef.current = optimisticStartedAt
-      setConversation(rows => appendMessage(rows, 'user', typed || text, optimisticStartedAt))
+      setConversation(rows => appendMessage(rows, 'user', typed || text, optimisticStartedAt, sent))
       setDraft('')
     }
     const restoreUnsentPrompt = () => {
@@ -600,6 +608,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       const id = await ensureChatSession()
       idForSubmission = id
       if (stopRequestedRef.current) { restoreUnsentPrompt(); return }
+      let preparedAttachments = attachments
       if (attachments.some(item => !item.path && !item.ref_text)) {
         const prepared: PendingAttachment[] = []
         for (const attachment of attachments) {
@@ -612,6 +621,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
         }
         refs = prepared.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text!)
         text = [typed, ...refs].filter(Boolean).join('\n') || t('ui.please.see.attachment')
+        preparedAttachments = prepared
       }
       if (isCommand) {
         const commandOwner = sessionProfileRef.current
@@ -658,12 +668,16 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       assistantRef.current = ''
       setAssistant('')
       if (optimisticStartedAt == null) {
-        setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt))
+        setConversation(rows => appendMessage(rows, 'user', typed || text, startedAt, sent))
         setDraft('')
       }
       promptDispatchStartedRef.current = true
       if (commandName === '/retry') retryPendingRef.current = id
-      const result = await chat.submitPrompt(sessionScope(id), text)
+      const images = preparedAttachments.filter(item => item.kind === 'image').map(item => {
+        if (!item.path || !item.mime) throw new Error(language === 'zh-CN' ? '图片暂存信息不完整，请移除后重新添加' : 'Image staging is incomplete. Remove and add it again.')
+        return { path: item.path, mime: item.mime }
+      })
+      const result = await chat.submitPrompt(sessionScope(id), text, images)
       if (!stopRequestedRef.current) {
         interruptedSessionsRef.current.delete(storedSessionRef.current)
         setCanContinue(false)
@@ -937,8 +951,6 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       setBusy(false)
     }
   }
-
-
   function resetChat(clearDraft = false) {
     draftReasoningRef.current = ''
     lastSessionByProfile.current = {}
@@ -982,8 +994,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, serverRequests, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
     attachmentBusy, draggingFiles, trigger, choices, argumentHint, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
-    loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat,
-    sideQuestions: sideQuestions.forSession(sessionProfileRef.current, sessionRef.current), dismissSideQuestion: sideQuestions.dismiss,
-    backgroundTasks: backgroundTasks.forSession(sessionProfileRef.current, sessionRef.current),
+    loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat, rollback,
+    sideQuestions: sideQuestions.forSession(sessionProfileRef.current, sessionRef.current), dismissSideQuestion: sideQuestions.dismiss, backgroundTasks: backgroundTasks.forSession(sessionProfileRef.current, sessionRef.current),
   }
 }

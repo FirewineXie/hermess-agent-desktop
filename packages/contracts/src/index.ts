@@ -1,10 +1,28 @@
 import type { ProviderCopyPreview, ProviderCopyResult, DelegationRouting, DevicePreferences, DeviceStatus, QuickTarget, QuickSubmission } from './settings-capabilities'
-import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult } from './configuration'
+import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult, ConfigWriteResult, ConfigFileResult } from './configuration'
 export * from './configuration'
 export type Unsubscribe = () => void
 
 /** Every profile-owned operation carries its owner explicitly. */
 export type ProfileScope = { kind: 'profile'; profile: string }
+export type PersonalTask = {
+  id: string; title: string; body: string | null; status: string; profile: string
+  created_at: number; result: string | null; summary: string | null
+  failure: string | null; block_kind: string | null
+  assignee?: string | null; priority?: number
+  progress?: { done: number; total: number } | null
+  link_counts?: { parents: number; children: number }
+}
+export type PersonalTaskDetail = {
+  task: PersonalTask
+  comments: Array<{ id: number; author: string; body: string; created_at: number }>
+  events: Array<{ id: number; kind: string; created_at: number }>
+  attachments: Array<{ id: number; filename: string; content_type: string | null; size: number }>
+  links?: { parents: string[]; children: string[] }
+  link_tasks?: Array<{ id: string; title: string; status: string }>
+  child_results?: Array<{ id: string; title: string; status: string; latest_summary: string | null; result: string | null }>
+  termination_pending?: boolean
+}
 export type SessionScope = { kind: 'session'; profile: string; sessionId: string }
 export type GatewayScope = { kind: 'gateway' }
 export type WebviewCacheSettings = { strategy: 'size' | 'time' | 'unsupported'; value: number }
@@ -68,7 +86,19 @@ export type PersonalFile = {
   kind: PersonalFileKind; path: string; exists: boolean; content: string; entries: string[]
   version: string; limit: number | null; enabled: boolean | null
 }
-export type AuxiliaryRoute = { task: string; provider: string; model: string; effort: string; timeout: number | null }
+export type AuxiliaryTaskAssignment = {
+  task: string; provider: string; model: string; base_url: string; reasoning_effort?: string | null
+  local_endpoint?: boolean; label?: string; hint?: string; plugin?: string; inherit_from?: string | null
+  effective?: { provider: string; model: string; base_url: string }
+}
+export type AuxiliaryModels = { tasks: AuxiliaryTaskAssignment[]; main: { provider: string; model: string } }
+export type AuxiliaryRoute = {
+  task: string; provider: string; model: string; effort: string; timeout: number | null
+  confirmExpensiveModel?: boolean
+}
+export type AuxiliarySaveResult = {
+  saved: boolean; confirm_required?: boolean; confirm_message?: string; state?: AuxiliaryModels
+}
 export type MemoryProviderSummary = { name: string; description: string; available: boolean; configured: boolean; status: string }
 export type MemoryProviderField = { key: string; label: string; kind: 'bool' | 'json' | 'number' | 'secret' | 'select' | 'text'; description: string; placeholder: string; group: string; is_set: boolean; value: string; options: Array<{ value: string; label: string }> }
 export type MemoryProviderConfig = { name: string; label: string; fields: MemoryProviderField[] }
@@ -78,6 +108,44 @@ export type ModelOptions = { providers: ModelProvider[]; model?: string; provide
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
 export type ModelAssignment = { ok?: boolean; model?: string; provider?: string; confirm_required?: boolean; confirm_message?: string }
+export type ModelOAuthProviderStatus = {
+  logged_in: boolean
+  source: string | null
+  source_label: string | null
+  token_preview: string | null
+  expires_at: string | null
+  has_refresh_token: boolean
+  last_refresh: string | null
+  error: string | null
+}
+export type ModelOAuthProvider = {
+  id: string
+  name: string
+  flow: 'device_code' | 'external' | 'pkce'
+  cli_command: string
+  docs_url: string | null
+  disconnect_hint: string | null
+  disconnect_command: string | null
+  disconnectable: boolean
+  status: ModelOAuthProviderStatus
+}
+export type ModelOAuthStart = {
+  session_id: string
+  flow: 'device_code'
+  user_code: string
+  verification_url: string
+  expires_in: number
+  poll_interval: number
+}
+export type ModelOAuthPoll = {
+  session_id: string
+  status: 'pending' | 'approved' | 'denied' | 'expired' | 'error' | 'cancelled'
+  error_message: string | null
+  expires_at: number | null
+  reason: string | null
+  retryable: boolean
+  retry_after: number | null
+}
 export type MoaModelSlot = { provider: string; model: string; reasoning_effort?: string; enabled?: boolean }
 export type MoaPreset = {
   aggregator: MoaModelSlot
@@ -94,7 +162,7 @@ export type { SavedModelConfig } from './generated/saved-model-config'
 import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 export type SessionRow = { id: string; session_id?: string; title?: string; preview?: string; source?: string; message_count?: number; running?: boolean }
-export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null }
+export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null; description?: string; description_auto?: boolean }
 export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
   profiles: ProfileRow[]
@@ -106,14 +174,43 @@ export type ProfilesSnapshot = {
 export type PersonalityEntry = { name: string; description: string; source: 'hermes' | 'custom' }
 export type PersonalitiesSnapshot = { profile: string; active: string; entries: PersonalityEntry[] }
 export type ProfilePresetSelection = { personalityName: string; personalityPrompt: string; skills: string[]; mcp: string[] }
-export type ProfileCreateResult = { ok?: boolean; name: string; personality_applied?: boolean; warnings?: string[] }
+export type ProfileMcpServerCreate = {
+  name: string
+  url?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  auth?: 'none' | 'oauth' | 'header'
+  bearer_token?: string
+}
+export type McpOAuthFlow = {
+  flow_id: string
+  authorization_url?: string | null
+  status: string
+  error?: string | null
+}
+export type McpOAuthCancelResult = { ok: boolean; status: string }
+export type ProfileCreateOptions = {
+  preset?: ProfilePresetSelection
+  cloneFrom?: string | null
+  cloneAll?: boolean
+  description?: string
+  provider?: string
+  model?: string
+  noSkills?: boolean
+  keepSkills?: string[]
+  hubSkills?: string[]
+  mcpServers?: ProfileMcpServerCreate[]
+}
+export type ProfileCreateResult = { ok?: boolean; name: string; personality_applied?: boolean; warnings?: string[]; hub_installs?: Array<{ identifier: string; action: string | null }> }
 export type WorkBuddyImportPreview = {
   packageName: string; version: string; displayName: string; profileName: string
   lead: string; members: string[]; skills: string[]; mcpCount: number
   scriptCount: number; fileCount: number; totalBytes: number; digest: string; soul: string
   notices: string[]
 }
-export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; image_preview?: string; path?: string; ref_text?: string; content_base64?: string }
+export type PendingAttachment = { kind: 'image' | 'file'; name: string; source_path: string; bytes: number; preview?: string; image_preview?: string; path?: string; mime?: string; ref_text?: string; content_base64?: string }
+export type ChatImageAttachment = { path: string; mime: string }
 export type CommandCatalog = {
   pairs: Array<[string, string]>
   skills: Record<string, { usage: number; origin: string }>
@@ -137,13 +234,60 @@ export type ResumeResult = {
   open_requests?: GatewayRequest[]
 }
 export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; config_context_length?: number | null; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
+export type RollbackCheckpoint = { hash: string; timestamp: string; message: string }
+export type RollbackListResult = { enabled: boolean; checkpoints: RollbackCheckpoint[] }
+export type RollbackDiffResult = { stat: string; diff: string; rendered?: string | null }
+export type RollbackRestoreResult = {
+  success: boolean
+  restored_to?: string | null
+  reason?: string | null
+  directory?: string | null
+  file?: string | null
+  restored_files?: string[] | null
+  skipped_user_edits?: string[] | null
+  skipped_oversize?: string[] | null
+  failed_deletes?: string[] | null
+  history_removed?: number | null
+  error?: string | null
+}
 
 export type UsagePeriodDays = 7 | 30 | 90
-export type UsageStatistics = {
-  daily: Array<{ day: string; input_tokens: number | null; output_tokens: number | null; reasoning_tokens: number | null; api_calls: number | null; estimated_cost: number | null }>
-  totals: { total_input: number | null; total_output: number | null; total_reasoning: number | null; total_cache_read: number | null; total_sessions: number; total_api_calls: number | null; total_estimated_cost: number | null }
-  models: Array<{ model: string; provider: string; input_tokens: number; output_tokens: number; reasoning_tokens: number; cache_read_tokens: number; api_calls: number; estimated_cost: number | null }>
+export type ModelUsageStatistics = {
+  models: UsageStatistics['models']
+  totals: { distinct_models: number; total_sessions: number }
   period_days: UsagePeriodDays
+}
+export type UsageStatistics = {
+  daily: Array<{ day: string; sessions: number; input_tokens: number | null; output_tokens: number | null; reasoning_tokens: number | null; api_calls: number | null; estimated_cost: number | null }>
+  totals: { total_input: number | null; total_output: number | null; total_reasoning: number | null; total_cache_read: number | null; total_sessions: number; total_api_calls: number | null; total_estimated_cost: number | null }
+  models: Array<{ model: string; provider: string; sessions: number; input_tokens: number; output_tokens: number; reasoning_tokens: number; cache_read_tokens: number; api_calls: number; estimated_cost: number | null; last_used_at?: number | null; tool_calls?: number | null; avg_tokens_per_session?: number | null; capabilities?: { supports_tools?: boolean; supports_vision?: boolean; supports_reasoning?: boolean; context_window?: number; max_output_tokens?: number; model_family?: string } }>
+  skills: Array<{ skill: string; view_count: number; manage_count: number; total_count: number; last_used_at: number | null }>
+  period_days: UsagePeriodDays
+}
+
+export type SessionManagementMessage = {
+  role?: string
+  content?: unknown
+  display_content?: unknown
+}
+
+export type SessionManagementMessagePage = {
+  session_id: string
+  profile: string
+  messages: SessionManagementMessage[]
+  pagination: {
+    limit: number
+    offset: number
+    order: 'oldest' | 'latest'
+    returned: number
+  }
+}
+
+export type SessionManagementHealth = {
+  gateway_running: boolean
+  gateway_state?: string | null
+  gateway_exit_reason?: string | null
+  gateway_platforms: Record<string, { state?: string | null; error_code?: string | null; error_message?: string | null }>
 }
 
 export type NativeDropEvent =
@@ -163,6 +307,23 @@ export type ProductInfo = {
   productLicense: string
   hermesLicense: string
 }
+export type SystemStats = {
+  os: string
+  os_release: string
+  arch: string
+  hostname: string
+  python_version: string
+  python_impl: string
+  hermes_version: string
+  cpu_count: number | null
+  psutil: boolean
+  cpu_percent?: number
+  load_avg?: number[]
+  uptime_seconds?: number
+  memory?: { total: number; used: number; percent: number }
+  disk?: { total: number; used: number; percent: number }
+  process?: { pid: number; rss: number; num_threads: number }
+}
 
 export type UpdateAsset = { id: number; name: string; size: number; sha256: string }
 export type UpdateRelease = {
@@ -176,14 +337,24 @@ export type UpdateLookup = { status: 'available' | 'unavailable' | 'rate_limited
 export type UpdateDownloadStatus = { state: 'idle' | 'downloading' | 'completed' | 'failed'; tagName: string; assetId: number; downloaded: number; total: number; path: string | null; error: DesktopFailure | null }
 
 export type ChannelField = { key: string; prompt: string; help: string; required: boolean; is_set: boolean; is_password: boolean; is_list: boolean; value?: string | null }
-export type ChannelStatus = { id: string; name: string; enabled: boolean; configured: boolean; supported: boolean; state?: string; error_code?: string | null; fields?: ChannelField[] }
+export type WhatsAppMode = 'bot' | 'self-chat'
+export type WhatsAppSetupSummary = { mode: WhatsAppMode | ''; allowed_users_set: boolean; home_channel_set: boolean }
+export type ChannelStatus = { id: string; name: string; description?: string | null; docs_url?: string | null; enabled: boolean; configured: boolean; supported: boolean; state?: string; error_code?: string | null; error_message?: string | null; ingress_url?: string | null; fields?: ChannelField[]; whatsapp_setup?: WhatsAppSetupSummary | null }
 export type ChannelTest = { ok: boolean; state: string; auth_posture?: string | null }
 export type TelegramSetupStart = { id: string; url: string; expires_in: number }
 export type TelegramSetupPoll = { status: 'waiting' | 'ready' | 'expired'; owner_user_id?: string | null }
 export type VendorQrStart = { id: string; url: string; poll_interval: number }
 export type VendorQrPoll = { status: 'waiting' | 'ready' | 'expired' }
-export type WhatsAppQr = { id: string; status: 'waiting' | 'ready'; qr_payload?: string | null }
-export type WhatsAppQrPoll = { status: 'waiting' | 'ready' | 'expired' | 'failed'; qr_payload?: string | null }
+export type WhatsAppSetupOptions = { mode: WhatsAppMode; allowedUsers: string; resetSession: boolean }
+export type WhatsAppApplyOptions = { mode: WhatsAppMode; allowedUsers: string }
+export type WhatsAppQr = {
+  id: string; status: 'waiting' | 'ready'; qr_payload?: string | null; mode: WhatsAppMode; allowed_users: string;
+  account_id?: string | null; account_name?: string | null; account_phone?: string | null
+}
+export type WhatsAppQrPoll = {
+  status: 'waiting' | 'ready' | 'expired' | 'failed'; qr_payload?: string | null; mode?: WhatsAppMode; allowed_users?: string;
+  account_id?: string | null; account_name?: string | null; account_phone?: string | null
+}
 export type ChannelSave = { env: Record<string, string>; clear_env: string[]; enabled?: boolean }
 export type ChannelQrStart = { id: string; url: string; expires_in: number; poll_interval: number }
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
@@ -194,6 +365,7 @@ export type NotificationTarget = {
   connectionId: string
   profile: string
   sessionId: string
+  taskId?: string
   approvalRequestId?: string
   locale: 'zh-CN' | 'en-US'
 }
@@ -203,10 +375,62 @@ export type NotificationAction = {
   choice?: 'once' | 'deny'
 }
 
+export type KanbanEventMessage = {
+  subscription: string
+  board: string
+  kind: 'frame' | 'closed'
+  cursor?: number
+  events?: Array<{ id: number; task_id?: string | null; kind: string; created_at?: number }>
+  reason?: 'ended' | 'invalid_frame' | 'read_failed'
+}
+export type DashboardPluginSocketEvent = {
+  subscription: string
+  kind: 'message' | 'closed'
+  data?: string
+  binary_base64?: string
+  reason?: 'ended' | 'read_failed' | 'write_failed' | 'invalid_frame'
+}
+export type DashboardPluginSocket = {
+  send(data: string, binary?: boolean): Promise<void>
+  close(): void
+}
+export type HermesConsoleSocketEvent = {
+  subscription: string
+  kind: 'message' | 'closed'
+  data?: string
+  reason?: 'ended' | 'read_failed' | 'write_failed' | 'invalid_frame'
+}
+export type HermesConsoleSocket = {
+  send(frame: Record<string, unknown>): Promise<void>
+  close(): void
+}
+
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  hermesConsole: {
+    socket(scope: ProfileScope, handler: (event: HermesConsoleSocketEvent) => void): Promise<HermesConsoleSocket>
+  }
+  dashboardPlugins: {
+    socket(scope: ProfileScope, path: string, handler: (event: DashboardPluginSocketEvent) => void): Promise<DashboardPluginSocket>
+  }
+  kanbanDashboard: {
+    request(path: string, method: string, body?: unknown, upload?: { filename: string; content_type: string; data_base64: string }): Promise<{ status: number; body?: unknown; content_type?: string; body_base64?: string }>
+    events(board: string, since: number, handler: (message: KanbanEventMessage) => void): Promise<Unsubscribe>
+  }
+  personalTasks: {
+    capabilities(scope: ProfileScope): Promise<{ version: number; capabilities: string[] }>
+    list(scope: ProfileScope): Promise<{ tasks: PersonalTask[] }>
+    create(scope: ProfileScope, requestId: string, title: string, body: string, triage?: boolean): Promise<PersonalTaskDetail>
+    detail(scope: ProfileScope, taskId: string): Promise<PersonalTaskDetail>
+    decompose(scope: ProfileScope, taskId: string): Promise<{ ok: boolean; reason: string | null; detail: PersonalTaskDetail }>
+    reply(scope: ProfileScope, taskId: string, requestId: string, body: string): Promise<PersonalTaskDetail>
+    resume(scope: ProfileScope, taskId: string, requestId: string): Promise<PersonalTaskDetail>
+    archive(scope: ProfileScope, taskId: string): Promise<PersonalTaskDetail>
+    events(scope: ProfileScope, after: number): Promise<{ events: Array<{ id: number; task_id: string; kind: string; created_at: number }>; next: number }>
+  }
   links: {
     openRepository(): Promise<void>
+    openDocumentation(): Promise<void>
   }
   windowChrome: {
     customTitlebar: boolean
@@ -239,15 +463,15 @@ export interface DesktopApi {
     test(scope: ProfileScope, platform: string): Promise<ChannelTest>
     telegramStart(scope: ProfileScope): Promise<TelegramSetupStart>
     telegramPoll(scope: ProfileScope, id: string): Promise<TelegramSetupPoll>
-    telegramApply(scope: ProfileScope, id: string, allowedUserId: string): Promise<void>
+    telegramApply(scope: ProfileScope, id: string, allowedUserIds: string[]): Promise<void>
     telegramCancel(scope: ProfileScope, id: string): Promise<void>
     vendorQrStart(scope: ProfileScope, platform: 'dingtalk' | 'wecom' | 'qqbot'): Promise<VendorQrStart>
     vendorQrPoll(scope: ProfileScope, id: string): Promise<VendorQrPoll>
     vendorQrApply(scope: ProfileScope, id: string): Promise<void>
     vendorQrCancel(scope: ProfileScope, id: string): Promise<void>
-    whatsappStart(scope: ProfileScope): Promise<WhatsAppQr>
+    whatsappStart(scope: ProfileScope, options: WhatsAppSetupOptions): Promise<WhatsAppQr>
     whatsappPoll(scope: ProfileScope, id: string): Promise<WhatsAppQrPoll>
-    whatsappApply(scope: ProfileScope, id: string): Promise<void>
+    whatsappApply(scope: ProfileScope, id: string, options: WhatsAppApplyOptions): Promise<void>
     whatsappCancel(scope: ProfileScope, id: string): Promise<void>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
     poll(scope: ProfileScope, id: string, access: ChannelAccess): Promise<ChannelQrPoll>
@@ -263,6 +487,7 @@ export interface DesktopApi {
   }
   extensions: {
     request<T>(scope: ProfileScope, operation: string, payload?: Record<string, unknown>): Promise<T>
+    cancelMcpOAuth(scope: ProfileScope, flowId: string): Promise<McpOAuthCancelResult>
   }
   runtime: {
     devDefaults(): Promise<DevDefaults>
@@ -274,18 +499,26 @@ export interface DesktopApi {
     restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
     probeLocalTools(): Promise<RuntimeProbe[]>
+    systemStats(): Promise<SystemStats>
   }
   profiles: {
     list(): Promise<ProfilesSnapshot>
     dataDirectory(scope: ProfileScope): Promise<{ path: string }>
     listDataDirectory(scope: ProfileScope, relativePath?: string): Promise<ProfileDataListing>
     openDataDirectory(scope: ProfileScope): Promise<void>
-    create(name: string, preset?: ProfilePresetSelection): Promise<ProfileCreateResult>
+    create(name: string, options?: ProfileCreateOptions): Promise<ProfileCreateResult>
+    exportArchive(name: string, destination: string): Promise<{ archive: string; bytes: number }>
+    importArchive(archive: string, name?: string): Promise<ProfileCreateResult>
     delete(name: string): Promise<{ settlement_pending: boolean }>
     setDisplayName(name: string, displayName: string): Promise<{ display_name: string }>
+    identity(name: string): Promise<{ description: string; description_auto: boolean }>
+    setupCommand(name: string): Promise<{ command: string }>
+    renameId(name: string, newName: string): Promise<{ name: string; selection_persisted: boolean }>
+    saveDescription(name: string, description: string): Promise<{ description: string; description_auto: false }>
+    describeAuto(name: string, overwrite: boolean): Promise<{ ok: boolean; reason: string | null; description: string | null; description_auto: boolean }>
     inspectImport(path: string): Promise<WorkBuddyImportPreview>
     importPackage(path: string, profileName: string, expectedDigest: string): Promise<ProfileCreateResult>
-    select(name: string): Promise<void>
+    activate(name: string): Promise<void>
     listPersonalities(scope: ProfileScope): Promise<PersonalitiesSnapshot>
     listToolsets(scope: ProfileScope): Promise<ProfileToolset[]>
     applyPersonality(scope: ProfileScope, name: string, prompt?: string): Promise<PersonalitiesSnapshot>
@@ -305,10 +538,16 @@ export interface DesktopApi {
   agentSettings: {
     schema(scope: ProfileScope): Promise<AgentConfigSchema>
     config(scope: ProfileScope): Promise<Record<string, unknown>>
+    defaults(scope: ProfileScope): Promise<Record<string, unknown>>
     raw(scope: ProfileScope): Promise<AgentRawConfig>
     saveField(scope: ProfileScope, key: string, value: unknown): Promise<void>
+    saveConfig(scope: ProfileScope, config: Record<string, unknown>): Promise<ConfigWriteResult>
     saveRaw(scope: ProfileScope, yamlText: string, expectedYaml: string): Promise<RawConfigWriteResult>
-    saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<void>
+    importJson(scope: ProfileScope, path: string): Promise<Record<string, unknown>>
+    exportJson(scope: ProfileScope, path: string, config: Record<string, unknown>): Promise<ConfigFileResult>
+    auxiliary(scope: ProfileScope): Promise<AuxiliaryModels>
+    saveAuxiliary(scope: ProfileScope, route: AuxiliaryRoute): Promise<AuxiliarySaveResult>
+    resetAuxiliary(scope: ProfileScope): Promise<void>
   }
   security: {
     consent(scope: ProfileScope): Promise<SharedMetricsConsent>
@@ -325,6 +564,7 @@ export interface DesktopApi {
   personalFiles: {
     read(scope: ProfileScope, kind: PersonalFileKind): Promise<PersonalFile>
     save(scope: ProfileScope, args: { kind: PersonalFileKind; content?: string; entries?: string[]; expectedVersion: string }): Promise<PersonalFile>
+    reset(scope: ProfileScope, target: 'all' | 'memory' | 'user'): Promise<{ ok: boolean; deleted: string[] }>
   }
   models: {
     previewCopy(scope: ProfileScope, endpointId: string, target: string): Promise<ProviderCopyPreview>
@@ -343,6 +583,11 @@ export interface DesktopApi {
     selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
     moa(scope: ProfileScope): Promise<MoaConfig>
     saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig>
+    oauthProviders(scope: ProfileScope): Promise<{ providers: ModelOAuthProvider[] }>
+    oauthStart(scope: ProfileScope, provider: string): Promise<ModelOAuthStart>
+    oauthPoll(scope: ProfileScope, provider: string, sessionId: string): Promise<ModelOAuthPoll>
+    oauthCancel(scope: ProfileScope, sessionId: string): Promise<{ ok: boolean }>
+    oauthDisconnect(scope: ProfileScope, provider: string): Promise<{ ok: boolean; provider: string }>
   }
   delegation: {
     read(scope: ProfileScope): Promise<DelegationRouting>
@@ -358,13 +603,14 @@ export interface DesktopApi {
   }
   usage: {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
+    models(scope: ProfileScope, days: UsagePeriodDays): Promise<ModelUsageStatistics>
   }
   chat: {
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
     deleteSession(scope: SessionScope & { keepView: boolean; viewSessionId: string }): Promise<{ deleted_ids: string[] }>
-    submitPrompt(scope: SessionScope, text: string): Promise<{ status?: string }>
+    submitPrompt(scope: SessionScope, text: string, images?: ChatImageAttachment[]): Promise<{ status?: string }>
     interruptSession(scope: SessionScope): Promise<{ status: string }>
     steerSession(scope: SessionScope, text: string): Promise<{ status: string; delivered?: boolean }>
     askSideQuestion(scope: SessionScope, question: string): Promise<{ task_id?: string; status?: string }>
@@ -375,6 +621,9 @@ export interface DesktopApi {
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
     commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    rollbackList(scope: SessionScope): Promise<RollbackListResult>
+    rollbackDiff(scope: SessionScope, hash: string): Promise<RollbackDiffResult>
+    rollbackRestore(scope: SessionScope, args: { hash: string; filePath?: string; all?: boolean }): Promise<RollbackRestoreResult>
     exportSession(scope: SessionScope, format: 'json' | 'md' | 'html', redact: boolean, filename?: string): Promise<string | null>
     dispatchSkill(scope: SessionScope, name: string, arg: string): Promise<CommandResult>
     attachFile(scope: SessionScope, path: string): Promise<PendingAttachment>
@@ -390,6 +639,7 @@ export interface DesktopApi {
   }
   nativeFiles: {
     choose(options: NativeOpenOptions): Promise<string | string[] | null>
+    save(defaultPath: string): Promise<string | null>
     onDrop(handler: (event: NativeDropEvent) => void): Promise<Unsubscribe>
   }
 }

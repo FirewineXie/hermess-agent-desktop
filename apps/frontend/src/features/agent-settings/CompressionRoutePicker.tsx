@@ -22,6 +22,8 @@ export default function CompressionRoutePicker({ profile, storagePath, config, s
   const { agentSettings, models } = useDesktop()
   const zh = language === 'zh-CN'
   const current = getField(config, 'auxiliary.compression') as Record<string, unknown> | undefined
+  const assignment = { task: 'compression', provider: String(current?.provider || 'auto'), model: String(current?.model || ''),
+    base_url: String(current?.base_url || ''), reasoning_effort: current?.reasoning_effort == null ? null : String(current.reasoning_effort) }
   const [providers, setProviders] = React.useState<Provider[]>([])
   const [editing, setEditing] = React.useState(false)
   const [provider, setProvider] = React.useState('auto')
@@ -87,12 +89,20 @@ export default function CompressionRoutePicker({ profile, storagePath, config, s
     setBusy(true)
     setStatus('')
     try {
-      await agentSettings.saveAuxiliary(scope, { task: 'compression', provider, model: provider === 'auto' ? '' : model.trim(),
-        effort, timeout: timeout ? Number(timeout) : null })
+      const route = { task: 'compression', provider, model: provider === 'auto' ? '' : model.trim(),
+        effort, timeout: timeout ? Number(timeout) : null }
+      let result = await agentSettings.saveAuxiliary(scope, route)
+      if (result.confirm_required) {
+        const accepted = window.confirm(result.confirm_message || (zh ? '该模型可能产生较高费用，仍要用于压缩任务吗？' : 'This model may be expensive. Use it for compression?'))
+        if (!accepted) { setStatus(zh ? '未保存：已取消高费用模型确认。' : 'Not saved: expensive model confirmation was cancelled.'); return }
+        result = await agentSettings.saveAuxiliary(scope, { ...route, confirmExpensiveModel: true })
+      }
+      if (!result.saved || !result.state) throw new Error(zh ? '压缩模型配置未被运行时接受。' : 'The compression assignment was not accepted.')
       const saved = getField(await agentSettings.config(scope), 'auxiliary.compression') as Record<string, unknown> | undefined
+      const savedAssignment = result.state.tasks.find(item => item.task === 'compression')
       if (active !== request.current) return
-      if (String(saved?.provider || 'auto') !== provider || String(saved?.model || '') !== (provider === 'auto' ? '' : model.trim())
-        || (schema.fields['auxiliary.compression.reasoning_effort'] && String(saved?.reasoning_effort ?? '') !== effort)
+      if (!savedAssignment || String(savedAssignment.provider || 'auto') !== provider || String(savedAssignment.model || '') !== (provider === 'auto' ? '' : model.trim())
+        || String(savedAssignment.reasoning_effort || '') !== effort
         || (timeout && schema.fields['auxiliary.compression.timeout'] && Number(saved?.timeout) !== Number(timeout))) {
         throw new Error(zh ? '压缩模型保存后回读不一致。' : 'The compression route did not match after saving.')
       }
@@ -107,7 +117,7 @@ export default function CompressionRoutePicker({ profile, storagePath, config, s
   }
 
   return <div className="compression-route-picker">
-    <AuxiliaryTaskCard task="compression" config={config} schema={schema} providers={providers} editing={editing}
+    <AuxiliaryTaskCard assignment={assignment} schema={schema} providers={providers} editing={editing}
       provider={provider} model={model} effort={effort} timeout={timeout} busy={busy || disabled} language={language}
       t={key => key === 'ui.edit' ? (zh ? '按厂商选择' : 'Choose provider') : key === 'ui.save.setting' ? (zh ? '保存设置' : 'Save setting') : (zh ? '取消' : 'Cancel')}
       onEdit={() => void edit()} onProviderChange={setProvider} onModelChange={setModel} onEffortChange={setEffort}

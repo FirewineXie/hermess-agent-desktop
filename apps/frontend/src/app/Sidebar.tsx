@@ -5,6 +5,9 @@ import type { SessionRow, View } from './types'
 import { sessionSourceLabel } from '../features/chat/sessionSource'
 import type { SessionActivity } from '../features/chat/useSessionActivity'
 import { describeError } from './desktopErrors'
+import { DashboardPluginSlot, type DashboardPluginManifest } from '../features/dashboard-plugins/DashboardPluginHost'
+import { achievementsPluginName, secondaryDashboardPluginTabs } from '../features/dashboard-plugins/dashboardRouteModel'
+import './sidebar-session-actions.css'
 
 type Props = {
   view: View
@@ -21,6 +24,7 @@ type Props = {
   onOpenView: (view: View) => void
   onNewChat: () => void
   onResumeSession: (profile: string, id: string) => void
+  onArchiveSession: (profile: string, id: string) => Promise<void>
   onDeleteSession: (profile: string, id: string) => Promise<void>
   profiles: ProfilesSnapshot | null
   profileBusy: boolean
@@ -28,9 +32,12 @@ type Props = {
   profilePendingRestart: boolean
   onRetryProfile: () => void
   onOpenProfile: (name: string) => void
+  dashboardPlugins: DashboardPluginManifest[]
+  activeDashboardPlugin: string | null
+  onOpenDashboardPlugin: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile }: Props) {
+export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -39,6 +46,8 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
   const [deleteTarget, setDeleteTarget] = React.useState<{ profile: string; session: SessionRow } | null>(null)
   const [deleteBusy, setDeleteBusy] = React.useState(false)
   const [deleteError, setDeleteError] = React.useState('')
+  const [archiveBusy, setArchiveBusy] = React.useState<string | null>(null)
+  const [archiveError, setArchiveError] = React.useState('')
   const zh = language === 'zh-CN'
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const hasAnySession = sessions.length > 0 || Object.values(otherProfileSessions).some(rows => rows.length > 0)
@@ -77,20 +86,39 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
       setDeleteError(describeError(cause, language))
     } finally { setDeleteBusy(false) }
   }
+  const archiveSession = async (profile: string, session: SessionRow) => {
+    if (archiveBusy || busy || session.running) return
+    const key = `${profile}:${session.id}`
+    setArchiveBusy(key)
+    setArchiveError('')
+    try {
+      await onArchiveSession(profile, session.id)
+    } catch (cause) {
+      setArchiveError(describeError(cause, language))
+    } finally { setArchiveBusy(null) }
+  }
   return <>
     {open && <button className="sidebar-scrim" aria-label={t('ui.close.navigation')} onClick={onClose} />}
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`} aria-label={t('ui.main.navigation')}>
       <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
       <nav className="primary-nav" aria-label={t('ui.features')}>
         <button onClick={onNewChat}><span>{t('ui.new.session')}</span></button>
+        <button className={view === 'sessions' ? 'active' : ''} onClick={() => onOpenView('sessions')}>☷ <span>{zh ? '会话管理' : 'Sessions'}</span></button>
+        <button className={view === 'files' ? 'active' : ''} onClick={() => onOpenView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
         <button className={view === 'workspaces' ? 'active' : ''} onClick={() => onOpenView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
-        <button className={view === 'extensions' ? 'active' : ''} onClick={() => onOpenView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Hub'}</span></button>
+        <button className={view === 'extensions' ? 'active' : ''} onClick={() => onOpenView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Center'}</span></button>
         <button className={view === 'scheduled' ? 'active' : ''} onClick={() => onOpenView('scheduled')}>◷ <span>{zh ? '定时任务' : 'Scheduled tasks'}</span></button>
+        <button className={view === 'personal-tasks' ? 'active' : ''} onClick={() => onOpenView('personal-tasks')}>▤ <span>{zh ? '持续任务' : 'Ongoing tasks'}</span></button>
+        <button className={view === 'dashboard-plugin' && activeDashboardPlugin === achievementsPluginName ? 'active' : ''} onClick={() => onOpenDashboardPlugin(achievementsPluginName)}>◇ <span>{zh ? '成就' : 'Achievements'}</span></button>
+        {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => onOpenDashboardPlugin(plugin.name)}>◇ <span>{plugin.label}</span></button>)}
+        <button className={view === 'webhooks' ? 'active' : ''} onClick={() => onOpenView('webhooks')}>⌁ <span>Webhooks</span></button>
         <button className={view === 'tools' ? 'active' : ''} onClick={() => onOpenView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
       </nav>
+      <DashboardPluginSlot name="sidebar" />
       <div className="sidebar-section-heading"><strong>PROFILES</strong></div>
       {profilePendingRestart && <div className="sidebar-profile-notice" role="status">{zh ? '新专家等待 Gateway 启用。' : 'New expert is waiting for Gateway.'} <button type="button" disabled={profileBusy} onClick={onRetryProfile}>{zh ? '重试' : 'Retry'}</button></div>}
       {profileError && <div className="sidebar-profile-notice" role="alert">{profileError}</div>}
+      {archiveError && <div className="sidebar-profile-notice" role="alert">{archiveError}</div>}
       <div className="sidebar-sessions">
         {(profiles?.profiles || [{ name: 'default', is_default: true }]).map(profile => {
           const profileSessions = profiles?.selected === profile.name ? sessions : otherProfileSessions[profile.name] || []
@@ -106,7 +134,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
           {connected && !collapsedProfiles.has(profile.name) && profileSessions.slice(0, visibleCount).map(session => <div className="sidebar-session-entry" key={session.id}><button
             className={`sidebar-profile-session ${view === 'chat' && profiles?.selected === profile.name && session.id === activeSessionId ? 'active' : ''} ${pendingSession?.profile === profile.name && pendingSession.id === session.id ? 'pending' : ''}`}
             aria-busy={pendingSession?.profile === profile.name && pendingSession.id === session.id} title={session.title || session.preview || session.id}
-            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}>×</button></div>)}
+            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button><button type="button" className="sidebar-session-archive" disabled={busy || deleteBusy || archiveBusy !== null || session.running} aria-label={zh ? `归档会话 ${session.title || session.preview || session.id}` : `Archive session ${session.title || session.preview || session.id}`} title={session.running ? (zh ? '运行中的会话不能归档' : 'Running sessions cannot be archived') : (zh ? '归档会话' : 'Archive session')} onClick={() => void archiveSession(profile.name, session)}>{archiveBusy === `${profile.name}:${session.id}` ? '…' : '□'}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy || archiveBusy !== null} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}>×</button></div>)}
           {connected && !collapsedProfiles.has(profile.name) && profileSessions.length > 5 && <button type="button" className="sidebar-profile-more" onClick={() => toggleMoreSessions(profile.name, profileSessions.length)}>{allVisible ? (zh ? '收起' : 'Show less') : (zh ? '展示更多' : 'Show more')}</button>}
         </div>})}
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}

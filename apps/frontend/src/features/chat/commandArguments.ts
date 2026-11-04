@@ -20,6 +20,7 @@ export function argumentOptions(catalog: CommandCatalog, name: string): string[]
 export function argumentAllowed(catalog: CommandCatalog, name: string, arg: string): boolean {
   if (name === '/retry') return !arg.trim()
   if (name === '/agents') return !arg.trim()
+  if (name === '/rollback') return !arg.trim()
   if (name === '/branch') return Array.from(arg.trim()).length <= 200
   if (name === '/undo') return !arg.trim() || /^[1-9]\d{0,2}(?: --confirm [0-9a-f-]{36})?$/.test(arg.trim())
   if (name === '/steer') return !!arg.trim()
@@ -40,6 +41,7 @@ export function argumentHint(catalog: CommandCatalog | null, name: string, langu
   if (name === '/retry') return language === 'zh-CN' ? '/retry 重新运行上一条用户请求，不接受参数' : '/retry reruns the last user request and takes no arguments'
   if (name === '/compress') return language === 'zh-CN' ? '/compress [here N | focus 主题] [--preview]；先用 --preview 查看范围' : '/compress [here N | focus topic] [--preview]; use --preview to inspect the scope first'
   if (name === '/agents') return language === 'zh-CN' ? '/agents 查看当前会话的子代理任务，不接受参数' : '/agents shows subagent tasks for this session and takes no arguments'
+  if (name === '/rollback') return language === 'zh-CN' ? '/rollback 打开检查点列表、差异预览和安全恢复界面' : '/rollback opens checkpoints, diff preview, and safe restore'
   if (name === '/branch') return language === 'zh-CN' ? '/branch [标题] 从当前会话创建分支并切换，标题可选' : '/branch [title] creates and opens a branch of this session; title is optional'
   if (name === '/undo') return language === 'zh-CN' ? '/undo [数量] 预览后确认回退会话消息；不恢复工作区文件' : '/undo [count] previews then rewinds session messages; workspace files are unchanged'
   if (name === '/steer') return language === 'zh-CN' ? '/steer 内容 仅在当前回合运行时插入消息' : '/steer text sends guidance to the running turn'

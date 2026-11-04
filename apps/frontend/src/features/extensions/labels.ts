@@ -1,8 +1,8 @@
 import type { Language } from '../../i18n'
 
 const zh = {
-  skills: '本地 Skill', mcp: '本地 MCP', skillHub: 'Skill 发现', mcpCatalog: '精选 MCP',
-  title: '扩展', needsRuntime: '启动当前 Hermes 运行时后，可查看和管理扩展。',
+  skills: 'Profile Skill', mcp: 'Profile MCP', skillHub: 'Skill 市场', mcpCatalog: 'MCP 市场',
+  title: '扩展中心', needsRuntime: '启动当前 Hermes 运行时后，可浏览市场并安装到指定 Profile。',
   loading: '正在读取…', empty: '暂无内容', search: '搜索',
   name: '名称', source: '来源', enabled: '已启用', disabled: '已停用',
   enable: '启用', disable: '停用', detail: '详情', close: '关闭',
@@ -13,7 +13,10 @@ const zh = {
   mcpEditHint: '保留现有认证、环境变量和启用状态；修改连接方式或凭据请重新添加。保存后请测试连接。',
   authorize: '连接账号', authOpen: '打开授权页面', authCopy: '复制授权链接',
   authWaiting: '等待浏览器授权…', authDone: '授权完成；请测试连接。',
+  authCancel: '取消授权', authCancelled: '授权已取消。', authPollFailed: '授权状态连续读取失败，已停止等待。',
   url: '服务器 URL', command: '启动命令', args: '参数（每行一个）',
+  env: '环境变量（每行 KEY=VALUE）', envFormat: '环境变量格式错误，请使用 KEY=VALUE，每行一项。',
+  envNames: '环境变量：{0}（值已隐藏）', connectedTools: '已连接 · 工具：{0}', connectedNoTools: '已连接 · 此 MCP 没有工具',
   transport: '连接方式', auth: '认证', required: '所需配置',
   authNone: '无', authOAuth: 'OAuth', authHeader: 'Bearer Token', token: 'Bearer Token（仅安装时填写）',
   preview: '预览与扫描', scan: '安装检查', files: '包含文件',
@@ -36,17 +39,17 @@ const zh = {
   catalogRepository: '项目或包页面',
   catalogOpenModelScope: '在 ModelScope 查看',
   catalogReadme: '项目说明（节选）',
-  catalogRemoteHint: '此条目提供无需模板请求头的 HTTPS 远程地址。若服务商要求 OAuth，请选择 OAuth；安装后到本地 MCP 连接账号并测试。',
-  catalogManualHint: '此条目需要额外包、请求头或其他配置，暂不支持一键安装；请查看项目仓库并在本地 MCP 手动添加。',
+  catalogRemoteHint: '此条目提供无需模板请求头的 HTTPS 远程地址。若服务商要求 OAuth，请选择 OAuth；安装后到对应 Profile 的 MCP 页面连接账号并测试。',
+  catalogManualHint: '此条目需要额外包、请求头或其他配置，暂不支持一键安装；请查看项目仓库并在对应 Profile 的 MCP 页面手动添加。',
   catalogModelScopeManualHint: '公开详情未提供可直接使用的远程地址。若需托管服务，请在 ModelScope 登录并部署后取得专属地址；本地命令可按项目说明手动配置。',
   catalogManualShort: '暂不支持一键安装，需手动配置。',
   installedHint: '安装成功后仍需连接测试；已配置不代表当前会话已加载。',
-  mcpEmpty: '此 Profile 暂无已安装的 MCP。可手动添加，或到「发现 MCP」安装。',
+  mcpEmpty: '此 Profile 暂无已安装的 MCP。可在这里手动添加，或到扩展中心的 MCP 市场安装。',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
-  skills: 'Local Skills', mcp: 'Local MCP', skillHub: 'Discover Skills', mcpCatalog: 'Curated MCP',
-  title: 'Extensions', needsRuntime: 'Start this Hermes runtime to manage extensions.',
+  skills: 'Profile Skills', mcp: 'Profile MCP', skillHub: 'Skill Market', mcpCatalog: 'MCP Market',
+  title: 'Extension Center', needsRuntime: 'Start this Hermes runtime to browse the market and install into a Profile.',
   loading: 'Loading…', empty: 'Nothing here yet', search: 'Search',
   name: 'Name', source: 'Source', enabled: 'Enabled', disabled: 'Disabled',
   enable: 'Enable', disable: 'Disable', detail: 'Details', close: 'Close',
@@ -57,7 +60,10 @@ const en: Record<keyof typeof zh, string> = {
   mcpEditHint: 'Authentication, environment variables, and enabled state are retained. Re-add to change transport or credentials. Test after saving.',
   authorize: 'Connect account', authOpen: 'Open authorization page', authCopy: 'Copy authorization link',
   authWaiting: 'Waiting for browser authorization…', authDone: 'Authorized. Test the connection.',
+  authCancel: 'Cancel authorization', authCancelled: 'Authorization cancelled.', authPollFailed: 'Authorization status failed three times; polling stopped.',
   url: 'Server URL', command: 'Launch command', args: 'Arguments (one per line)',
+  env: 'Environment variables (one KEY=VALUE per line)', envFormat: 'Invalid environment variable. Use one KEY=VALUE per line.',
+  envNames: 'Environment variables: {0} (values hidden)', connectedTools: 'Connected · Tools: {0}', connectedNoTools: 'Connected · No tools available',
   transport: 'Transport', auth: 'Authentication', required: 'Required configuration',
   authNone: 'None', authOAuth: 'OAuth', authHeader: 'Bearer token', token: 'Bearer token (entered during setup)',
   preview: 'Preview and scan', scan: 'Install scan', files: 'Files',
@@ -80,12 +86,12 @@ const en: Record<keyof typeof zh, string> = {
   catalogRepository: 'Project or package page',
   catalogOpenModelScope: 'View on ModelScope',
   catalogReadme: 'Project notes (excerpt)',
-  catalogRemoteHint: 'This entry has an HTTPS remote without templated headers. Select OAuth if the provider requires it, then connect your account and test in Local MCP.',
-  catalogManualHint: 'This entry needs a package, headers, or other setup. Review its repository and add it manually in Local MCP.',
+  catalogRemoteHint: 'This entry has an HTTPS remote without templated headers. Select OAuth if the provider requires it, then connect your account and test it from the target Profile MCP page.',
+  catalogManualHint: 'This entry needs a package, headers, or other setup. Review its repository and add it manually from the target Profile MCP page.',
   catalogModelScopeManualHint: 'The public details have no ready-to-use remote URL. Sign in to ModelScope and deploy for an account-specific URL, or configure the local command manually.',
   catalogManualShort: 'One-click installation is unavailable; manual setup is required.',
   installedHint: 'Test the connection after installation. Configured does not mean loaded in this session.',
-  mcpEmpty: 'No MCP servers are installed for this profile. Add one manually or use Discover MCP.',
+  mcpEmpty: 'No MCP servers are installed for this profile. Add one here or install one from the MCP market in Extension Center.',
 }
 
 export function labels(language: Language) {

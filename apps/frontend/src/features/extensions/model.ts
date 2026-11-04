@@ -1,5 +1,3 @@
-export type ExtensionTab = 'skills' | 'mcp' | 'skillHub' | 'mcpCatalog'
-
 export type LocalSkill = {
   name: string; description?: string; category?: string; provenance?: string;
   enabled: boolean; usage?: number; sourceIdentifier?: string
@@ -9,10 +7,16 @@ export type HubSkill = {
   trust_level?: string; installed?: boolean; repo?: string
 }
 export type HubPreview = HubSkill & { skill_md?: string; files?: string[]; digest?: string }
-export type HubScan = { policy: 'allow' | 'ask' | 'block'; summary?: string; policy_reason?: string; digest?: string }
+export type HubScanFinding = {
+  severity: string; category: string; file: string; line?: number; description: string
+}
+export type HubScan = {
+  policy: 'allow' | 'ask' | 'block'; summary?: string; policy_reason?: string; digest?: string;
+  verdict?: string; findings?: HubScanFinding[]; severity_counts?: Record<string, number>
+}
 export type McpServer = {
   name: string; transport: string; url?: string; command?: string; args?: string[];
-  auth?: string; enabled: boolean; source: string; plugin?: string
+  env?: Record<string, string>; auth?: string; enabled: boolean; source: string; plugin?: string
 }
 export type McpCatalogEntry = {
   name: string; identifier?: string; description?: string; source?: string; transport: string;

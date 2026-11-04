@@ -1,4 +1,4 @@
-use super::{profiles, BackendState};
+use super::{gateway_control, profiles, BackendState};
 use crate::errors::{DesktopFailure, SESSION_OWNER_UNKNOWN, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
 use serde_json::{json, Value};
@@ -46,6 +46,8 @@ pub(super) struct ResolvedProfileScope {
     port: u16,
     token: String,
     pub(super) hermes: PathBuf,
+    endpoint: Value,
+    launched_pid: u32,
 }
 
 impl ResolvedProfileScope {
@@ -68,13 +70,14 @@ impl ResolvedProfileScope {
         if self.profile == "default" {
             return Ok((self.port, "X-Hermes-Session-Token", self.token.clone()));
         }
-        let ticket = profiles::native_http_ticket(
-            &self.hermes,
+        let ticket = gateway_control::native_http_ticket(
+            &self.storage.join("hermes-home"),
             &self.home,
-            &self.storage.join("control").join("gateway-locks"),
-            self.port,
+            &self.endpoint,
+            self.launched_pid,
         )
-        .await?;
+        .await
+        .map_err(DesktopFailure::from)?;
         Ok((self.port, "X-Hermes-Gateway-Ticket", ticket))
     }
 }
@@ -123,7 +126,7 @@ impl BackendState {
         if !valid_profile_name(profile) {
             return Err(DesktopFailure::invalid_input());
         }
-        let (client, storage, pid, port, token) = {
+        let (client, storage, pid, port, token, endpoint) = {
             let owned = self.0.lock().await;
             let backend = owned
                 .as_ref()
@@ -134,6 +137,7 @@ impl BackendState {
                 backend.child.id(),
                 backend.port,
                 backend.token.clone(),
+                backend.endpoint.clone(),
             )
         };
         let (roster, status, session_owners) = {
@@ -197,6 +201,8 @@ impl BackendState {
             port: backend.port,
             token: backend.token.clone(),
             hermes: backend.hermes.clone(),
+            endpoint,
+            launched_pid: pid.ok_or_else(DesktopFailure::runtime_unavailable)?,
         })
     }
 }

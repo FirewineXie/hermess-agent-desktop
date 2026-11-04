@@ -6,18 +6,22 @@ import type { Language } from '../../i18n'
 import { configValuesEqual } from './memoryContextModel'
 
 type Props = { profile: string; language: Language; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void }
+type SetupRun = { id: string; subject: string; running: boolean; exit_code: number | null; error: string | null; lines: string[] }
 
 export default function MemoryProviderSettings({ profile, language, onDirtyChange, onBusyChange }: Props) {
-  const { memory } = useDesktop()
+  const { memory, extensions } = useDesktop()
   const zh = language === 'zh-CN'
+  const builtin = '__builtin__'
   const [providers, setProviders] = React.useState<MemoryProviderSummary[]>([])
-  const [provider, setProvider] = React.useState('')
+  const [provider, setProvider] = React.useState(builtin)
+  const [activeProvider, setActiveProvider] = React.useState('')
   const [config, setConfig] = React.useState<MemoryProviderConfig | null>(null)
   const [drafts, setDrafts] = React.useState<Record<string, string>>({})
   const [busy, setBusy] = React.useState(false)
   const [status, setStatus] = React.useState('')
   const [oauth, setOauth] = React.useState<'idle' | 'pending' | 'connected' | 'error'>('idle')
   const [oauthAvailable, setOauthAvailable] = React.useState(false)
+  const [setupRun, setSetupRun] = React.useState<SetupRun | null>(null)
   const generation = React.useRef(0)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const scope = React.useMemo(() => ({ kind: 'profile' as const, profile }), [profile])
@@ -28,18 +32,26 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
     timer.current = null
   }, [])
   React.useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(busy) }, [busy, onBusyChange])
+  React.useEffect(() => { onBusyChange(busy || Boolean(setupRun?.running)) }, [busy, setupRun?.running, onBusyChange])
   React.useEffect(() => () => { cancelPolling(); onDirtyChange(false); onBusyChange(false) }, [cancelPolling, onDirtyChange, onBusyChange])
 
-  React.useEffect(() => {
+  const loadProviders = React.useCallback(async () => {
     const current = ++generation.current
-    void memory.providers(scope).then(result => {
+    try {
+      const result = await memory.providers(scope)
       if (current !== generation.current) return
       setProviders(result.providers)
-      setProvider(result.active && result.providers.some(row => row.name === result.active) ? result.active : result.providers[0]?.name || '')
-    }).catch(error => { if (current === generation.current) setStatus(describeError(error, language)) })
-    return () => { ++generation.current }
+      setActiveProvider(result.active)
+      setProvider(result.active && result.providers.some(row => row.name === result.active) ? result.active : builtin)
+    } catch (error) {
+      if (current === generation.current) setStatus(describeError(error, language))
+    }
   }, [memory, scope, language])
+  React.useEffect(() => {
+    setProvider(builtin); setActiveProvider(''); setProviders([])
+    void loadProviders()
+    return () => { ++generation.current }
+  }, [loadProviders])
 
   const load = React.useCallback(async (name: string) => {
     if (!name) return
@@ -60,7 +72,56 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
       if (current === generation.current) { setConfig(null); setStatus(describeError(error, language)) }
     } finally { if (current === generation.current) setBusy(false) }
   }, [memory, scope, language])
-  React.useEffect(() => { setConfig(null); setDrafts({}); if (provider) void load(provider) }, [provider, load])
+  React.useEffect(() => {
+    setConfig(null); setDrafts({})
+    if (provider !== builtin) void load(provider)
+    else { cancelPolling(); setOauthAvailable(false); setOauth('idle'); setBusy(false) }
+  }, [provider, load, cancelPolling])
+
+  React.useEffect(() => {
+    setSetupRun(null)
+    if (provider === builtin) return
+    let cancelled = false
+    void extensions.request<SetupRun | null>(scope, 'systemActions.status', {
+      action: 'memory-provider-setup', name: provider,
+    }).then(value => { if (!cancelled && value) setSetupRun(value) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [extensions, scope, provider])
+
+  React.useEffect(() => {
+    if (!setupRun?.running || provider === builtin) return
+    let cancelled = false
+    let setupTimer: ReturnType<typeof setTimeout>
+    const pollSetup = async () => {
+      try {
+        const next = await extensions.request<SetupRun>(scope, 'systemActions.status', {
+          action: 'memory-provider-setup', name: provider, id: setupRun.id,
+        })
+        if (cancelled) return
+        if (next.running) {
+          setSetupRun(next)
+          setupTimer = setTimeout(() => void pollSetup(), 1200)
+          return
+        }
+        const refreshed = await memory.providers(scope)
+        if (cancelled) return
+        setSetupRun(next)
+        setProviders(refreshed.providers); setActiveProvider(refreshed.active)
+        if (next.exit_code === 0 && !next.error) {
+          setStatus(zh ? '依赖准备完成，已刷新提供方状态；若仍显示不可用，请重启 Hermes。' : 'Dependencies prepared and provider status refreshed. Restart Hermes if it remains unavailable.')
+          if (refreshed.providers.find(row => row.name === provider)?.available) void load(provider)
+        } else {
+          setStatus(zh ? '依赖安装失败。请在运行时日志中查看该系统操作的脱敏结果后重试。' : 'Dependency setup failed. Check the sanitized system action result in runtime logs and try again.')
+        }
+      } catch (error) {
+        if (cancelled) return
+        setStatus(describeError(error, language))
+        setupTimer = setTimeout(() => void pollSetup(), 3000)
+      }
+    }
+    setupTimer = setTimeout(() => void pollSetup(), 1200)
+    return () => { cancelled = true; clearTimeout(setupTimer) }
+  }, [setupRun?.id, setupRun?.running, provider, builtin, extensions, scope, memory, load, zh, language])
 
   const selectProvider = (name: string) => {
     if (dirty && !window.confirm(zh ? '放弃尚未保存的提供方配置？' : 'Discard unsaved provider settings?')) return
@@ -99,6 +160,34 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
     } catch (error) { if (current === generation.current) setStatus(describeError(error, language)) }
     finally { if (current === generation.current) setBusy(false) }
   }
+  const activate = async () => {
+    if (busy || dirty) return
+    const target = provider === builtin ? '' : provider
+    const current = ++generation.current
+    setBusy(true); setStatus('')
+    try {
+      const result = await extensions.request<{ ok: boolean; active: string }>(scope,
+        'memory.provider.activate', { provider: target })
+      if (current !== generation.current) return
+      if (!result.ok || result.active !== target) throw new Error(zh ? '运行时返回的活动提供方不一致。' : 'Runtime returned a different active provider.')
+      const readback = await memory.providers(scope)
+      if (current !== generation.current) return
+      if (readback.active !== target) throw new Error(zh ? '切换后回读不一致。' : 'Provider did not match after readback.')
+      setProviders(readback.providers); setActiveProvider(readback.active)
+      setStatus(target ? (zh ? `已启用 ${target}。` : `${target} is now active.`) : (zh ? '已切回内置记忆。' : 'Built-in memory is now active.'))
+    } catch (error) { if (current === generation.current) setStatus(describeError(error, language)) }
+    finally { if (current === generation.current) setBusy(false) }
+  }
+  const setup = async () => {
+    if (provider === builtin || busy || setupRun?.running) return
+    setBusy(true); setStatus('')
+    try {
+      setSetupRun(await extensions.request<SetupRun>(scope, 'systemActions.start', {
+        action: 'memory-provider-setup', name: provider, provider,
+      }))
+    } catch (error) { setStatus(describeError(error, language)) }
+    finally { setBusy(false) }
+  }
   const poll = async (current: number, left: number) => {
     if (current !== generation.current) return
     if (left <= 0) { setOauth('error'); setStatus(zh ? '等待授权超时，可重新连接。' : 'Authorization timed out. Try again.'); return }
@@ -123,11 +212,16 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
     } catch (error) { if (current === generation.current) { setOauth('error'); setStatus(describeError(error, language)) } }
     finally { if (current === generation.current) setBusy(false) }
   }
+  const selectedProvider = providers.find(row => row.name === provider)
+  const setupRunning = Boolean(setupRun?.running)
   return <section className="memory-settings-group">
     <div className="memory-settings-group-copy"><h3>{zh ? '外部记忆提供方' : 'External memory provider'}</h3><p>{zh ? '字段由当前运行时提供；密钥只提交新值。' : 'Fields come from the runtime; secret values are write only.'}</p></div>
     <div className="memory-provider-editor">
-      <label>{zh ? '提供方' : 'Provider'}<select value={provider} disabled={busy} onChange={event => selectProvider(event.target.value)}>{providers.map(row => <option value={row.name} key={row.name}>{row.name} · {row.status}</option>)}</select></label>
-      {!providers.length && <p>{zh ? '当前运行时没有发现记忆提供方。' : 'No memory providers were discovered.'}</p>}
+      <label>{zh ? '提供方' : 'Provider'}<select value={provider} disabled={busy || setupRunning} onChange={event => selectProvider(event.target.value)}><option value={builtin}>{zh ? '内置记忆（MEMORY.md / USER.md）' : 'Built-in memory (MEMORY.md / USER.md)'}</option>{providers.map(row => <option value={row.name} key={row.name}>{row.name} · {row.status}</option>)}</select></label>
+      <p role="status">{(provider === builtin ? !activeProvider : activeProvider === provider) ? (zh ? '当前正在使用' : 'Currently active') : (zh ? '当前未启用' : 'Not active')}</p>
+      {!providers.length && <p>{zh ? '没有发现外部记忆提供方；仍可使用内置记忆。' : 'No external memory providers were discovered; built-in memory remains available.'}</p>}
+      <div className="actions"><button type="button" disabled={busy || setupRunning || dirty || selectedProvider?.available === false || (provider === builtin ? !activeProvider : activeProvider === provider)} onClick={() => void activate()}>{zh ? '设为活动提供方' : 'Set active'}</button>
+        {provider !== builtin && selectedProvider?.available === false && <button type="button" disabled={busy || setupRunning} onClick={() => void setup()}>{setupRunning ? (zh ? '安装依赖中…' : 'Installing dependencies…') : (zh ? '安装所需依赖' : 'Install required dependencies')}</button>}</div>
       {config && config.fields.length === 0 && <p role="status">{zh ? '此提供方没有可在桌面端编辑的配置字段。' : 'This provider has no editable desktop configuration fields.'}</p>}
       {config?.fields.map(field => <label key={field.key}>{field.label}{field.kind === 'secret' && field.is_set ? (zh ? '（已配置）' : ' (configured)') : ''}
         <small>{field.description}</small>

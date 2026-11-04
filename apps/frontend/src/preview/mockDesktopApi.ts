@@ -3,8 +3,23 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  hermesConsole: { async socket() { throw previewOnly() } },
+  dashboardPlugins: { async socket() { throw previewOnly() } },
+  kanbanDashboard: { async request() { throw previewOnly() }, async events() { throw previewOnly() } },
+  personalTasks: {
+    async capabilities() { throw previewOnly() },
+    async list() { throw previewOnly() },
+    async create() { throw previewOnly() },
+    async detail() { throw previewOnly() },
+    async decompose() { throw previewOnly() },
+    async reply() { throw previewOnly() },
+    async resume() { throw previewOnly() },
+    async archive() { throw previewOnly() },
+    async events() { throw previewOnly() },
+  },
   links: {
     async openRepository() { window.open('https://github.com/FirewineXie/hermess-agent-desktop', '_blank', 'noopener,noreferrer') },
+    async openDocumentation() { window.open('https://hermes-agent.nousresearch.com/docs/', '_blank', 'noopener,noreferrer') },
   },
   windowChrome: {
     customTitlebar: true,
@@ -37,11 +52,18 @@ export const previewDesktopApi: DesktopApi = {
     async listDataDirectory() { throw previewOnly() },
     async openDataDirectory() { throw previewOnly() },
     async create() { throw previewOnly() },
+    async exportArchive() { throw previewOnly() },
+    async importArchive() { throw previewOnly() },
     async delete() { throw previewOnly() },
     async setDisplayName() { throw previewOnly() },
+    async identity() { return { description: '', description_auto: false } },
+    async setupCommand() { return { command: 'hermes -p default' } },
+    async renameId() { throw previewOnly() },
+    async saveDescription() { throw previewOnly() },
+    async describeAuto() { throw previewOnly() },
     async inspectImport() { throw previewOnly() },
     async importPackage() { throw previewOnly() },
-    async select() { throw previewOnly() },
+    async activate() { throw previewOnly() },
     async listPersonalities() { return { profile: 'default', active: 'none', entries: [{ name: 'technical', description: 'Technical expert', source: 'hermes' }] } },
     async listToolsets() { return [] },
     async applyPersonality() { throw previewOnly() },
@@ -76,6 +98,7 @@ export const previewDesktopApi: DesktopApi = {
   },
   extensions: {
     async request() { throw previewOnly() },
+    async cancelMcpOAuth() { throw previewOnly() },
   },
   runtime: {
     async devDefaults() { return { python_path: '', storage_path: '' } },
@@ -87,6 +110,7 @@ export const previewDesktopApi: DesktopApi = {
     async restartGracefully() { throw previewOnly() },
     async stop() { throw previewOnly() },
     async probeLocalTools() { return [] },
+    async systemStats() { throw previewOnly() },
   },
   tools: {
     async listBundledTools() { return { has_manifest: false, tools: [] } },
@@ -103,10 +127,16 @@ export const previewDesktopApi: DesktopApi = {
   agentSettings: {
     async schema() { throw previewOnly() },
     async config() { throw previewOnly() },
+    async defaults() { throw previewOnly() },
     async raw() { throw previewOnly() },
     async saveField() { throw previewOnly() },
+    async saveConfig() { throw previewOnly() },
     async saveRaw() { throw previewOnly() },
+    async importJson() { throw previewOnly() },
+    async exportJson() { throw previewOnly() },
+    async auxiliary() { throw previewOnly() },
     async saveAuxiliary() { throw previewOnly() },
+    async resetAuxiliary() { throw previewOnly() },
   },
   security: { async consent() { throw previewOnly() }, async saveConsent() { throw previewOnly() }, async checkpoints() { throw previewOnly() } },
   memory: {
@@ -119,6 +149,7 @@ export const previewDesktopApi: DesktopApi = {
   personalFiles: {
     async read() { throw previewOnly() },
     async save() { throw previewOnly() },
+    async reset() { throw previewOnly() },
   },
   delegation: { async read() { throw previewOnly() }, async save() { throw previewOnly() } },
   device: {
@@ -142,9 +173,15 @@ export const previewDesktopApi: DesktopApi = {
     async selectChat() { throw previewOnly() },
     async moa() { throw previewOnly() },
     async saveMoa() { throw previewOnly() },
+    async oauthProviders() { return { providers: [] } },
+    async oauthStart() { throw previewOnly() },
+    async oauthPoll() { throw previewOnly() },
+    async oauthCancel() { return { ok: false } },
+    async oauthDisconnect() { throw previewOnly() },
   },
   usage: {
     async statistics() { throw previewOnly() },
+    async models() { throw previewOnly() },
   },
   chat: {
     async createSession() { throw previewOnly() },
@@ -162,6 +199,9 @@ export const previewDesktopApi: DesktopApi = {
     async setReasoning() { throw previewOnly() },
     async commands() { throw previewOnly() },
     async executeCommand() { throw previewOnly() },
+    async rollbackList() { throw previewOnly() },
+    async rollbackDiff() { throw previewOnly() },
+    async rollbackRestore() { throw previewOnly() },
     async exportSession() { throw previewOnly() },
     async dispatchSkill() { throw previewOnly() },
     async attachFile() { throw previewOnly() },
@@ -177,6 +217,7 @@ export const previewDesktopApi: DesktopApi = {
   },
   nativeFiles: {
     async choose() { return null },
+    async save() { return null },
     async onDrop() { return () => {} },
   },
 }

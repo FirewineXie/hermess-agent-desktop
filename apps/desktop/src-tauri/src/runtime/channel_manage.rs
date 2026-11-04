@@ -15,6 +15,10 @@ pub struct ChannelUpdate {
     enabled: Option<bool>,
 }
 
+fn update_body(profile: &str, update: &ChannelUpdate) -> Value {
+    json!({"profile": profile, "env": update.env, "clear_env": update.clear_env, "enabled": update.enabled})
+}
+
 fn valid_platform(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -189,7 +193,7 @@ pub async fn channel_save(
         &scope,
         reqwest::Method::PUT,
         &format!("/api/messaging/platforms/{platform}"),
-        Some(json!({"profile": profile, "env": update.env, "clear_env": update.clear_env, "enabled": update.enabled})),
+        Some(update_body(&profile, &update)),
     )
     .await;
     let outcome = if result

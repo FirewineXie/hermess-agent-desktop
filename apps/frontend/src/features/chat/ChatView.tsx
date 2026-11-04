@@ -9,6 +9,8 @@ import AttachmentQueue from './components/AttachmentQueue'
 import CommandSuggestions from './components/CommandSuggestions'
 import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
+import { clipboardImages } from './clipboardImages'
+import RollbackDialog from './components/RollbackDialog'
 
 type Picker = {
   modelButtonRef: React.RefObject<HTMLButtonElement | null>
@@ -32,6 +34,7 @@ type Picker = {
 }
 
 type Props = {
+  active: boolean
   connected: boolean
   backendStatus: string
   language: 'zh-CN' | 'en-US'
@@ -50,7 +53,7 @@ type Props = {
   onSelectProfile: (name: string) => void
 }
 
-export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile }: Props) {
+export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile }: Props) {
   const backend = connected
   const blankClicks = React.useRef({ count: 0, last: 0 })
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -69,7 +72,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, sideQuestions, dismissSideQuestion, reasoningEffort,
-    reasoningBusy, reasoningLoadFailed, chatUsage,
+    reasoningBusy, reasoningLoadFailed, chatUsage, rollback,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -78,6 +81,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     openModelPicker, pickModel,
   } = picker
   const contentRef = React.useRef<HTMLDivElement>(null)
+  const panelRef = React.useRef<HTMLElement>(null)
   const followMessagesRef = React.useRef(true)
   const lastUserCountRef = React.useRef(0)
   const lastSessionRef = React.useRef(sessionId)
@@ -96,7 +100,35 @@ export default function ChatView({ connected, backendStatus, language, t, contro
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件、任务与终端' : 'Files, tasks & terminal')
   const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
-  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
+  const handlePaste = (event: ClipboardEvent) => {
+    if (!active || !event.clipboardData) return
+    const target = event.target
+    if (target !== document && target !== document.body && !(target instanceof Node && panelRef.current?.contains(target))) return
+    const inDraft = target === draftInputRef.current
+    if (!inDraft && target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, [contenteditable="true"]'))) return
+    const images = clipboardImages(event.clipboardData)
+    if (!images.length || !backend || turnBusy || attachmentBusy || navigationBusy) return
+    event.preventDefault()
+    if (inDraft) {
+      const text = event.clipboardData.getData('text/plain')
+      if (text) {
+        const input = draftInputRef.current!
+        const start = input.selectionStart
+        const end = input.selectionEnd
+        const caret = start + text.length
+        setDraft(value => `${value.slice(0, start)}${text}${value.slice(end)}`)
+        setDraftCaret(caret)
+        requestAnimationFrame(() => input.setSelectionRange(caret, caret))
+      }
+    }
+    void pasteImages(images)
+  }
+  React.useEffect(() => {
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  })
+  return <section ref={panelRef} className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
+      <RollbackDialog controller={rollback} language={language} />
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
@@ -115,23 +147,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
       </div>
       <div className="composer-wrap"><div className="composer">
-       <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
-         onPaste={event => {
-           const images = Array.from(event.clipboardData.items).filter(item => item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => Boolean(file))
-           if (!images.length) return
-           event.preventDefault()
-           const text = event.clipboardData.getData('text/plain')
-           if (text) {
-             const input = event.currentTarget
-             const start = input.selectionStart
-             const end = input.selectionEnd
-             const caret = start + text.length
-             setDraft(value => `${value.slice(0, start)}${text}${value.slice(end)}`)
-             setDraftCaret(caret)
-             requestAnimationFrame(() => input.setSelectionRange(caret, caret))
-           }
-           void pasteImages(images)
-         }}
+        <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
@@ -195,7 +211,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
       </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
-      <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
+      <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · {choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
         : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}

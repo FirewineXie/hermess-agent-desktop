@@ -1,4 +1,5 @@
 import type { ResumeResult } from '@hermess/contracts'
+import type { SentAttachment } from './sentAttachments'
 
 export type ToolStep = {
   id: string
@@ -12,7 +13,7 @@ export type ToolStep = {
 }
 
 export type TimelineItem =
-  | { kind: 'message'; role: 'user' | 'assistant'; text: string; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
+  | { kind: 'message'; role: 'user' | 'assistant'; text: string; attachments?: SentAttachment[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
   | { kind: 'reasoning'; text: string; streaming: boolean; expanded: boolean }
 
@@ -89,9 +90,10 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
   return items
 }
 
-export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant', text: string, startedAt?: number): TimelineItem[] {
-  return text.trim() ? [...items, { kind: 'message', role, text, ...(startedAt == null ? {} : { startedAt }) }] : items
+export function appendMessage(items: TimelineItem[], role: 'user' | 'assistant', text: string, startedAt?: number, attachments?: SentAttachment[]): TimelineItem[] {
+  return text.trim() ? [...items, { kind: 'message', role, text, ...(startedAt == null ? {} : { startedAt }), ...(attachments?.length ? { attachments } : {}) }] : items
 }
+
 
 export function appendReasoning(items: TimelineItem[], text: string, available = false, expanded = true): TimelineItem[] {
   if (!text.trim()) return items

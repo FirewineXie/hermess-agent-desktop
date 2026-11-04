@@ -1,0 +1,109 @@
+.personal-tasks-page { flex: 1; min-height: 0; overflow-y: auto; background: #fff; color: #111827; }
+.personal-tasks-layout { width: min(100%, 1200px); margin: 0 auto; padding: 26px 36px 48px; }
+.personal-tasks-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.personal-tasks-heading h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.025em; line-height: 1.25; }
+.personal-tasks-heading p { margin: 8px 0 0; color: #66758c; font-size: 14px; line-height: 1.5; }
+.personal-tasks-profile { display: grid; flex: none; gap: 7px; min-width: 210px; color: #66758c; font-size: 12px; }
+.personal-tasks-profile select { width: 100%; min-height: 40px; padding: 8px 32px 8px 12px; border: 1px solid #d9e0e8; border-radius: 9px; background: #fff; color: #273348; font-size: 14px; }
+.personal-tasks-context { display: flex; align-items: center; gap: 9px; padding: 12px 15px; border: 1px solid #e3e8ef; border-radius: 10px; background: #f8fafc; color: #53627a; font-size: 13px; line-height: 1.5; }
+.personal-tasks-context-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #8da2bf; }
+.personal-tasks-columns { display: grid; grid-template-columns: minmax(240px, 308px) minmax(0, 1fr); gap: 20px; margin-top: 18px; align-items: start; }
+.personal-tasks-list, .personal-tasks-content { min-width: 0; border: 1px solid #e3e8ef; border-radius: 14px; background: #fff; }
+.personal-tasks-list { min-height: 300px; overflow: hidden; }
+.personal-tasks-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 66px; padding: 15px 18px; border-bottom: 1px solid #eef1f5; }
+.personal-tasks-list-heading > div { display: flex; align-items: center; gap: 9px; }
+.personal-tasks-list-heading h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.personal-tasks-list-heading span { color: #8490a1; font-size: 13px; font-variant-numeric: tabular-nums; }
+.personal-tasks-new { padding: 7px 4px; border: 0; background: transparent; color: #1b6ffd; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.personal-tasks-new:hover { color: #145ed9; }
+.personal-tasks-new[aria-pressed="true"] { color: #53627a; }
+.personal-tasks-empty { padding: 42px 22px; text-align: center; }
+.personal-tasks-empty strong { display: block; color: #425066; font-size: 14px; font-weight: 600; }
+.personal-tasks-empty p { margin: 9px 0 0; color: #8490a1; font-size: 13px; line-height: 1.55; }
+.personal-tasks-row { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; width: 100%; padding: 15px 18px; border: 0; border-bottom: 1px solid #eef1f5; background: #fff; color: #273348; text-align: left; }
+.personal-tasks-row:last-child { border-bottom: 0; }
+.personal-tasks-row:hover { background: #f8fafc; }
+.personal-tasks-row.selected { background: #eef5ff; }
+.personal-tasks-row strong { max-width: 100%; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.personal-tasks-row span { color: #66758c; font-size: 12px; }
+.personal-tasks-row small { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #66758c; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.personal-tasks-row.selected span { color: #315c91; }
+.personal-tasks-content { min-height: 420px; }
+.personal-tasks-form, .personal-tasks-detail { padding: 22px 30px 24px; }
+.personal-tasks-panel-heading { margin-bottom: 18px; }
+.personal-tasks-panel-heading h2 { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
+.personal-tasks-panel-heading p { margin: 7px 0 0; color: #66758c; font-size: 13px; line-height: 1.5; }
+.personal-tasks-field { display: grid; gap: 8px; margin-bottom: 16px; color: #273348; font-size: 14px; font-weight: 600; }
+.personal-tasks-field input, .personal-tasks-field textarea { width: 100%; min-width: 0; padding: 11px 13px; border: 1px solid #d9e0e8; border-radius: 9px; background: #fff; color: #111827; font-size: 14px; font-weight: 400; line-height: 1.5; }
+.personal-tasks-field input { min-height: 44px; }
+.personal-tasks-field textarea { min-height: 112px; resize: vertical; }
+.personal-tasks-field input::placeholder, .personal-tasks-field textarea::placeholder { color: #99a3b2; }
+.personal-tasks-page input:focus-visible, .personal-tasks-page textarea:focus-visible, .personal-tasks-page select:focus-visible, .personal-tasks-page button:focus-visible { outline: 2px solid #1b6ffd; outline-offset: 2px; }
+.personal-tasks-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid #eef1f5; }
+.personal-tasks-form-footer span { color: #8490a1; font-size: 12px; }
+.personal-tasks-primary { min-height: 40px; padding: 9px 16px; border: 1px solid #1b6ffd; border-radius: 9px; background: #1b6ffd; color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.personal-tasks-primary:hover:not(:disabled) { background: #145ed9; }
+.personal-tasks-primary:disabled { border-color: #e1e5eb; background: #edf0f4; color: #9aa4b1; opacity: 1; }
+.personal-tasks-model-notice, .personal-tasks-notice { margin: 0 0 18px; padding: 11px 14px; border: 1px solid #f4dfb4; border-radius: 9px; background: #fffaf0; color: #8a5b17; font-size: 13px; line-height: 1.5; }
+.personal-tasks-team-choice { display: flex; align-items: flex-start; gap: 11px; margin: 2px 0 18px; padding: 14px; border: 1px solid #e3e8ef; border-radius: 9px; color: #273348; }
+.personal-tasks-team-choice input { flex: none; width: 17px; height: 17px; margin: 2px 0 0; accent-color: #1b6ffd; }
+.personal-tasks-team-choice span { display: grid; gap: 4px; }
+.personal-tasks-team-choice strong { font-size: 13px; }
+.personal-tasks-team-choice small { color: #66758c; font-size: 12px; line-height: 1.5; }
+.personal-tasks-child-list { display: grid; gap: 8px; }
+.personal-tasks-child-list > div { padding: 10px 12px; border: 1px solid #e3e8ef; border-radius: 8px; }
+.personal-tasks-child-list strong { color: #273348; font-size: 13px; }
+.personal-tasks-child-list span { float: right; color: #66758c; font-size: 12px; }
+.personal-tasks-child-list p { clear: both; margin-top: 6px; }
+.personal-tasks-notice { margin-top: 18px; }
+.personal-tasks-notice.error { border-color: #f5cbc9; background: #fff5f4; color: #a93632; overflow-wrap: anywhere; }
+.personal-tasks-detail-empty { padding: 70px 30px; color: #8490a1; font-size: 14px; text-align: center; }
+.personal-tasks-status { display: inline-block; margin-bottom: 10px; padding: 4px 9px; border-radius: 5px; background: #eef5ff; color: #315c91; font-size: 12px; }
+.personal-tasks-detail article { padding: 18px 0; border-top: 1px solid #eef1f5; }
+.personal-tasks-detail article h3 { margin: 0 0 9px; color: #66758c; font-size: 12px; font-weight: 600; }
+.personal-tasks-detail article p { margin: 0 0 10px; color: #273348; font-size: 14px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.personal-tasks-detail article p:last-child { margin-bottom: 0; }
+.personal-tasks-progress ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.personal-tasks-progress li { position: relative; display: flex; justify-content: space-between; gap: 14px; min-height: 34px; padding: 1px 0 12px 18px; color: #273348; font-size: 13px; line-height: 1.5; }
+.personal-tasks-progress li::before { content: ''; position: absolute; top: 7px; left: 1px; width: 7px; height: 7px; border-radius: 50%; background: #9aa9bc; }
+.personal-tasks-progress li:not(:last-child)::after { content: ''; position: absolute; top: 18px; bottom: 0; left: 4px; width: 1px; background: #e3e8ef; }
+.personal-tasks-progress li.completed::before { background: #2fb65d; }
+.personal-tasks-progress time { flex: none; color: #8490a1; font-size: 12px; font-variant-numeric: tabular-nums; }
+.personal-tasks-detail article .personal-tasks-progress-note { margin-top: 4px; color: #66758c; font-size: 12px; }
+.personal-tasks-reply { padding-top: 18px; border-top: 1px solid #eef1f5; }
+.personal-tasks-reply .personal-tasks-field textarea { min-height: 92px; }
+.personal-tasks-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.personal-tasks-actions button:not(.personal-tasks-primary) { min-height: 40px; padding: 8px 14px; border: 1px solid #d9e0e8; border-radius: 9px; background: #fff; color: #425066; font-size: 13px; }
+.personal-tasks-actions button:hover:not(:disabled) { background: #f8fafc; }
+.personal-tasks-actions.archive { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eef1f5; }
+.personal-tasks-actions.archive button:not(.personal-tasks-primary) { color: #a93632; }
+@media (max-width: 900px) { .personal-tasks-layout { padding: 26px 24px 44px; } .personal-tasks-columns { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 14px; } .personal-tasks-form, .personal-tasks-detail { padding: 22px; } }
+@media (max-width: 700px) { .personal-tasks-layout { padding: 22px 18px 40px; } .personal-tasks-heading { align-items: stretch; flex-direction: column; gap: 18px; } .personal-tasks-heading h1 { font-size: 24px; } .personal-tasks-profile { min-width: 0; } .personal-tasks-form-footer { align-items: stretch; flex-direction: column; } .personal-tasks-form-footer .personal-tasks-primary { width: 100%; } }
+
+.personal-tasks-layout { width: 100%; max-width: 1600px; }
+.personal-tasks-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 16px; }
+.personal-tasks-toolbar > div { display: flex; align-items: baseline; gap: 12px; }
+.personal-tasks-toolbar strong { font-size: 17px; }
+.personal-tasks-toolbar span { color: #66758c; font-size: 13px; }
+.personal-tasks-board { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); gap: 14px; min-width: 0; margin-top: 18px; }
+.personal-tasks-lane { min-width: 0; min-height: 440px; border: 1px solid #e3e8ef; border-radius: 12px; background: #f8fafc; }
+.personal-tasks-lane-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px; border-bottom: 1px solid #e3e8ef; }
+.personal-tasks-lane-heading h2 { margin: 0; font-size: 15px; font-weight: 650; }
+.personal-tasks-lane-heading span { color: #66758c; font-size: 12px; font-variant-numeric: tabular-nums; }
+.personal-tasks-lane-cards { display: grid; align-content: start; gap: 10px; padding: 12px; }
+.personal-tasks-lane-empty { margin: 12px 4px; color: #8490a1; font-size: 13px; }
+.personal-tasks-card { display: grid; justify-items: start; gap: 9px; width: 100%; min-width: 0; padding: 14px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; color: #273348; text-align: left; }
+.personal-tasks-card:hover { border-color: #a9bfdc; }
+.personal-tasks-card.selected { border-color: #1b6ffd; }
+.personal-tasks-card-status { color: #53627a; font-size: 12px; }
+.personal-tasks-card strong { max-width: 100%; font-size: 14px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.personal-tasks-card small { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #66758c; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.personal-tasks-card time { color: #8490a1; font-size: 12px; font-variant-numeric: tabular-nums; }
+.personal-tasks-overlay { position: fixed; z-index: 30; inset: 34px 0 0; display: flex; justify-content: flex-end; background: rgb(17 24 39 / 35%); }
+.personal-tasks-content { position: relative; width: min(100%, 520px); height: 100%; min-height: 0; overflow-y: auto; border: 0; border-left: 1px solid #e3e8ef; border-radius: 0; }
+.personal-tasks-form, .personal-tasks-detail { padding: 36px 30px 50px; }
+.personal-tasks-close { position: absolute; top: 16px; right: 18px; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 8px; background: transparent; color: #66758c; font-size: 25px; }
+.personal-tasks-close:hover { background: #f1f4f8; color: #273348; }
+.personal-tasks-panel-heading { padding-right: 34px; }
+@media (max-width: 1290px) { .personal-tasks-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-tasks-lane { min-height: 260px; } }
+@media (max-width: 700px) { .personal-tasks-toolbar { align-items: flex-start; } .personal-tasks-toolbar > div { display: grid; gap: 2px; } .personal-tasks-board { grid-template-columns: minmax(0, 1fr); } .personal-tasks-lane { min-height: 180px; } .personal-tasks-content { width: 100%; } }

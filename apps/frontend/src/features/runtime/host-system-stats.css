@@ -1,0 +1,11 @@
+.host-system-stats { margin-top: 30px; padding-top: 24px; border-top: 1px solid #e0e7ef; }
+.host-system-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.host-system-heading h2 { margin: 0; }
+.host-system-heading p { margin: 7px 0 0; color: #64748b; }
+.host-system-heading button { padding: 8px 13px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; cursor: pointer; }
+.host-system-heading button:disabled { opacity: .6; cursor: default; }
+.host-system-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 20px 0 0; }
+.host-system-grid > div { min-width: 0; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.host-system-grid dt { color: #64748b; font-size: 12px; }
+.host-system-grid dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.host-system-note { margin: 15px 0 0; color: #64748b; font-size: 12px; }

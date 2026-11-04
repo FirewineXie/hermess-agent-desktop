@@ -1,7 +1,7 @@
 use super::{
     composer_catalog_params, delete_chat_session_from_gateway, merge_session_lists,
-    prompt_submit_params, session_create_params, validate_workspace_path, ReplayResult,
-    SessionDeleteGateway,
+    prompt_submit_params, session_create_params, validate_workspace_path, ChatImageAttachment,
+    ReplayResult, SessionDeleteGateway,
 };
 use crate::gateway::GatewayRequestError;
 use serde_json::{json, Value};
@@ -308,13 +308,58 @@ fn default_workspace_leaves_cwd_out_of_the_gateway_request() {
 
 #[test]
 fn canonical_prompt_submit_declares_batch_clarification_support() {
-    let prepared = prompt_submit_params("session-example".into(), "Choose a file".into());
+    let prepared =
+        prompt_submit_params("session-example".into(), "Choose a file".into(), None).unwrap();
     assert_eq!(prepared["session_id"], "session-example");
     assert_eq!(prepared["text"], "Choose a file");
     assert_eq!(prepared["clarify_batch"], true);
     assert!(prepared["submission_id"]
         .as_str()
         .is_some_and(|id| !id.is_empty()));
+}
+
+#[test]
+fn prompt_submit_includes_staged_images_only_when_present() {
+    let prepared = prompt_submit_params(
+        "session-example".into(),
+        "这是什么".into(),
+        Some(vec![ChatImageAttachment {
+            path: if cfg!(windows) {
+                r"C:\cache\images\upload.png"
+            } else {
+                "/tmp/cache/images/upload.png"
+            }
+            .into(),
+            mime: "image/png".into(),
+        }]),
+    )
+    .unwrap();
+    assert_eq!(prepared["attachments"].as_array().unwrap().len(), 1);
+    assert_eq!(prepared["attachments"][0]["mime"], "image/png");
+    assert!(prepared["attachments"][0]["path"]
+        .as_str()
+        .unwrap()
+        .ends_with("upload.png"));
+    assert!(prompt_submit_params("s".into(), "text".into(), None)
+        .unwrap()
+        .get("attachments")
+        .is_none());
+}
+
+#[test]
+#[ignore = "run by the isolated Gateway image admission probe"]
+fn print_production_image_submit_params() {
+    let path = std::env::var("HERMESS_TEST_STAGED_IMAGE_PATH").expect("staged image path");
+    let params = prompt_submit_params(
+        "s".into(),
+        "这是什么".into(),
+        Some(vec![ChatImageAttachment {
+            path,
+            mime: "image/png".into(),
+        }]),
+    )
+    .unwrap();
+    println!("PRODUCTION_PROMPT_PARAMS={params}");
 }
 
 #[test]

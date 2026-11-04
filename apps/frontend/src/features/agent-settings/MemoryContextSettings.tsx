@@ -3,6 +3,7 @@ import type { Language } from '../../i18n'
 import ConfigFieldEditor from './components/ConfigFieldEditor'
 import CompressionRoutePicker from './CompressionRoutePicker'
 import MemoryProviderSettings from './MemoryProviderSettings'
+import ContextEngineSettings from './ContextEngineSettings'
 import type { MemorySettingsPage } from './memoryContextModel'
 import { useMemoryContextSettings } from './useMemoryContextSettings'
 
@@ -21,11 +22,13 @@ export default function MemoryContextSettings({ connected, profile, storagePath,
   const [fieldDirty, setFieldDirty] = React.useState(false)
   const [providerDirty, setProviderDirty] = React.useState(false)
   const [routeDirty, setRouteDirty] = React.useState(false)
+  const [engineDirty, setEngineDirty] = React.useState(false)
   const [fieldBusy, setFieldBusy] = React.useState(false)
   const [providerBusy, setProviderBusy] = React.useState(false)
   const [routeBusy, setRouteBusy] = React.useState(false)
-  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty || routeDirty) }, [fieldDirty, providerDirty, routeDirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy || routeBusy) }, [fieldBusy, providerBusy, routeBusy, onBusyChange])
+  const [engineBusy, setEngineBusy] = React.useState(false)
+  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty || routeDirty || engineDirty) }, [fieldDirty, providerDirty, routeDirty, engineDirty, onDirtyChange])
+  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy || routeBusy || engineBusy) }, [fieldBusy, providerBusy, routeBusy, engineBusy, onBusyChange])
   const controller = useMemoryContextSettings({ connected, profile, page, language, onDirtyChange: setFieldDirty, onBusyChange: setFieldBusy })
   const {
     schema, config, drafts, setDrafts, editingKey, loading, saving, loaded, status, groups, sensitiveCount, unsupportedCount,
@@ -57,20 +60,21 @@ export default function MemoryContextSettings({ connected, profile, storagePath,
       <p>{status || (zh ? '无法读取运行时配置。' : 'Runtime configuration could not be loaded.')}</p>
       <button type="button" disabled={loading} onClick={() => void reload()}>{zh ? '重试' : 'Retry'}</button>
     </div> : <>
-      {groups.map(group => group.fields.length > 0 && <section className="memory-settings-group" key={group.id}>
+      {groups.map(group => (group.id === 'context' || group.fields.length > 0) && <section className="memory-settings-group" key={group.id}>
         <div className="memory-settings-group-copy"><h3>{zh ? group.zh : group.en}</h3><p>{zh ? group.descriptionZh : group.descriptionEn}</p></div>
         <div className="memory-settings-fields">
+          {group.id === 'context' && profile && <ContextEngineSettings profile={profile} language={language} onDirtyChange={setEngineDirty} onBusyChange={setEngineBusy} />}
           {group.id === 'compression-model' && profile && schema?.fields['auxiliary.compression.provider'] && schema.fields['auxiliary.compression.model'] && <CompressionRoutePicker
             profile={profile} storagePath={storagePath} config={config} schema={schema} language={language} disabled={fieldDirty || saving}
             onSaved={reload} onDirtyChange={setRouteDirty} onBusyChange={setRouteBusy} />}
-          {group.fields.filter(([key]) => group.id !== 'compression-model' || !schema?.fields['auxiliary.compression.model']
-            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.base_url', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key)).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
+          {group.fields.filter(([key]) => key !== 'context.engine' && (group.id !== 'compression-model' || !schema?.fields['auxiliary.compression.model']
+            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.base_url', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key))).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
             editing={editingKey === entry[0]} busy={saving} language={language} t={t}
             onEdit={editField} onChange={(key, value) => setDrafts({ [key]: value })}
             onSave={([key, field]) => void saveField(key, field)} onCancel={cancelEdit} />)}
         </div>
       </section>)}
-      {groups.every(group => group.fields.length === 0) && <div className="memory-settings-state" role="status">
+      {groups.every(group => group.id !== 'context' && group.fields.length === 0) && <div className="memory-settings-state" role="status">
         {zh ? '当前运行时 Schema 没有提供此页面可配置的字段。' : 'The runtime schema does not provide configurable fields for this page.'}
       </div>}
       {page === 'memory-persistent' && <MemoryProviderSettings profile={profile} language={language} onDirtyChange={setProviderDirty} onBusyChange={setProviderBusy} />}

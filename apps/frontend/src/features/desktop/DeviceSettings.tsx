@@ -3,6 +3,7 @@ import type { DeviceStatus } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import type { Language } from '../../i18n'
+import AppearanceSettings from './AppearanceSettings'
 
 export default function DeviceSettings({ page, language }: { page: 'device' | 'quick-input'; language: Language }) {
   const { device } = useDesktop()
@@ -38,6 +39,7 @@ export default function DeviceSettings({ page, language }: { page: 'device' | 'q
     <h2>{page === 'device' ? (zh ? '设备偏好' : 'Device preferences') : (zh ? '全局快捷输入' : 'Global quick input')}</h2>
     <p>{zh ? '仅保存在本产品的设备配置中。' : 'Saved in this product’s device configuration only.'}</p>
     {page === 'device' ? <>
+      <AppearanceSettings language={language} />
       <label className="notification-setting-row"><span><strong>{zh ? '运行时保持唤醒' : 'Keep awake while the runtime runs'}</strong><small>{zh ? '仅阻止系统自动休眠；运行时停止或退出时释放。' : 'Prevent idle sleep; release when the runtime stops or the app exits.'}</small></span><input type="checkbox" disabled={busy} checked={status.preferences.keepAwake} onChange={e => void save({ keepAwake: e.target.checked })} /></label>
       <p>{zh ? `当前唤醒请求：${status.awake ? '已生效' : '未生效'}` : `Wake assertion: ${status.awake ? 'active' : 'inactive'}`}</p>
       <label className="notification-setting-row"><span><strong>{zh ? '允许 F12 开发者工具' : 'Allow F12 developer tools'}</strong><small>{status.f12Supported ? (zh ? '使用 Windows WebView2 开发者工具。' : 'Uses Windows WebView2 developer tools.') : (zh ? '当前平台不支持此开关。' : 'This switch is unavailable on this platform.')}</small></span><input type="checkbox" disabled={busy || !status.f12Supported} checked={status.preferences.f12Devtools} onChange={e => void save({ f12Devtools: e.target.checked })} /></label>

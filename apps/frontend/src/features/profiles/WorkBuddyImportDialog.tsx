@@ -3,7 +3,7 @@ import type { ProfilesSnapshot, WorkBuddyImportPreview } from '@hermess/contract
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
-import { keepFocusInside } from './dialogFocus'
+import { keepFocusInside } from '../extensions/dialogFocus'
 
 type Props = {
   profiles: ProfilesSnapshot | null
@@ -88,7 +88,7 @@ export default function WorkBuddyImportDialog({ profiles, busy, onImport, onNoti
   }
 
   return <>
-    <button type="button" disabled={busy || loading} onClick={event => void pick(event.currentTarget)}>{loading && !preview ? (zh ? '正在解析…' : 'Inspecting…') : (zh ? '导入 WorkBuddy 专家包' : 'Import WorkBuddy package')}</button>
+    <button type="button" className="profile-directory-import" disabled={busy || loading} onClick={event => void pick(event.currentTarget)}>{loading && !preview ? (zh ? '正在解析…' : 'Inspecting…') : (zh ? '导入 WorkBuddy 专家包' : 'Import WorkBuddy package')}</button>
     {error && !preview && <p className="expert-create-error" role="alert">{error}</p>}
     {preview && <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
       <form className="expert-create-modal" role="dialog" aria-modal="true" aria-labelledby="workbuddy-import-title" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close() } else keepFocusInside(event) }} onSubmit={event => void submit(event)}>

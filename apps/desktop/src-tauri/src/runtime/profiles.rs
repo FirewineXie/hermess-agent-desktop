@@ -1,27 +1,22 @@
 use super::{
     helper_python, hermes_process_path,
+    profile_create_adapter::{
+        create_payload, spawn_hub_installs, validate_builder_options, validate_preset,
+        write_payload, ProfileCreateOptions, CREATE_PROFILE_SCRIPT,
+    },
     profile_scope::{valid_profile_name, SessionOwners},
     BackendState,
 };
 use crate::errors::{DesktopFailure, SESSION_PROFILE_MISMATCH};
 use crate::gateway::{GatewayClient, GatewayRequestError};
 use crate::process_manager;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::Path, sync::Arc, time::Duration};
 use tauri::State;
 use tokio::time::timeout;
+use uuid::Uuid;
 
 const SELECTED_FILE: &str = "selected-profile";
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProfilePresetSelection {
-    personality_name: String,
-    personality_prompt: String,
-    skills: Vec<String>,
-    mcp: Vec<String>,
-}
 
 /// A request keeps the profile selected when it began, even if the UI switches meanwhile.
 pub(super) struct ProfiledGateway {
@@ -216,6 +211,35 @@ pub(super) fn roster_contains(roster: &Value, name: &str) -> bool {
         })
 }
 
+pub(super) async fn settle_renamed_selection(
+    state: &State<'_, BackendState>,
+    client: &Arc<GatewayClient>,
+    storage: &Path,
+    old_name: &str,
+    new_name: &str,
+) -> Result<bool, DesktopFailure> {
+    let mut persisted = true;
+    {
+        let mut owned = state.0.lock().await;
+        let backend = owned
+            .as_mut()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        if backend.storage != storage || !Arc::ptr_eq(&backend.gateway, client) {
+            return Err(DesktopFailure::conflict());
+        }
+        if backend.selected_profile == old_name {
+            backend.selected_profile = new_name.to_owned();
+            persisted = fs::write(
+                storage.join("control").join(SELECTED_FILE),
+                new_name.as_bytes(),
+            )
+            .is_ok();
+        }
+    }
+    state.2.lock().await.take();
+    Ok(persisted)
+}
+
 pub(super) async fn restore_selected_profile(
     storage: &Path,
     gateway: &GatewayClient,
@@ -251,12 +275,9 @@ pub(super) async fn root_status(
     port: u16,
     token: &str,
 ) -> Result<Value, DesktopFailure> {
-    let response = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(8))
-        .build()
-        .map_err(|_| DesktopFailure::operation_failed())?
+    let response = super::local_http::client()?
         .get(format!("http://127.0.0.1:{port}/api/status"))
+        .timeout(Duration::from_secs(8))
         .header("X-Hermes-Session-Token", token)
         .send()
         .await
@@ -352,9 +373,9 @@ pub async fn list_profiles(state: State<'_, BackendState>) -> Result<Value, Desk
 pub async fn create_profile(
     state: State<'_, BackendState>,
     name: String,
-    preset: Option<ProfilePresetSelection>,
+    options: Option<ProfileCreateOptions>,
 ) -> Result<Value, DesktopFailure> {
-    create_profile_with_options(state, name, preset, None).await
+    create_profile_with_options(state, name, options, None).await
 }
 
 pub(super) async fn create_import_profile(
@@ -368,38 +389,44 @@ pub(super) async fn create_import_profile(
 async fn create_profile_with_options(
     state: State<'_, BackendState>,
     name: String,
-    preset: Option<ProfilePresetSelection>,
+    options: Option<ProfileCreateOptions>,
     soul: Option<String>,
 ) -> Result<Value, DesktopFailure> {
     let name = name.trim();
-    if name.is_empty() || name.len() > 64 {
+    if !valid_profile_name(name) || name == "default" {
         return Err(DesktopFailure::invalid_input());
     }
-    if let Some(preset) = &preset {
-        if !preset.personality_name.starts_with("hermess_")
-            || preset.personality_name.len() > 64
-            || !preset
-                .personality_name
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
-            || preset.personality_prompt.is_empty()
-            || preset.personality_prompt.len() > 4096
-            || preset.skills.len() > 16
-            || preset.mcp.len() > 8
-            || preset.skills.iter().any(|skill| {
-                skill.is_empty()
-                    || skill.len() > 100
-                    || !skill
-                        .bytes()
-                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-            })
-            || preset.mcp.iter().any(|name| {
-                name.is_empty()
-                    || name.len() > 80
-                    || !name.bytes().all(|byte| {
-                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
-                    })
-            })
+    if let Some(preset) = options.as_ref().and_then(|value| value.preset.as_ref()) {
+        validate_preset(preset)?;
+    }
+    if let Some(options) = &options {
+        validate_builder_options(options)?;
+        if options.preset.is_some() && options.clone_from.is_some()
+            || options.preset.is_some()
+                && (options.provider.is_some()
+                    || options.model.is_some()
+                    || options.no_skills
+                    || options
+                        .keep_skills
+                        .as_ref()
+                        .is_some_and(|value| !value.is_empty())
+                    || options
+                        .hub_skills
+                        .as_ref()
+                        .is_some_and(|value| !value.is_empty())
+                    || options
+                        .mcp_servers
+                        .as_ref()
+                        .is_some_and(|value| !value.is_empty()))
+            || options.clone_all && options.clone_from.is_none()
+            || options
+                .clone_from
+                .as_deref()
+                .is_some_and(|source| !valid_profile_name(source) || source == name)
+            || options
+                .description
+                .as_deref()
+                .is_some_and(|description| description.len() > 1024)
         {
             return Err(DesktopFailure::invalid_input());
         }
@@ -415,72 +442,21 @@ async fn create_profile_with_options(
             backend.storage.join("control").join("gateway-locks"),
         )
     };
+    let storage = home
+        .parent()
+        .ok_or_else(DesktopFailure::operation_failed)?
+        .to_path_buf();
     // Keep the bundled profile creation atomic, but disable its implicit model/provider seed
     // in this short-lived helper process. A fresh desktop Profile owns an empty model setup.
-    const SCRIPT: &str = r#"import json, sys
-from hermes_cli import profiles as profile_api
-from hermes_cli.profiles import normalize_profile_name, seed_profile_skills
-name = normalize_profile_name(sys.argv[1])
-preset = json.loads(sys.argv[2])
-soul = json.loads(sys.argv[3])
-if not callable(getattr(profile_api, '_seed_model_config', None)):
-    raise RuntimeError('Hermes profile model seeding hook is unavailable')
-profile_api._seed_model_config = lambda _path: None
-path = profile_api.create_profile(name, no_alias=True, clone_channels=False, no_skills=soul is not None, soul=soul)
-seed_profile_skills(path, quiet=True)
-warnings = []
-personality_applied = False
-if preset:
-    try:
-        from utils import atomic_roundtrip_yaml_update
-        config_path = path / 'config.yaml'
-        personality = preset['personalityName']
-        atomic_roundtrip_yaml_update(config_path, 'agent.personalities.' + personality,
-                                     preset['personalityPrompt'])
-        atomic_roundtrip_yaml_update(config_path, 'display.personality', personality)
-        personality_applied = True
-    except Exception:
-        warnings.append('personality')
-    try:
-        from agent.skill_utils import ESSENTIAL_SKILLS
-        skills_root = path / 'skills'
-        installed = {entry.parent.name for entry in skills_root.rglob('SKILL.md')} if skills_root.is_dir() else set()
-        requested = set(preset['skills'])
-        missing = sorted(requested - installed)
-        if missing:
-            warnings.append('skills_missing:' + ','.join(missing))
-        disabled = sorted(installed - requested - ESSENTIAL_SKILLS)
-        atomic_roundtrip_yaml_update(path / 'config.yaml', 'skills.disabled', disabled)
-    except Exception:
-        warnings.append('skills')
-    if preset['mcp']:
-        import os, subprocess
-        mcp_script = '''import sys
-from hermes_cli.mcp_catalog import get_entry, card_install_config
-from hermes_cli.mcp_config import _save_mcp_server
-entry = get_entry(sys.argv[1])
-if entry is None or entry.install is not None or entry.auth.type != "none" or entry.auth.env:
-    raise SystemExit(2)
-if not _save_mcp_server(entry.name, card_install_config(entry)):
-    raise SystemExit(3)
-'''
-        for mcp_name in preset['mcp']:
-            try:
-                result = subprocess.run([sys.executable, '-c', mcp_script, mcp_name],
-                    env={**os.environ, 'HERMES_HOME': str(path)},
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL, timeout=20, check=False)
-                if result.returncode != 0:
-                    warnings.append('mcp:' + mcp_name)
-            except Exception:
-                warnings.append('mcp:' + mcp_name)
-print(json.dumps({'name': name, 'personality_applied': personality_applied, 'warnings': warnings}))
-"#;
-    let mut command = helper_python::command(&hermes, SCRIPT).map_err(DesktopFailure::from)?;
+    let mut command =
+        helper_python::command(&hermes, CREATE_PROFILE_SCRIPT).map_err(DesktopFailure::from)?;
+    let payload_path = write_payload(
+        &storage,
+        &create_payload(name, options.as_ref(), soul.as_deref()),
+    )?;
     command
         .arg(name)
-        .arg(serde_json::to_string(&preset).map_err(|_| DesktopFailure::invalid_input())?)
-        .arg(serde_json::to_string(&soul).map_err(|_| DesktopFailure::invalid_input())?)
+        .arg(&payload_path)
         .env("HERMES_HOME", &home)
         .env("PYTHONIOENCODING", "utf-8")
         .env("HERMES_GATEWAY_LOCK_DIR", &lock_dir)
@@ -489,14 +465,65 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
-    let output = timeout(
+    let mode = options
+        .as_ref()
+        .and_then(|value| value.clone_from.as_ref())
+        .map(|_| {
+            if options.as_ref().is_some_and(|value| value.clone_all) {
+                "clone_all"
+            } else {
+                "clone_config"
+            }
+        })
+        .unwrap_or("fresh");
+    let builder = options.as_ref().is_some_and(|value| {
+        value.provider.is_some()
+            || value.no_skills
+            || value
+                .keep_skills
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            || value
+                .hub_skills
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            || value
+                .mcp_servers
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+    });
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_create_start profile={name} mode={mode} builder={builder}"),
+    );
+    let output_result = timeout(
         Duration::from_secs(90),
         process_manager::output(&mut command, "profile_setup"),
     )
-    .await
-    .map_err(|_| DesktopFailure::timeout())?
-    .map_err(|_| DesktopFailure::operation_failed())?;
+    .await;
+    let _ = fs::remove_file(&payload_path);
+    let output = match output_result {
+        Err(_) => {
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!("profile_create_failed profile={name} reason=timeout"),
+            );
+            return Err(DesktopFailure::timeout());
+        }
+        Ok(Err(_)) => {
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!("profile_create_failed profile={name} reason=process"),
+            );
+            return Err(DesktopFailure::operation_failed());
+        }
+        Ok(Ok(output)) => output,
+    };
     if !output.status.success() {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("profile_create_failed profile={name} reason=exit_status"),
+        );
         return Err(DesktopFailure::operation_failed());
     }
     let mut result: Value =
@@ -506,54 +533,85 @@ print(json.dumps({'name': name, 'personality_applied': personality_applied, 'war
         .and_then(Value::as_str)
         .ok_or_else(DesktopFailure::operation_failed)?
         .to_owned();
-    if let Some(storage) = home.parent() {
-        #[cfg(windows)]
-        {
+    if result
+        .get("windows_rename_retries")
+        .and_then(Value::as_u64)
+        .is_some_and(|retries| retries > 0)
+    {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("profile_create_windows_rename_retried profile={profile_name}"),
+        );
+    }
+    let hub_skills = options
+        .as_ref()
+        .and_then(|value| value.hub_skills.as_deref())
+        .unwrap_or(&[]);
+    let (hub_installs, hub_warnings) = spawn_hub_installs(
+        &hermes,
+        &storage,
+        &home,
+        &lock_dir,
+        &profile_name,
+        hub_skills,
+    )
+    .await;
+    result["hub_installs"] = Value::Array(hub_installs);
+    if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
+        warnings.extend(hub_warnings.into_iter().map(Value::String));
+    }
+    #[cfg(windows)]
+    {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("powershell_tool_profile_install_start profile={profile_name}"),
+        );
+        if let Err(error) = super::powershell_tool::install_new_profile(&home, &profile_name) {
             let _ = crate::diagnostics::append_client_event(
-                storage,
-                &format!("powershell_tool_profile_install_start profile={profile_name}"),
-            );
-            if let Err(error) = super::powershell_tool::install_new_profile(&home, &profile_name) {
-                let _ = crate::diagnostics::append_client_event(
-                storage,
-                &format!("powershell_tool_profile_install_failed profile={profile_name} error={error}"),
-            );
-                if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
-                    warnings.push(Value::String("powershell_tool".into()));
-                }
-            } else {
-                let _ = crate::diagnostics::append_client_event(
-                    storage,
-                    &format!("powershell_tool_profile_install_completed profile={profile_name}"),
-                );
-                let reloaded =
-                    reload_named_powershell_plugin(&hermes, &home, &lock_dir, &profile_name).await;
-                let _ = crate::diagnostics::append_client_event(
-                    storage,
-                    &format!(
-                        "powershell_tool_profile_reload_{} profile={profile_name}",
-                        if reloaded { "completed" } else { "pending" }
-                    ),
-                );
-            }
-        }
-        let _ =
-            crate::diagnostics::append_client_event(storage, "product_skill_profile_install_start");
-        if super::product_skill::install_new_profile(&home, &profile_name).is_err() {
-            let _ = crate::diagnostics::append_client_event(
-                storage,
-                "product_skill_profile_install_failed",
+                &storage,
+                &format!(
+                    "powershell_tool_profile_install_failed profile={profile_name} error={error}"
+                ),
             );
             if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
-                warnings.push(Value::String("product_skill".into()));
+                warnings.push(Value::String("powershell_tool".into()));
             }
         } else {
             let _ = crate::diagnostics::append_client_event(
-                storage,
-                "product_skill_profile_install_completed",
+                &storage,
+                &format!("powershell_tool_profile_install_completed profile={profile_name}"),
+            );
+            let reloaded =
+                reload_named_powershell_plugin(&hermes, &home, &lock_dir, &profile_name).await;
+            let _ = crate::diagnostics::append_client_event(
+                &storage,
+                &format!(
+                    "powershell_tool_profile_reload_{} profile={profile_name}",
+                    if reloaded { "completed" } else { "pending" }
+                ),
             );
         }
     }
+    let _ =
+        crate::diagnostics::append_client_event(&storage, "product_skill_profile_install_start");
+    if super::product_skill::install_new_profile(&home, &profile_name).is_err() {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            "product_skill_profile_install_failed",
+        );
+        if let Some(warnings) = result.get_mut("warnings").and_then(Value::as_array_mut) {
+            warnings.push(Value::String("product_skill".into()));
+        }
+    } else {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            "product_skill_profile_install_completed",
+        );
+    }
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_create_completed profile={profile_name}"),
+    );
     Ok(result)
 }
 
@@ -598,7 +656,7 @@ print(json.dumps({'reloaded': bool(result and result.get('reloaded'))}))
 }
 
 #[tauri::command]
-pub async fn select_profile(
+pub async fn activate_profile(
     state: State<'_, BackendState>,
     name: String,
 ) -> Result<(), DesktopFailure> {
@@ -615,27 +673,45 @@ pub async fn select_profile(
             backend.token.clone(),
         )
     };
-    let roster = client
-        .request("profiles.list", json!({"include_sessions": false}))
-        .await?;
-    if !roster_contains(&roster, &name) {
-        return Err(DesktopFailure::invalid_input());
+    let operation_id = Uuid::new_v4();
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_activate_start operation_id={operation_id} profile={name}"),
+    );
+    let result = async {
+        let roster = client
+            .request("profiles.list", json!({"include_sessions": false}))
+            .await?;
+        if !roster_contains(&roster, &name) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let status = root_status(&storage, pid, port, &token).await?;
+        if name != "default" && !is_served(&status, &name) {
+            return Err(DesktopFailure::conflict());
+        }
+        let mut owned = state.0.lock().await;
+        let backend = owned
+            .as_mut()
+            .ok_or_else(DesktopFailure::runtime_unavailable)?;
+        if backend.storage != storage || !Arc::ptr_eq(&backend.gateway, &client) {
+            return Err(DesktopFailure::conflict());
+        }
+        fs::write(storage.join("control").join(SELECTED_FILE), name.as_bytes())
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        backend.selected_profile = name.clone();
+        Ok(())
     }
-    let status = root_status(&storage, pid, port, &token).await?;
-    if name != "default" && !is_served(&status, &name) {
-        return Err(DesktopFailure::conflict());
-    }
-    let mut owned = state.0.lock().await;
-    let backend = owned
-        .as_mut()
-        .ok_or_else(DesktopFailure::runtime_unavailable)?;
-    if backend.storage != storage || !Arc::ptr_eq(&backend.gateway, &client) {
-        return Err(DesktopFailure::conflict());
-    }
-    fs::write(storage.join("control").join(SELECTED_FILE), name.as_bytes())
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    backend.selected_profile = name;
-    Ok(())
+    .await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &storage,
+        &format!("profile_activate_{outcome} operation_id={operation_id} profile={name}"),
+    );
+    result
 }
 
 #[tauri::command]
@@ -710,13 +786,9 @@ async fn delete_profile_from_owned_gateway(
         }
     }
     let url = format!("http://127.0.0.1:{port}/api/profiles/{name}");
-    let response = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(100))
-        .build()
-        .map_err(|_| DesktopFailure::operation_failed())?
+    let response = super::local_http::client()?
         .delete(url)
+        .timeout(Duration::from_secs(100))
         .header("X-Hermes-Session-Token", token)
         .send()
         .await
@@ -877,56 +949,6 @@ print(json.dumps({'display_name': set_profile_display_name(sys.argv[1], sys.argv
 
 fn valid_display_name(label: &str) -> bool {
     !label.is_empty() && label.chars().count() <= 64 && !label.chars().any(char::is_control)
-}
-
-/// A one-use HTTP grant bound to the selected profile, issued by this product's own Gateway.
-pub(super) async fn native_http_ticket(
-    hermes: &Path,
-    home: &Path,
-    lock_dir: &Path,
-    expected_port: u16,
-) -> Result<String, DesktopFailure> {
-    const SCRIPT: &str = r#"import sys
-from pathlib import Path
-from hermes_cli.gateway_runtime import discover_gateway_endpoint
-from hermes_cli.gateway_client import _session_ticket
-home = Path(sys.argv[1]).resolve()
-result = discover_gateway_endpoint(home)
-if result.state != 'ready' or result.endpoint is None:
-    raise SystemExit(1)
-endpoint = result.endpoint
-if endpoint.api_origin != 'http://127.0.0.1:' + sys.argv[2]:
-    raise SystemExit(1)
-print(_session_ticket(home, endpoint, purpose='native-http'))
-"#;
-    let mut command = helper_python::command(hermes, SCRIPT).map_err(DesktopFailure::from)?;
-    command
-        .arg(hermes_process_path(home))
-        .arg(expected_port.to_string())
-        .env("HERMES_HOME", hermes_process_path(home))
-        .env("HERMES_GATEWAY_LOCK_DIR", hermes_process_path(lock_dir))
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000);
-    let output = timeout(
-        Duration::from_secs(8),
-        process_manager::output(&mut command, "profile_ticket"),
-    )
-    .await
-    .map_err(|_| DesktopFailure::timeout())?
-    .map_err(|_| DesktopFailure::operation_failed())?;
-    if !output.status.success() {
-        return Err(DesktopFailure::conflict());
-    }
-    let ticket =
-        String::from_utf8(output.stdout).map_err(|_| DesktopFailure::operation_failed())?;
-    let ticket = ticket.trim();
-    if ticket.is_empty() || ticket.len() > 256 {
-        return Err(DesktopFailure::operation_failed());
-    }
-    Ok(ticket.to_owned())
 }
 
 #[cfg(test)]

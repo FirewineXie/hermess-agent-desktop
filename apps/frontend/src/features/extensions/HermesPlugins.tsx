@@ -10,9 +10,16 @@ import TargetProfilesDialog from './TargetProfilesDialog'
 export type InstalledHermesPlugin = {
   name: string; version: string; description: string; source: string; runtime_status: string;
   loaded: boolean | null; load_error: boolean;
-  catalog_name: string | null; installed_sha: string | null; can_manage: boolean; removed_reason: string
+  catalog_name: string | null; installed_sha: string | null; can_manage: boolean; can_toggle: boolean;
+  can_remove: boolean; can_update_git: boolean; auth_required: boolean; user_hidden: boolean;
+  has_dashboard_manifest: boolean; dashboard_label: string; dashboard_path: string;
+  dashboard_slots: string[]; removed_reason: string
 }
-export type HermesPluginRuntime = { installed: InstalledHermesPlugin[]; can_manage: boolean; runtime_status_available: boolean }
+export type OrphanDashboardPlugin = { name: string; label: string; description: string; version: string; path: string; slots: string[] }
+export type HermesPluginRuntime = {
+  installed: InstalledHermesPlugin[]; orphan_dashboard_plugins: OrphanDashboardPlugin[];
+  can_manage: boolean; runtime_status_available: boolean
+}
 type CatalogItem = (typeof snapshot.entries)[number]
 type TargetStatus = { installed: string[]; unavailable: string[] }
 const pluginSearchAliases: Record<string, string> = {
@@ -93,7 +100,7 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
     setInstalling(false)
     setMessage(failures.length
       ? (zh ? `已安装到 ${completed} 个 Profile；以下 Profile 未完成：${failures.join('、')}` : `Installed to ${completed} profiles; these did not complete: ${failures.join(', ')}`)
-      : (zh ? `已安装到 ${completed} 个 Profile。请在对应 Agent 的「插件」配置查看状态。` : `Installed to ${completed} profiles. Check each Agent's Plugins settings.`))
+      : (zh ? `已安装到 ${completed} 个 Profile，默认未启用。请在对应 Profile 的「插件」页检查后启用。` : `Installed to ${completed} profiles and left disabled by default. Review and enable them on each Profile's Plugins page.`))
   }
 
   function catalogCard(item: CatalogItem) {
@@ -120,7 +127,7 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
 
   return <>
     <h3>{zh ? '插件源列表' : 'Plugin sources'}</h3>
-    <p>{zh ? `来源：锁定的 Hermes Agent 目录（提交 ${snapshot.sourceCommit.slice(0, 8)}）。点击安装后选择目标 Profile；已安装插件在 Agent 个人配置管理。` : `Source: pinned Hermes Agent catalog (${snapshot.sourceCommit.slice(0, 8)}). Select target profiles when installing; manage installed plugins in Agent settings.`}</p>
+    <p>{zh ? `来源：锁定的 Hermes Agent 目录（提交 ${snapshot.sourceCommit.slice(0, 8)}）。点击安装后选择目标 Profile；已安装插件统一在对应 Profile 的「插件」页管理。` : `Source: pinned Hermes Agent catalog (${snapshot.sourceCommit.slice(0, 8)}). Select target profiles when installing; manage installed plugins on each Profile's Plugins page.`}</p>
     {!connected && <p>{zh ? '未连接运行时，暂无法安装插件。' : 'Connect the runtime to install plugins.'}</p>}
     <form className="row extension-toolbar" onSubmit={event => { event.preventDefault(); search() }}>
       <input type="search" aria-label={zh ? '搜索 Hermes 插件源' : 'Search Hermes plugin sources'} value={query} onChange={event => { setQuery(event.target.value); setSearchTerm(event.target.value); setLimit(40) }} placeholder={zh ? '搜索名称、说明或来源' : 'Search name, description or source'} />

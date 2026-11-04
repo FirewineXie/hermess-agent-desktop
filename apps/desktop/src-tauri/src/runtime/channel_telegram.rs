@@ -6,7 +6,7 @@ use crate::errors::DesktopFailure;
 use reqwest::{Client, Method, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     time::{Duration, Instant},
 };
 use tauri::State;
@@ -55,6 +55,39 @@ fn telegram_link(value: &str) -> Result<String, DesktopFailure> {
         return Err(DesktopFailure::operation_failed());
     }
     Ok(value.to_owned())
+}
+
+fn normalize_allowed_user_ids(values: Vec<String>) -> Result<Vec<String>, DesktopFailure> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for value in values {
+        let user_id = value.trim();
+        if user_id.is_empty() || !user_id.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        if seen.insert(user_id.to_owned()) {
+            normalized.push(user_id.to_owned());
+        }
+    }
+    if normalized.is_empty() {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(normalized)
+}
+
+fn telegram_config_body(
+    profile: &str,
+    bot_token: &str,
+    allowed_user_ids: Vec<String>,
+) -> Result<Value, DesktopFailure> {
+    let allowed_user_ids = normalize_allowed_user_ids(allowed_user_ids)?;
+    Ok(json!({
+        "profile": profile, "enabled": true,
+        "env": {
+            "TELEGRAM_BOT_TOKEN": bot_token,
+            "TELEGRAM_ALLOWED_USERS": allowed_user_ids.join(","),
+        },
+    }))
 }
 
 async fn remote(
@@ -251,12 +284,9 @@ pub async fn channel_telegram_apply(
     setups: State<'_, TelegramSetupState>,
     profile: String,
     id: String,
-    allowed_user_id: String,
+    allowed_user_ids: Vec<String>,
 ) -> Result<(), DesktopFailure> {
-    let user_id = allowed_user_id.trim();
-    if user_id.is_empty() || user_id.len() > 32 || !user_id.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(DesktopFailure::invalid_input());
-    }
+    let allowed_user_ids = normalize_allowed_user_ids(allowed_user_ids)?;
     let scope = state.resolve_profile(&profile).await?;
     let pending = setups
         .0
@@ -277,10 +307,11 @@ pub async fn channel_telegram_apply(
         &scope,
         Method::PUT,
         "/api/messaging/platforms/telegram",
-        Some(json!({
-            "profile": profile, "enabled": true,
-            "env": {"TELEGRAM_BOT_TOKEN": bot_token, "TELEGRAM_ALLOWED_USERS": user_id},
-        })),
+        Some(telegram_config_body(
+            &profile,
+            &bot_token,
+            allowed_user_ids,
+        )?),
     )
     .await;
     let _ = crate::diagnostics::append_client_event(
@@ -303,6 +334,10 @@ pub async fn channel_telegram_apply(
     setups.0.lock().await.remove(&id);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/channel_telegram.rs"]
+mod tests;
 
 #[tauri::command]
 pub async fn channel_telegram_cancel(

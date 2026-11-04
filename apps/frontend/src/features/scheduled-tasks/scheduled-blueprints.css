@@ -1,0 +1,19 @@
+.scheduled-view-tabs { display: flex; gap: 8px; margin: 20px 0; border-bottom: 1px solid var(--border-color,#dce3ec); }
+.scheduled-view-tabs button { border: 0; background: transparent; padding: 10px 15px; color: #64748b; cursor: pointer; }
+.scheduled-view-tabs button[aria-selected=true] { color: #245ce0; border-bottom: 2px solid #245ce0; font-weight: 700; }
+.scheduled-blueprints { display: grid; gap: 20px; }
+.scheduled-blueprints-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.scheduled-blueprints-toolbar label { display: grid; gap: 6px; min-width: 220px; }
+.scheduled-blueprint-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,340px),1fr)); gap: 16px; }
+.scheduled-blueprint-card { border: 1px solid #dce3ec; border-radius: 16px; padding: 20px; background: #fff; }
+.scheduled-blueprint-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.scheduled-blueprint-heading h3 { margin: 0 0 8px; }
+.scheduled-blueprint-heading p { margin: 0; color: #64748b; }
+.scheduled-blueprint-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.scheduled-blueprint-tags span { font-size: 12px; border-radius: 99px; background: #edf3ff; color: #31579d; padding: 3px 8px; }
+.scheduled-blueprint-form { display: grid; gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #e2e8f0; }
+.scheduled-blueprint-form label { display: grid; gap: 5px; font-weight: 600; }
+.scheduled-blueprint-form label small { font-weight: 400; color: #64748b; }
+.scheduled-blueprint-form input, .scheduled-blueprint-form select { width: 100%; min-width: 0; padding: 9px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.scheduled-health-warning { margin: 0 0 16px; padding: 11px 13px; border: 1px solid #f0cf8a; border-radius: 9px; background: #fff8e7; color: #8a5a10; font-weight: 650; }
+.scheduled-overdue, .scheduled-row-error { color: #b5473f !important; font-weight: 650; }

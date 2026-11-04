@@ -180,8 +180,10 @@ for (const [name, scope] of scopedCommands) {
 }
 const extensionSource = readFileSync(resolve(runtimeDir, 'extensions.rs'), 'utf8')
 const jobsSource = readFileSync(resolve(runtimeDir, 'jobs.rs'), 'utf8')
+const hooksSource = readFileSync(resolve(runtimeDir, 'hooks.rs'), 'utf8')
+const credentialPoolSource = readFileSync(resolve(runtimeDir, 'credential_pool.rs'), 'utf8')
 const declaredOperations = new Set(extensionOperations.trim().split(/\s+/))
-const handledOperations = new Set([...(extensionSource + '\n' + jobsSource).matchAll(/^\s*((?:"[a-z]+(?:\.[a-z]+)+"\s*(?:\|\s*)?)+)=>/gm)]
+const handledOperations = new Set([...(extensionSource + '\n' + jobsSource + '\n' + hooksSource + '\n' + credentialPoolSource).matchAll(/^\s*((?:"[a-z]+(?:\.[a-z]+)+"\s*(?:\|\s*)?)+)=>/gm)]
   .flatMap(match => [...match[1].matchAll(/"([a-z]+(?:\.[a-z]+)+)"/g)].map(value => value[1])))
 for (const operation of declaredOperations) {
   if (!handledOperations.has(operation)) failures.push(`extension operation has no handler: ${operation}`)

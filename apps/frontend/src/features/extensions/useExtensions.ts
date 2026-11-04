@@ -3,37 +3,36 @@ import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
-import type { ActionStart, ActionStatus, ExtensionTab, HubSkill, LocalSkill, McpCatalogEntry, McpServer } from './model'
+import type { ActionStart, ActionStatus, HubSkill, McpCatalogEntry, McpServer } from './model'
 
 type HubSources = { sources: Array<{ id: string; label: string }>; featured: HubSkill[]; installed: Record<string, unknown> }
 type ModelScopeInstalled = { identifiers: Record<string, boolean>; names: Record<string, string> }
 type TargetKind = 'skill' | 'mcp'
 
-export function useExtensions(connected: boolean, profile: string | null, epoch: string | null) {
+type MarketTab = 'skillHub' | 'mcpCatalog'
+
+export function useExtensions(connected: boolean, profile: string | null, epoch: string | null, category: 'skills' | 'mcp' | null) {
   const { extensions } = useDesktop()
   const workspace = workspaceKey(epoch, profile)
-  let stateSlot = 0
-  const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `extensions:${stateSlot++}`)
+  const useState = <T,>(key: string, initial: T | (() => T)) => useProfileState(workspace, initial, `extensions:market:${key}`)
   function scope() {
     if (!profile) throw new Error('No active Profile')
     return { kind: 'profile' as const, profile }
   }
   const language = useLanguage()
-  const [tab, setTab] = useState<ExtensionTab>('skillHub')
-  const [skills, setSkills] = useState<LocalSkill[]>([])
-  const [servers, setServers] = useState<McpServer[]>([])
-  const [official, setOfficial] = useState<HubSkill[]>([])
-  const [featured, setFeatured] = useState<HubSkill[]>([])
-  const [sources, setSources] = useState<HubSources['sources']>([])
-  const [catalog, setCatalog] = useState<McpCatalogEntry[]>([])
-  const [catalogResults, setCatalogResults] = useState<McpCatalogEntry[] | null>(null)
-  const [catalogResultsSource, setCatalogResultsSource] = useState<string | null>(null)
-  const [results, setResults] = useState<HubSkill[] | null>(null)
-  const [resultsSource, setResultsSource] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [loadedTabs, setLoadedTabs] = useState<ExtensionTab[]>([])
+  const tab: MarketTab | null = category === 'skills' ? 'skillHub' : category === 'mcp' ? 'mcpCatalog' : null
+  const [official, setOfficial] = useState<HubSkill[]>('official', [])
+  const [featured, setFeatured] = useState<HubSkill[]>('featured', [])
+  const [sources, setSources] = useState<HubSources['sources']>('sources', [])
+  const [catalog, setCatalog] = useState<McpCatalogEntry[]>('catalog', [])
+  const [catalogResults, setCatalogResults] = useState<McpCatalogEntry[] | null>('catalogResults', null)
+  const [catalogResultsSource, setCatalogResultsSource] = useState<string | null>('catalogResultsSource', null)
+  const [results, setResults] = useState<HubSkill[] | null>('results', null)
+  const [resultsSource, setResultsSource] = useState<string | null>('resultsSource', null)
+  const [busy, setBusy] = useState('busy', false)
+  const [loading, setLoading] = useState('loading', false)
+  const [message, setMessage] = useState('message', '')
+  const [loadedTabs, setLoadedTabs] = useState<MarketTab[]>('loadedTabs', [])
   const alive = React.useRef(true)
   const refreshRequest = useProfileRef(workspace, 0)
   const searchRequest = useProfileRef(workspace, 0)
@@ -45,7 +44,7 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     return () => { alive.current = false }
   }, [])
 
-  async function refresh(target: ExtensionTab = tab) {
+  async function refresh(target: MarketTab) {
     if (!connected || !profile) return false
     const requestId = ++refreshRequest.current
     const owner = scope()
@@ -53,34 +52,15 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     setLoading(true)
     setMessage('')
     try {
-      if (target === 'skills') {
-        const [local, modelScope] = await Promise.all([
-          extensions.request<LocalSkill[]>(owner, 'skills.list'),
-          extensions.request<ModelScopeInstalled>(owner, 'modelscope.installed'),
-        ])
-        if (requestId !== refreshRequest.current || !alive.current) return false
-        setSkills(local.map(skill => modelScope.names[skill.name]
-          ? { ...skill, provenance: 'modelscope', sourceIdentifier: modelScope.names[skill.name] }
-          : skill))
-      }
-      if (target === 'mcp') {
-        const value = await extensions.request<{ servers: McpServer[] }>(owner, 'mcp.list')
-        if (requestId !== refreshRequest.current || !alive.current) return false
-        setServers(value.servers)
-      }
       if (target === 'skillHub') {
         const officialResponse = await extensions.request<{ skills: HubSkill[] }>(owner, 'skills.official')
         if (requestId !== refreshRequest.current || !alive.current) return false
         setOfficial(officialResponse.skills)
       }
       if (target === 'mcpCatalog') {
-        const [value, local] = await Promise.all([
-          extensions.request<{ entries: McpCatalogEntry[] }>(owner, 'mcp.catalog'),
-          extensions.request<{ servers: McpServer[] }>(owner, 'mcp.list'),
-        ])
+        const value = await extensions.request<{ entries: McpCatalogEntry[] }>(owner, 'mcp.catalog')
         if (requestId !== refreshRequest.current || !alive.current) return false
         setCatalog(value.entries)
-        setServers(local.servers)
       }
       setLoadedTabs(current => current.includes(target) ? current : [...current, target])
       return true
@@ -93,6 +73,7 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
   }
 
   React.useEffect(() => {
+    if (tab === null || !connected || !profile) return
     if (loadedTabs.includes(tab)) setLoading(false)
     else void refresh(tab)
     return () => { ++refreshRequest.current }
@@ -164,40 +145,6 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     } finally { if (requestId === catalogRequest.current && alive.current) setLoading(false) }
   }
 
-  async function run(operation: string, payload: Record<string, unknown> = {}, after: ExtensionTab = tab) {
-    setBusy(true)
-    setMessage('')
-    try {
-      const owner = scope()
-      const value = await extensions.request<ActionStart>(owner, operation, payload)
-      const action = operation === 'skills.install' || operation === 'skills.uninstall' || operation === 'skills.update'
-        ? value.name : value.background ? value.action : undefined
-      if (action) {
-        setMessage(language === 'zh-CN' ? '后台任务运行中…' : 'Background action running…')
-        let done = false
-        for (let attempt = 0; attempt < 120 && alive.current; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          const status = await extensions.request<ActionStatus>(owner, 'actions.status', { name: action })
-          if (!status.running && status.exit_code !== null) {
-            if (status.exit_code !== 0) throw new Error(language === 'zh-CN' ? '后台操作失败' : 'Background action failed')
-            done = true
-            break
-          }
-        }
-        if (!done) throw new Error(language === 'zh-CN' ? '后台操作仍未完成，请稍后刷新列表' : 'Action is still running; refresh later')
-      }
-      if (alive.current) {
-        const reloaded = await refresh(after)
-        if (!reloaded) return false
-        setMessage(language === 'zh-CN' ? '操作完成；新会话或重新加载后生效。' : 'Done; changes may need a new session or reload.')
-      }
-      return true
-    } catch (error) {
-      if (alive.current) setMessage(error instanceof Error && !('kind' in error) ? error.message : describeError(error, language))
-      return false
-    } finally { if (alive.current) setBusy(false) }
-  }
-
   async function runForProfiles(operation: string, profiles: string[], payload: Record<string, unknown>, after: 'skillHub' | 'mcpCatalog') {
     if (!profiles.length || !connected) return false
     setBusy(true)
@@ -266,7 +213,7 @@ export function useExtensions(connected: boolean, profile: string | null, epoch:
     return extensions.request<R>(scope(), operation, payload)
   }
 
-  return { tab, setTab, skills, servers, official, featured, sources, catalog,
+  return { official, featured, sources, catalog,
     catalogResults, catalogResultsSource, results, resultsSource,
-    busy, loading, message, setMessage, loadSources, searchSkills, searchCatalog, run, runForProfiles, installedTargets, request }
+    busy, loading, message, setMessage, loadSources, searchSkills, searchCatalog, runForProfiles, installedTargets, request }
 }

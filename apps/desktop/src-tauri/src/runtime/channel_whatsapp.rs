@@ -65,6 +65,102 @@ struct Pending {
     expires: Instant,
     ready: bool,
     existing: bool,
+    mode: String,
+    allowed_users: String,
+    account_id: Option<String>,
+    account_name: Option<String>,
+    account_phone: Option<String>,
+}
+
+fn normalize_mode(value: &str) -> Result<String, DesktopFailure> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "bot" => Ok("bot".into()),
+        "self-chat" => Ok("self-chat".into()),
+        _ => Err(DesktopFailure::invalid_input()),
+    }
+}
+
+fn normalize_allowed_users(value: &str) -> Result<String, DesktopFailure> {
+    if value.len() > 8192 || value.chars().any(char::is_control) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(value
+        .trim()
+        .split(',')
+        .filter_map(|part| {
+            let normalized = part.replace(' ', "");
+            (!normalized.is_empty()).then_some(normalized)
+        })
+        .collect::<Vec<_>>()
+        .join(","))
+}
+
+fn safe_response_field(response: &Value, key: &str) -> Option<String> {
+    response
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| {
+            !value.is_empty() && value.len() <= 512 && !value.chars().any(char::is_control)
+        })
+        .map(str::to_owned)
+}
+
+fn whatsapp_start_body(
+    profile: &str,
+    mode: &str,
+    allowed_users: &str,
+    reset_session: bool,
+) -> Result<Value, DesktopFailure> {
+    Ok(json!({
+        "profile": profile,
+        "mode": normalize_mode(mode)?,
+        "allowed_users": normalize_allowed_users(allowed_users)?,
+        "reset_session": reset_session,
+    }))
+}
+
+fn whatsapp_config_body(
+    profile: &str,
+    mode: &str,
+    allowed_users: &str,
+    account_phone: Option<&str>,
+    account_id: Option<&str>,
+) -> Result<Value, DesktopFailure> {
+    let mode = normalize_mode(mode)?;
+    let mut allowed_users = normalize_allowed_users(allowed_users)?;
+    if mode == "self-chat" && allowed_users.is_empty() {
+        allowed_users = account_phone.or(account_id).unwrap_or_default().to_owned();
+    }
+    let mut env = serde_json::Map::from_iter([
+        ("WHATSAPP_MODE".into(), Value::String(mode)),
+        ("WHATSAPP_DM_POLICY".into(), Value::String("pairing".into())),
+        ("WHATSAPP_ENABLED".into(), Value::String("true".into())),
+    ]);
+    if !allowed_users.is_empty() {
+        env.insert(
+            "WHATSAPP_ALLOWED_USERS".into(),
+            Value::String(allowed_users),
+        );
+    }
+    Ok(json!({
+        "profile": profile,
+        "enabled": true,
+        "env": Value::Object(env),
+        "clear_env": [],
+    }))
+}
+
+fn setup_payload(status: &str, pending: &Pending, qr_payload: Option<&str>) -> Value {
+    json!({
+        "status": status,
+        "qr_payload": qr_payload,
+        "mode": pending.mode,
+        "allowed_users": pending.allowed_users,
+        "account_id": pending.account_id,
+        "account_name": pending.account_name,
+        "account_phone": pending.account_phone,
+    })
 }
 
 fn safe_pairing_id(id: &str) -> bool {
@@ -87,7 +183,12 @@ pub async fn channel_whatsapp_start(
     state: State<'_, BackendState>,
     setups: State<'_, WhatsAppSetupState>,
     profile: String,
+    mode: String,
+    allowed_users: String,
+    reset_session: bool,
 ) -> Result<Value, DesktopFailure> {
+    let mode = normalize_mode(&mode)?;
+    let allowed_users = normalize_allowed_users(&allowed_users)?;
     let scope = state.resolve_profile(&profile).await?;
     if setups
         .0
@@ -108,9 +209,12 @@ pub async fn channel_whatsapp_start(
         &scope,
         Method::POST,
         "/api/messaging/whatsapp/onboarding/start",
-        Some(
-            json!({"profile": profile, "mode": "bot", "allowed_users": "", "reset_session": false}),
-        ),
+        Some(whatsapp_start_body(
+            &profile,
+            &mode,
+            &allowed_users,
+            reset_session,
+        )?),
     )
     .await;
     let _ = crate::diagnostics::append_client_event(
@@ -130,7 +234,14 @@ pub async fn channel_whatsapp_start(
         .and_then(Value::as_str)
         .ok_or_else(DesktopFailure::operation_failed)?;
     let _ = path(pairing_id)?;
-    let existing = response.get("status").and_then(Value::as_str) == Some("connected");
+    let status = response.get("status").and_then(Value::as_str).unwrap_or("");
+    let existing = status == "connected";
+    if !existing && !matches!(status, "starting" | "installing" | "waiting") {
+        return Err(DesktopFailure::operation_failed());
+    }
+    let account_id = safe_response_field(&response, "account_id");
+    let account_name = safe_response_field(&response, "account_name");
+    let account_phone = safe_response_field(&response, "account_phone");
     let id = Uuid::new_v4().to_string();
     setups.0.lock().await.insert(
         id.clone(),
@@ -141,6 +252,11 @@ pub async fn channel_whatsapp_start(
             expires: Instant::now() + Duration::from_secs(600),
             ready: existing,
             existing,
+            mode: mode.clone(),
+            allowed_users: allowed_users.clone(),
+            account_id: account_id.clone(),
+            account_name: account_name.clone(),
+            account_phone: account_phone.clone(),
         },
     );
     let _ = crate::diagnostics::append_client_event(
@@ -149,10 +265,20 @@ pub async fn channel_whatsapp_start(
             "channel_whatsapp_pairing_created operation={operation} pairing={id} profile={profile}"
         ),
     );
-    Ok(
-        json!({"id": id, "status": if existing {"ready"} else {"waiting"},
-        "qr_payload": response.get("qr_payload").and_then(Value::as_str).filter(|v| v.len() <= 16384)}),
-    )
+    let qr_payload = response
+        .get("qr_payload")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 16384);
+    Ok(json!({
+        "id": id,
+        "status": if existing {"ready"} else {"waiting"},
+        "qr_payload": qr_payload,
+        "mode": mode,
+        "allowed_users": allowed_users,
+        "account_id": account_id,
+        "account_name": account_name,
+        "account_phone": account_phone,
+    }))
 }
 
 #[tauri::command]
@@ -178,7 +304,7 @@ pub async fn channel_whatsapp_poll(
         return Ok(json!({"status":"expired"}));
     }
     if pending.ready {
-        return Ok(json!({"status":"ready"}));
+        return Ok(setup_payload("ready", &pending, None));
     }
     let response = config_request_for_scope(
         &state,
@@ -201,14 +327,26 @@ pub async fn channel_whatsapp_poll(
     let status = response.get("status").and_then(Value::as_str).unwrap_or("");
     match status {
         "connected" => {
-            if let Some(record) = setups.0.lock().await.get_mut(&id) {
+            let account_id = safe_response_field(&response, "account_id");
+            let account_name = safe_response_field(&response, "account_name");
+            let account_phone = safe_response_field(&response, "account_phone");
+            let mut records = setups.0.lock().await;
+            if let Some(record) = records.get_mut(&id) {
                 record.ready = true;
+                record.account_id = account_id;
+                record.account_name = account_name;
+                record.account_phone = account_phone;
             }
+            let ready = records
+                .get(&id)
+                .cloned()
+                .ok_or_else(DesktopFailure::conflict)?;
+            drop(records);
             let _ = crate::diagnostics::append_client_event(
                 &scope.storage,
                 &format!("channel_whatsapp_ready operation={id} profile={profile}"),
             );
-            Ok(json!({"status":"ready"}))
+            Ok(setup_payload("ready", &ready, None))
         }
         "expired" | "cancelled" | "error" => {
             setups.0.lock().await.remove(&id);
@@ -223,7 +361,7 @@ pub async fn channel_whatsapp_poll(
                 .get("qr_payload")
                 .and_then(Value::as_str)
                 .filter(|v| !v.is_empty() && v.len() <= 16384);
-            Ok(json!({"status":"waiting", "qr_payload": qr}))
+            Ok(setup_payload("waiting", &pending, qr))
         }
         _ => Err(DesktopFailure::operation_failed()),
     }
@@ -235,7 +373,11 @@ pub async fn channel_whatsapp_apply(
     setups: State<'_, WhatsAppSetupState>,
     profile: String,
     id: String,
+    mode: String,
+    allowed_users: String,
 ) -> Result<(), DesktopFailure> {
+    let mode = normalize_mode(&mode)?;
+    let allowed_users = normalize_allowed_users(&allowed_users)?;
     let scope = state.resolve_profile(&profile).await?;
     let pending = setups
         .0
@@ -258,11 +400,21 @@ pub async fn channel_whatsapp_apply(
     if !whatsapp_session_linked(&scope.home) {
         return Err(DesktopFailure::conflict());
     }
-    let result = config_request_for_scope(&state, &scope, Method::PUT,
+    let body = whatsapp_config_body(
+        &profile,
+        &mode,
+        &allowed_users,
+        pending.account_phone.as_deref(),
+        pending.account_id.as_deref(),
+    )?;
+    let result = config_request_for_scope(
+        &state,
+        &scope,
+        Method::PUT,
         "/api/messaging/platforms/whatsapp",
-        Some(json!({"profile": profile, "enabled": true,
-            "env": {"WHATSAPP_MODE": "bot", "WHATSAPP_DM_POLICY": "pairing", "WHATSAPP_ENABLED": "true"},
-            "clear_env": []}))).await;
+        Some(body),
+    )
+    .await;
     let success = result
         .as_ref()
         .is_ok_and(|body| body.get("ok").and_then(Value::as_bool) == Some(true));

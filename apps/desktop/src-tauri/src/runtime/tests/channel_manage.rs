@@ -1,4 +1,4 @@
-use super::{valid_platform, validate_update, whatsapp_session_linked, ChannelUpdate};
+use super::{update_body, valid_platform, validate_update, whatsapp_session_linked, ChannelUpdate};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -71,6 +71,25 @@ fn yuanbao_requires_actual_credentials_despite_catalog_omission() {
         .env
         .insert("YUANBAO_APP_SECRET".into(), "secret".into());
     assert!(validate_update(&entry, &update).is_ok());
+}
+
+#[test]
+#[ignore = "run by the isolated locked Dashboard receiver probe"]
+fn print_production_webhook_enable_shape() {
+    let update = ChannelUpdate {
+        env: HashMap::from([("WEBHOOK_ENABLED".into(), "true".into())]),
+        clear_env: vec![],
+        enabled: Some(true),
+    };
+    let entry = json!({"id":"webhook","env_vars":[{"key":"WEBHOOK_ENABLED","required":false,"is_set":false}]});
+    assert!(validate_update(&entry, &update).is_ok());
+    println!(
+        "WEBHOOK_ENABLE_SHAPE={}",
+        json!({
+            "method": "PUT", "path": "/api/messaging/platforms/webhook",
+            "body": update_body("default", &update),
+        })
+    );
 }
 
 #[test]

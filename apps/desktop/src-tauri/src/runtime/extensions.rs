@@ -1,8 +1,11 @@
 use super::{
-    config::config_request_for_scope, hermes_plugins, jobs, mcp_registry, modelscope,
-    modelscope_mcp, profile_scope::ResolvedProfileScope, BackendState,
+    config::config_request_for_scope, credential_pool, curator, dashboard_plugins, env_keys,
+    hermes_plugins, hooks, jobs, logs, managed_files, mcp_registry, modelscope, modelscope_mcp,
+    pairing, profile_scope::ResolvedProfileScope, session_management, system_actions, tools,
+    webhooks, BackendState,
 };
 use crate::errors::DesktopFailure;
+use crate::paths::filesystem_path;
 use reqwest::{Method, Url};
 use serde_json::Value;
 use std::time::Duration;
@@ -31,7 +34,83 @@ pub async fn extension_request(
     if operation.starts_with("jobs.") {
         return jobs::request(&state, &scope, &operation, &payload).await;
     }
+    if operation.starts_with("hooks.") {
+        return hooks::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("curator.") {
+        return curator::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("systemActions.") {
+        return system_actions::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("credentials.pool.") {
+        return credential_pool::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("webhooks.") {
+        return webhooks::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("pairing.") {
+        return pairing::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation == "logs.read" {
+        return logs::read(&state, &scope, &payload).await;
+    }
+    if operation.starts_with("envKeys.") {
+        return env_keys::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("sessionManagement.") {
+        return session_management::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("managedFiles.") {
+        return managed_files::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("toolsets.") && operation != "toolsets.toggle" {
+        let operation_id = Uuid::new_v4();
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("{operation}_start operation_id={operation_id} profile={profile}"),
+        );
+        let result = upstream_request(&state, &scope, &operation, &payload).await;
+        let outcome = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("{operation}_{outcome} operation_id={operation_id} profile={profile}"),
+        );
+        return result;
+    }
+    if operation == "mcp.auth.cancel" {
+        let operation_id = Uuid::new_v4();
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("mcp_oauth_cancel_start operation_id={operation_id} profile={profile}"),
+        );
+        let result = upstream_request(&state, &scope, &operation, &payload).await;
+        let outcome = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("mcp_oauth_cancel_{outcome} operation_id={operation_id} profile={profile}"),
+        );
+        return result;
+    }
     match operation.as_str() {
+        "skills.review-capability" => {
+            return review_capability(&state, &scope).await;
+        }
+        "memory.provider.activate" => {
+            return activate_memory_provider(&state, &scope, &profile, &payload).await;
+        }
+        "dashboard.plugins.list" | "dashboard.plugins.request" => {
+            return dashboard_plugins::request(&state, &scope, &operation, &payload).await;
+        }
+        "toolsets.toggle" => return tools::toggle_profile_toolset(&state, &scope, &payload).await,
         "journey.graph" | "journey.node" | "journey.edit" | "journey.delete" => {
             return journey_request(&state, &scope, &profile, &operation, &payload).await;
         }
@@ -197,6 +276,138 @@ pub async fn extension_request(
     upstream_request(&state, &scope, &operation, &payload).await
 }
 
+async fn review_capability(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+) -> Result<Value, DesktopFailure> {
+    let skills = upstream_request(state, scope, "skills.list", &serde_json::json!({})).await?;
+    let raw = config_request_for_scope(state, scope, Method::GET, "/api/config/raw", None).await?;
+    let yaml = raw
+        .get("yaml")
+        .and_then(Value::as_str)
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    let config: Value =
+        serde_yaml::from_str(yaml).map_err(|_| DesktopFailure::operation_failed())?;
+    scope.ensure_current(state).await?;
+    review_capability_value(
+        &skills,
+        &config,
+        filesystem_path(&scope.home.join(".no-bundled-skills")).is_file(),
+    )
+}
+
+fn review_capability_value(
+    skills: &Value,
+    config: &Value,
+    bundled_skills_omitted: bool,
+) -> Result<Value, DesktopFailure> {
+    let listed = skills
+        .as_array()
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    if listed.iter().any(|skill| {
+        skill.get("name").and_then(Value::as_str) == Some("sdlc-review")
+            && skill.get("enabled").and_then(Value::as_bool) == Some(true)
+    }) {
+        return Ok(serde_json::json!({"capability": "ready", "reason": "listed"}));
+    }
+    let disabled = config
+        .get("skills")
+        .and_then(|value| value.get("disabled"))
+        .and_then(Value::as_array)
+        .is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item.as_str() == Some("sdlc-review"))
+        });
+    if disabled {
+        return Ok(serde_json::json!({"capability": "missing", "reason": "disabled"}));
+    }
+
+    if bundled_skills_omitted {
+        return Ok(
+            serde_json::json!({"capability": "missing", "reason": "bundled_skills_omitted"}),
+        );
+    }
+
+    // sdlc-review is part of the locked official bundle. Editable development
+    // checkouts can resolve it for workers without exposing it through /api/skills,
+    // so an enabled full-bundle profile remains review-capable here.
+    Ok(serde_json::json!({"capability": "ready", "reason": "bundled"}))
+}
+
+fn memory_provider_request_shape(
+    profile: &str,
+    payload: &Value,
+) -> Result<(Method, String, Value), DesktopFailure> {
+    let provider = payload
+        .get("provider")
+        .and_then(Value::as_str)
+        .ok_or_else(DesktopFailure::invalid_input)?
+        .trim();
+    if !provider.is_empty()
+        && (provider.len() > 64
+            || !provider.as_bytes()[0].is_ascii_alphanumeric()
+            || !provider
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')))
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut url = Url::parse("http://localhost/api/memory/provider")
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    url.query_pairs_mut().append_pair("profile", profile);
+    Ok((
+        Method::PUT,
+        format!("{}?{}", url.path(), url.query().unwrap_or_default()),
+        serde_json::json!({ "provider": provider }),
+    ))
+}
+
+async fn activate_memory_provider(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    profile: &str,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    let (method, path, body) = memory_provider_request_shape(profile, payload)?;
+    let operation_id = Uuid::new_v4();
+    let provider = body
+        .get("provider")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    let target = if provider.is_empty() {
+        "builtin"
+    } else {
+        "external"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "memory_provider_activate_start operation_id={operation_id} profile={profile} target={target}"
+        ),
+    );
+    let result = config_request_for_scope(state, scope, method, &path, Some(body)).await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "memory_provider_activate_{outcome} operation_id={operation_id} profile={profile} target={target}"
+        ),
+    );
+    let value = result?;
+    if value.get("ok").and_then(Value::as_bool) != Some(true)
+        || value.get("active").and_then(Value::as_str) != Some(provider.as_str())
+    {
+        return Err(DesktopFailure::operation_failed());
+    }
+    Ok(serde_json::json!({ "ok": true, "active": provider }))
+}
+
 async fn journey_request(
     state: &State<'_, BackendState>,
     scope: &ResolvedProfileScope,
@@ -346,12 +557,11 @@ fn prepare_mcp_update(config: &Value, payload: &Value) -> Result<Value, DesktopF
 #[path = "tests/extensions.rs"]
 mod tests;
 
-async fn upstream_request(
-    state: &State<'_, BackendState>,
-    scope: &ResolvedProfileScope,
+fn upstream_request_target(
+    port: u16,
     operation: &str,
     payload: &Value,
-) -> Result<Value, DesktopFailure> {
+) -> Result<(Method, Url), DesktopFailure> {
     let (method, route, path_key, query_key) = match operation {
         "skills.list" => (Method::GET, "/api/skills", None, None),
         "skills.content" => (Method::GET, "/api/skills/content", None, Some("name")),
@@ -376,6 +586,9 @@ async fn upstream_request(
         "skills.install" => (Method::POST, "/api/skills/hub/install", None, None),
         "skills.uninstall" => (Method::POST, "/api/skills/hub/uninstall", None, None),
         "skills.update" => (Method::POST, "/api/skills/hub/update", None, None),
+        "toolsets.config" => (Method::GET, "/api/tools/toolsets", Some("name"), None),
+        "toolsets.provider" => (Method::PUT, "/api/tools/toolsets", Some("name"), None),
+        "toolsets.env" => (Method::PUT, "/api/tools/toolsets", Some("name"), None),
         "mcp.list" => (Method::GET, "/api/mcp/servers", None, None),
         "mcp.add" => (Method::POST, "/api/mcp/servers", None, None),
         "mcp.remove" => (Method::DELETE, "/api/mcp/servers", Some("name"), None),
@@ -383,14 +596,17 @@ async fn upstream_request(
         "mcp.toggle" => (Method::PUT, "/api/mcp/servers", Some("name"), None),
         "mcp.auth" => (Method::POST, "/api/mcp/servers", Some("name"), None),
         "mcp.auth.status" => (Method::GET, "/api/mcp/oauth/flows", Some("flow_id"), None),
+        "mcp.auth.cancel" => (
+            Method::DELETE,
+            "/api/mcp/oauth/flows",
+            Some("flow_id"),
+            None,
+        ),
         "mcp.catalog" => (Method::GET, "/api/mcp/catalog", None, None),
         "mcp.install" => (Method::POST, "/api/mcp/catalog/install", None, None),
         "actions.status" => (Method::GET, "/api/actions", Some("name"), None),
         _ => return Err(DesktopFailure::invalid_input()),
     };
-    scope.ensure_current(state).await?;
-    let (port, auth_header, token) = scope.http_auth().await?;
-    scope.ensure_current(state).await?;
     let mut url = Url::parse(&format!("http://127.0.0.1:{port}{route}"))
         .map_err(|_| DesktopFailure::operation_failed())?;
     if let Some(key) = path_key {
@@ -422,6 +638,18 @@ async fn upstream_request(
             url.path_segments_mut()
                 .map_err(|_| DesktopFailure::operation_failed())?
                 .push("status");
+        } else if operation == "toolsets.config" {
+            url.path_segments_mut()
+                .map_err(|_| DesktopFailure::operation_failed())?
+                .push("config");
+        } else if operation == "toolsets.provider" {
+            url.path_segments_mut()
+                .map_err(|_| DesktopFailure::operation_failed())?
+                .push("provider");
+        } else if operation == "toolsets.env" {
+            url.path_segments_mut()
+                .map_err(|_| DesktopFailure::operation_failed())?
+                .push("env");
         }
     }
     if let Some(key) = query_key {
@@ -435,14 +663,22 @@ async fn upstream_request(
             }
         }
     }
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(45))
-        .build()
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    let mut request = client
+    Ok((method, url))
+}
+
+async fn upstream_request(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    operation: &str,
+    payload: &Value,
+) -> Result<Value, DesktopFailure> {
+    scope.ensure_current(state).await?;
+    let (port, auth_header, token) = scope.http_auth().await?;
+    scope.ensure_current(state).await?;
+    let (method, url) = upstream_request_target(port, operation, payload)?;
+    let mut request = super::local_http::client()?
         .request(method.clone(), url)
+        .timeout(Duration::from_secs(45))
         .header(auth_header, token);
     if method != Method::GET && method != Method::DELETE {
         request = request.json(&payload);
@@ -452,6 +688,14 @@ async fn upstream_request(
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;
     if !response.status().is_success() {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!(
+                "profile_extension_http_failed profile={} operation={operation} status={}",
+                scope.profile,
+                response.status().as_u16()
+            ),
+        );
         // Upstream errors can contain server configuration or credentials.
         return Err(DesktopFailure::operation_failed());
     }

@@ -12,6 +12,7 @@ test('commands disabled by the desktop plan stay unavailable even when the catal
     const denied = [...plan.matchAll(/^\| `(\/[^`]+)` \| ([^|]+) \|/gm)]
       .filter(([, , decision]) => /当前保持禁用|暂不接入|禁止桌面执行|改用界面操作/.test(decision))
       .map(([, name]) => name)
+      .filter(name => name !== '/rollback')
     assert.deepEqual([...DESKTOP_DENIED_COMMANDS].filter(name => !DESKTOP_DEDICATED_COMMANDS.has(name)).sort(), [...denied].sort())
     const catalog = {
       pairs: denied.map(name => [name, 'Listed command']),
@@ -26,8 +27,8 @@ test('commands disabled by the desktop plan stay unavailable even when the catal
     assert.equal(commandSupported(catalog, '/bg'), true)
     assert.equal(commandSupported(catalog, '/journey'), true)
     assert.equal(commandSupported(catalog, '/status'), true)
-    assert.match(deniedCommandNotice('/rollback', 'zh-CN'), /文件恢复的安全预览与保护尚未完成/)
-    assert.match(deniedCommandNotice('/rollback', 'en-US'), /safe file restore/)
+    assert.equal(commandSupported(catalog, '/rollback'), true)
+    assert.equal(deniedCommandNotice('/rollback', 'zh-CN'), '')
     assert.equal(deniedCommandNotice('/bg', 'zh-CN'), '')
     assert.equal(deniedCommandNotice('/status', 'zh-CN'), '')
   } finally {

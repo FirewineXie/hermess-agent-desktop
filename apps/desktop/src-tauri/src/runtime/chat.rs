@@ -114,6 +114,7 @@ pub async fn submit_chat_prompt(
     profile: String,
     session_id: String,
     text: String,
+    images: Option<Vec<ChatImageAttachment>>,
 ) -> Result<Value, DesktopFailure> {
     if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
@@ -138,15 +139,32 @@ pub async fn submit_chat_prompt(
         None
     };
     let scope = state.resolve_profile(&profile).await?;
-    let params = prompt_submit_params(session_id.clone(), text);
+    let params = prompt_submit_params(session_id.clone(), text, images)?;
     let operation = params["submission_id"].as_str().unwrap_or("").to_owned();
+    let image_count = params
+        .get("attachments")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
     if let Some(command) = command {
         let _ = crate::diagnostics::append_client_event(
             &scope.storage,
             &format!("composer_submit_start operation={operation} command={command} profile={profile} session={session_id}"),
         );
     }
+    if image_count > 0 {
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("chat_images_submit_start operation={operation} count={image_count}"),
+        );
+    }
     let result = scope.gateway.request("prompt.submit", params).await;
+    if image_count > 0 {
+        let outcome = if result.is_ok() { "admitted" } else { "failed" };
+        let _ = crate::diagnostics::append_client_event(
+            &scope.storage,
+            &format!("chat_images_submit_{outcome} operation={operation} count={image_count}"),
+        );
+    }
     if let Some(command) = command {
         let outcome = if result.is_ok() { "admitted" } else { "failed" };
         let _ = crate::diagnostics::append_client_event(
@@ -157,8 +175,30 @@ pub async fn submit_chat_prompt(
     result.map_err(Into::into)
 }
 
-fn prompt_submit_params(session_id: String, text: String) -> Value {
-    json!({
+#[derive(Deserialize, Serialize)]
+pub struct ChatImageAttachment {
+    path: String,
+    mime: String,
+}
+
+fn prompt_submit_params(
+    session_id: String,
+    text: String,
+    images: Option<Vec<ChatImageAttachment>>,
+) -> Result<Value, DesktopFailure> {
+    let images = images.unwrap_or_default();
+    if images.len() > 10
+        || images.iter().any(|image| {
+            !std::path::Path::new(&image.path).is_absolute()
+                || !matches!(
+                    image.mime.as_str(),
+                    "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+                )
+        })
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut params = json!({
         "session_id": session_id,
         "text": text,
         "submission_id": Uuid::new_v4().to_string(),
@@ -166,7 +206,11 @@ fn prompt_submit_params(session_id: String, text: String) -> Value {
         // clarify use the server request card this desktop already handles instead of the
         // messaging adapter's one-question-at-a-time path.
         "clarify_batch": true
-    })
+    });
+    if !images.is_empty() {
+        params["attachments"] = json!(images);
+    }
+    Ok(params)
 }
 
 #[tauri::command]
@@ -299,22 +343,30 @@ pub async fn attach_chat_file(
         return Err(DesktopFailure::invalid_input());
     }
     let (source, name, bytes, is_image, preview) = inspect_attachment_path(path)?;
-    let method = if is_image {
-        "image.attach"
-    } else {
-        "file.attach"
-    };
     let gateway = state.resolve_profile(&profile).await?.gateway;
-    let result = gateway
-        .request(
-            method,
-            json!({"session_id": session_id, "path": source.to_string_lossy(), "name": name}),
+    let (method, params) = if is_image {
+        let image =
+            fs::read(filesystem_path(&source)).map_err(|_| "无法读取图片附件".to_string())?;
+        (
+            "image.attach_bytes",
+            json!({"session_id": session_id,
+            "content_base64": base64::engine::general_purpose::STANDARD.encode(image),
+            "filename": name}),
         )
-        .await?;
+    } else {
+        (
+            "file.attach",
+            json!({"session_id": session_id,
+            "path": source.to_string_lossy(), "name": name}),
+        )
+    };
+    let result = gateway.request(method, params).await?;
     if result.get("attached").and_then(Value::as_bool) != Some(true) {
         return Err("后端未接受附件".into());
     }
-    if is_image && result.get("path").and_then(Value::as_str).is_none()
+    if is_image
+        && (result.get("path").and_then(Value::as_str).is_none()
+            || result.get("mime").and_then(Value::as_str).is_none())
         || !is_image && result.get("ref_text").and_then(Value::as_str).is_none()
     {
         return Err("后端附件响应缺少必要标识".into());
@@ -323,7 +375,7 @@ pub async fn attach_chat_file(
         json!({"kind": if is_image { "image" } else { "file" }, "name": name,
         "source_path": source.to_string_lossy(), "bytes": bytes, "preview": preview,
         "ref_text": result.get("ref_text"),
-        "path": result.get("path")}),
+        "path": result.get("path"), "mime": result.get("mime")}),
     )
 }
 
@@ -357,12 +409,13 @@ pub async fn attach_chat_image_bytes(
         .await?;
     if result.get("attached").and_then(Value::as_bool) != Some(true)
         || result.get("path").and_then(Value::as_str).is_none()
+        || result.get("mime").and_then(Value::as_str).is_none()
     {
         return Err("后端未接受图片附件".into());
     }
     Ok(
         json!({"kind": "image", "name": name, "source_path": "clipboard",
-        "bytes": image.len(), "path": result.get("path")}),
+        "bytes": image.len(), "path": result.get("path"), "mime": result.get("mime")}),
     )
 }
 

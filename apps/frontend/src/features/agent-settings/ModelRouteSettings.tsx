@@ -4,6 +4,7 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateAgentUi } from '../../i18n'
 import AuxiliaryTaskCard from './components/AuxiliaryTaskCard'
 import { getField, type Provider, type Schema } from './model'
+import type { AuxiliaryModels, AuxiliaryTaskAssignment } from '@hermess/contracts'
 
 type Fallback = Record<string, unknown> & { provider: string; model: string }
 const normalizeFallbacks = (value: unknown): Fallback[] => Array.isArray(value) ? value.map(item => {
@@ -34,6 +35,7 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
   const zh = language === 'zh-CN'
   const [schema, setSchema] = React.useState<Schema | null>(null)
   const [config, setConfig] = React.useState<Record<string, unknown>>({})
+  const [auxiliary, setAuxiliary] = React.useState<AuxiliaryModels | null>(null)
   const [providers, setProviders] = React.useState<Provider[]>([])
   const [mainProvider, setMainProvider] = React.useState('')
   const [rows, setRows] = React.useState<Fallback[]>([])
@@ -53,12 +55,13 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
     setBusy(true); setStatus('')
     try {
       const scope = { kind: 'profile' as const, profile }
-      const [nextSchema, nextConfig, options, endpoints, lists, main] = await Promise.all([
+      const [nextSchema, nextConfig, options, endpoints, lists, main, nextAuxiliary] = await Promise.all([
         agentSettings.schema(scope), agentSettings.config(scope),
         models.options(scope, { refresh: false, includeUnconfigured: false }).catch(() => ({ providers: [] })),
         models.endpoints(scope).catch(() => ({ endpoints: [] })),
         models.loadLists(scope, storagePath).catch(() => null),
         models.savedConfig(scope).catch(() => null),
+        page === 'auxiliary' ? agentSettings.auxiliary(scope) : Promise.resolve(null),
       ])
       if (current !== request.current) return false
       const choices: Provider[] = options.providers.filter(item => item.authenticated !== false && !['copilot-acp', 'custom'].includes(item.slug))
@@ -69,7 +72,7 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
       }
       for (const item of choices) if (lists?.[item.slug]) item.models = lists[item.slug]
       const nextRows = normalizeFallbacks(getField(nextConfig, 'fallback_providers'))
-      setSchema(nextSchema); setConfig(nextConfig); setProviders(choices)
+      setSchema(nextSchema); setConfig(nextConfig); setAuxiliary(nextAuxiliary); setProviders(choices)
       setMainProvider(main?.provider || '')
       setRows(nextRows); setOriginalRows(nextRows); setEditingTask(null); setLoaded(true)
       return true
@@ -77,8 +80,9 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
     finally { if (current === request.current) setBusy(false) }
   }, [connected, profile, epoch, storagePath, agentSettings, models, language])
   React.useEffect(() => { void load(); return () => { ++request.current } }, [load])
-  const currentAux = editingTask ? getField(config, `auxiliary.${editingTask}`) as Record<string, unknown> | undefined : undefined
-  const dirtyAux = Boolean(editingTask && (auxProvider !== String(currentAux?.provider || 'auto') || auxModel !== String(currentAux?.model || '') || auxEffort !== String(currentAux?.reasoning_effort || '') || auxTimeout !== String(currentAux?.timeout ?? '')))
+  const currentAssignment = editingTask ? auxiliary?.tasks.find(item => item.task === editingTask) : undefined
+  const currentAuxConfig = editingTask ? getField(config, `auxiliary.${editingTask}`) as Record<string, unknown> | undefined : undefined
+  const dirtyAux = Boolean(editingTask && (auxProvider !== String(currentAssignment?.provider || 'auto') || auxModel !== String(currentAssignment?.model || '') || auxEffort !== String(currentAssignment?.reasoning_effort || '') || auxTimeout !== String(currentAuxConfig?.timeout ?? '')))
   const dirty = JSON.stringify(rows) !== JSON.stringify(originalRows) || dirtyAux
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) }, [dirty, onDirtyChange])
   React.useEffect(() => { onBusyChange(busy); return () => onBusyChange(false) }, [busy, onBusyChange])
@@ -98,9 +102,10 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
   }
   const editAuxiliary = (task: string) => {
     if (dirtyAux && !window.confirm(zh ? '放弃未保存的辅助模型修改？' : 'Discard unsaved auxiliary changes?')) return
+    const assignment = auxiliary?.tasks.find(item => item.task === task)
     const current = getField(config, `auxiliary.${task}`) as Record<string, unknown> | undefined
-    setAuxProvider(String(current?.provider || 'auto')); setAuxModel(String(current?.model || ''))
-    setAuxEffort(String(current?.reasoning_effort || '')); setAuxTimeout(String(current?.timeout ?? ''))
+    setAuxProvider(String(assignment?.provider || 'auto')); setAuxModel(String(assignment?.model || ''))
+    setAuxEffort(String(assignment?.reasoning_effort || '')); setAuxTimeout(String(current?.timeout ?? ''))
     setEditingTask(task)
   }
   const saveAuxiliary = async (task: string) => {
@@ -110,20 +115,44 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
     setBusy(true); setStatus('')
     try {
       const scope = { kind: 'profile' as const, profile }
-      await agentSettings.saveAuxiliary(scope, { task, provider: auxProvider, model: auxProvider === 'auto' ? '' : auxModel.trim(), effort: auxEffort, timeout: auxTimeout ? Number(auxTimeout) : null })
+      const route = { task, provider: auxProvider, model: auxProvider === 'auto' ? '' : auxModel.trim(), effort: auxEffort, timeout: auxTimeout ? Number(auxTimeout) : null }
+      let result = await agentSettings.saveAuxiliary(scope, route)
+      if (result.confirm_required) {
+        const accepted = window.confirm(result.confirm_message || (zh ? '该模型可能产生较高费用，仍要用于此辅助任务吗？' : 'This model may be expensive. Use it for this auxiliary task?'))
+        if (!accepted) { setStatus(zh ? '未保存：已取消高费用模型确认。' : 'Not saved: expensive model confirmation was cancelled.'); return }
+        result = await agentSettings.saveAuxiliary(scope, { ...route, confirmExpensiveModel: true })
+      }
+      if (!result.saved || !result.state) throw new Error(zh ? '辅助模型配置未被运行时接受' : 'The auxiliary model assignment was not accepted')
       const nextConfig = await agentSettings.config(scope)
-      const saved = getField(nextConfig, `auxiliary.${task}`) as Record<string, unknown> | undefined
-      if (String(saved?.provider || 'auto') !== auxProvider
-        || (auxProvider !== 'auto' && String(saved?.model || '') !== auxModel.trim())
-        || (schema?.fields[`auxiliary.${task}.reasoning_effort`] && String(saved?.reasoning_effort ?? '') !== auxEffort)
-        || (auxTimeout && schema?.fields[`auxiliary.${task}.timeout`] && Number(saved?.timeout) !== Number(auxTimeout))) throw new Error(zh ? '辅助模型回读不一致' : 'Auxiliary model did not match after saving')
-      setConfig(nextConfig); setEditingTask(null); setStatus(zh ? '辅助模型已保存并回读确认' : 'Auxiliary model saved and verified')
+      const saved = result.state.tasks.find(item => item.task === task)
+      const savedConfig = getField(nextConfig, `auxiliary.${task}`) as Record<string, unknown> | undefined
+      if (!saved || String(saved.provider || 'auto') !== auxProvider
+        || (auxProvider !== 'auto' && String(saved.model || '') !== auxModel.trim())
+        || String(saved.reasoning_effort || '') !== auxEffort
+        || (auxTimeout && schema?.fields[`auxiliary.${task}.timeout`] && Number(savedConfig?.timeout) !== Number(auxTimeout))) throw new Error(zh ? '辅助模型回读不一致' : 'Auxiliary model did not match after saving')
+      setConfig(nextConfig); setAuxiliary(result.state); setEditingTask(null); setStatus(zh ? '辅助模型已保存并回读确认' : 'Auxiliary model saved and verified')
     } catch (cause) { setStatus(describeError(cause, language)) }
     finally { setBusy(false) }
   }
-  const tasks = Object.keys(schema?.fields || {}).filter(key => /^auxiliary\.[^.]+\.provider$/.test(key)).map(key => key.split('.')[1]).filter(task => task !== 'compression')
+  const resetAuxiliary = async () => {
+    if (!profile || busy || dirty) return
+    const accepted = window.confirm(zh
+      ? '将当前 Profile 的全部辅助任务恢复为自动？这也会清除压缩和插件任务的模型、推理强度及端点覆盖。'
+      : 'Reset every auxiliary task in this Profile to auto? This also clears model, reasoning, and endpoint overrides for compression and plugin tasks.')
+    if (!accepted) return
+    setBusy(true); setStatus('')
+    try {
+      await agentSettings.resetAuxiliary({ kind: 'profile', profile })
+      const reloaded = await load()
+      setStatus(reloaded
+        ? (zh ? '全部辅助任务已重置为自动并重新读取。' : 'All auxiliary tasks were reset to auto and reloaded.')
+        : (zh ? '重置请求已完成，但重新读取失败，请再次读取配置。' : 'Reset completed, but reloading failed. Reload the configuration.'))
+    } catch (cause) { setStatus(describeError(cause, language)) }
+    finally { setBusy(false) }
+  }
+  const tasks: AuxiliaryTaskAssignment[] = (auxiliary?.tasks || []).filter(task => task.task !== 'compression')
   return <section className="model-route-settings">
-    <div className="row"><h2>{page === 'fallbacks' ? (zh ? '回退模型' : 'Fallback models') : (zh ? '辅助模型' : 'Auxiliary models')}</h2><button type="button" disabled={busy || dirty} onClick={() => void load()}>{zh ? '重新读取' : 'Reload'}</button></div>
+    <div className="row"><h2>{page === 'fallbacks' ? (zh ? '回退模型' : 'Fallback models') : (zh ? '辅助模型' : 'Auxiliary models')}</h2><div className="actions">{page === 'auxiliary' && loaded && <button type="button" disabled={busy || dirty} onClick={() => void resetAuxiliary()}>{zh ? '全部恢复自动' : 'Reset all to auto'}</button>}<button type="button" disabled={busy || dirty} onClick={() => void load()}>{zh ? '重新读取' : 'Reload'}</button></div></div>
     {!connected || !profile ? <p role="status">{zh ? '连接运行时并选择 Profile 后可编辑。' : 'Connect the runtime and select a Profile.'}</p>
       : !loaded ? <p role={status ? 'alert' : 'status'}>{status || (zh ? '正在读取配置…' : 'Loading configuration…')}</p>
         : page === 'fallbacks' ? !schema?.fields.fallback_providers ? <p role="status">{zh ? '当前运行时不支持回退模型配置。' : 'Fallback settings are unavailable in this runtime.'}</p>
@@ -140,7 +169,7 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
           </> : tasks.length === 0 ? <p role="status">{zh ? '当前运行时没有可配置的辅助任务。' : 'No configurable auxiliary tasks in this runtime.'}</p>
             : <div className="auxiliary-list"><p>{zh ? '每个任务可跟随主模型，或指定提供商与模型。' : 'Each task can follow the main model or use a fixed provider and model.'}</p>
               {editingTask && auxProvider !== 'auto' && mainProvider && auxProvider !== mainProvider && <p role="status">{zh ? '此任务使用的提供商与主模型不同。' : 'This task uses a different provider from the main model.'}</p>}
-              {tasks.map(task => <AuxiliaryTaskCard key={task} task={task} config={config} schema={schema} providers={providers} editing={editingTask === task} provider={auxProvider} model={auxModel} effort={auxEffort} timeout={auxTimeout} busy={busy} language={language} t={key => translateAgentUi(language, key)} onEdit={editAuxiliary} onProviderChange={setAuxProvider} onModelChange={setAuxModel} onEffortChange={setAuxEffort} onTimeoutChange={setAuxTimeout} onSave={value => void saveAuxiliary(value)} onCancel={() => setEditingTask(null)} />)}</div>}
+              {tasks.map(task => <AuxiliaryTaskCard key={task.task} assignment={task} schema={schema} providers={providers} editing={editingTask === task.task} provider={auxProvider} model={auxModel} effort={auxEffort} timeout={auxTimeout} busy={busy} language={language} t={key => translateAgentUi(language, key)} onEdit={editAuxiliary} onProviderChange={setAuxProvider} onModelChange={setAuxModel} onEffortChange={setAuxEffort} onTimeoutChange={setAuxTimeout} onSave={value => void saveAuxiliary(value)} onCancel={() => setEditingTask(null)} />)}</div>}
     {status && loaded && <p role="status">{status}</p>}
   </section>
 }

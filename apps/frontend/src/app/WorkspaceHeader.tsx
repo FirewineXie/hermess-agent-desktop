@@ -3,15 +3,20 @@ import type { View } from './types'
 import { sessionSourceLabel } from '../features/chat/sessionSource'
 import { useDesktop } from './DesktopContext'
 import windowIcon from '../assets/hermess-window-icon.png'
+import { DashboardPluginSlot } from '../features/dashboard-plugins/DashboardPluginHost'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
-  const title = view === 'chat' ? sessionTitle || t('ui.chat') : ({
+  const title = view === 'dashboard-plugin' ? pluginTitle || 'Dashboard Plugin' : view === 'chat' ? sessionTitle || t('ui.chat') : ({
+    sessions: language === 'zh-CN' ? '会话管理' : 'Sessions',
+    files: language === 'zh-CN' ? '文件管理' : 'Files',
     usage: t('ui.usage.title'),
     workspaces: t('ui.workspace.title'),
     scheduled: language === 'zh-CN' ? '定时任务' : 'Scheduled tasks',
+    'personal-tasks': language === 'zh-CN' ? '持续任务' : 'Ongoing tasks',
+    webhooks: 'Webhooks',
     settings: language === 'zh-CN' ? '设置' : 'Settings',
     agent: t('ui.agent.settings'),
     profiles: language === 'zh-CN' ? '角色与 Profile' : 'Roles and profiles',
@@ -26,6 +31,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
   return <header className="workspace-header">
     <button className="menu-toggle" aria-label={t('ui.open.navigation')} onClick={onOpenNavigation}>☰</button>
     {windowChrome.customTitlebar ? <>
+      <DashboardPluginSlot name="header-left" />
       <img className="window-title-icon" src={windowIcon} alt="" draggable={false} data-tauri-drag-region />
       <span className="window-title-text" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()}>Hermess Agent Desktop</span>
       <span className={`window-title-status-dot ${connected ? 'ready' : ''}`} aria-hidden="true" data-tauri-drag-region />
@@ -33,6 +39,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
       <span className="window-title-connection" data-tauri-drag-region>{connected ? t('ui.connected') : t('ui.not.started')}</span>
       <div className="window-title-drag" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()} />
     </> : <>
+      <DashboardPluginSlot name="header-left" />
       <div className="header-brand"><span className="header-brand-mark">H</span><strong>Hermess <span>Desktop</span></strong></div>
       <div className="header-location"><span className={`status-dot ${connected ? 'ready' : ''}`} /><span>{language === 'zh-CN' ? '本地' : 'Local'}</span><small>{connected ? t('ui.connected') : t('ui.not.started')}</small></div>
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
@@ -44,6 +51,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, con
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.36-6.36L21 8m0-5v5h-5M21 12a9 9 0 0 1-15.36 6.36L3 16m0 5v-5h5" /></svg>
       <span className="header-update-dot" aria-hidden="true" />
     </button>}
+    <DashboardPluginSlot name="header-right" />
     <button type="button" className="header-settings" aria-label={language === 'zh-CN' ? '系统设置' : 'System settings'} title={language === 'zh-CN' ? '系统设置' : 'System settings'} onClick={() => onOpenView('settings')}>⚙</button>
     {windowChrome.customTitlebar && <div className="window-controls" role="group" aria-label={language === 'zh-CN' ? '窗口控制' : 'Window controls'}>
       <button type="button" aria-label={language === 'zh-CN' ? '最小化窗口' : 'Minimize window'} title={language === 'zh-CN' ? '最小化' : 'Minimize'} onClick={() => void windowChrome.minimize()}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12h10" /></svg></button>

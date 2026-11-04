@@ -24,6 +24,30 @@ pub enum PersonalFileKind {
     User,
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryResetTarget {
+    All,
+    Memory,
+    User,
+}
+
+impl MemoryResetTarget {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Memory => "memory",
+            Self::User => "user",
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct MemoryResetResult {
+    ok: bool,
+    deleted: Vec<String>,
+}
+
 impl PersonalFileKind {
     fn relative_path(self) -> &'static str {
         match self {
@@ -253,6 +277,67 @@ pub async fn save_personal_file(
     )?;
     scope.ensure_current(&state).await?;
     read_personal_file_for_scope(&state, &scope, kind).await
+}
+
+pub(super) fn memory_reset_request_shape(
+    profile: &str,
+    target: MemoryResetTarget,
+) -> (reqwest::Method, String, Value) {
+    (
+        reqwest::Method::POST,
+        format!("/api/memory/reset?profile={profile}"),
+        serde_json::json!({ "target": target.as_str() }),
+    )
+}
+
+#[tauri::command]
+pub async fn reset_personal_memory(
+    state: State<'_, BackendState>,
+    profile: String,
+    target: MemoryResetTarget,
+) -> Result<MemoryResetResult, DesktopFailure> {
+    let scope = state.resolve_profile(&profile).await?;
+    let operation = Uuid::new_v4();
+    let target_name = target.as_str();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "personal_memory_reset operation={operation} phase=start profile={} target={target_name}",
+            scope.profile
+        ),
+    );
+    let (method, path, body) = memory_reset_request_shape(&scope.profile, target);
+    let result = config_request_for_scope(&state, &scope, method, &path, Some(body)).await;
+    let outcome = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!(
+            "personal_memory_reset operation={operation} phase=finish profile={} target={target_name} status={outcome}",
+            scope.profile
+        ),
+    );
+    let value = result?;
+    let deleted = value
+        .get("deleted")
+        .and_then(Value::as_array)
+        .ok_or_else(DesktopFailure::operation_failed)?
+        .iter()
+        .map(|item| {
+            let name = item
+                .as_str()
+                .filter(|name| matches!(*name, "MEMORY.md" | "USER.md"))
+                .ok_or_else(DesktopFailure::operation_failed)?;
+            Ok(name.to_owned())
+        })
+        .collect::<Result<Vec<_>, DesktopFailure>>()?;
+    Ok(MemoryResetResult {
+        ok: value.get("ok").and_then(Value::as_bool) == Some(true),
+        deleted,
+    })
 }
 
 #[cfg(test)]

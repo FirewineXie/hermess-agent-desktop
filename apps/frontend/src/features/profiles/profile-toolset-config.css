@@ -1,0 +1,19 @@
+.profile-toolset-config { display: grid; gap: 14px; margin: 18px 0; padding: 20px; border: 1px solid #dbe5f3; border-radius: 12px; background: #f8faff; }
+.profile-toolset-config-heading, .profile-toolset-provider-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.profile-toolset-config h4 { margin: 0; color: #111827; font-size: 16px; }
+.profile-toolset-config-heading p, .profile-toolset-provider-heading p { margin: 5px 0; color: #66758c; font-size: 13px; }
+.profile-toolset-providers { display: grid; gap: 12px; }
+.profile-toolset-providers article { padding: 16px; border: 1px solid #dce5f0; border-radius: 10px; background: #fff; }
+.profile-toolset-provider-heading strong { color: #111827; }
+.profile-toolset-provider-heading span, .profile-toolset-env span { margin-left: 8px; color: #26704e; font-size: 12px; }
+.profile-toolset-provider-heading small { display: block; margin-top: 5px; color: #66758c; }
+.profile-toolset-capabilities { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.profile-toolset-env { display: grid; gap: 10px; margin-top: 14px; }
+.profile-toolset-env label { display: grid; gap: 6px; color: #334155; font-size: 13px; }
+.profile-toolset-env input { width: 100%; min-height: 38px; padding: 8px 11px; border: 1px solid #d6e0ec; border-radius: 8px; background: #fff; color: #111827; }
+.profile-toolset-env > button { justify-self: start; }
+.profile-toolset-message { color: #26704e; font-size: 13px; }
+.profile-toolset-setup { color: #925d10; font-size: 12px; }
+.profile-toolset-setup button { margin-top: 5px; }
+.profile-toolset-setup-result { padding: 12px; border: 1px solid #dce5f0; border-radius: 9px; background: #fff; }
+.profile-toolset-setup-result pre { max-height: 240px; overflow: auto; margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
