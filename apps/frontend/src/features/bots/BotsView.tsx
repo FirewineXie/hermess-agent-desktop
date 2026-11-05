@@ -162,27 +162,29 @@ export default function BotsView({ active, connected, language, onOpenChat, onOp
     return action.kind === 'approval' && typeof action.member_id === 'string' && typeof action.task_id === 'string' && typeof action.request_id === 'string' && typeof action.execution_generation === 'number'
   })
   return <main className="bots-view">
-    <header className="bots-header"><div><h1>{zh ? 'Bot 模式' : 'Bot Mode'}</h1><p>{zh ? '每个 Bot 使用自己的固定聊天；群聊中的 @Bot 会定向给该成员。' : 'Each Bot has one canonical chat. @Bot targets a member in group chat.'}</p></div><div className="bots-actions"><button type="button" disabled={!connected || loading} onClick={() => void load()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button><button type="button" onClick={onOpenProfiles}>{zh ? '管理 Bot' : 'Manage Bots'}</button></div></header>
+    <header className="bots-header"><div><span className="bots-eyebrow">HERMESS · BOT</span><h1>{zh ? 'Bot 模式' : 'Bot Mode'}</h1><p>{zh ? '与单个 Bot 对话，或让多个 Bot 在群聊中协作。' : 'Chat with one Bot or bring several Bots together in a group.'}</p></div><div className="bots-actions"><button type="button" disabled={!connected || loading} onClick={() => void load()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button><button type="button" onClick={onOpenProfiles}>{zh ? '管理 Bot' : 'Manage Bots'}</button></div></header>
     {!connected && <p role="status">{zh ? '请先启动本地 Gateway。' : 'Start the local Gateway first.'}</p>}
     {error && <p className="bots-error" role="alert">{error} <button type="button" onClick={() => void load()}>{zh ? '重试' : 'Retry'}</button></p>}
     {connected && <div className="bots-columns"><section className="bots-panel">
-      <h2>{zh ? 'Bot 列表' : 'Bots'}</h2>
+      <div className="bots-panel-heading"><div><span className="bots-section-index">01 · {zh ? '单独对话' : 'One-to-one'}</span><h2>{zh ? '选择 Bot' : 'Choose a Bot'}</h2></div><span className="bots-panel-count">{roster?.profiles.length ?? 0} Bot</span></div>
       <p className="bots-hint">{zh
-        ? '在固定聊天中说“请 @Bot 的 ID 处理……”，当前 Bot 可以通过 message_agent 把任务交给对应 Bot，并在收到回复后转述。'
-        : 'In a Bot Chat, say “ask @Bot-ID to …”. The current Bot can use message_agent and relay the reply.'}</p>
+        ? '每个 Bot 都有自己的固定聊天。打开后可直接交代任务，也可用 @ID 请它联系其他 Bot。'
+        : 'Each Bot has a dedicated chat. Give it a task, or use @ID to ask it to contact another Bot.'}</p>
       {roster?.profiles.map(bot => <div className="bot-row" key={bot.name}>
         <div><strong>{bot.display_name || bot.name}</strong><small>@{bot.name === 'default' ? 'hermes' : bot.name}</small>{bot.description && <p>{bot.description}</p>}</div>
         <button type="button" disabled={pending !== null || !capabilities?.seatable_profiles?.includes(bot.name)} onClick={() => openChat(bot.name)}>
-          {!capabilities?.seatable_profiles?.includes(bot.name) ? (zh ? '待启用' : 'Unavailable') : pending === `chat:${bot.name}` ? '…' : zh ? '固定聊天' : 'Bot Chat'}
+          {!capabilities?.seatable_profiles?.includes(bot.name) ? (zh ? '待启用' : 'Unavailable') : pending === `chat:${bot.name}` ? '…' : zh ? '打开聊天' : 'Open chat'}
         </button>
       </div>)}
       {roster && roster.profiles.length === 0 && <p>{zh ? '没有可用 Bot。' : 'No Bots available.'}</p>}
     </section>
-    <section className="bots-panel"><h2>{zh ? '群聊' : 'Groups'}</h2>{!capabilities?.driver && <p role="status">{zh ? '当前 Gateway 尚未启动群聊执行器。' : 'The group driver is unavailable.'}</p>}
-      <div className="bots-create"><input aria-label={zh ? '群聊名称' : 'Group name'} value={name} maxLength={80} placeholder={zh ? '群聊名称' : 'Group name'} onChange={event => setName(event.target.value)} />
-        <div className="bots-member-picker">{eligible.map(bot => <label key={bot.name}><input type="checkbox" checked={members.includes(bot.name)} disabled={pending !== null || (!members.includes(bot.name) && members.length >= 6)} onChange={event => setMembers(current => event.target.checked ? [...current, bot.name] : current.filter(name => name !== bot.name))} />{bot.display_name || bot.name}</label>)}</div>
-        <button type="button" disabled={!capabilities?.driver || pending !== null || members.length < 2 || !name.trim()} onClick={createRoom}>{zh ? '创建群聊' : 'Create group'}</button></div>
-      <div className="bots-room-list">{rooms.map(item => <button type="button" key={item.room_id} className={selectedRoom === item.room_id ? 'selected' : ''} onClick={() => setSelectedRoom(item.room_id)}>{item.name} <small>{item.members.length} Bot</small></button>)}{rooms.length === 0 && <p>{zh ? '暂无群聊。' : 'No groups yet.'}</p>}</div>
+    <section className="bots-panel"><div className="bots-panel-heading"><div><span className="bots-section-index">02 · {zh ? '多人协作' : 'Collaboration'}</span><h2>{zh ? '创建群聊' : 'Create a group'}</h2></div><span className="bots-panel-count">{rooms.length} {zh ? '个群聊' : 'groups'}</span></div>
+      <p className="bots-hint">{zh ? '选 2–6 个 Bot；群聊中用 @ID 指定回复者，不指定时所有成员都会回复。' : 'Choose 2–6 Bots. Use @ID to target one; otherwise all members reply.'}</p>
+      {!capabilities?.driver && <p className="bots-warning" role="status">{zh ? '当前 Gateway 尚未启动群聊执行器。' : 'The group driver is unavailable.'}</p>}
+      <div className="bots-create"><label className="bots-field">{zh ? '群聊名称' : 'Group name'}<input aria-label={zh ? '群聊名称' : 'Group name'} value={name} maxLength={80} placeholder={zh ? '例如：产品方案讨论' : 'For example: Product planning'} onChange={event => setName(event.target.value)} /></label>
+        <div className="bots-member-field"><span>{zh ? `选择成员 · 已选 ${members.length}/6` : `Members · ${members.length}/6 selected`}</span><div className="bots-member-picker">{eligible.map(bot => <label className={members.includes(bot.name) ? 'selected' : ''} key={bot.name}><input type="checkbox" checked={members.includes(bot.name)} disabled={pending !== null || (!members.includes(bot.name) && members.length >= 6)} onChange={event => setMembers(current => event.target.checked ? [...current, bot.name] : current.filter(name => name !== bot.name))} />{bot.display_name || bot.name}</label>)}</div></div>
+        <div className="bots-create-actions"><span>{zh ? '至少选择 2 个 Bot' : 'Select at least 2 Bots'}</span><button type="button" disabled={!capabilities?.driver || pending !== null || members.length < 2 || !name.trim()} onClick={createRoom}>{zh ? '创建群聊' : 'Create group'}</button></div></div>
+      <div className="bots-room-list"><h3>{zh ? '已有群聊' : 'Your groups'}</h3>{rooms.map(item => <button type="button" key={item.room_id} className={selectedRoom === item.room_id ? 'selected' : ''} onClick={() => setSelectedRoom(item.room_id)}>{item.name} <small>{item.members.length} Bot</small></button>)}{rooms.length === 0 && <p>{zh ? '还没有群聊。创建后可在这里继续讨论。' : 'No groups yet. Create one to start a discussion.'}</p>}</div>
     </section>
     {selectedRoom && <section className="bots-panel bots-conversation"><header><div><h2>{room?.name || (zh ? '加载中…' : 'Loading…')}</h2><small>{room?.members.map(member => `@${member.handle}`).join(' · ')}</small></div><div><button type="button" disabled={pending !== null} onClick={stop}>{zh ? '停止运行' : 'Stop'}</button><button type="button" disabled={pending !== null} onClick={disband}>{zh ? '解散' : 'Disband'}</button></div></header>
       {roomStatus && <p className="bots-room-status" role="status">{roomStatus.working ? (zh ? 'Bot 正在回复…' : 'Bots are working…') : roomStatus.blocked ? (zh ? '群聊需要处理待办操作。' : 'Group needs attention.') : (zh ? '等待消息' : 'Waiting for a message')}</p>}

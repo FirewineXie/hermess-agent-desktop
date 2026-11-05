@@ -21,6 +21,8 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
   const [detail, setDetail] = React.useState<KanbanDetail | null>(null)
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'activity' | 'advanced'>('overview')
+  const [showAllHistory, setShowAllHistory] = React.useState(false)
   const [comment, setComment] = React.useState('')
   const [title, setTitle] = React.useState('')
   const [body, setBody] = React.useState('')
@@ -37,6 +39,7 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
   const [runDetail, setRunDetail] = React.useState<KanbanDetail['runs'][number] | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const commentRef = React.useRef<HTMLTextAreaElement>(null)
+  const detailBodyRef = React.useRef<HTMLDivElement>(null)
   const commentFocusApplied = React.useRef(false)
   const titleDirty = React.useRef(false)
   const bodyDirty = React.useRef(false)
@@ -67,6 +70,8 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
     setError('')
     setReviewReason('')
     setReviewer('')
+    setActiveTab('overview')
+    setShowAllHistory(false)
     let live = true
     void load().catch(cause => { if (live) setError(String(cause)) })
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load().catch(() => {}) }, 5000)
@@ -85,12 +90,13 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
   }, [onClose])
 
   React.useEffect(() => { commentFocusApplied.current = false }, [taskId, focusComment])
+  React.useEffect(() => { if (focusComment) setActiveTab('overview') }, [taskId, focusComment])
   React.useEffect(() => {
-    if (focusComment && detail && !commentFocusApplied.current) {
+    if (focusComment && detail && commentRef.current && !commentFocusApplied.current) {
       commentFocusApplied.current = true
       commentRef.current?.focus()
     }
-  }, [detail, focusComment])
+  }, [detail, focusComment, activeTab])
 
   const run = async (action: () => Promise<unknown>, closeAfter = false) => {
     if (busy) return
@@ -174,12 +180,26 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
     commentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     commentRef.current?.focus()
   }
+  const selectTab = (tab: 'overview' | 'activity' | 'advanced') => {
+    setActiveTab(tab)
+    detailBodyRef.current?.scrollTo({ top: 0 })
+  }
   return <div className="kanban-native-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><aside className="kanban-native-panel kanban-native-detail" role="dialog" aria-modal="true" aria-label="任务详情">
     <div className="kanban-native-panel-head"><div><p>{task?.id || taskId}</p><h2>{task?.title || '读取任务中…'}</h2></div><button type="button" onClick={onClose} aria-label="关闭">×</button></div>
     {error && <div className="kanban-native-error" role="alert">{error}</div>}
-    {detail && <div className="kanban-native-detail-body">
+    {detail && <nav className="kanban-native-detail-tabs" aria-label="任务详情分区">
+      <button type="button" aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>概览与处理</button>
+      <button type="button" aria-current={activeTab === 'activity' ? 'page' : undefined} onClick={() => selectTab('activity')}>记录与文件</button>
+      <button type="button" aria-current={activeTab === 'advanced' ? 'page' : undefined} onClick={() => selectTab('advanced')}>执行设置</button>
+    </nav>}
+    {detail && <div className="kanban-native-detail-body" ref={detailBodyRef}>
       <div className="kanban-native-detail-meta"><span className={`kanban-native-status status-${task!.status}`}>{kanbanStatusLabel(task!.status)}</span><span>创建 {date(task!.created_at)}</span><span>负责人 {task!.assignee || '未分派'}</span></div>
-      {!!task!.diagnostics?.length && <section><h3>任务诊断 · {task!.diagnostics.length}</h3><div className="kanban-native-diagnostics">{task!.diagnostics.map(item => <KanbanDiagnosticCard key={`${item.kind}:${item.last_seen_at}`} bridge={bridge} board={board} group={{ task_id: taskId, task_title: task!.title, task_status: task!.status, task_assignee: task!.assignee, diagnostics: task!.diagnostics || [] }} diagnostic={item} assignees={assignees} onOpenTask={openDiagnosticTask} onChanged={async () => { await load(); onChanged() }} />)}</div></section>}
+      {activeTab === 'overview' && <>
+      <section className="kanban-native-comments"><h3>评论 · {detail.comments.length}</h3>
+        {detail.comments.length ? detail.comments.map(item => <div className="kanban-native-comment" key={item.id}><div><strong>{item.author || '—'}</strong><time>{date(item.created_at)}</time></div><p>{item.body}</p></div>) : <p className="kanban-native-muted">暂无评论</p>}
+        <form onSubmit={addComment}><textarea ref={commentRef} value={comment} onChange={event => setComment(event.target.value)} rows={3} placeholder="补充任务信息或审查意见" aria-label="评论内容" /><button type="submit" disabled={busy || !comment.trim()}>添加评论</button></form>
+      </section>
+      {!!task!.diagnostics?.length && <details className="kanban-native-diagnostics-disclosure"><summary>任务诊断 · {task!.diagnostics.length}<span>{task!.diagnostics[0]?.title}</span></summary><div className="kanban-native-diagnostics">{task!.diagnostics.map(item => <KanbanDiagnosticCard key={`${item.kind}:${item.last_seen_at}`} bridge={bridge} board={board} group={{ task_id: taskId, task_title: task!.title, task_status: task!.status, task_assignee: task!.assignee, diagnostics: task!.diagnostics || [] }} diagnostic={item} assignees={assignees} onOpenTask={openDiagnosticTask} onChanged={async () => { await load(); onChanged() }} />)}</div></details>}
       <section><h3>目标与内容</h3><label>标题<input ref={inputRef} value={title} onChange={event => { titleDirty.current = true; setTitle(event.target.value) }} /></label><label>说明<textarea rows={5} value={body} onChange={event => { bodyDirty.current = true; setBody(event.target.value) }} /></label><button type="button" disabled={busy || !title.trim()} onClick={() => void patch({ title: title.trim(), body }, true)}>保存内容</button></section>
       <section><h3>分派与状态</h3><div className="kanban-native-fields"><label>负责人<select value={task!.assignee || ''} onChange={event => void patch({ assignee: event.target.value })}><option value="">未分派</option>{assignees.map(name => <option key={name} value={name} disabled={cannotReceiveReview(task!.status, reviewCapabilities[name])}>{name}{task!.status === 'review' ? ` · ${reviewCapabilityLabel(reviewCapabilities[name])}` : ''}</option>)}</select></label><label>优先级<input type="number" defaultValue={task!.priority || 0} onBlur={event => { const value = Number(event.target.value); if (value !== task!.priority) void patch({ priority: value }) }} /></label></div>
         {task!.status === 'review' && task!.assignee && reviewCapabilities[task!.assignee] !== 'ready' && <p className="kanban-native-review-warning" role="status">当前负责人 {task!.assignee}：{reviewCapabilityLabel(reviewCapabilities[task!.assignee])}。请在 Profile 管理中启用 sdlc-review，或改派给具备自动审核能力的 Profile。</p>}
@@ -190,6 +210,9 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
         <div className="kanban-native-action-row">{ordinaryMoves.map(status => <button key={status} type="button" disabled={busy} onClick={() => changeStatus(status)}>{task!.status === 'review' && status === 'done' ? '审核通过并完成' : `移至${kanbanStatusLabel(status)}`}</button>)}</div>
         <div className="kanban-native-action-row"><button type="button" disabled={busy || task!.status !== 'triage'} onClick={() => void run(() => kanbanTaskMutation(bridge, board, withBoard(`/tasks/${encodeURIComponent(taskId)}/decompose`, board), 'POST', {}))}>拆解子任务</button></div>
       </section>
+      {(task!.latest_summary || task!.result) && <section><h3>成果</h3><p className="kanban-native-pre">{task!.latest_summary || task!.result}</p></section>}
+      </>}
+      {activeTab === 'advanced' && <>
       <section><h3>执行模型</h3><p className="kanban-native-muted">留空时继承负责人 Profile 的模型和推理强度；修改会在下一次调度生效。</p>
         <KanbanModelOverrideField value={modelOverride} options={modelOptions} disabled={busy} onChange={value => { modelDirty.current = true; setModelOverride(value) }} />
         <div className="kanban-native-action-row"><button type="button" disabled={busy || !modelDirty.current} onClick={() => void patch(taskModelPatch(modelOverride), false, true)}>保存执行模型</button><button type="button" disabled={busy} onClick={() => { modelDirty.current = true; setModelOverride(EMPTY_TASK_MODEL) }}>恢复继承</button></div>
@@ -201,18 +224,20 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
         {!homeError && !homeChannels.length && <p className="kanban-native-muted">尚未配置任何平台主渠道。</p>}
       </section>
       <KanbanRecoveryActions bridge={bridge} board={board} task={task!} assignees={assignees} busy={busy} run={run} />
-      {(task!.latest_summary || task!.result) && <section><h3>成果</h3><p className="kanban-native-pre">{task!.latest_summary || task!.result}</p></section>}
+      <section className="kanban-native-danger"><ConfirmActionButton disabled={busy} confirmLabel="再次点击归档" onConfirm={() => void run(() => kanbanTaskMutation(bridge, board, withBoard('/tasks/bulk', board), 'POST', { ids: [taskId], archive: true }), true)}>归档任务</ConfirmActionButton><ConfirmActionButton disabled={busy} confirmLabel="再次点击永久删除" onConfirm={() => void run(() => kanbanTaskMutation(bridge, board, withBoard(`/tasks/${encodeURIComponent(taskId)}`, board), 'DELETE'), true)}>永久删除</ConfirmActionButton></section>
+      </>}
+      {activeTab === 'activity' && <>
       <section><h3>父子任务</h3>{detail.child_results.map(child => <div className="kanban-native-related" key={child.id}><button type="button" className="kanban-native-related-open" onClick={() => onOpenTask(child.id)}><strong>{child.title}</strong><span>{kanbanStatusLabel(child.status)}</span></button><p>{child.latest_summary || child.result || '尚无成果'}</p></div>)}{!detail.child_results.length && <p className="kanban-native-muted">暂无子任务</p>}
         <form onSubmit={event => { event.preventDefault(); const relatedId = linkId.trim(); if (!relatedId || relatedId === taskId || detail.links.parents.includes(relatedId) || detail.links.children.includes(relatedId)) { setError(relatedId === taskId ? '任务不能关联自身。' : '该父子关系已经存在或任务编号为空。'); return } void run(async () => { await kanbanTaskMutation(bridge, board, withBoard('/links', board), 'POST', linkKind === 'parent' ? { parent_id: relatedId, child_id: taskId } : { parent_id: taskId, child_id: relatedId }); setLinkId('') }) }}><label>关系<select value={linkKind} onChange={event => setLinkKind(event.target.value as 'parent' | 'child')}><option value="child">当前任务的子任务</option><option value="parent">当前任务的父任务</option></select></label><label>已有任务编号<input value={linkId} onChange={event => setLinkId(event.target.value)} placeholder="任务编号" /></label><button type="submit" disabled={busy || !linkId.trim()}>建立关联</button></form>
         {detail.link_tasks.map(link => <div className="kanban-native-link" key={link.id}><button type="button" className="kanban-native-link-open" onClick={() => onOpenTask(link.id)}>{link.title} · {kanbanStatusLabel(link.status)}</button><button type="button" disabled={busy} onClick={() => void run(() => kanbanTaskMutation(bridge, board, withBoard(`/links?parent_id=${encodeURIComponent(detail.links.children.includes(link.id) ? taskId : link.id)}&child_id=${encodeURIComponent(detail.links.children.includes(link.id) ? link.id : taskId)}`, board), 'DELETE'))}>解除关联</button></div>)}
       </section>
       <section><h3>附件</h3><input type="file" multiple disabled={busy} onChange={event => { void upload(event.target.files); event.target.value = '' }} />{detail.attachments.map(file => <div className="kanban-native-link" key={file.id}><button type="button" onClick={() => void download(file.id, file.filename)}>{file.filename} · {Math.round(file.size / 1024)} KB</button><ConfirmActionButton disabled={busy} confirmLabel="再次点击删除" onConfirm={() => void run(() => kanbanRequest(bridge, withBoard(`/attachments/${file.id}`, board), 'DELETE'))}>删除</ConfirmActionButton></div>)}</section>
-      <section><h3>评论</h3><form onSubmit={addComment}><textarea ref={commentRef} value={comment} onChange={event => setComment(event.target.value)} rows={3} placeholder="补充任务信息或审查意见" /><button type="submit" disabled={busy || !comment.trim()}>添加评论</button></form>{detail.comments.map(item => <div className="kanban-native-related" key={item.id}><strong>{item.author || '—'}</strong><time>{date(item.created_at)}</time><p>{item.body}</p></div>)}</section>
-      <section><h3>运行记录</h3>{detail.runs.map(run => <div className="kanban-native-link" key={run.id}><span>#{run.id} · {run.status} · {run.profile || task!.assignee || '未分派'} · {date(run.started_at || undefined)}</span><button type="button" onClick={() => void kanbanRequest<{ run: KanbanDetail['runs'][number] }>(bridge, withBoard(`/runs/${run.id}`, board)).then(value => setRunDetail(value.run)).catch(cause => setError(String(cause)))}>详情</button></div>)}
+      <section><h3>运行记录 · {detail.runs.length}</h3>{(showAllHistory ? detail.runs : detail.runs.slice(-10)).map(run => <div className="kanban-native-link" key={run.id}><span>#{run.id} · {run.status} · {run.profile || task!.assignee || '未分派'} · {date(run.started_at || undefined)}</span><button type="button" onClick={() => void kanbanRequest<{ run: KanbanDetail['runs'][number] }>(bridge, withBoard(`/runs/${run.id}`, board)).then(value => setRunDetail(value.run)).catch(cause => setError(String(cause)))}>详情</button></div>)}
+        {!detail.runs.length && <p className="kanban-native-muted">暂无运行记录</p>}
         {runDetail && <div className="kanban-native-run-detail"><strong>运行 #{runDetail.id}</strong><dl><div><dt>Profile</dt><dd>{runDetail.profile || '—'}</dd></div><div><dt>状态</dt><dd>{runDetail.status}{runDetail.outcome ? ` · ${runDetail.outcome}` : ''}</dd></div><div><dt>开始</dt><dd>{date(runDetail.started_at || undefined)}</dd></div><div><dt>结束</dt><dd>{date(runDetail.ended_at || undefined)}</dd></div></dl>{runDetail.summary && <p>{runDetail.summary}</p>}{runDetail.error && <p className="kanban-native-error">{runDetail.error}</p>}{runDetail.metadata && <pre className="kanban-native-log">{typeof runDetail.metadata === 'string' ? runDetail.metadata : JSON.stringify(runDetail.metadata, null, 2)}</pre>}</div>}
         <button type="button" onClick={() => void kanbanRequest<{ content: string }>(bridge, withBoard(`/tasks/${encodeURIComponent(taskId)}/log?tail=100000`, board)).then(value => setLog(value.content)).catch(cause => setError(String(cause)))}>查看 Worker 日志</button>{log !== null && <pre className="kanban-native-log">{log || '暂无日志'}</pre>}</section>
-      <section><h3>事件时间线</h3><ol className="kanban-native-events">{detail.events.map(event => { const presentation = presentKanbanEventPayload(event.payload); return <li key={event.id}><div className="kanban-native-event-head"><span>{event.kind.replaceAll('_', ' ')}</span><time>{date(event.created_at)}</time></div>{presentation.context && <p>{presentation.context}</p>}{presentation.payload && <details><summary>事件上下文</summary><pre>{presentation.payload}</pre></details>}</li> })}</ol></section>
-      <section className="kanban-native-danger"><ConfirmActionButton disabled={busy} confirmLabel="再次点击归档" onConfirm={() => void run(() => kanbanTaskMutation(bridge, board, withBoard('/tasks/bulk', board), 'POST', { ids: [taskId], archive: true }), true)}>归档任务</ConfirmActionButton><ConfirmActionButton disabled={busy} confirmLabel="再次点击永久删除" onConfirm={() => void run(() => kanbanTaskMutation(bridge, board, withBoard(`/tasks/${encodeURIComponent(taskId)}`, board), 'DELETE'), true)}>永久删除</ConfirmActionButton></section>
+      <section><h3>事件时间线 · {detail.events.length}</h3><ol className="kanban-native-events">{(showAllHistory ? detail.events : detail.events.slice(-20)).map(event => { const presentation = presentKanbanEventPayload(event.payload); return <li key={event.id}><div className="kanban-native-event-head"><span>{event.kind.replaceAll('_', ' ')}</span><time>{date(event.created_at)}</time></div>{presentation.context && <p>{presentation.context}</p>}{presentation.payload && <details><summary>事件上下文</summary><pre>{presentation.payload}</pre></details>}</li> })}</ol>{!detail.events.length && <p className="kanban-native-muted">暂无事件</p>}{(detail.runs.length > 10 || detail.events.length > 20) && <button type="button" className="kanban-native-history-toggle" onClick={() => setShowAllHistory(value => !value)}>{showAllHistory ? '收起历史记录' : '显示全部历史记录'}</button>}</section>
+      </>}
     </div>}
   </aside></div>
 }

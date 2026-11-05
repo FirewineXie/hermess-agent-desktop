@@ -15,6 +15,11 @@ import type { ReviewCapabilities } from './reviewCapability'
 import './kanban-board.css'
 
 const SELECTED_BOARD_KEY = 'hermess:kanban:selected-board'
+const statusDescriptions: Record<string, string> = {
+  triage: '等待确认任务类型与下一步', todo: '已记录，等待安排', scheduled: '已设定执行时间',
+  ready: '条件已齐，等待调度', running: '助理正在执行', blocked: '执行遇阻，需要处理',
+  review: '成果待确认或退回修改', done: '任务已完成', archived: '已归档保存',
+}
 
 function timestamp(value?: number | null) {
   return value ? new Date(value * 1000).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
@@ -54,6 +59,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
   const [creating, setCreating] = React.useState(false)
   const [settings, setSettings] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const [showEmptyStatuses, setShowEmptyStatuses] = React.useState(false)
   const [assignee, setAssignee] = React.useState('')
   const [tenant, setTenant] = React.useState('')
   const [archived, setArchived] = React.useState(false)
@@ -386,6 +392,13 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
   })
   const activeBoard = boards.find(item => item.slug === board)
   const activeCount = data?.columns.filter(column => column.name !== 'archived').reduce((sum, column) => sum + column.tasks.length, 0) ?? activeBoard?.total ?? 0
+  const jumpToStatus = (status: string) => {
+    setShowEmptyStatuses(true)
+    setCollapsedStatuses(current => { const next = new Set(current); next.delete(status); return next })
+    window.requestAnimationFrame(() => document.getElementById(`kanban-branch-${status}`)?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start',
+    }))
+  }
   const renderCard = (task: KanbanTask, showStatus = false) => {
     const stale = task.status === 'running' && Boolean(task.last_heartbeat_at && Date.now() / 1000 - task.last_heartbeat_at > 120)
     const runStart = task.current_run_started_at || task.started_at
@@ -422,7 +435,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
 
   return <main className="kanban-native-page">
     <header className="kanban-native-heading">
-      <div><p className="kanban-native-eyebrow">HERMESS · KANBAN</p><h1>任务看板</h1><p>跨 Profile 分派、执行、审核与成果交接，都在同一张看板上。</p></div>
+      <div><p className="kanban-native-eyebrow">HERMESS · 持续任务</p><h1>持续任务</h1><p>从安排、执行到审核，按状态查看每项任务的下一步。</p></div>
       <button type="button" className="kanban-native-primary" onClick={() => openCreate()}>＋ 新建任务</button>
     </header>
     <div className="kanban-native-toolbar">
@@ -433,33 +446,30 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
       <button type="button" disabled={busy} onClick={() => void dispatchReadyTasks()}>{busy ? '调度中…' : '立即调度'}</button>
       <button type="button" onClick={() => void refresh()}>刷新</button>
     </div>
+    {stats && <><p className="kanban-native-overview-label">当前看板概览 · 统计不受下方筛选影响</p><section className="kanban-native-stats" aria-label="看板运行概览">
+      <button type="button" className="is-attention" onClick={() => jumpToStatus((stats.by_status.blocked || 0) ? 'blocked' : 'review')}><span>需要处理</span><strong>{(stats.by_status.blocked || 0) + (stats.by_status.review || 0)}</strong><small>遇阻 {stats.by_status.blocked || 0} · 待审核 {stats.by_status.review || 0} →</small></button>
+      <button type="button" onClick={() => jumpToStatus('running')}><span>正在执行</span><strong>{stats.by_status.running || 0}</strong><small>查看助理当前进展 →</small></button>
+      <button type="button" onClick={() => jumpToStatus('ready')}><span>等待推进</span><strong>{['triage', 'todo', 'scheduled', 'ready'].reduce((sum, status) => sum + (stats.by_status[status] || 0), 0)}</strong><small>最久就绪 {elapsed(stats.oldest_ready_age_seconds)} →</small></button>
+      <div><span>已完成</span><strong>{stats.by_status.done || 0}</strong><small>{Object.keys(stats.by_assignee).length} 个 Profile 参与</small></div>
+    </section></>}
     <div className="kanban-native-filters">
       <input aria-label="搜索任务" placeholder="搜索标题、内容或任务编号" value={search} onChange={event => setSearch(event.target.value)} />
       <select aria-label="按负责人筛选" value={assignee} onChange={event => setAssignee(event.target.value)}><option value="">全部负责人</option>{(data?.assignees || []).map(value => <option key={value} value={value}>{value}</option>)}</select>
       <select aria-label="按租户筛选" value={tenant} onChange={event => setTenant(event.target.value)}><option value="">全部来源</option>{(data?.tenants || []).map(value => <option key={value} value={value}>{value}</option>)}</select>
-      <label className="kanban-native-check"><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} />显示已归档</label>
-      <label className="kanban-native-check"><input type="checkbox" checked={lanesByProfile} onChange={event => setLanesByProfile(event.target.checked)} />运行中按 Profile 分组</label>
+      <details className="kanban-native-filter-more"><summary>更多选项{archived ? ' · 含归档' : ''}</summary><div><label className="kanban-native-check"><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} />显示已归档</label>
+        <label className="kanban-native-check"><input type="checkbox" checked={lanesByProfile} onChange={event => setLanesByProfile(event.target.checked)} />运行中按 Profile 分组</label></div></details>
     </div>
-    {stats && <section className="kanban-native-stats" aria-label="看板运行概览">
-      <div><span>待执行</span><strong>{['triage', 'todo', 'scheduled', 'ready'].reduce((sum, status) => sum + (stats.by_status[status] || 0), 0)}</strong></div>
-      <div><span>运行中</span><strong>{stats.by_status.running || 0}</strong></div>
-      <div><span>需处理 / 审核</span><strong>{(stats.by_status.blocked || 0) + (stats.by_status.review || 0)}</strong></div>
-      <div><span>已完成</span><strong>{stats.by_status.done || 0}</strong></div>
-      <div><span>最久等待</span><strong>{elapsed(stats.oldest_ready_age_seconds)}</strong></div>
-      <div><span>参与 Profile</span><strong>{Object.keys(stats.by_assignee).length}</strong></div>
-    </section>}
-    {!!Object.keys(reviewCapabilities).length && <section className="kanban-native-review-capabilities" aria-label="Profile 自动审核能力">
-      <div><strong>自动审核能力</strong><span>待审核任务会强制加载 sdlc-review；禁用该技能的 Profile 仍可执行普通任务，但不能接管自动审核。</span></div>
-      <ul>{Object.entries(reviewCapabilities).map(([profile, capability]) => <li className={`is-${capability}`} key={profile}><span>{profile}</span><strong>{reviewCapabilityLabel(capability)}</strong></li>)}</ul>
-    </section>}
     {error && <div className="kanban-native-error" role="alert">{error}</div>}
     {loading && !data && <div className="kanban-native-loading" role="status">正在读取看板…</div>}
-    {data && <div className="kanban-native-tree-board">
+    {data && <><div className="kanban-native-board-intro"><div><h2>任务流程</h2><p>先看有任务的状态；点击任务查看详情，按住 Ctrl 或 ⌘ 点击可多选。</p></div><label className="kanban-native-check"><input type="checkbox" checked={showEmptyStatuses} onChange={event => setShowEmptyStatuses(event.target.checked)} />显示空状态</label></div>
+    {!visibleIds.length && <p className="kanban-native-board-empty">当前筛选下没有任务。可调整筛选条件，或显示空状态来新建任务。</p>}
+    <div className="kanban-native-tree-board">
       {treeWarning && <p className="kanban-native-tree-warning" role="status">{treeWarning}</p>}
       {data.columns.map(column => {
         const step = workflow?.columns.find(item => item.key === column.name)
         const accepts = Boolean(dragged && step?.drag_target && workflow?.manual[dragged.status]?.includes(column.name))
         const cards = visible(column.tasks)
+        if (!showEmptyStatuses && !dragged && !cards.length) return null
         const statusCollapsed = collapsedStatuses.has(column.name)
         const statusLabel = kanbanStatusLabel(column.name) || step?.label
         const toggleStatus = () => setCollapsedStatuses(current => {
@@ -467,7 +477,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
           if (next.has(column.name)) next.delete(column.name); else next.add(column.name)
           return next
         })
-        return <section className={`kanban-native-status-branch status-${column.name} ${statusCollapsed ? 'is-collapsed' : ''} ${accepts ? 'drop-ready' : ''}`} key={column.name}
+        return <section id={`kanban-branch-${column.name}`} className={`kanban-native-status-branch status-${column.name} ${statusCollapsed ? 'is-collapsed' : ''} ${accepts ? 'drop-ready' : ''}`} key={column.name}
           onDragOver={event => { if (accepts) event.preventDefault() }}
           onDrop={event => { event.preventDefault(); if (dragged && accepts) void move(dragged, column.name); setDragged(null) }}>
           <div className="kanban-native-status-heading">
@@ -476,6 +486,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
               <span className="kanban-native-status-icon" aria-hidden="true">{step?.icon || '◻'}</span>
               <span className="kanban-native-status-title">{statusLabel}</span>
               <span className="kanban-native-status-count">{cards.length}</span>
+              <span className="kanban-native-status-description">{statusDescriptions[column.name] || ''}</span>
             </button>
             {!statusCollapsed && !!cards.length && <label className="kanban-native-status-select"><input type="checkbox" checked={cards.every(task => selectedIds.has(task.id))} aria-label={`全选${statusLabel}`} onChange={() => toggleSelection(cards.map(task => task.id))} /><span>全选</span></label>}
             {!statusCollapsed && step?.drag_target !== false && <button type="button" className="kanban-native-status-create" aria-label={`在${statusLabel}新建任务`} onClick={() => openCreate(column.name)}>＋ 新建</button>}
@@ -489,7 +500,12 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
           </div>}
         </section>
       })}
-    </div>}
+    </div>
+    {!!Object.keys(reviewCapabilities).length && <details className="kanban-native-review-capabilities">
+      <summary>审核 Profile 配置 <span>查看各 Profile 的自动审核能力</span></summary>
+      <p>待审核任务会强制加载 sdlc-review；禁用该技能的 Profile 仍可执行普通任务，但不能接管自动审核。</p>
+      <ul>{Object.entries(reviewCapabilities).map(([profile, capability]) => <li className={`is-${capability}`} key={profile}><span>{profile}</span><strong>{reviewCapabilityLabel(capability)}</strong></li>)}</ul>
+    </details>}</>}
     {!!selectedIds.size && <div className="kanban-native-bulk" role="toolbar" aria-label="批量任务操作">
       <strong>已选 {selectedIds.size} 项</strong>
       <button type="button" disabled={busy || !visibleIds.length} onClick={() => toggleSelection(visibleIds)}>{allVisibleSelected ? '取消当前筛选' : '全选当前筛选'}</button>
