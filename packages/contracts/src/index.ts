@@ -234,6 +234,9 @@ export type ResumeResult = {
   open_requests?: GatewayRequest[]
 }
 export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; config_context_length?: number | null; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
+export type SubagentRow = { subagent_id: string; parent_id?: string | null; depth?: number | null; goal?: string | null; model?: string | null; started_at?: number | null; status?: string | null; tool_count?: number | null; last_tool?: string | null; accepting_steer?: boolean | null }
+export type SubagentRoster = { subagents: SubagentRow[]; delegations: unknown[] }
+export type SubagentTail = { subagent_id: string; available: boolean; text: string; truncated: boolean }
 export type RollbackCheckpoint = { hash: string; timestamp: string; message: string }
 export type RollbackListResult = { enabled: boolean; checkpoints: RollbackCheckpoint[] }
 export type RollbackDiffResult = { stat: string; diff: string; rendered?: string | null }
@@ -621,6 +624,10 @@ export interface DesktopApi {
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
     commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    subagents(scope: SessionScope): Promise<SubagentRoster>
+    subagentTail(scope: SessionScope, subagentId: string): Promise<SubagentTail>
+    steerSubagent(scope: SessionScope, subagentId: string, text: string): Promise<{ status: 'queued' | 'rejected'; subagent_id: string }>
+    stopSubagent(scope: SessionScope, subagentId: string): Promise<{ found: boolean; subagent_id: string }>
     rollbackList(scope: SessionScope): Promise<RollbackListResult>
     rollbackDiff(scope: SessionScope, hash: string): Promise<RollbackDiffResult>
     rollbackRestore(scope: SessionScope, args: { hash: string; filePath?: string; all?: boolean }): Promise<RollbackRestoreResult>

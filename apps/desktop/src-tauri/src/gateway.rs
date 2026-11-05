@@ -178,7 +178,28 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "notification.show"
             | "notification.clear"
             | "sessions.changed"
+            | "subagent.spawn_requested"
+            | "subagent.start"
+            | "subagent.progress"
+            | "subagent.complete"
     )
+}
+
+fn project_subagent_event(kind: &str, payload: &mut Value) {
+    if !kind.starts_with("subagent.") {
+        return;
+    }
+    let Some(source) = payload.as_object() else {
+        *payload = json!({});
+        return;
+    };
+    let mut projected = serde_json::Map::new();
+    for key in ["subagent_id", "status", "tool_name"] {
+        if let Some(value) = source.get(key).and_then(Value::as_str) {
+            projected.insert(key.into(), Value::String(value.chars().take(256).collect()));
+        }
+    }
+    *payload = Value::Object(projected);
 }
 
 fn bound_notification_text(kind: &str, payload: &mut Value) {
@@ -550,6 +571,7 @@ impl GatewayClient {
                             object.insert("id".into(), Value::String(id));
                         }
                         bound_notification_text(forwarded_kind, &mut payload);
+                        project_subagent_event(forwarded_kind, &mut payload);
                         if payload.to_string().len() > 32 * 1024 { continue; }
                         let event = GatewayEvent {
                             kind: forwarded_kind.into(),

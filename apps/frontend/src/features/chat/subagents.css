@@ -1,0 +1,54 @@
+.subagent-panel {
+  width: min(860px, 100%);
+  margin: 0 auto 8px;
+  border: 1px solid var(--border-color, #e3e8ed);
+  border-radius: 12px;
+  background: var(--panel-bg, #fff);
+  font-size: 13px;
+}
+
+.chat-panel .subagent-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  color: var(--text-color, #20242d);
+  text-align: left;
+  background: transparent;
+}
+
+.subagent-header span:last-child { margin-left: auto; }
+.subagent-body { max-height: 330px; overflow: auto; padding: 0 12px 12px; }
+.subagent-body p { margin: 7px 0; color: var(--muted-text, #68717d); }
+.subagent-body .subagent-error { color: #b42318; }
+.subagent-roster { display: grid; gap: 5px; }
+
+.chat-panel .subagent-roster button {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  color: var(--text-color, #20242d);
+  text-align: left;
+  background: transparent;
+}
+
+.chat-panel .subagent-roster button.selected { background: var(--surface-strong, #eef1f5); }
+.subagent-roster span { color: var(--muted-text, #68717d); font-size: 12px; }
+.subagent-detail { margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--border-color, #e3e8ed); }
+.subagent-detail > div:first-child { display: flex; justify-content: space-between; gap: 8px; }
+.subagent-detail small { color: var(--muted-text, #68717d); }
+
+.subagent-detail pre {
+  max-height: 130px;
+  margin: 6px 0;
+  padding: 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-strong, #eef1f5);
+}
+
+.subagent-controls { display: flex; align-items: end; gap: 7px; flex-wrap: wrap; }
+.subagent-controls label { display: grid; flex: 1 1 180px; gap: 4px; }
+.subagent-controls textarea { min-height: 48px; resize: vertical; }

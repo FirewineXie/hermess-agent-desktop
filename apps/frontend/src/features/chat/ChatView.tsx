@@ -11,6 +11,7 @@ import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
 import { clipboardImages } from './clipboardImages'
 import RollbackDialog from './components/RollbackDialog'
+import { SubagentPanelForSession } from './components/SubagentPanel'
 
 type Picker = {
   modelButtonRef: React.RefObject<HTMLButtonElement | null>
@@ -146,6 +147,8 @@ export default function ChatView({ active, connected, backendStatus, language, t
         onAnswerChange={setClarifyAnswer}
         onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
       </div>
+      {sessionId && <SubagentPanelForSession key={`${controller.sessionProfileRef.current}\u0000${sessionId}`}
+        profile={controller.sessionProfileRef.current} sessionId={sessionId} active={active && backend} language={language} />}
       <div className="composer-wrap"><div className="composer">
         <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}

@@ -1,6 +1,6 @@
 use super::{
-    bound_notification_text, canonical_approval_request, is_forwarded_event, GatewayEvent,
-    GatewayServerRequest,
+    bound_notification_text, canonical_approval_request, is_forwarded_event,
+    project_subagent_event, GatewayEvent, GatewayServerRequest,
 };
 use serde_json::json;
 
@@ -28,6 +28,26 @@ fn forwards_runtime_notification_and_background_events() {
 #[test]
 fn forwards_session_list_change_signal() {
     assert!(is_forwarded_event("sessions.changed"));
+}
+
+#[test]
+fn forwards_only_bounded_subagent_state() {
+    for kind in [
+        "subagent.spawn_requested",
+        "subagent.start",
+        "subagent.progress",
+        "subagent.complete",
+    ] {
+        assert!(is_forwarded_event(kind));
+    }
+    assert!(!is_forwarded_event("subagent.thinking"));
+    assert!(!is_forwarded_event("subagent.text"));
+    let mut payload = json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file", "text":"private output", "tool_preview":"private path"});
+    project_subagent_event("subagent.complete", &mut payload);
+    assert_eq!(
+        payload,
+        json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file"})
+    );
 }
 
 #[test]

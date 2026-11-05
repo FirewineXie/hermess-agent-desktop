@@ -101,6 +101,24 @@ def test_one_gateway_routes_sessions_and_file_attachments_to_two_profiles():
                         for number, ((name, owner_ws, scope), created) in enumerate(zip(owners, created_both), 2):
                             assert "error" not in created, created
                             ids[name] = created["result"]["session_id"]
+                            # These are the Rust chat_subagents request shapes after ProfiledGateway
+                            # adds the named Profile selector. A cold session has no children.
+                            subagents = await _rpc(owner_ws, number + 30, "subagent.list", {
+                                "session_id": ids[name], **scope,
+                            })
+                            assert subagents.get("result", {}).get("subagents") == [], subagents
+                            tail = await _rpc(owner_ws, number + 32, "subagent.tail", {
+                                "session_id": ids[name], "subagent_id": "missing", **scope,
+                            })
+                            assert tail.get("result", {}).get("available") is False, tail
+                            steer = await _rpc(owner_ws, number + 34, "subagent.steer", {
+                                "session_id": ids[name], "subagent_id": "missing", "text": "check", **scope,
+                            })
+                            assert steer.get("result", {}).get("status") == "rejected", steer
+                            stopped = await _rpc(owner_ws, number + 36, "subagent.interrupt", {
+                                "session_id": ids[name], "subagent_id": "missing", **scope,
+                            })
+                            assert stopped.get("result", {}).get("found") is False, stopped
                             attached = await _rpc(owner_ws, number + 10, "file.attach", {
                                 "session_id": ids[name], "path": str(attachment), "name": attachment.name, **scope,
                             })
