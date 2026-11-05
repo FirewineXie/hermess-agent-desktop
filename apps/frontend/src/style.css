@@ -70,15 +70,30 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 
 /* Profile management redesign. Other work pages keep their existing controls until reviewed. */
 .app-shell { grid-template-columns: 300px minmax(0, 1fr); }
-.sidebar { padding: 10px 14px 10px; background: #f5f6f8; }
+.sidebar { position: relative; padding: 10px 14px 10px; background: #f5f6f8; }
 .brand { min-height: 58px; padding: 0 14px 20px; font-size: 23px; color: #111827; }
 .brand small { display: none; }
 .brand-mark { width: 34px; height: 34px; border-radius: 7px; background: #1b6ffd; }
 .primary-nav { flex: none; gap: 2px; margin: 4px 0 8px; overflow: visible; }
 .primary-nav button { min-height: 38px; padding: 7px 12px; color: #111827; font-size: 14px; }
 .primary-nav button.active { color: #1b6ffd; background: #e4eefd; }
+.sidebar-new-menu { display: grid; gap: 2px; padding-left: 12px; }
+.primary-nav .sidebar-new-menu button { color: #425066; font-size: 13px; }
 .sidebar-section-heading { margin: 0 11px 6px; padding-top: 10px; color: #66758c; font-size: 12px; }
 .sidebar-sessions { flex: 1 1 auto; }
+.sidebar-feature-nav { position: relative; flex: none; margin-top: 8px; }
+.sidebar-feature-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 38px; padding: 7px 12px; border: 0; border-radius: 9px; color: #273348; background: transparent; text-align: left; font-size: 14px; }
+.sidebar-feature-trigger:hover, .sidebar-feature-trigger[aria-expanded="true"] { background: #e4eefd; color: #1b6ffd; }
+.sidebar-feature-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 7px); left: 0; display: grid; gap: 2px; max-height: min(65vh, 560px); overflow-y: auto; padding: 8px; border: 1px solid #d9e1ec; border-radius: 11px; background: #fff; box-shadow: 0 12px 28px rgb(23 34 54 / 16%); }
+.sidebar-feature-menu[hidden] { display: none; }
+.sidebar-feature-heading { padding: 9px 9px 3px; color: #66758c; font-size: 11px; font-weight: 700; }
+.sidebar-feature-menu button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 35px; padding: 7px 9px; border: 0; border-radius: 7px; color: #273348; background: transparent; text-align: left; font-size: 13px; }
+.sidebar-feature-menu button:hover { background: #f0f4fa; }
+.sidebar-feature-menu button.active { color: #1b6ffd; background: #e4eefd; font-weight: 650; }
+.sidebar-feature-menu button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-feature-trigger:focus-visible, .sidebar-feature-menu button:focus-visible { outline: 2px solid #1b6ffd; outline-offset: -2px; }
+.sidebar-group-history { margin-bottom: 8px; }
+.sidebar-group-history .sidebar-profile-session { width: 100%; }
 .sidebar-profile-group { margin-bottom: 5px; }
 .sidebar-profile-heading { display: flex; align-items: center; gap: 2px; }
 .sidebar-sessions .sidebar-profile-row { flex: 1; min-width: 0; width: auto; min-height: 42px; padding: 5px 8px; color: #111827; font-size: 14px; }
