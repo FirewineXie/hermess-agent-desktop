@@ -66,6 +66,8 @@ import { dashboardBuiltinRoute, dashboardPageSlot, dashboardPluginForRoute, norm
 import type { ProfileTab } from './features/profiles/ProfileOverview'
 import CommandPalette, { useCommandPalette } from './features/command-palette/CommandPalette'
 import { paletteItems, type PaletteItem } from './features/command-palette/model'
+import OnboardingDialog from './features/onboarding/OnboardingDialog'
+import { useOnboarding } from './features/onboarding/useOnboarding'
 
 function App() {
   const { chat, events, extensions, windowChrome } = useDesktop()
@@ -91,11 +93,10 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
-  const commandPalette = useCommandPalette()
   const updateStatus = useUpdateStatus()
   const workspaces = useWorkspaces()
   const {
-    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
+    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, freshInstallation,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, startBackendStrict, chooseStoragePath, pingBackend, stopBackend, stopBackendStrict,
     restartBackend, forceRestartBackend,
@@ -103,6 +104,8 @@ function App() {
     t,
     onReset: () => { setActiveModel(null); resetChat(); resetModel() },
   })
+  const onboarding = useOnboarding(freshInstallation, storagePath)
+  const commandPalette = useCommandPalette(!onboarding.visible)
   const profileController = useProfiles({
     connected: Boolean(backend),
     backendEpoch: backend?.replay_epoch || null,
@@ -187,11 +190,12 @@ function App() {
     setSidebarOpen(false)
     return true
   }
-  const openNewChat = async () => {
-    if (!openView('chat') || !viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return
-    if (!sessionId && !storedSessionRef.current) return
+  const openNewChat = async (): Promise<boolean> => {
+    if (!openView('chat') || !viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return false
+    if (!sessionId && !storedSessionRef.current) return true
     const restoreBlank = chatTabs.tabs.some(tab => tab.profile === viewedProfile && !tab.id)
     await newChat(true, false, restoreBlank)
+    return !storedSessionRef.current
   }
   React.useEffect(() => {
     const activateLocation = () => setDashboardRouteRequest(normalizeDashboardRoute(window.location.pathname))
@@ -293,20 +297,25 @@ function App() {
       return true
     } catch { return false /* useProfiles reports selection errors in the sidebar */ }
   }
-  const selectChatTab = async (tab: ChatTab) => {
-    if (chatTabKey(tab) === chatTabs.currentKey) return
-    if (tab.id) { await openProfileSession(tab.profile, tab.id); return }
-    if (!openView('chat')) return
+  const selectChatTab = async (tab: ChatTab): Promise<boolean> => {
+    if (chatTabKey(tab) === chatTabs.currentKey) return true
+    if (tab.id) return openProfileSession(tab.profile, tab.id)
+    if (!openView('chat')) return false
     try {
       if (profileController.snapshot?.selected !== tab.profile) await profileController.select(tab.profile)
       setPendingSession(tab)
-    } catch { /* Profile selection reports its own error. */ }
+      return true
+    } catch { return false /* Profile selection reports its own error. */ }
   }
   const closeChatTab = async (tab: ChatTab) => {
     const remaining = chatTabs.tabs.filter(item => chatTabKey(item) !== chatTabKey(tab))
     if (chatTabKey(tab) === chatTabs.currentKey) {
-      const next = remaining.find(item => item.profile === tab.profile)
-      if (next?.id) {
+      const next = remaining.find(item => item.profile === tab.profile) || remaining.at(-1)
+      if (next && next.profile !== tab.profile) {
+        if (!await selectChatTab(next)) return
+        chatTabs.close(tab)
+        return
+      } else if (next?.id) {
         if (!await resumeSession(next.id, false, backend?.replay_epoch || '', next.profile)) return
       } else if (next) await newChat(true, false, true)
       else if (tab.id) await newChat(false)
@@ -365,11 +374,7 @@ function App() {
       return true
     }
     if (target.kind === 'session') return openProfileSession(target.profile, target.id)
-    if (target.id === 'new-chat') {
-      if (!openView('chat')) return false
-      await newChat()
-      return true
-    }
+    if (target.id === 'new-chat') return openNewChat()
     if (!backend) return false
     await Promise.all([loadSessions(true), refreshOtherProfileSessions()])
     return true
@@ -379,7 +384,7 @@ function App() {
     <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} pluginTitle={dashboardManifest?.label} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { openSettings('update') }} onOpenCommandPalette={commandPalette.show} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
-    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { if (openView('chat')) void newChat() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
+    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
       onOpenProfile={name => {
@@ -396,7 +401,7 @@ function App() {
     {view === 'files' && <FilesView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
-      onNewChat={path => { if (openView('chat')) { workspaces.select(path); void newChat() } }} />}
+      onNewChat={path => { if (openView('chat')) { workspaces.select(path); void openNewChat() } }} />}
     {view === 'scheduled' && <ScheduledTasksView key={workspaceGeneration} connected={Boolean(backend)} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} />}
     {view === 'personal-tasks' && <KanbanBoardView initialTaskId={personalTaskTarget?.id} connectionId={backend?.replay_epoch || null} />}
     {view === 'dashboard-plugin' && <DashboardPluginPage manifest={dashboardManifest} component={activeDashboardPlugin ? dashboardPlugins.components.get(activeDashboardPlugin) : undefined} error={dashboardPlugins.error} />}
@@ -432,14 +437,15 @@ function App() {
         setProfileFilesInitialTab('memory')
         setProfileMemoryOpen(true)
       }} onOpenSoul={() => { setProfileFilesInitialTab('soul'); setProfileMemoryOpen(true) }}
-      onOpenConfiguration={page => { openSettings(page) }} onOpenChannels={() => { openView('channels') }} onOpenUsage={() => { openView('usage') }} onNewChat={() => { if (openView('chat')) void newChat() }} onLearnSkill={command => { void learnSkill(command) }} />}
+      onOpenConfiguration={page => { openSettings(page) }} onOpenChannels={() => { openView('channels') }} onOpenUsage={() => { openView('usage') }} onNewChat={() => { void openNewChat() }} onLearnSkill={command => { void learnSkill(command) }} />}
     {view === 'channels' && <ChannelsView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onRestart={() => restartForChannel()} onForceRestart={() => restartForChannel(true)} />}
     {view === 'about' && <AboutView updateStatus={updateStatus} />}
     {view === 'memory' && <PersonalFilesView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onDirtyChange={setPersonalFilesDirty} />}
     {view === 'settings' && <SettingsView language={language} page={settingsPage} connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot?.profiles || []} profileBusy={profileController.busy || settingsBusy} diagnosticsUnlocked={diagnosticsUnlocked}
+      onOpenOnboarding={() => { if (openView('chat')) onboarding.reopen() }}
       onSelectProfile={async name => { if (name === viewedProfile) return true; if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); await profileController.select(name); setSettingsDirty(false); return true }}
       onNavigate={page => openSettings(page)}
-      onExit={() => { if (openView(settingsReturnView)) setSettingsDirty(false) }}>
+      onExit={() => { if (openView(settingsReturnView)) { setSettingsDirty(false); onboarding.resume() } }}>
       {isConfigurationPage(settingsPage) && <ConfigurationSettings key={backend?.replay_epoch + ':' + viewedProfile + ':' + settingsPage} connected={Boolean(backend)} profile={viewedProfile} page={settingsPage} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onNavigate={page => { openSettings(page) }} />}
       {(settingsPage === 'device' || settingsPage === 'quick-input') && <DeviceSettings page={settingsPage} language={language} />}
       {settingsPage === 'delegation' && <DelegationSettings key={backend?.replay_epoch + ':' + viewedProfile} connected={Boolean(backend)} profile={viewedProfile} language={language} providers={modelController.providerCards.map(provider => ({ ...provider, models: modelController.visibleModels(provider.slug) }))} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
@@ -492,6 +498,21 @@ function App() {
     </footer>
     </main>
     <div className="dashboard-plugin-overlay"><DashboardPluginSlot name="overlay" /></div>
+    {onboarding.visible && <OnboardingDialog language={language} step={onboarding.step} connected={Boolean(backend)} runtimeBusy={busy} runtimeStatus={backendStatus} profile={viewedProfile} model={savedModel?.model || null}
+      messageBusy={turnBusy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || Boolean(chatController.draft.trim()) || chatController.attachments.length > 0}
+      onStep={onboarding.setStep} onSkip={() => onboarding.finish('skipped')} onComplete={() => onboarding.finish('completed')}
+      onOpenRuntime={() => { if (openSettings('runtime')) onboarding.pause() }} onOpenModels={() => { if (openSettings('providers')) onboarding.pause() }}
+      onSend={async message => {
+        onboarding.record('message_send_start')
+        try {
+          if (!openView('chat')) { onboarding.record('message_send_failed'); return false }
+          await newChat(false)
+          if (sessionRef.current || storedSessionRef.current) { onboarding.record('message_send_failed'); return false }
+          const sent = Boolean(await chatController.sendMessage(message, true))
+          if (!sent) onboarding.record('message_send_failed')
+          return sent
+        } catch (cause) { onboarding.record('message_send_failed'); throw cause }
+      }} />}
   </div>
 }
 

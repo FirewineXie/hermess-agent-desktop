@@ -17,6 +17,7 @@ export function useRuntimeController({ t, onReset }: Options) {
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
+  const [freshInstallation, setFreshInstallation] = React.useState<boolean | null>(null)
   const [backend, setBackendState] = React.useState<BackendInfo | null>(null)
   const [workspaceGeneration, setWorkspaceGeneration] = React.useState(0)
   const setBackend = (next: BackendInfo | null) => {
@@ -32,6 +33,7 @@ export function useRuntimeController({ t, onReset }: Options) {
     void (async () => {
       try {
         if (import.meta.env.DEV) {
+          setFreshInstallation(false)
           const defaults = await runtime.devDefaults()
           if (!active) return
           setPythonPath(displayPath(defaults.python_path))
@@ -40,6 +42,7 @@ export function useRuntimeController({ t, onReset }: Options) {
         } else {
           const defaults = await runtime.packedDefaults()
           if (!active) return
+          setFreshInstallation(!defaults.initialized)
           setStoragePath(displayPath(defaults.storage_path))
           setStorageLocked(defaults.initialized)
           await startBackend(defaults.storage_path)
@@ -169,7 +172,7 @@ export function useRuntimeController({ t, onReset }: Options) {
 
 
   return {
-    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked,
+    pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, freshInstallation,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, startBackendStrict, chooseStoragePath, pingBackend, stopBackend, stopBackendStrict,
     restartBackend, forceRestartBackend,

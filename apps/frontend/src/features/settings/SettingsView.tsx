@@ -15,10 +15,11 @@ type Props = {
   onNavigate: (page: SettingsPage) => boolean
   onExit: () => void
   diagnosticsUnlocked: boolean
+  onOpenOnboarding: () => void
   children: ReactNode
 }
 
-export default function SettingsView({ language, page, connected, profile, profiles, profileBusy, onSelectProfile, onNavigate, onExit, diagnosticsUnlocked, children }: Props) {
+export default function SettingsView({ language, page, connected, profile, profiles, profileBusy, onSelectProfile, onNavigate, onExit, onOpenOnboarding, diagnosticsUnlocked, children }: Props) {
   const zh = language === 'zh-CN'
   const [error, setError] = React.useState('')
   const request = React.useRef(0)
@@ -39,6 +40,7 @@ export default function SettingsView({ language, page, connected, profile, profi
   return <section className="unified-settings" aria-label={zh ? '设置' : 'Settings'}>
     <aside className="settings-category-nav" aria-label={zh ? '设置分类' : 'Settings categories'}>
       <div className="settings-nav-heading"><button type="button" onClick={onExit}>{zh ? '← 返回' : '← Back'}</button><strong>{zh ? '设置' : 'Settings'}</strong></div>
+      <button type="button" onClick={onOpenOnboarding}>{zh ? '重新打开使用引导' : 'Open setup guide'}</button>
       {settingsCategories.filter(item => item.id !== 'diagnostics' || diagnosticsUnlocked).map(item => <button type="button" key={item.id} className={category === item.id ? 'selected' : ''} onClick={() => navigate(item.page)}>{zh ? item.zh : item.en}</button>)}
     </aside>
     <div className="settings-main">

@@ -3,9 +3,10 @@ import type { PaletteItem } from './model'
 import { searchPalette } from './model'
 import './command-palette.css'
 
-export function useCommandPalette() {
+export function useCommandPalette(enabled = true) {
   const [open, setOpen] = React.useState(false)
   React.useEffect(() => {
+    if (!enabled) { setOpen(false); return }
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
         event.preventDefault()
@@ -14,8 +15,8 @@ export function useCommandPalette() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-  return { open, show: () => setOpen(true), close: () => setOpen(false) }
+  }, [enabled])
+  return { open: open && enabled, show: () => { if (enabled) setOpen(true) }, close: () => setOpen(false) }
 }
 
 type Props = {
