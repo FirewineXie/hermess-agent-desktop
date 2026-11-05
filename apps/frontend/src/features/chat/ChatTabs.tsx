@@ -10,10 +10,11 @@ type Props = {
   title: (tab: ChatTab) => string
   onSelect: (tab: ChatTab) => void
   onClose: (tab: ChatTab) => void
+  onOpenWindow: (tab: ChatTab) => void
   onNew: () => void
 }
 
-export default function ChatTabs({ tabs, activeKey, disabled, language, title, onSelect, onClose, onNew }: Props) {
+export default function ChatTabs({ tabs, activeKey, disabled, language, title, onSelect, onClose, onOpenWindow, onNew }: Props) {
   return <nav className="chat-tabs" aria-label={language === 'zh-CN' ? '聊天标签' : 'Chat tabs'}>
     <div className="chat-tabs-list" role="tablist">
       {tabs.map(tab => {
@@ -22,6 +23,8 @@ export default function ChatTabs({ tabs, activeKey, disabled, language, title, o
         return <div className="chat-tab" key={key}>
           <button type="button" role="tab" aria-selected={activeKey === key} title={`${tab.profile} · ${label}`}
             disabled={disabled} onClick={() => onSelect(tab)}>{label}</button>
+          {tab.id && <button type="button" className="chat-tab-window" aria-label={`${language === 'zh-CN' ? '在新窗口打开' : 'Open in new window'}: ${label}`}
+            title={language === 'zh-CN' ? '在新窗口打开' : 'Open in new window'} disabled={disabled} onClick={() => onOpenWindow(tab)}>↗</button>}
           <button type="button" className="chat-tab-close" aria-label={`${language === 'zh-CN' ? '关闭标签' : 'Close tab'}: ${label}`}
             disabled={disabled} onClick={() => onClose(tab)}>×</button>
         </div>

@@ -64,13 +64,14 @@ import { useNativeNotifications } from './features/notifications/useNativeNotifi
 import { DashboardPluginPage, DashboardPluginSlot, useDashboardPlugins } from './features/dashboard-plugins/DashboardPluginHost'
 import { dashboardBuiltinRoute, dashboardPageSlot, dashboardPluginForRoute, normalizeDashboardRoute } from './features/dashboard-plugins/dashboardRouteModel'
 import type { ProfileTab } from './features/profiles/ProfileOverview'
+import { describeError } from './app/desktopErrors'
 import CommandPalette, { useCommandPalette } from './features/command-palette/CommandPalette'
 import { paletteItems, type PaletteItem } from './features/command-palette/model'
 import OnboardingDialog from './features/onboarding/OnboardingDialog'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 
 function App() {
-  const { chat, events, extensions, windowChrome } = useDesktop()
+  const { chat, events, extensions, windowChrome, chatWindows } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
   languageRef.current = language
@@ -478,7 +479,7 @@ function App() {
     <div className="chat-workspace-layout" style={view === 'chat' ? undefined : { display: 'none' }}><ChatView active={view === 'chat'} connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
       tabs={<ChatTabs tabs={chatTabs.tabs} activeKey={chatTabs.currentKey} disabled={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !backend} language={language}
         title={tab => tab.id ? (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)?.title || tab.id.slice(0, 12) : language === 'zh-CN' ? '新聊天' : 'New chat'}
-        onSelect={tab => { void selectChatTab(tab) }} onClose={tab => { void closeChatTab(tab) }} onNew={() => { void openNewChat() }} />}
+        onSelect={tab => { void selectChatTab(tab) }} onClose={tab => { void closeChatTab(tab) }} onOpenWindow={tab => { void chatWindows.open(tab.profile, tab.id).catch(cause => setChatStatus(describeError(cause, language))) }} onNew={() => { void openNewChat() }} />}
       scrollKey={chatTabs.currentKey}
       controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
       panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)}

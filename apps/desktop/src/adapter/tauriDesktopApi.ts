@@ -200,6 +200,10 @@ export const tauriDesktopApi: DesktopApi = {
     toggleMaximize: () => nativeCall(() => getCurrentWindow().toggleMaximize()),
     close: () => nativeCall(() => getCurrentWindow().close()),
   },
+  chatWindows: {
+    open: (profile, sessionId) => invoke('open_chat_window', { profile, sessionId }),
+    context: () => invoke('get_chat_window_context'),
+  },
   notifications: {
     permission: () => nativeCall(isPermissionGranted),
     requestPermission: () => nativeCall(async () => await requestPermission() === 'granted'),

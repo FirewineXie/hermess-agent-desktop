@@ -18,11 +18,21 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
             let _ = window.hide();
         }
     }
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        api.prevent_close();
-        let _ = window.hide();
+    if hides_on_close(window.label()) {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.hide();
+        }
     }
 }
+
+fn hides_on_close(label: &str) -> bool {
+    matches!(label, "main" | "quick-input")
+}
+
+#[cfg(test)]
+#[path = "tests/tray.rs"]
+mod tests;
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let open = MenuItem::with_id(app, "open", "打开主界面", true, None::<&str>)?;

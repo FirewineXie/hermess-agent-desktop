@@ -54,9 +54,10 @@ type Props = {
   onSelectProfile: (name: string) => void
   tabs: React.ReactNode
   scrollKey: string
+  standalone?: boolean
 }
 
-export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey }: Props) {
+export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey, standalone = false }: Props) {
   const backend = connected
   const blankClicks = React.useRef({ count: 0, last: 0 })
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -107,7 +108,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件、任务与终端' : 'Files, tasks & terminal')
-  const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
+  const panelToggle = standalone ? null : <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
   const handlePaste = (event: ClipboardEvent) => {
     if (!active || !event.clipboardData) return
     const target = event.target
@@ -141,7 +142,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
-        <div className="chat-workspace-actions"><button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>{panelToggle}</div></div>}
+        <div className="chat-workspace-actions">{!standalone && <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>}{panelToggle}</div></div>}
       <div ref={contentRef} className="chat-content" onScroll={event => {
         const content = event.currentTarget
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
@@ -222,7 +223,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
         activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
-      </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
+      </div>{empty && !standalone && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
       <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · {choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
         : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>

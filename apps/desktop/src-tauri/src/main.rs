@@ -3,6 +3,7 @@
 use crate::paths::plain_path;
 use tauri::Manager;
 
+mod chat_windows;
 mod device;
 mod device_power;
 mod diagnostics;
@@ -44,6 +45,7 @@ fn main() {
         )
         .manage(device::DeviceState::default())
         .manage(quick_input::QuickState::default())
+        .manage(chat_windows::ChatWindowState::default())
         .manage(runtime::BackendState::default())
         .manage(runtime::dashboard_plugins::DashboardPluginSockets::default())
         .manage(runtime::console_socket::ConsoleSockets::default())
@@ -72,7 +74,10 @@ fn main() {
             webview_cache::start(app.handle().clone());
             Ok(())
         })
-        .on_window_event(tray::on_window_event)
+        .on_window_event(|window, event| {
+            tray::on_window_event(window, event);
+            chat_windows::on_window_event(window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             device::get_device_status,
             device::save_device_preferences,
@@ -81,6 +86,8 @@ fn main() {
             quick_input::submit_quick_input,
             quick_input::take_quick_submission,
             quick_input::finish_quick_submission,
+            chat_windows::open_chat_window,
+            chat_windows::get_chat_window_context,
             runtime::delegation::get_delegation_routing,
             runtime::delegation::save_delegation_routing,
             runtime::provider_copy::preview_provider_copy,

@@ -27,6 +27,10 @@ export const previewDesktopApi: DesktopApi = {
     async toggleMaximize() {},
     async close() {},
   },
+  chatWindows: {
+    async open() { throw previewOnly() },
+    async context() { throw previewOnly() },
+  },
   notifications: {
     async permission() { return false },
     async requestPermission() { throw previewOnly() },

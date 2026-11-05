@@ -131,6 +131,7 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/diagnostics.rs',
   'apps/desktop/src-tauri/src/device.rs',
   'apps/desktop/src-tauri/src/quick_input.rs',
+  'apps/desktop/src-tauri/src/chat_windows.rs',
   'apps/desktop/src-tauri/src/notifications.rs',
   'apps/desktop/src-tauri/src/webview_cache.rs',
   'apps/desktop/src-tauri/src/updates.rs',

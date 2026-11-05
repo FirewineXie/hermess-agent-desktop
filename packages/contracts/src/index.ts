@@ -58,6 +58,12 @@ export function isDesktopFailure(value: unknown): value is DesktopFailure {
 
 export type { BackendInfo } from './generated/backend-info'
 import type { BackendInfo } from './generated/backend-info'
+
+export type ChatWindowContext = {
+  target: { profile: string; sessionId: string }
+  backend: BackendInfo | null
+  storagePath: string
+}
 export type { BundledToolsInventory } from './generated/bundled-tools-inventory'
 import type { BundledToolsInventory } from './generated/bundled-tools-inventory'
 export type { DevDefaults } from './generated/dev-defaults'
@@ -440,6 +446,10 @@ export interface DesktopApi {
     minimize(): Promise<void>
     toggleMaximize(): Promise<void>
     close(): Promise<void>
+  }
+  chatWindows: {
+    open(profile: string, sessionId: string): Promise<string>
+    context(): Promise<ChatWindowContext>
   }
   notifications: {
     permission(): Promise<boolean>

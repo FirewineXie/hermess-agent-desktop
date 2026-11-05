@@ -135,11 +135,40 @@ impl Drop for RestartDrainGuard {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct BackendInfo {
     port: u16,
     pid: u32,
     replay_epoch: String,
+}
+
+impl BackendState {
+    pub(crate) async fn validate_chat_window_profile(
+        &self,
+        profile: &str,
+    ) -> Result<(), DesktopFailure> {
+        self.resolve_profile(profile).await.map(|_| ())
+    }
+
+    pub(crate) async fn chat_window_snapshot(
+        &self,
+    ) -> Result<Option<(BackendInfo, String)>, DesktopFailure> {
+        let mut owned = self.0.lock().await;
+        let Some(backend) = owned.as_mut() else {
+            return Ok(None);
+        };
+        if !backend_running(backend).map_err(DesktopFailure::from)? || backend.gateway.is_closed() {
+            return Ok(None);
+        }
+        Ok(Some((
+            BackendInfo {
+                port: backend.port,
+                pid: backend.child.id().unwrap_or(0),
+                replay_epoch: backend.gateway.replay_epoch.clone(),
+            },
+            plain_path(&backend.storage).to_string_lossy().into_owned(),
+        )))
+    }
 }
 
 #[derive(Serialize)]
