@@ -1,10 +1,17 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { parseTranscriptParts, type TranscriptDirective } from '../transcriptParts'
 import LocalPreview from './LocalPreview'
 
 const remarkPlugins = [remarkGfm]
 type Language = 'zh-CN' | 'en-US'
+type DirectiveRenderer = (directive: TranscriptDirective, language: Language) => React.ReactNode
+
+const directiveRenderers: Record<string, DirectiveRenderer> = {
+  preview: ({ attrs }, language) => attrs.file ? <LocalPreview path={attrs.file} language={language} /> : null,
+}
+const supportedDirectives = new Set(Object.keys(directiveRenderers))
 
 function safeUrl(url: string, key: string) {
   if (key !== 'href') return ''
@@ -43,21 +50,9 @@ function CodeBlock({ children, language }: { children?: React.ReactNode; languag
 }
 
 function MarkdownMessage({ text, language }: { text: string; language: Language }) {
-  const parts: Array<{ kind: 'markdown'; value: string } | { kind: 'preview'; value: string }> = []
-  let markdown = ''
-  let fenced = false
-  for (const line of text.split(/\r?\n/)) {
-    if (/^\s*```/.test(line)) fenced = !fenced
-    const directive = !fenced && line.trim().match(/^::preview\{file="([^"\r\n]+)"\}$/)
-    if (directive) {
-      if (markdown.trim()) parts.push({ kind: 'markdown', value: markdown })
-      parts.push({ kind: 'preview', value: directive[1] })
-      markdown = ''
-    } else markdown += `${line}\n`
-  }
-  if (markdown.trim()) parts.push({ kind: 'markdown', value: markdown })
-  return <div className="markdown-body">{parts.map((part, index) => part.kind === 'preview'
-    ? <LocalPreview key={`${index}-${part.value}`} path={part.value} language={language} />
+  const parts = parseTranscriptParts(text, supportedDirectives)
+  return <div className="markdown-body">{parts.map((part, index) => part.kind === 'directive'
+    ? <React.Fragment key={`${index}-${part.name}`}>{directiveRenderers[part.name]?.(part, language)}</React.Fragment>
     : <ReactMarkdown key={index} remarkPlugins={remarkPlugins} skipHtml urlTransform={safeUrl} components={{
       a: ({ href, children }) => href ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>,
       img: ({ alt }) => <span className="markdown-image-alt">{language === 'zh-CN' ? `[图片：${alt || '未提供说明'}]` : `[Image: ${alt || 'no description'}]`}</span>,
