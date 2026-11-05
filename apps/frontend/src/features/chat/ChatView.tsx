@@ -52,9 +52,11 @@ type Props = {
   profiles: ProfilesSnapshot | null
   profileBusy: boolean
   onSelectProfile: (name: string) => void
+  tabs: React.ReactNode
+  scrollKey: string
 }
 
-export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile }: Props) {
+export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey }: Props) {
   const backend = connected
   const blankClicks = React.useRef({ count: 0, last: 0 })
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -85,17 +87,22 @@ export default function ChatView({ active, connected, backendStatus, language, t
   const panelRef = React.useRef<HTMLElement>(null)
   const followMessagesRef = React.useRef(true)
   const lastUserCountRef = React.useRef(0)
-  const lastSessionRef = React.useRef(sessionId)
+  const lastScrollKeyRef = React.useRef(scrollKey)
+  const scrollPositionsRef = React.useRef(new Map<string, { top: number; follow: boolean }>())
   const userCount = conversation.filter(item => item.kind === 'message' && item.role === 'user').length
   const hasSubmission = Boolean(draft.trim() || attachments.length)
 
   React.useLayoutEffect(() => {
-    if (sessionId !== lastSessionRef.current || userCount !== lastUserCountRef.current) followMessagesRef.current = true
-    lastSessionRef.current = sessionId
-    lastUserCountRef.current = userCount
     const content = contentRef.current
+    if (scrollKey !== lastScrollKeyRef.current) {
+      lastScrollKeyRef.current = scrollKey
+      const saved = scrollPositionsRef.current.get(scrollKey)
+      followMessagesRef.current = saved?.follow ?? true
+      if (content) content.scrollTop = saved && !saved.follow ? saved.top : content.scrollHeight
+    } else if (userCount !== lastUserCountRef.current) followMessagesRef.current = true
+    lastUserCountRef.current = userCount
     if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
-  }, [conversation, assistant, serverRequest, sideQuestions, sessionId, userCount])
+  }, [conversation, assistant, serverRequest, sideQuestions, scrollKey, userCount])
 
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
@@ -130,6 +137,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
   })
   return <section ref={panelRef} className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
       <RollbackDialog controller={rollback} language={language} />
+      {tabs}
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
@@ -137,6 +145,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
       <div ref={contentRef} className="chat-content" onScroll={event => {
         const content = event.currentTarget
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
+        scrollPositionsRef.current.set(lastScrollKeyRef.current, { top: content.scrollTop, follow: followMessagesRef.current })
       }}>
       {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
       {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>

@@ -1,5 +1,5 @@
 import React from 'react'
-import type { GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow, ProfileScope, SessionScope } from '@hermess/contracts'
+import type { GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
@@ -23,6 +23,7 @@ import { stageClipboardImage } from './clipboardImages'
 import { sentAttachments } from './sentAttachments'
 import type { ChatControllerOptions } from './chatControllerOptions'
 import { useRollbackController } from './useRollbackController'
+import { requireProfileScope, requireSessionScope } from './chatScopes'
 
 export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
@@ -35,16 +36,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
   const viewedProfileRef = useRef(profile)
   viewedProfileRef.current = profile
   const sessionProfileRef = useRef('')
-  function profileScope(): ProfileScope {
-    const profile = viewedProfileRef.current
-    if (!profile) throw new Error('No active Profile')
-    return { kind: 'profile', profile }
-  }
-  function sessionScope(id: string): SessionScope {
-    const profile = sessionProfileRef.current
-    if (!profile || !id) throw new Error('Session has no Profile owner')
-    return { kind: 'session', profile, sessionId: id }
-  }
+  const profileScope = () => requireProfileScope(viewedProfileRef.current)
+  const sessionScope = (id: string) => requireSessionScope(sessionProfileRef.current, id)
   const [sessionId, setSessionId] = useState('')
   const lastSessionByProfile = React.useRef<Record<string, string>>({})
   const attemptedEpochResume = React.useRef(new Set<string>())
@@ -288,6 +281,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       epochRef.current[id] = backend?.replay_epoch || ''
       lastSeqRef.current[id] = 0
       storedSessionRef.current = created.stored_session_id
+      delete pendingBySessionRef.current['']
       lastSessionByProfile.current[owner.profile] = created.stored_session_id
       setSessionId(id)
       reasoningSessionRef.current = id
@@ -757,7 +751,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     }
   }
 
-  async function newChat(preserveDraft = true, afterDelete = false) {
+  async function newChat(preserveDraft = true, afterDelete = false, restoreBlank = false) {
     if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || (navigationBusyRef.current && !afterDelete)) return
     navigationBusyRef.current = true
     if (profile) delete lastSessionByProfile.current[profile]
@@ -782,8 +776,9 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setTurnBusy(false)
     setServerRequests([])
     setClarifyDraft({ requestId: '', answers: {} })
-    setDraft('')
-    setAttachments([])
+    if (!restoreBlank) delete pendingBySessionRef.current['']
+    setDraft(restoreBlank ? pendingBySessionRef.current['']?.draft || '' : '')
+    setAttachments(restoreBlank ? pendingBySessionRef.current['']?.attachments || [] : [])
     setChatUsage(null)
     setCanContinue(false)
     setCommandCatalog(null)
@@ -801,7 +796,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     try {
       if (!ownerProfile) throw new Error('Session has no Profile owner')
       const result = await chat.resumeSession({ kind: 'session', profile: ownerProfile, sessionId: id })
-      if (storedSessionRef.current) pendingBySessionRef.current[storedSessionRef.current] = { draft: commandResume ? '' : draft, attachments }
+      pendingBySessionRef.current[storedSessionRef.current] = { draft: commandResume ? '' : draft, attachments }
       turnStartedAtRef.current = null
       sessionRef.current = result.session_id
       sessionProfileRef.current = ownerProfile

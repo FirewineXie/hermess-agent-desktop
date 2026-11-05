@@ -10,7 +10,9 @@ import { useLanguage, translateApp } from './i18n'
 import ToolsView from './features/tools/ToolsView'
 import ExtensionsView from './features/extensions/ExtensionsView'
 import ChatView from './features/chat/ChatView'
+import ChatTabs from './features/chat/ChatTabs'
 import { useChatController } from './features/chat/useChatController'
+import { useChatTabs, chatTabKey, type ChatTab } from './features/chat/useChatTabs'
 import { useSessionActivity } from './features/chat/useSessionActivity'
 import ModelSettingsView from './features/models/ModelSettingsView'
 import MainModelSettings from './features/models/MainModelSettings'
@@ -145,6 +147,7 @@ function App() {
     attachmentBusy, loadSessions, newChat, resumeSession,
     reconnectBackend, resetChat,
   } = chatController
+  const chatTabs = useChatTabs(viewedProfile, sessionId, storedSessionRef.current)
   const sendMessageRef = React.useRef(chatController.sendMessage)
   sendMessageRef.current = chatController.sendMessage
   React.useEffect(() => {
@@ -180,6 +183,12 @@ function App() {
     setView(next)
     setSidebarOpen(false)
     return true
+  }
+  const openNewChat = async () => {
+    if (!openView('chat') || !viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return
+    if (!sessionId && !storedSessionRef.current) return
+    const restoreBlank = chatTabs.tabs.some(tab => tab.profile === viewedProfile && !tab.id)
+    await newChat(true, false, restoreBlank)
   }
   React.useEffect(() => {
     const activateLocation = () => setDashboardRouteRequest(normalizeDashboardRoute(window.location.pathname))
@@ -220,7 +229,7 @@ function App() {
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
   const [otherProfileSessions, setOtherProfileSessions] = useProfileState<Record<string, SessionRow[]>>(workspaceKey(backend?.replay_epoch, 'sidebar-other'), {}, 'app:other-profile-sessions')
   const otherSessionsVersion = React.useRef(0)
-  const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
+  const [pendingSession, setPendingSession] = React.useState<ChatTab | null>(null)
   const servedProfileNames = profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]).filter(name => name !== profileController.snapshot?.selected).join('|') || ''
   const refreshOtherProfileSessions = async () => {
     const version = ++otherSessionsVersion.current
@@ -280,6 +289,28 @@ function App() {
       setPendingSession({ profile, id })
     } catch { /* useProfiles reports selection errors in the sidebar */ }
   }
+  const selectChatTab = async (tab: ChatTab) => {
+    if (chatTabKey(tab) === chatTabs.currentKey) return
+    if (tab.id) { await openProfileSession(tab.profile, tab.id); return }
+    if (!openView('chat')) return
+    try {
+      if (profileController.snapshot?.selected !== tab.profile) await profileController.select(tab.profile)
+      setPendingSession(tab)
+    } catch { /* Profile selection reports its own error. */ }
+  }
+  const closeChatTab = async (tab: ChatTab) => {
+    const remaining = chatTabs.tabs.filter(item => chatTabKey(item) !== chatTabKey(tab))
+    if (chatTabKey(tab) === chatTabs.currentKey) {
+      const next = remaining.find(item => item.profile === tab.profile)
+      if (next?.id) {
+        if (!await resumeSession(next.id, false, backend?.replay_epoch || '', next.profile)) return
+      } else if (next) await newChat(true, false, true)
+      else if (tab.id) await newChat(false)
+      else return
+      if (storedSessionRef.current === tab.id) return
+    }
+    chatTabs.close(tab)
+  }
   const deleteProfileSession = async (profile: string, id: string) => {
     await chatController.deleteSession(profile, id)
     if (profile !== viewedProfile) await refreshOtherProfileSessions()
@@ -301,9 +332,11 @@ function App() {
   })
   React.useEffect(() => {
     if (!pendingSession || pendingSession.profile !== viewedProfile) return
-    void resumeSession(pendingSession.id, false, backend?.replay_epoch || '', pendingSession.profile).then(opened => {
-      if (opened) markViewed(pendingSession.profile, pendingSession.id)
-    })
+    if (pendingSession.id) {
+      void resumeSession(pendingSession.id, false, backend?.replay_epoch || '', pendingSession.profile).then(opened => {
+        if (opened) markViewed(pendingSession.profile, pendingSession.id)
+      })
+    } else void newChat(true, false, true)
     setPendingSession(null)
   }, [pendingSession, viewedProfile])
   const restartForChannel = async (force = false) => {
@@ -405,6 +438,10 @@ function App() {
       {settingsPage === 'about' && <AboutView updateStatus={updateStatus} />}
     </SettingsView>}
     <div className="chat-workspace-layout" style={view === 'chat' ? undefined : { display: 'none' }}><ChatView active={view === 'chat'} connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
+      tabs={<ChatTabs tabs={chatTabs.tabs} activeKey={chatTabs.currentKey} disabled={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !backend} language={language}
+        title={tab => tab.id ? (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)?.title || tab.id.slice(0, 12) : language === 'zh-CN' ? '新聊天' : 'New chat'}
+        onSelect={tab => { void selectChatTab(tab) }} onClose={tab => { void closeChatTab(tab) }} onNew={() => { void openNewChat() }} />}
+      scrollKey={chatTabs.currentKey}
       controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
       panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)}
       profiles={profileController.snapshot} profileBusy={profileController.busy} onSelectProfile={name => { void profileController.select(name).catch(() => {}) }} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
