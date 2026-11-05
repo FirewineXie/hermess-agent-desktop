@@ -64,6 +64,8 @@ import { useNativeNotifications } from './features/notifications/useNativeNotifi
 import { DashboardPluginPage, DashboardPluginSlot, useDashboardPlugins } from './features/dashboard-plugins/DashboardPluginHost'
 import { dashboardBuiltinRoute, dashboardPageSlot, dashboardPluginForRoute, normalizeDashboardRoute } from './features/dashboard-plugins/dashboardRouteModel'
 import type { ProfileTab } from './features/profiles/ProfileOverview'
+import CommandPalette, { useCommandPalette } from './features/command-palette/CommandPalette'
+import { paletteItems, type PaletteItem } from './features/command-palette/model'
 
 function App() {
   const { chat, events, extensions, windowChrome } = useDesktop()
@@ -89,6 +91,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
+  const commandPalette = useCommandPalette()
   const updateStatus = useUpdateStatus()
   const workspaces = useWorkspaces()
   const {
@@ -282,12 +285,13 @@ function App() {
   )
   commandFinishedRef.current = settleCommand
   const openProfileSession = async (profile: string, id: string) => {
-    if (!openView('chat')) return
-    if (profile === viewedProfile && id === storedSessionRef.current) { markViewed(profile, id); return }
+    if (!openView('chat')) return false
+    if (profile === viewedProfile && id === storedSessionRef.current) { markViewed(profile, id); return true }
     try {
       if (profileController.snapshot?.selected !== profile) await profileController.select(profile)
       setPendingSession({ profile, id })
-    } catch { /* useProfiles reports selection errors in the sidebar */ }
+      return true
+    } catch { return false /* useProfiles reports selection errors in the sidebar */ }
   }
   const selectChatTab = async (tab: ChatTab) => {
     if (chatTabKey(tab) === chatTabs.currentKey) return
@@ -324,7 +328,7 @@ function App() {
     connectionId: backend?.replay_epoch || null,
     activeTarget: view === 'chat' && viewedProfile && sessionId ? { profile: viewedProfile, sessionId } : undefined,
     language,
-    onOpenSession: openProfileSession,
+    onOpenSession: async (profile, id) => { await openProfileSession(profile, id) },
   })
   usePersonalTaskEvents(Boolean(backend), backend?.replay_epoch || null, storagePath || '', profileController.snapshot, target => {
     setPersonalTaskTarget(target)
@@ -343,9 +347,37 @@ function App() {
     const restarted = force ? await forceRestartBackend() : await restartBackend()
     return Boolean(restarted)
   }
+  const commandItems = paletteItems({
+    language, connected: Boolean(backend), diagnosticsUnlocked, selectedProfile: viewedProfile,
+    sessions, otherProfileSessions, dashboardPlugins: dashboardPlugins.manifests,
+    profileNames: Object.fromEntries((profileController.snapshot?.profiles || []).map(profile => [profile.name, profile.display_name || profile.name])),
+  })
+  const executeCommand = async (item: PaletteItem): Promise<boolean> => {
+    const target = item.target
+    if (target.kind === 'page') {
+      if (target.view === 'personal-tasks') setPersonalTaskTarget(null)
+      return openView(target.view)
+    }
+    if (target.kind === 'setting') return openSettings(target.page)
+    if (target.kind === 'plugin') {
+      if (!openView('dashboard-plugin')) return false
+      setActiveDashboardPlugin(target.name)
+      return true
+    }
+    if (target.kind === 'session') return openProfileSession(target.profile, target.id)
+    if (target.id === 'new-chat') {
+      if (!openView('chat')) return false
+      await newChat()
+      return true
+    }
+    if (!backend) return false
+    await Promise.all([loadSessions(true), refreshOtherProfileSessions()])
+    return true
+  }
   return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
     <div className="dashboard-plugin-backdrop" aria-hidden="true"><DashboardPluginSlot name="backdrop" /></div>
-    <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} pluginTitle={dashboardManifest?.label} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { openSettings('update') }} />
+    <WorkspaceHeader view={view} sessionTitle={activeSession?.title} sessionSource={activeSession?.source} pluginTitle={dashboardManifest?.label} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { openSettings('update') }} onOpenCommandPalette={commandPalette.show} />
+    <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
     {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { if (openView('chat')) void newChat() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
@@ -360,7 +392,7 @@ function App() {
     <DashboardPluginSlot name="pre-main" />
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:top`} />}
     {dashboardOverride ? <DashboardPluginPage manifest={dashboardOverride} component={dashboardPlugins.components.get(dashboardOverride.name)} error={dashboardPlugins.error} /> : <>
-    {view === 'sessions' && <SessionsView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={openProfileSession} onDeleteSession={deleteProfileSession} />}
+    {view === 'sessions' && <SessionsView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
     {view === 'files' && <FilesView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}

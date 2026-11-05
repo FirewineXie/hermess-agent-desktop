@@ -5,7 +5,7 @@ import { useDesktop } from './DesktopContext'
 import windowIcon from '../assets/hermess-window-icon.png'
 import { DashboardPluginSlot } from '../features/dashboard-plugins/DashboardPluginHost'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
@@ -44,6 +44,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
       <div className="header-location"><span className={`status-dot ${connected ? 'ready' : ''}`} /><span>{language === 'zh-CN' ? '本地' : 'Local'}</span><small>{connected ? t('ui.connected') : t('ui.not.started')}</small></div>
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
     </>}
+    <button className="header-command-palette" type="button" aria-label={language === 'zh-CN' ? '搜索会话、页面、设置和操作' : 'Search sessions, pages, settings and actions'} title={language === 'zh-CN' ? '打开命令面板 (Ctrl/⌘ K)' : 'Open command palette (Ctrl/⌘ K)'} onClick={onOpenCommandPalette}>⌕ <span>{language === 'zh-CN' ? '搜索' : 'Search'}</span><kbd>Ctrl/⌘ K</kbd></button>
     <button className="header-github" type="button" onClick={() => void links.openRepository()} aria-label="GitHub" title="GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.94-2.64 3.14 3.14 0 0 0-.08-2.64S19.73 3.3 17.09 5a13.38 13.38 0 0 0-10.18 0C4.27 3.3 4.02 3.82 4.02 3.82a3.14 3.14 0 0 0-.08 2.64A3.4 3.4 0 0 0 3 9.1V13a6 6 0 0 0 6 6v3" /></svg>
     </button>
