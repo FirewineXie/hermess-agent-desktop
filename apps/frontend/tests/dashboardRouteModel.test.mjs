@@ -9,6 +9,7 @@ test('every locked built-in route maps to its product-owned page', () => {
   const cases = [
     [{ ...base, view: 'chat' }, '/chat'],
     [{ ...base, view: 'sessions' }, '/sessions'],
+    [{ ...base, view: 'settings', settingsPage: 'sessions' }, '/sessions'],
     [{ ...base, view: 'files' }, '/files'],
     [{ ...base, view: 'usage' }, '/analytics'],
     [{ ...base, view: 'scheduled' }, '/cron'],

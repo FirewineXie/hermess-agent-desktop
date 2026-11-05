@@ -79,6 +79,12 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .primary-nav button.active { color: #1b6ffd; background: #e4eefd; }
 .sidebar-new-menu { display: grid; gap: 2px; padding-left: 12px; }
 .primary-nav .sidebar-new-menu button { color: #425066; font-size: 13px; }
+.sidebar-main-nav { flex: none; display: grid; gap: 2px; margin-top: 8px; padding-bottom: 10px; border-bottom: 1px solid #e3e8ef; }
+.sidebar-main-nav button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 36px; padding: 7px 11px; border: 0; border-radius: 9px; color: #425066; background: transparent; text-align: left; font-size: 13px; }
+.sidebar-main-nav button:hover { background: #eceff3; }
+.sidebar-main-nav button.active { color: #1b6ffd; background: #e4eefd; font-weight: 650; }
+.sidebar-main-nav button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-main-nav button:focus-visible { outline: 2px solid #1b6ffd; outline-offset: -2px; }
 .sidebar-section-heading { margin: 0 11px 6px; padding-top: 10px; color: #66758c; font-size: 12px; }
 .sidebar-sessions { flex: 1 1 auto; }
 .sidebar-feature-nav { position: relative; flex: none; margin-top: 8px; }

@@ -63,8 +63,41 @@
 .settings-content-scroll > .settings-panel { width: 100%; max-width: none; margin: 27px 0 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; } /* taste-skill-ignore: reset the legacy panel shadow */
 .settings-content-scroll .model-page-heading { margin-top: 0; }
 .settings-content-scroll .main-model-settings, .settings-content-scroll .model-route-settings { max-width: 820px; margin-top: 27px; }
-.settings-content-scroll > :is(.pairing-page, .logs-page, .env-keys-page) { min-height: auto; padding: 27px 0 0; }
+.settings-content-scroll > :is(.pairing-page, .logs-page, .env-keys-page) { min-height: auto; padding: 18px 0 0; }
 .settings-content-scroll :is(.pairing-toolbar, .logs-toolbar, .env-keys-toolbar) > label:first-child { display: none; }
+.settings-content-scroll > .sessions-page { height: auto; overflow: visible; padding: 18px 0 0; background: transparent; }
+.settings-content-scroll .sessions-controls > label:first-child { display: none; }
+.settings-content-scroll :is(.sessions-heading, .pairing-heading, .logs-heading, .env-keys-heading) { align-items: center; margin-bottom: 16px; }
+.settings-content-scroll :is(.sessions-kicker, .pairing-kicker, .logs-kicker, .env-keys-kicker, .sessions-heading h1, .pairing-heading h1, .logs-heading h1, .env-keys-heading h1) { display: none; }
+.settings-content-scroll :is(.sessions-heading, .pairing-heading, .logs-heading, .env-keys-heading) p:last-child { margin: 0; font-size: 13px; }
+.settings-content-scroll .sessions-stats { gap: 0; margin-bottom: 18px; padding: 13px 0; border-top: 1px solid var(--settings-line); border-bottom: 1px solid var(--settings-line); }
+.settings-content-scroll .sessions-stats > div { gap: 2px; padding: 0 18px; border: 0; border-right: 1px solid var(--settings-line); border-radius: 0; box-shadow: none; }
+.settings-content-scroll .sessions-stats > div:first-child { padding-left: 0; }
+.settings-content-scroll .sessions-stats > div:last-child { border-right: 0; }
+.settings-content-scroll .sessions-stats strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.settings-content-scroll .sessions-search { margin-bottom: 10px; }
+.settings-content-scroll .sessions-search input { min-height: 40px; }
+.settings-content-scroll .sessions-controls { margin-bottom: 10px; }
+.settings-content-scroll .sessions-controls select, .settings-content-scroll .sessions-source-filter summary { min-height: 38px; padding-top: 7px; padding-bottom: 7px; }
+.settings-content-scroll .sessions-maintenance { margin: 0 0 16px; padding-top: 10px; border-top: 1px solid var(--settings-line); }
+.settings-content-scroll .sessions-maintenance button { min-height: 34px; padding: 6px 10px; }
+.settings-content-scroll :is(.sessions-list, .sessions-detail) { box-shadow: none; }
+.settings-content-scroll .sessions-layout { height: clamp(360px, 62vh, 680px); align-items: stretch; }
+.settings-content-scroll :is(.sessions-list, .sessions-detail) { min-height: 0; }
+.settings-content-scroll .sessions-list { display: flex; flex-direction: column; }
+.settings-content-scroll .sessions-list-header, .settings-content-scroll .sessions-selection, .settings-content-scroll .sessions-pagination { flex: none; }
+.settings-content-scroll .sessions-list-rows { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.settings-content-scroll .sessions-detail { overflow-y: auto; }
+@media (max-width: 900px) {
+  .settings-content-scroll .sessions-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+  .settings-content-scroll .sessions-stats > div:nth-child(2) { border-right: 0; }
+  .settings-content-scroll .sessions-stats > div:nth-child(3) { padding-left: 0; }
+}
+@media (max-width: 1000px) {
+  .settings-content-scroll .sessions-layout { grid-template-columns: 1fr; height: auto; }
+  .settings-content-scroll .sessions-list { height: min(52vh, 480px); }
+  .settings-content-scroll .sessions-detail { min-height: 240px; max-height: none; overflow: visible; }
+}
 
 .memory-context-settings { max-width: 980px; margin-top: 27px; }
 .memory-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
@@ -79,6 +112,36 @@
 .memory-settings-fields .config-field:last-child { border-bottom: 0; }
 .memory-settings-fields .compression-route-picker { padding: 0 0 12px; border-bottom: 1px solid #e7ebf0; }
 .memory-settings-fields .compression-route-picker .auxiliary-card { padding: 12px 0; border: 0; border-radius: 0; }
+.memory-settings-fields .compression-route-picker .auxiliary-card .row button {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #245b9d;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.memory-settings-fields .compression-route-picker .auxiliary-card .row button:hover:not(:disabled) { background: #e8f0fa; }
+.memory-settings-fields .compression-route-picker .config-field-actions button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--settings-blue);
+  border-radius: 8px;
+  background: var(--settings-blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.memory-settings-fields .compression-route-picker .config-field-actions button:hover:not(:disabled) { background: #155ed9; }
+.memory-settings-fields .compression-route-picker .config-field-actions .config-field-cancel {
+  border-color: #d5deea;
+  background: #fff;
+  color: #34445b;
+}
+.memory-settings-fields .compression-route-picker .config-field-actions .config-field-cancel:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
 .memory-settings-fields .compression-route-picker > small,
 .memory-settings-fields .compression-route-picker > p { display: block; margin: 0 0 4px; color: var(--settings-muted); font-size: 13px; line-height: 1.5; }
 .memory-settings-fields .config-field-preview { width: 100%; min-height: 42px; padding: 0; border: 0; background: transparent; text-align: left; }

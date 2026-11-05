@@ -30,6 +30,7 @@ export function dashboardBuiltinRoute({ view, settingsPage, profileTab, profileC
   }
   if (view !== 'settings') return null
   if (modelPages.has(settingsPage)) return '/models'
+  if (settingsPage === 'sessions') return '/sessions'
   if (settingsPage === 'pairing') return '/pairing'
   if (settingsPage === 'logs') return '/logs'
   if (settingsPage === 'env-keys') return '/env'

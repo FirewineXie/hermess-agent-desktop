@@ -24,14 +24,7 @@ fn model_details(
     endpoint_id: &str,
     models: &[Value],
 ) -> Result<Value, DesktopFailure> {
-    let bytes = std::fs::read(scope.home.join("config.yaml"))
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    if bytes.len() > 2 * 1024 * 1024 {
-        return Err(DesktopFailure::operation_failed());
-    }
-    let yaml: serde_yaml::Value =
-        serde_yaml::from_slice(&bytes).map_err(|_| DesktopFailure::operation_failed())?;
-    let config = serde_json::to_value(yaml).map_err(|_| DesktopFailure::operation_failed())?;
+    let config = raw_config(scope)?;
     let entry = config.get("providers").and_then(|v| v.get(endpoint_id));
     Ok(json!(models
         .iter()
@@ -51,6 +44,99 @@ fn model_details(
             (detail.as_object()?.len() > 1).then_some(detail)
         })
         .collect::<Vec<_>>()))
+}
+
+fn raw_config(scope: &ResolvedProfileScope) -> Result<Value, DesktopFailure> {
+    let bytes = std::fs::read(scope.home.join("config.yaml"))
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err(DesktopFailure::operation_failed());
+    }
+    let yaml: serde_yaml::Value =
+        serde_yaml::from_slice(&bytes).map_err(|_| DesktopFailure::operation_failed())?;
+    serde_json::to_value(yaml).map_err(|_| DesktopFailure::operation_failed())
+}
+
+fn raw_endpoint<'a>(config: &'a Value, endpoint: &Value) -> Option<&'a Value> {
+    let id = endpoint.get("id")?.as_str()?;
+    match endpoint.get("source")?.as_str()? {
+        "providers" => config.get("providers")?.get(id),
+        "custom_providers" => config
+            .get("custom_providers")?
+            .as_array()?
+            .iter()
+            .find(|entry| {
+                entry.get("name") == endpoint.get("name")
+                    && entry
+                        .get("base_url")
+                        .or_else(|| entry.get("url"))
+                        .or_else(|| entry.get("api"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|url| {
+                            endpoint["base_url"].as_str().is_some_and(|listed| {
+                                url.trim().trim_end_matches('/') == listed.trim_end_matches('/')
+                            })
+                        })
+            }),
+        _ => None,
+    }
+}
+
+fn env_reference(value: &str) -> Option<&str> {
+    let key = value.strip_prefix("${")?.strip_suffix('}')?;
+    (!key.is_empty()
+        && key.len() <= 128
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
+    .then_some(key)
+}
+
+fn copied_key_env(id: &str) -> String {
+    format!(
+        "HERMES_CUSTOM_{}_API_KEY",
+        id.replace('-', "_").to_uppercase()
+    )
+}
+
+async fn source_credential(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    endpoint: &Value,
+) -> Result<Option<String>, DesktopFailure> {
+    if endpoint["has_api_key"] != true {
+        return Ok(None);
+    }
+    let config = raw_config(scope)?;
+    let entry = raw_endpoint(&config, endpoint).ok_or_else(DesktopFailure::conflict)?;
+    let inline = entry
+        .get("api_key")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    let env_key = env_reference(inline).or_else(|| {
+        entry
+            .get("key_env")
+            .or_else(|| entry.get("api_key_env"))
+            .and_then(Value::as_str)
+    });
+    let secret = if let Some(key) = env_key {
+        let result = config_request_for_scope(
+            state,
+            scope,
+            reqwest::Method::POST,
+            "/api/env/reveal",
+            Some(json!({"profile":scope.profile,"key":key})),
+        )
+        .await?;
+        result["value"].as_str().map(str::to_owned)
+    } else {
+        Some(inline.to_owned())
+    };
+    let secret = secret
+        .filter(|value| !value.is_empty() && value.len() <= 4096 && !value.contains('\0'))
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    Ok(Some(secret))
 }
 
 async fn main_config(
@@ -120,7 +206,7 @@ fn verified_public_fields(actual: &Value, body: &Value) -> bool {
     ]
     .iter()
     .all(|key| actual[*key] == body[*key])
-        && actual["has_api_key"] == false
+        && actual["has_api_key"] == body["api_key"].as_str().is_some_and(|key| !key.is_empty())
         && expected_models == actual_models
 }
 
@@ -129,7 +215,17 @@ async fn snapshot(
     profile: &str,
     endpoint_id: &str,
     target: &str,
-) -> Result<(Value, Value, ResolvedProfileScope, Value), DesktopFailure> {
+) -> Result<
+    (
+        Value,
+        Value,
+        ResolvedProfileScope,
+        ResolvedProfileScope,
+        Value,
+        Value,
+    ),
+    DesktopFailure,
+> {
     if profile == target {
         return Err(DesktopFailure::invalid_input());
     }
@@ -193,6 +289,7 @@ async fn snapshot(
         Sha256::digest(
             serde_json::to_vec(&json!([
                 body,
+                endpoint,
                 target_list,
                 target_lists,
                 source.gateway_epoch,
@@ -201,8 +298,16 @@ async fn snapshot(
             .map_err(|_| DesktopFailure::operation_failed())?
         )
     );
-    let preview = json!({"source":profile,"endpointId":endpoint_id,"target":target,"digest":digest,"eligible":!exists,"reason":if exists {"目标已有同 ID、名称或地址的提供商，禁止同步"} else {"仅复制配置，目标需要重新配置认证"},"name":body["name"],"models":body["models"]});
-    Ok((preview, body, target_scope, target_main))
+    let has_credential = endpoint["has_api_key"] == true;
+    let preview = json!({"source":profile,"endpointId":endpoint_id,"target":target,"digest":digest,"eligible":!exists,"reason":if exists {"目标已有同 ID、名称或地址的提供商，禁止同步"} else if has_credential {"将同步提供商配置和 API 密钥，不更改目标主模型"} else {"将同步提供商配置；来源没有 API 密钥"},"name":body["name"],"models":body["models"]});
+    Ok((
+        preview,
+        body,
+        source,
+        target_scope,
+        endpoint.clone(),
+        target_main,
+    ))
 }
 
 #[tauri::command]
@@ -225,24 +330,63 @@ pub async fn copy_provider(
     target: String,
     expected_digest: String,
 ) -> Result<Value, DesktopFailure> {
+    let log_storage = state.resolve_profile(&target).await?.storage;
+    let operation = uuid::Uuid::new_v4();
+    let log = |phase: &str, status: &str| {
+        let _ = crate::diagnostics::append_client_event(
+            &log_storage,
+            &format!("provider_copy operation={operation} phase={phase} source={profile} target={target} status={status}"),
+        );
+    };
+    log("start", "running");
     let _guard = COPY_LOCK.lock().await;
-    let (preview, mut body, scope, target_main) =
-        snapshot(&state, &profile, &endpoint_id, &target).await?;
+    let (preview, mut body, source, scope, endpoint, target_main) =
+        match snapshot(&state, &profile, &endpoint_id, &target).await {
+            Ok(value) => value,
+            Err(error) => {
+                log("snapshot", "failed");
+                return Err(error);
+            }
+        };
     if preview["digest"] != expected_digest || preview["eligible"] != true {
+        log("snapshot", "conflict");
         return Err(DesktopFailure::conflict());
+    }
+    let credential = match source_credential(&state, &source, &endpoint).await {
+        Ok(value) => value,
+        Err(error) => {
+            log("credential", "failed");
+            return Err(error);
+        }
+    };
+    log(
+        "credential",
+        if credential.is_some() {
+            "available"
+        } else {
+            "not_configured"
+        },
+    );
+    if let Some(ref key) = credential {
+        body["api_key"] = json!(key);
     }
     // The upstream API is an upsert. A fresh ID guarantees this operation cannot
     // select an existing provider even if another client creates the same name.
     let id = format!("copy-{}", uuid::Uuid::new_v4());
     body["id"] = json!(id);
-    config_request_for_scope(
+    if let Err(error) = config_request_for_scope(
         &state,
         &scope,
         reqwest::Method::POST,
         "/api/providers/custom-endpoints",
         Some(body.clone()),
     )
-    .await?;
+    .await
+    {
+        log("create", "failed");
+        return Err(error);
+    }
+    log("create", "completed");
     let verification = async {
         let mut lists = read_model_lists_file(&lists_path(&scope))?.unwrap_or_default();
         let models: Vec<String> = serde_json::from_value(body["models"].clone())
@@ -262,7 +406,17 @@ pub async fn copy_provider(
             .as_array()
             .and_then(|rows| rows.iter().find(|r| r["id"] == id))
             .ok_or_else(DesktopFailure::conflict)?;
+        let credential_matches = if credential.is_some() {
+            let key = copied_key_env(&id);
+            let env =
+                config_request_for_scope(&state, &scope, reqwest::Method::GET, "/api/env", None)
+                    .await?;
+            actual["api_key_preview"] == format!("${{{key}}}") && env[&key]["is_set"] == true
+        } else {
+            true
+        };
         let matches = verified_public_fields(actual, &body)
+            && credential_matches
             && main_config(&state, &scope).await? == target_main
             && model_details(
                 &scope,
@@ -277,7 +431,10 @@ pub async fn copy_provider(
     }
     .await
     .unwrap_or(false);
-    Ok(json!({"status":if verification {"copied"} else {"unverified"},"endpointId":id}))
+    log("finish", if verification { "copied" } else { "unverified" });
+    Ok(
+        json!({"status":if verification {"copied"} else {"unverified"},"endpointId":id,"credentialCopied":credential.is_some()}),
+    )
 }
 
 #[cfg(test)]

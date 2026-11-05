@@ -42,7 +42,7 @@ export default function ProviderCopyDialog({ profile, endpointId, language, onCl
       try{
         const result=await models.copy({kind:'profile',profile},value)
         if(request!==generation.current)return
-        setResults(previous=>({...previous,[target]:result.status==='copied'?(zh?'已同步；请在目标配置认证。':'Copied; configure credentials in the target.'):(zh?'已创建但未完整核实，请检查目标，勿重复同步。':'Created but not fully verified. Inspect the target before retrying.')}))
+        setResults(previous=>({...previous,[target]:result.status==='copied'?(result.credentialCopied?(zh?'配置与 API 密钥已同步。':'Configuration and API key copied.'):(zh?'配置已同步；来源未配置 API 密钥。':'Configuration copied; source has no API key.')):(zh?'已创建但未完整核实，请检查目标，勿重复同步。':'Created but not fully verified. Inspect the target before retrying.')}))
       }catch(cause){if(request===generation.current)setResults(previous=>({...previous,[target]:describeError(cause,language)}))}
     }
     if(request===generation.current)setBusy(false)
@@ -57,7 +57,7 @@ export default function ProviderCopyDialog({ profile, endpointId, language, onCl
     }
   }}>
     <div className="row"><h2 id="provider-copy-heading">{zh?'同步到其他 Profile':'Copy to other Profiles'}</h2><button disabled={busy} onClick={onClose}>{zh?'关闭':'Close'}</button></div>
-    <p>{zh?'仅当目标不存在同 ID、名称或地址的提供商时允许同步。不复制凭据，不修改目标主模型。':'Only targets without a matching ID, name, or URL are eligible. Credentials and the target main model are unchanged.'}</p>
+    <p>{zh?'仅当目标不存在同 ID、名称或地址的提供商时允许同步。将一并复制来源的 API 密钥，不修改目标主模型；其他登录凭据不参与同步。':'Only targets without a matching ID, name, or URL are eligible. The source API key is copied; the target main model and other sign-in credentials are unchanged.'}</p>
     <div className="provider-copy-targets">{targets.map(target=><div key={target}>
       <label><input type="checkbox" disabled={busy} checked={selected.includes(target)} onChange={e=>{++generation.current;setSelected(previous=>e.target.checked?[...previous,target]:previous.filter(name=>name!==target));setPreviews({});setResults({})}}/>{target}</label>
       {selected.includes(target)&&<p role="status">{results[target]||previews[target]?.reason}</p>}

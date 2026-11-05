@@ -13,14 +13,12 @@ export type PaletteItem = {
 
 const pages: Array<{ view: View; zh: string; en: string }> = [
   { view: 'chat', zh: '当前聊天', en: 'Current chat' },
-  { view: 'sessions', zh: '会话管理', en: 'Sessions' },
   { view: 'files', zh: '文件管理', en: 'Files' },
   { view: 'workspaces', zh: '工作区', en: 'Workspaces' },
   { view: 'extensions', zh: '扩展中心', en: 'Extension Center' },
   { view: 'scheduled', zh: '定时任务', en: 'Scheduled tasks' },
   { view: 'personal-tasks', zh: '持续任务', en: 'Ongoing tasks' },
   { view: 'webhooks', zh: 'Webhooks', en: 'Webhooks' },
-  { view: 'tools', zh: '工具与能力', en: 'Tools and capabilities' },
   { view: 'usage', zh: '用量统计', en: 'Usage' },
   { view: 'profiles', zh: '角色与 Profile', en: 'Roles and profiles' },
   { view: 'channels', zh: '渠道', en: 'Channels' },

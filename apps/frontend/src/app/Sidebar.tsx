@@ -133,6 +133,14 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
         <button aria-expanded={newMenuOpen} onClick={() => setNewMenuOpen(current => !current)}><span>{t('ui.new.session')}</span></button>
         {newMenuOpen && <div className="sidebar-new-menu"><button type="button" onClick={() => { setNewMenuOpen(false); onNewChat() }}>{zh ? '单独聊天' : 'One-to-one chat'}</button><button type="button" onClick={() => { setNewMenuOpen(false); onNewGroup() }}>{zh ? '多人群聊' : 'Group chat'}</button></div>}
       </nav>
+      <nav className="sidebar-main-nav" aria-label={zh ? '常用功能' : 'Main features'}>
+        <button className={view === 'bots' ? 'active' : ''} onClick={() => openFeatureView('bots')}>◉ <span>{zh ? 'Bot 模式' : 'Bot Mode'}</span></button>
+        <button className={view === 'files' ? 'active' : ''} onClick={() => openFeatureView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
+        <button className={view === 'workspaces' ? 'active' : ''} onClick={() => openFeatureView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
+        <button className={view === 'personal-tasks' ? 'active' : ''} onClick={() => openFeatureView('personal-tasks')}>▤ <span>{zh ? '持续任务' : 'Ongoing tasks'}</span></button>
+        <button className={view === 'scheduled' ? 'active' : ''} onClick={() => openFeatureView('scheduled')}>◷ <span>{zh ? '定时任务' : 'Scheduled tasks'}</span></button>
+        <button className={view === 'extensions' ? 'active' : ''} onClick={() => openFeatureView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Center'}</span></button>
+      </nav>
       {profilePendingRestart && <div className="sidebar-profile-notice" role="status">{zh ? '新专家等待 Gateway 启用。' : 'New expert is waiting for Gateway.'} <button type="button" disabled={profileBusy} onClick={onRetryProfile}>{zh ? '重试' : 'Retry'}</button></div>}
       {profileError && <div className="sidebar-profile-notice" role="alert">{profileError}</div>}
       {archiveError && <div className="sidebar-profile-notice" role="alert">{archiveError}</div>}
@@ -165,21 +173,12 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
         {connected && sessionsState === 'ready' && !hasAnySession && <p>{t('ui.no.previous.sessions')}</p>}
       </div>
       <div className="sidebar-feature-nav" ref={featuresRef}>
-        <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>{zh ? '功能' : 'Features'} <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span></button>
+        <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>{zh ? '更多' : 'More'} <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span></button>
         <nav id="sidebar-feature-menu" className="sidebar-feature-menu" aria-label={zh ? '功能导航' : 'Feature navigation'} hidden={!featuresOpen}>
-          <span className="sidebar-feature-heading">{zh ? '聊天与文件' : 'Chat and files'}</span>
-          <button className={view === 'bots' ? 'active' : ''} onClick={() => openFeatureView('bots')}>◉ <span>{zh ? 'Bot 模式' : 'Bot Mode'}</span></button>
-          <button className={view === 'sessions' ? 'active' : ''} onClick={() => openFeatureView('sessions')}>☷ <span>{zh ? '会话管理' : 'Sessions'}</span></button>
-          <button className={view === 'files' ? 'active' : ''} onClick={() => openFeatureView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
-          <button className={view === 'workspaces' ? 'active' : ''} onClick={() => openFeatureView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
-          <span className="sidebar-feature-heading">{zh ? '任务与扩展' : 'Tasks and extensions'}</span>
-          <button className={view === 'personal-tasks' ? 'active' : ''} onClick={() => openFeatureView('personal-tasks')}>▤ <span>{zh ? '持续任务' : 'Ongoing tasks'}</span></button>
-          <button className={view === 'scheduled' ? 'active' : ''} onClick={() => openFeatureView('scheduled')}>◷ <span>{zh ? '定时任务' : 'Scheduled tasks'}</span></button>
-          <button className={view === 'extensions' ? 'active' : ''} onClick={() => openFeatureView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Center'}</span></button>
+          <span className="sidebar-feature-heading">{zh ? '其他功能' : 'Other features'}</span>
           <button className={view === 'dashboard-plugin' && activeDashboardPlugin === achievementsPluginName ? 'active' : ''} onClick={() => openFeaturePlugin(achievementsPluginName)}>◇ <span>{zh ? '成就' : 'Achievements'}</span></button>
           {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => openFeaturePlugin(plugin.name)}>◇ <span>{plugin.label}</span></button>)}
           <button className={view === 'webhooks' ? 'active' : ''} onClick={() => openFeatureView('webhooks')}>⌁ <span>Webhooks</span></button>
-          <button className={view === 'tools' ? 'active' : ''} onClick={() => openFeatureView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
           <DashboardPluginSlot name="sidebar" />
         </nav>
       </div>

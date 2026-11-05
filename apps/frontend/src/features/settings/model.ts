@@ -1,5 +1,5 @@
 export type SettingsCategory = 'security' | 'advanced' | 'models' | 'management' | 'memory' | 'notifications' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
-export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'diagnostics' | 'update' | 'documentation' | 'about'
+export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'local-tools' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'sessions' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'diagnostics' | 'update' | 'documentation' | 'about'
 
 export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory; zh: string; en: string }> = [
   { id: 'security-approvals', category: 'security', zh: '审批与允许列表', en: 'Approvals & allowlist' },
@@ -16,12 +16,14 @@ export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory
   { id: 'delegation', category: 'models', zh: '委派路由', en: 'Delegation routing' },
   { id: 'device', category: 'desktop', zh: '设备偏好', en: 'Device preferences' },
   { id: 'quick-input', category: 'desktop', zh: '快捷输入', en: 'Quick input' },
+  { id: 'local-tools', category: 'desktop', zh: '工具与能力', en: 'Tools and capabilities' },
   { id: 'providers', category: 'models', zh: '提供商', en: 'Providers' },
   { id: 'credential-pool', category: 'models', zh: '凭据池', en: 'Credential pool' },
   { id: 'main', category: 'models', zh: '主模型', en: 'Main model' },
   { id: 'fallbacks', category: 'models', zh: '回退模型', en: 'Fallback models' },
   { id: 'auxiliary', category: 'models', zh: '辅助模型', en: 'Auxiliary models' },
   { id: 'moa', category: 'models', zh: 'MoA', en: 'MoA' },
+  { id: 'sessions', category: 'management', zh: '会话管理', en: 'Sessions' },
   { id: 'pairing', category: 'management', zh: '配对管理', en: 'Pairing' },
   { id: 'logs', category: 'management', zh: '运行日志', en: 'Logs' },
   { id: 'env-keys', category: 'management', zh: '密钥管理', en: 'Keys' },
@@ -49,13 +51,13 @@ export const settingsCategories: Array<{
   profileScoped: boolean
 }> = [
   { id: 'models', page: 'providers', zh: '模型', en: 'Models', descriptionZh: '当前 Profile 的提供商与模型配置', descriptionEn: 'Providers and models for the selected Profile', profileScoped: true },
-  { id: 'management', page: 'pairing', zh: 'Profile 管理', en: 'Profile management', descriptionZh: '当前 Profile 的访问配对、运行日志与密钥', descriptionEn: 'Pairing, runtime logs, and keys for the selected Profile', profileScoped: true },
+  { id: 'management', page: 'sessions', zh: 'Profile 管理', en: 'Profile management', descriptionZh: '当前 Profile 的会话、访问配对、运行日志与密钥', descriptionEn: 'Sessions, pairing, runtime logs, and keys for the selected Profile', profileScoped: true },
   { id: 'memory', page: 'memory-persistent', zh: '记忆与上下文', en: 'Memory & context', descriptionZh: '当前 Profile 的持久记忆、上下文和压缩配置', descriptionEn: 'Memory, context, and compression for the selected Profile', profileScoped: true },
   { id: 'notifications', page: 'notification-alerts', zh: '通知', en: 'Notifications', descriptionZh: '本机原生通知与完成提示音', descriptionEn: 'Native notifications and completion sounds on this device', profileScoped: false },
   { id: 'browser', page: 'browser', zh: '浏览器', en: 'Browser', descriptionZh: '当前 Profile 的浏览器控制方式', descriptionEn: 'Browser control for the selected Profile', profileScoped: true },
   { id: 'security', page: 'security-approvals', zh: '安全', en: 'Security', descriptionZh: '当前 Profile 的审批、隐私与检查点', descriptionEn: 'Approvals, privacy, and checkpoints for this Profile', profileScoped: true },
   { id: 'advanced', page: 'advanced-runtime', zh: '高级', en: 'Advanced', descriptionZh: '当前 Profile 的运行参数与完整配置', descriptionEn: 'Runtime parameters and full configuration for this Profile', profileScoped: true },
-  { id: 'desktop', page: 'device', zh: '桌面', en: 'Desktop', descriptionZh: '设备偏好与全局快捷输入', descriptionEn: 'Device preferences and global quick input', profileScoped: false },
+  { id: 'desktop', page: 'device', zh: '桌面', en: 'Desktop', descriptionZh: '设备偏好、全局快捷输入与本机工具', descriptionEn: 'Device preferences, global quick input, and local tools', profileScoped: false },
   { id: 'runtime', page: 'runtime', zh: '运行时与存储', en: 'Runtime & storage', descriptionZh: '', descriptionEn: '', profileScoped: false },
   { id: 'diagnostics', page: 'diagnostics', zh: '开发者诊断', en: 'Developer diagnostics', descriptionZh: '', descriptionEn: '', profileScoped: false },
   { id: 'update', page: 'update', zh: '软件更新', en: 'Software updates', descriptionZh: '', descriptionEn: '', profileScoped: false },

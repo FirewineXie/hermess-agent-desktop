@@ -43,7 +43,7 @@ const api:DesktopApi={...previewDesktopApi,
     async saveConsent(scope,enabled,send){const value={enabled,send:enabled&&send,decided:true,managed:false};consent.set(scope.profile,value);return structuredClone(value)},
     async checkpoints(scope){return scope.profile==='default'?{sessions:[],total_bytes:0}:{sessions:[{session:'PREVIEW_ONLY-session',files:3,bytes:2048}],total_bytes:2048}},
   },
-  models:{...previewDesktopApi.models,async previewCopy(scope,endpointId,target){return {source:scope.profile,endpointId,target,digest:'PREVIEW_ONLY',eligible:!copied,reason:copied?'PREVIEW_ONLY: 目标已有此提供商':'PREVIEW_ONLY: 可以创建，不复制凭据',name:'示例提供商',models:['preview-model']}},async copy(){copied=true;return {status:'copied',endpointId:'preview-copy'}}},
+  models:{...previewDesktopApi.models,async previewCopy(scope,endpointId,target){return {source:scope.profile,endpointId,target,digest:'PREVIEW_ONLY',eligible:!copied,reason:copied?'PREVIEW_ONLY: 目标已有此提供商':'PREVIEW_ONLY: 可以创建并同步密钥',name:'示例提供商',models:['preview-model']}},async copy(){copied=true;return {status:'copied',endpointId:'preview-copy',credentialCopied:true}}},
 }
 function Preview(){
   const [profile,setProfile]=React.useState('default')

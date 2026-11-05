@@ -1,5 +1,5 @@
 export type ProviderCopyPreview = { source: string; endpointId: string; target: string; digest: string; eligible: boolean; reason: string; name: string; models: string[] }
-export type ProviderCopyResult = { status: 'copied' | 'unverified'; endpointId: string }
+export type ProviderCopyResult = { status: 'copied' | 'unverified'; endpointId: string; credentialCopied: boolean }
 export type DelegationModelRoute = {
   name: string; description: string; provider?: string; model: string; base_url?: string; api_mode?: string
   reasoning_effort?: string; service_tier?: string; fallback_providers?: Array<{ provider: string; model: string }>

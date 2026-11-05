@@ -149,7 +149,7 @@ function App() {
         return true
       }
       if (name === 'journey') return openView('journey')
-      return name === 'config' ? openSettings('advanced-config') : openView(name === 'cron' ? 'scheduled' : 'tools')
+      return name === 'config' ? openSettings('advanced-config') : name === 'cron' ? openView('scheduled') : openSettings('local-tools')
     },
     setModelPickerOpen: value => modelController.setModelPickerOpen(value),
     setBackend, setBackendStatus, setBusy,
@@ -410,7 +410,6 @@ function App() {
     <DashboardPluginSlot name="pre-main" />
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:top`} />}
     {dashboardOverride ? <DashboardPluginPage manifest={dashboardOverride} component={dashboardPlugins.components.get(dashboardOverride.name)} error={dashboardPlugins.error} /> : <>
-    {view === 'sessions' && <SessionsView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
     {view === 'bots' && <BotsView active={view === 'bots'} connected={Boolean(backend)} language={language} onOpenChat={(profile, id) => { void openProfileSession(profile, id) }} onOpenGroup={openGroup} onGroupsChanged={() => { void groupRooms.refresh() }} onOpenProfiles={() => openView('profiles')} />}
     {view === 'files' && <FilesView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
@@ -420,7 +419,6 @@ function App() {
     {view === 'personal-tasks' && <KanbanBoardView initialTaskId={personalTaskTarget?.id} connectionId={backend?.replay_epoch || null} />}
     {view === 'dashboard-plugin' && <DashboardPluginPage manifest={dashboardManifest} component={activeDashboardPlugin ? dashboardPlugins.components.get(activeDashboardPlugin) : undefined} error={dashboardPlugins.error} />}
     {view === 'webhooks' && <WebhooksView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onRestart={() => restartBackend().then(Boolean)} />}
-    {view === 'tools' && <ToolsView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} generation={workspaceGeneration} onRestart={() => restartBackend().then(Boolean)} />}
     {view === 'usage' && <UsageView connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onOpenConfiguration={() => openSettings('advanced-config')} onOpenModelSettings={page => openSettings(page)} />}
     {view === 'journey' && <JourneyView key={`${profileController.snapshot?.selected || ''}:${backend?.replay_epoch || ''}`} connected={Boolean(backend)} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}
     {view === 'extensions' && <ExtensionsView connected={Boolean(backend)} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} profileBusy={profileController.busy}
@@ -460,6 +458,8 @@ function App() {
       onSelectProfile={async name => { if (name === viewedProfile) return true; if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); await profileController.select(name); setSettingsDirty(false); return true }}
       onNavigate={page => openSettings(page)}
       onExit={() => { if (openView(settingsReturnView)) { setSettingsDirty(false); onboarding.resume() } }}>
+      {settingsPage === 'sessions' && <SessionsView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
+      {settingsPage === 'local-tools' && <ToolsView connected={Boolean(backend)} epoch={backend?.replay_epoch || null} generation={workspaceGeneration} onRestart={() => restartBackend().then(Boolean)} />}
       {isConfigurationPage(settingsPage) && <ConfigurationSettings key={backend?.replay_epoch + ':' + viewedProfile + ':' + settingsPage} connected={Boolean(backend)} profile={viewedProfile} page={settingsPage} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onNavigate={page => { openSettings(page) }} />}
       {(settingsPage === 'device' || settingsPage === 'quick-input') && <DeviceSettings page={settingsPage} language={language} />}
       {settingsPage === 'delegation' && <DelegationSettings key={backend?.replay_epoch + ':' + viewedProfile} connected={Boolean(backend)} profile={viewedProfile} language={language} providers={modelController.providerCards.map(provider => ({ ...provider, models: modelController.visibleModels(provider.slug) }))} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}

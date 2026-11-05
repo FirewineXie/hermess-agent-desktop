@@ -16,7 +16,8 @@ const input = {
 
 test('search finds pages, settings, actions and same-name sessions in their own profiles', () => {
   const items = paletteItems(input)
-  assert.equal(searchPalette(items, '会话管理')[0].target.view, 'sessions')
+  assert.deepEqual(searchPalette(items, '会话管理')[0].target, { kind: 'setting', page: 'sessions' })
+  assert.deepEqual(searchPalette(items, '工具与能力')[0].target, { kind: 'setting', page: 'local-tools' })
   assert.equal(searchPalette(items, '主模型')[0].target.page, 'main')
   assert.equal(searchPalette(items, '新建聊天')[0].target.id, 'new-chat')
   assert.deepEqual(searchPalette(items, '报告分析').map(item => item.target).sort((a, b) => a.profile.localeCompare(b.profile)), [
