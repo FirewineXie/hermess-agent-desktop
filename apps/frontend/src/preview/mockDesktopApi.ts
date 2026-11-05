@@ -187,6 +187,11 @@ export const previewDesktopApi: DesktopApi = {
     async statistics() { throw previewOnly() },
     async models() { throw previewOnly() },
   },
+  bots: {
+    list: async () => ({ profiles: [{ name: 'default', is_default: true, display_name: 'Hermes', canonical_session: null }, { name: 'writer', is_default: false, display_name: 'Writer', canonical_session: null }], bot_mode_protocol: true, install_id: 'preview' }),
+    openChat: async () => ({ session_id: 'preview-bot-chat', created: false }),
+    groups: async <T,>() => ({ rooms: [] }) as T,
+  },
   chat: {
     async createSession() { throw previewOnly() },
     async resumeSession() { throw previewOnly() },

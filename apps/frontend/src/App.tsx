@@ -11,6 +11,7 @@ import ToolsView from './features/tools/ToolsView'
 import ExtensionsView from './features/extensions/ExtensionsView'
 import ChatView from './features/chat/ChatView'
 import ChatTabs from './features/chat/ChatTabs'
+import BotsView from './features/bots/BotsView'
 import { useChatController } from './features/chat/useChatController'
 import { useChatTabs, chatTabKey, type ChatTab } from './features/chat/useChatTabs'
 import { useSessionActivity } from './features/chat/useSessionActivity'
@@ -399,6 +400,7 @@ function App() {
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:top`} />}
     {dashboardOverride ? <DashboardPluginPage manifest={dashboardOverride} component={dashboardPlugins.components.get(dashboardOverride.name)} error={dashboardPlugins.error} /> : <>
     {view === 'sessions' && <SessionsView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
+    {view === 'bots' && <BotsView active={view === 'bots'} connected={Boolean(backend)} language={language} onOpenChat={(profile, id) => { void openProfileSession(profile, id) }} onOpenProfiles={() => openView('profiles')} />}
     {view === 'files' && <FilesView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}

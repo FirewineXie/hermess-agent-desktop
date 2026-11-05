@@ -1,5 +1,6 @@
 use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
+pub mod bots;
 pub mod browser_bridge;
 pub mod channel_manage;
 pub mod channel_telegram;

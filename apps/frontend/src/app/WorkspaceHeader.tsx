@@ -11,6 +11,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
   const t = (key: string) => translateApp(language, key)
   const title = view === 'dashboard-plugin' ? pluginTitle || 'Dashboard Plugin' : view === 'chat' ? sessionTitle || t('ui.chat') : ({
     sessions: language === 'zh-CN' ? '会话管理' : 'Sessions',
+    bots: language === 'zh-CN' ? 'Bot 模式' : 'Bot Mode',
     files: language === 'zh-CN' ? '文件管理' : 'Files',
     usage: t('ui.usage.title'),
     workspaces: t('ui.workspace.title'),

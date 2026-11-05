@@ -169,6 +169,12 @@ import type { SavedModelConfig } from './generated/saved-model-config'
 export type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'
 export type SessionRow = { id: string; session_id?: string; title?: string; preview?: string; source?: string; message_count?: number; running?: boolean }
 export type ProfileRow = { name: string; display_name?: string; is_default: boolean; model?: string | null; provider?: string | null; description?: string; description_auto?: boolean }
+export type BotRosterRow = ProfileRow & { canonical_session?: { id: string; resolved_id: string; title: string; preview: string; last_active: number } | null; ui_meta?: Record<string, unknown> }
+export type BotRoster = { profiles: BotRosterRow[]; bot_mode_protocol: boolean; install_id: string }
+export type BotGroupMember = { member_id: string; profile: string; handle: string; display_name?: string }
+export type BotGroup = { room_id: string; name: string; members: BotGroupMember[]; latest_seq?: number; disbanded_at?: number | null }
+export type BotGroupEvent = { room_id: string; seq: number; event_id: string; kind: string; actor: { kind: string; id: string }; payload: Record<string, unknown>; created_at: number }
+export type BotGroupCapabilities = { driver: boolean; seatable_profiles?: string[]; max_log_limit: number }
 export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
   profiles: ProfileRow[]
@@ -617,6 +623,11 @@ export interface DesktopApi {
   usage: {
     statistics(scope: ProfileScope, days: UsagePeriodDays): Promise<UsageStatistics>
     models(scope: ProfileScope, days: UsagePeriodDays): Promise<ModelUsageStatistics>
+  }
+  bots: {
+    list(): Promise<BotRoster>
+    openChat(profile: string): Promise<{ session_id: string; created: boolean }>
+    groups<T>(profile: string, operation: string, params: Record<string, unknown>): Promise<T>
   }
   chat: {
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>

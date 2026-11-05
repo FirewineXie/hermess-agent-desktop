@@ -141,7 +141,11 @@ impl ProfiledGateway {
     }
 }
 
-fn scoped_params(profile: &str, method: &str, mut params: Value) -> Result<Value, String> {
+pub(super) fn scoped_params(
+    profile: &str,
+    method: &str,
+    mut params: Value,
+) -> Result<Value, String> {
     let map = params.as_object_mut().ok_or("网关请求参数无效")?;
     if map
         .get("profile")
@@ -201,6 +205,15 @@ fn accepts_profile(method: &str) -> bool {
             | "skills.reload"
             | "cron.manage"
             | "setup.runtime_check"
+            | "groups.capabilities"
+            | "groups.list"
+            | "groups.state"
+            | "groups.log"
+            | "groups.create"
+            | "groups.send"
+            | "groups.stop"
+            | "groups.disband"
+            | "groups.approve"
     )
 }
 

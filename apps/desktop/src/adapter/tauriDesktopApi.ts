@@ -404,6 +404,11 @@ export const tauriDesktopApi: DesktopApi = {
     statistics: (scope, days) => invoke('get_usage_statistics', { profile: scope.profile, days }),
     models: (scope, days) => invoke('get_model_usage_statistics', { profile: scope.profile, days }),
   },
+  bots: {
+    list: () => invoke('list_bots'),
+    openChat: profile => invoke('open_bot_chat', { profile }),
+    groups: (profile, operation, params) => invoke('bot_groups_request', { profile, operation, params }),
+  },
   chat: {
     createSession: (scope, args) => invoke('create_chat_session', { profile: scope.profile, ...args }),
     resumeSession: async scope => {

@@ -103,6 +103,7 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
       <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
       <nav className="primary-nav" aria-label={t('ui.features')}>
         <button onClick={onNewChat}><span>{t('ui.new.session')}</span></button>
+        <button className={view === 'bots' ? 'active' : ''} onClick={() => onOpenView('bots')}>◉ <span>{zh ? 'Bot 模式' : 'Bot Mode'}</span></button>
         <button className={view === 'sessions' ? 'active' : ''} onClick={() => onOpenView('sessions')}>☷ <span>{zh ? '会话管理' : 'Sessions'}</span></button>
         <button className={view === 'files' ? 'active' : ''} onClick={() => onOpenView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
         <button className={view === 'workspaces' ? 'active' : ''} onClick={() => onOpenView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
