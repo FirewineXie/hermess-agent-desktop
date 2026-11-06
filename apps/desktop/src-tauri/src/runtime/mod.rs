@@ -61,6 +61,8 @@ pub mod profile_identity;
 mod profile_scope;
 pub mod profiles;
 pub mod provider_copy;
+mod remote_config;
+pub mod remote_gateway;
 #[cfg(windows)]
 mod retired_payload;
 pub mod security;
@@ -110,6 +112,7 @@ pub struct BackendState(
     Mutex<Option<profile_scope::ProfileTopology>>,
     Mutex<HashMap<(String, String, String), Value>>,
     Mutex<()>,
+    Mutex<Option<remote_gateway::ActiveRemote>>,
 );
 
 struct OwnedBackend {
@@ -148,7 +151,7 @@ impl BackendState {
         &self,
         profile: &str,
     ) -> Result<(), DesktopFailure> {
-        self.resolve_profile(profile).await.map(|_| ())
+        self.resolve_chat_profile(profile).await.map(|_| ())
     }
 
     pub(crate) async fn chat_window_snapshot(
@@ -215,17 +218,21 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
         .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     let build = product.join(".build");
-    let python = build.join("hermes-venv-i1").join(if cfg!(windows) {
-        "Scripts/python.exe"
-    } else {
-        "bin/python"
-    });
+    let python = std::env::var_os("HERMESS_DEV_PYTHON")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            build.join("hermes-venv-i1").join(if cfg!(windows) {
+                "Scripts/python.exe"
+            } else {
+                "bin/python"
+            })
+        });
+    let storage = std::env::var_os("HERMESS_DEV_STORAGE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| build.join("desktop-dev-data"));
     Ok(DevDefaults {
         python_path: python.to_string_lossy().into_owned(),
-        storage_path: build
-            .join("desktop-dev-data")
-            .to_string_lossy()
-            .into_owned(),
+        storage_path: storage.to_string_lossy().into_owned(),
     })
 }
 
@@ -343,7 +350,9 @@ pub async fn start_dev_backend(
         .join("../../..")
         .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
-    if !python.starts_with(product.join(".build")) {
+    let configured = std::env::var_os("HERMESS_DEV_PYTHON")
+        .and_then(|value| PathBuf::from(value).canonicalize_plain().ok());
+    if !python.starts_with(product.join(".build")) && configured.as_ref() != Some(&python) {
         return Err(DesktopFailure::invalid_input());
     }
     let hermes = python.with_file_name(if cfg!(windows) {

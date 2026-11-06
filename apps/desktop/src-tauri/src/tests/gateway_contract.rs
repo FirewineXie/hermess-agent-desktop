@@ -1,8 +1,26 @@
 use super::{
     bound_notification_text, canonical_approval_request, is_forwarded_event,
-    project_subagent_event, GatewayEvent, GatewayServerRequest,
+    project_subagent_event, remote_ws_url, GatewayEvent, GatewayServerRequest,
 };
 use serde_json::json;
+
+#[test]
+fn remote_static_token_is_sent_only_to_a_loopback_tunnel() {
+    let url = remote_ws_url("http://127.0.0.1:9119/hermes/", "token with spaces").unwrap();
+    assert_eq!(
+        url.as_str(),
+        "ws://127.0.0.1:9119/hermes/api/ws?token=token+with+spaces"
+    );
+    for base in [
+        "http://cloud.example:9119",
+        "https://cloud.example",
+        "http://user@127.0.0.1:9119",
+        "http://127.0.0.1:9119/?other=1",
+    ] {
+        assert!(remote_ws_url(base, "token").is_err(), "{base}");
+    }
+    assert!(remote_ws_url("http://127.0.0.1:9119", "").is_err());
+}
 
 #[test]
 fn forwards_reasoning_content_events() {

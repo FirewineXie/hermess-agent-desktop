@@ -4,8 +4,10 @@ import { sessionSourceLabel } from '../features/chat/sessionSource'
 import { useDesktop } from './DesktopContext'
 import windowIcon from '../assets/hermess-window-icon.png'
 import { DashboardPluginSlot } from '../features/dashboard-plugins/DashboardPluginHost'
+import GatewaySwitcher from './GatewaySwitcher'
+import type { ActiveGateway } from '@hermess/contracts'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, gateway, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette, onSwitchRemote, onSwitchLocal }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; gateway: ActiveGateway; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void; onSwitchRemote: () => void; onSwitchLocal: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
@@ -35,26 +37,25 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
       <DashboardPluginSlot name="header-left" />
       <img className="window-title-icon" src={windowIcon} alt="" draggable={false} data-tauri-drag-region />
       <span className="window-title-text" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()}>Hermess Agent Desktop</span>
-      <span className={`window-title-status-dot ${connected ? 'ready' : ''}`} aria-hidden="true" data-tauri-drag-region />
-      <span className="window-title-location" data-tauri-drag-region>{language === 'zh-CN' ? '本地' : 'Local'}</span>
+      <GatewaySwitcher mode={gateway.mode} label={gateway.mode === 'remote' ? gateway.config.label : undefined} connected={connected} onLocal={onSwitchLocal} onRemote={onSwitchRemote} />
       <span className="window-title-connection" data-tauri-drag-region>{connected ? t('ui.connected') : t('ui.not.started')}</span>
       <div className="window-title-drag" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()} />
     </> : <>
       <DashboardPluginSlot name="header-left" />
       <div className="header-brand"><span className="header-brand-mark">H</span><strong>Hermess <span>Desktop</span></strong></div>
-      <div className="header-location"><span className={`status-dot ${connected ? 'ready' : ''}`} /><span>{language === 'zh-CN' ? '本地' : 'Local'}</span><small>{connected ? t('ui.connected') : t('ui.not.started')}</small></div>
+      <GatewaySwitcher mode={gateway.mode} label={gateway.mode === 'remote' ? gateway.config.label : undefined} connected={connected} onLocal={onSwitchLocal} onRemote={onSwitchRemote} />
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
     </>}
     <button className="header-command-palette" type="button" aria-label={language === 'zh-CN' ? '搜索会话、页面、设置和操作' : 'Search sessions, pages, settings and actions'} title={language === 'zh-CN' ? '打开命令面板 (Ctrl/⌘ K)' : 'Open command palette (Ctrl/⌘ K)'} onClick={onOpenCommandPalette}>⌕ <span>{language === 'zh-CN' ? '搜索' : 'Search'}</span><kbd>Ctrl/⌘ K</kbd></button>
     <button className="header-github" type="button" onClick={() => void links.openRepository()} aria-label="GitHub" title="GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.94-2.64 3.14 3.14 0 0 0-.08-2.64S19.73 3.3 17.09 5a13.38 13.38 0 0 0-10.18 0C4.27 3.3 4.02 3.82 4.02 3.82a3.14 3.14 0 0 0-.08 2.64A3.4 3.4 0 0 0 3 9.1V13a6 6 0 0 0 6 6v3" /></svg>
     </button>
-    {updateVersion && <button className="header-link header-update" type="button" aria-label={language === 'zh-CN' ? `发现新版本 ${updateVersion}，查看软件更新` : `Version ${updateVersion} available, view software updates`} title={language === 'zh-CN' ? `发现新版本 ${updateVersion}，查看软件更新` : `Version ${updateVersion} available, view software updates`} onClick={onOpenUpdate}>
+    {gateway.mode === 'local' && updateVersion && <button className="header-link header-update" type="button" aria-label={language === 'zh-CN' ? `发现新版本 ${updateVersion}，查看软件更新` : `Version ${updateVersion} available, view software updates`} title={language === 'zh-CN' ? `发现新版本 ${updateVersion}，查看软件更新` : `Version ${updateVersion} available, view software updates`} onClick={onOpenUpdate}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.36-6.36L21 8m0-5v5h-5M21 12a9 9 0 0 1-15.36 6.36L3 16m0 5v-5h5" /></svg>
       <span className="header-update-dot" aria-hidden="true" />
     </button>}
     <DashboardPluginSlot name="header-right" />
-    <button type="button" className="header-settings" aria-label={language === 'zh-CN' ? '系统设置' : 'System settings'} title={language === 'zh-CN' ? '系统设置' : 'System settings'} onClick={() => onOpenView('settings')}>⚙</button>
+    {gateway.mode === 'local' && <button type="button" className="header-settings" aria-label={language === 'zh-CN' ? '系统设置' : 'System settings'} title={language === 'zh-CN' ? '系统设置' : 'System settings'} onClick={() => onOpenView('settings')}>⚙</button>}
     {windowChrome.customTitlebar && <div className="window-controls" role="group" aria-label={language === 'zh-CN' ? '窗口控制' : 'Window controls'}>
       <button type="button" aria-label={language === 'zh-CN' ? '最小化窗口' : 'Minimize window'} title={language === 'zh-CN' ? '最小化' : 'Minimize'} onClick={() => void windowChrome.minimize()}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12h10" /></svg></button>
       <button type="button" aria-label={language === 'zh-CN' ? '最大化或还原窗口' : 'Maximize or restore window'} title={language === 'zh-CN' ? '最大化或还原' : 'Maximize or restore'} onClick={() => void windowChrome.toggleMaximize()}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" /></svg></button>

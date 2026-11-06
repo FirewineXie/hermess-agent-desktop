@@ -50,6 +50,32 @@ pub(super) struct ResolvedProfileScope {
     launched_pid: u32,
 }
 
+pub(super) struct ChatProfileScope {
+    pub(super) gateway: profiles::ProfiledGateway,
+    pub(super) storage: PathBuf,
+    pub(super) home: PathBuf,
+    local: Option<ResolvedProfileScope>,
+    remote_client: Option<Arc<GatewayClient>>,
+}
+
+impl ChatProfileScope {
+    pub(super) async fn ensure_current(&self, state: &BackendState) -> Result<(), DesktopFailure> {
+        if let Some(local) = &self.local {
+            return local.ensure_current(state).await;
+        }
+        let active = state.5.lock().await;
+        if active
+            .as_ref()
+            .zip(self.remote_client.as_ref())
+            .is_some_and(|(remote, client)| Arc::ptr_eq(&remote.gateway, client))
+        {
+            Ok(())
+        } else {
+            Err(DesktopFailure::conflict())
+        }
+    }
+}
+
 impl ResolvedProfileScope {
     pub(super) async fn ensure_current(&self, state: &BackendState) -> Result<(), DesktopFailure> {
         let owned = state.0.lock().await;
@@ -90,6 +116,57 @@ pub(super) struct ProfileTopology {
 }
 
 impl BackendState {
+    pub(super) async fn resolve_chat_profile(
+        &self,
+        profile: &str,
+    ) -> Result<ChatProfileScope, DesktopFailure> {
+        if !valid_profile_name(profile) {
+            return Err(DesktopFailure::invalid_input());
+        }
+        let remote = self.5.lock().await;
+        if let Some(active) = remote.as_ref() {
+            let client = Arc::clone(&active.gateway);
+            let owners = Arc::clone(&active.session_owners);
+            let id = active.config.id.clone();
+            let roster = client
+                .request("profiles.list", json!({"include_sessions":false}))
+                .await?;
+            if !profiles::roster_contains(&roster, profile) {
+                return Err(DesktopFailure::invalid_input());
+            }
+            let storage = active.storage.clone();
+            return Ok(ChatProfileScope {
+                gateway: profiles::ProfiledGateway::new(
+                    Arc::clone(&client),
+                    profile.to_owned(),
+                    owners,
+                ),
+                home: storage.join("remote-gateway").join(id),
+                storage,
+                local: None,
+                remote_client: Some(client),
+            });
+        }
+        drop(remote);
+        let local = self.resolve_profile(profile).await?;
+        let gateway =
+            profiles::ProfiledGateway::new(Arc::clone(&local.client), profile.to_owned(), {
+                let cache = self.2.lock().await;
+                Arc::clone(
+                    &cache
+                        .as_ref()
+                        .ok_or_else(DesktopFailure::runtime_unavailable)?
+                        .session_owners,
+                )
+            });
+        Ok(ChatProfileScope {
+            gateway,
+            storage: local.storage.clone(),
+            home: local.home.clone(),
+            local: Some(local),
+            remote_client: None,
+        })
+    }
     pub(super) async fn refresh_profile_topology(
         &self,
         client: Arc<GatewayClient>,

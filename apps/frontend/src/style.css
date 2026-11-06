@@ -979,3 +979,11 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 @media (max-width: 580px) {
   .custom-titlebar-shell .header-settings { margin-right: 0; }
 }
+.gateway-switcher { position: relative; flex: none; }
+.gateway-switcher-trigger { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #24334a; font: inherit; font-size: 14px; cursor: pointer; }
+.gateway-switcher-trigger .window-title-status-dot { margin-left: 0; }
+.gateway-switcher-menu { position: absolute; z-index: 100; top: calc(100% + 9px); left: 0; min-width: 190px; padding: 5px; border: 1px solid #d9e1ec; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px #1d2e4a20; }
+.gateway-switcher-menu button { display: block; width: 100%; padding: 9px 11px; border: 0; border-radius: 6px; background: transparent; color: #24334a; text-align: left; cursor: pointer; }
+.gateway-switcher-menu button:hover { background: #edf4ff; }
+.gateway-switch-error { position: fixed; z-index: 120; top: 68px; left: 50%; transform: translateX(-50%); max-width: min(540px, 90vw); padding: 10px 14px; border: 1px solid #f2c2bb; border-radius: 9px; background: #fff4f2; color: #8f2d24; box-shadow: 0 8px 20px #17223620; }
+.gateway-switch-error button { margin-left: 12px; border: 0; background: transparent; color: inherit; cursor: pointer; }

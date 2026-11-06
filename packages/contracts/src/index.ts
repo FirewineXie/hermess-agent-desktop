@@ -375,6 +375,9 @@ export type ChannelQrStart = { id: string; url: string; expires_in: number; poll
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type ChannelAccess = 'pairing' | 'open'
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
+export type RemoteGatewayConfig = { id: string; label: string; url: string }
+export type RemoteGatewayProbe = { profiles: string[] }
+export type ActiveGateway = { mode: 'local' } | { mode: 'remote'; config: RemoteGatewayConfig; replay_epoch: string; selected_profile: string }
 
 export type NotificationTarget = {
   connectionId: string
@@ -517,6 +520,12 @@ export interface DesktopApi {
     reconnect(): Promise<BackendInfo>
     restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
+    savedRemote(): Promise<RemoteGatewayConfig | null>
+    testRemote(url: string, token: string): Promise<RemoteGatewayProbe>
+    saveRemote(label: string, url: string, token: string): Promise<RemoteGatewayConfig>
+    activeGateway(): Promise<ActiveGateway>
+    activateSavedRemote(): Promise<ActiveGateway>
+    activateLocalGateway(): Promise<ActiveGateway>
     probeLocalTools(): Promise<RuntimeProbe[]>
     systemStats(): Promise<SystemStats>
   }

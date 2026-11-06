@@ -12,9 +12,10 @@ type Props = {
   onOpenGroup: (roomId: string) => void
   onGroupsChanged: () => void
   onOpenProfiles: () => void
+  gatewayMode?: 'local' | 'remote'
 }
 
-export default function BotsView({ active, connected, language, onOpenChat, onOpenGroup, onGroupsChanged, onOpenProfiles }: Props) {
+export default function BotsView({ active, connected, language, onOpenChat, onOpenGroup, onGroupsChanged, onOpenProfiles, gatewayMode = 'local' }: Props) {
   const { bots } = useDesktop()
   const zh = language === 'zh-CN'
   const [roster, setRoster] = React.useState<BotRoster | null>(null)
@@ -82,15 +83,15 @@ export default function BotsView({ active, connected, language, onOpenChat, onOp
     onGroupsChanged()
     onOpenGroup(result.room.room_id)
   })
-  const eligible = roster?.profiles.filter(item => capabilities?.seatable_profiles?.includes(item.name)) || []
+  const eligible = roster?.profiles.filter(item => !capabilities?.seatable_profiles || capabilities.seatable_profiles.includes(item.name)) || []
   return <main className="bots-view">
-    <header className="bots-header"><div><span className="bots-eyebrow">HERMESS · BOT</span><h1>{zh ? 'Bot 模式' : 'Bot Mode'}</h1><p>{zh ? '与单个 Bot 对话，或让多个 Bot 在群聊中协作。' : 'Chat with one Bot or bring several Bots together in a group.'}</p></div><div className="bots-actions"><button type="button" disabled={!connected || loading} onClick={() => void load()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button><button type="button" onClick={onOpenProfiles}>{zh ? '管理 Bot' : 'Manage Bots'}</button></div></header>
+    <header className="bots-header"><div><span className="bots-eyebrow">HERMESS · BOT</span><h1>{zh ? 'Bot 模式' : 'Bot Mode'}</h1><p>{zh ? '与单个 Bot 对话，或让多个 Bot 在群聊中协作。' : 'Chat with one Bot or bring several Bots together in a group.'}</p></div><div className="bots-actions"><button type="button" disabled={!connected || loading} onClick={() => void load()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button>{gatewayMode === 'local' && <button type="button" onClick={onOpenProfiles}>{zh ? '管理 Bot' : 'Manage Bots'}</button>}</div></header>
     {!connected && <p role="status">{zh ? '请先启动本地 Gateway。' : 'Start the local Gateway first.'}</p>}
     {error && <p className="bots-error" role="alert">{error} <button type="button" onClick={() => void load()}>{zh ? '重试' : 'Retry'}</button></p>}
     {connected && <div className="bots-columns"><section className="bots-panel">
       <div className="bots-panel-heading"><div><span className="bots-section-index">01 · {zh ? '单独对话' : 'One-to-one'}</span><h2>{zh ? '选择 Bot' : 'Choose a Bot'}</h2></div><span className="bots-panel-count">{roster?.profiles.length ?? 0} Bot</span></div>
       <p className="bots-hint">{zh ? '每个 Bot 都有自己的固定聊天。打开后可直接交代任务，也可用 @ID 请它联系其他 Bot。' : 'Each Bot has a dedicated chat. Give it a task, or use @ID to ask it to contact another Bot.'}</p>
-      {roster?.profiles.map(bot => <div className="bot-row" key={bot.name}><div><strong>{bot.display_name || bot.name}</strong><small>@{bot.name === 'default' ? 'hermes' : bot.name}</small>{bot.description && <p>{bot.description}</p>}</div><button type="button" disabled={pending !== null || !capabilities?.seatable_profiles?.includes(bot.name)} onClick={() => openChat(bot.name)}>{!capabilities?.seatable_profiles?.includes(bot.name) ? (zh ? '待启用' : 'Unavailable') : pending === `chat:${bot.name}` ? '…' : zh ? '打开聊天' : 'Open chat'}</button></div>)}
+      {roster?.profiles.map(bot => <div className="bot-row" key={bot.name}><div><strong>{bot.display_name || bot.name}</strong><small>@{bot.name === 'default' ? 'hermes' : bot.name}</small>{bot.description && <p>{bot.description}</p>}</div><button type="button" disabled={pending !== null || (capabilities?.seatable_profiles != null && !capabilities.seatable_profiles.includes(bot.name))} onClick={() => openChat(bot.name)}>{capabilities?.seatable_profiles != null && !capabilities.seatable_profiles.includes(bot.name) ? (zh ? '待启用' : 'Unavailable') : pending === `chat:${bot.name}` ? '…' : zh ? '打开聊天' : 'Open chat'}</button></div>)}
       {roster && roster.profiles.length === 0 && <p>{zh ? '没有可用 Bot。' : 'No Bots available.'}</p>}
     </section><section className="bots-panel"><div className="bots-panel-heading"><div><span className="bots-section-index">02 · {zh ? '多人协作' : 'Collaboration'}</span><h2>{zh ? '创建群聊' : 'Create a group'}</h2></div><span className="bots-panel-count">{rooms.length} {zh ? '个群聊' : 'groups'}</span></div>
       <p className="bots-hint">{zh ? '选 2–6 个 Bot；群聊中用 @ID 指定回复者，不指定时所有成员都可回复。' : 'Choose 2–6 Bots. Use @ID to target one; otherwise all members can reply.'}</p>

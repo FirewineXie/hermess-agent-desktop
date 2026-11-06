@@ -87,7 +87,7 @@ fn enable_bot_mode(home: &Path, title: &str) -> Result<(), DesktopFailure> {
 
 #[tauri::command]
 pub async fn list_bots(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
-    let scope = state.resolve_profile("default").await?;
+    let scope = state.resolve_chat_profile("default").await?;
     scope
         .gateway
         .request("profiles.list", json!({"include_sessions": true}))
@@ -100,6 +100,42 @@ pub async fn open_bot_chat(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
+    if state.5.lock().await.is_some() {
+        let scope = state.resolve_chat_profile(&profile).await?;
+        let roster = scope
+            .gateway
+            .request("profiles.list", json!({"include_sessions":true}))
+            .await?;
+        let row = roster["profiles"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|row| row["name"] == profile))
+            .ok_or_else(DesktopFailure::invalid_input)?;
+        let existing = row["canonical_session"]["resolved_id"]
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .or_else(|| {
+                row["canonical_session"]["id"]
+                    .as_str()
+                    .filter(|id| !id.is_empty())
+            });
+        let result = if let Some(id) = existing {
+            json!({"session_id":id,"created":false})
+        } else {
+            let created = scope
+                .gateway
+                .request(
+                    "session.create",
+                    bot_chat_create_params(&Uuid::new_v4().to_string()),
+                )
+                .await?;
+            let id = created["session_id"]
+                .as_str()
+                .ok_or_else(DesktopFailure::operation_failed)?;
+            json!({"session_id":id,"created":true})
+        };
+        scope.ensure_current(&state).await?;
+        return Ok(result);
+    }
     let scope = state.resolve_profile(&profile).await?;
     let roster = scope
         .gateway
@@ -186,7 +222,7 @@ pub async fn bot_groups_request(
     params: Value,
 ) -> Result<Value, DesktopFailure> {
     let (method, params) = bot_group_request_shape(&operation, params)?;
-    let scope = state.resolve_profile(&profile).await?;
+    let scope = state.resolve_chat_profile(&profile).await?;
     let operation_id = Uuid::new_v4();
     let traced = matches!(
         operation.as_str(),

@@ -13,6 +13,7 @@ type Props = {
   view: View
   open: boolean
   connected: boolean
+  remoteMode?: boolean
   busy: boolean
   sessions: SessionRow[]
   otherProfileSessions: Record<string, SessionRow[]>
@@ -43,7 +44,7 @@ type Props = {
   onOpenDashboardPlugin: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
+export default function Sidebar({ view, open, connected, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -152,11 +153,11 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
             <span className="session-title">{profile.display_name || profile.name}</span>
             {connected && profiles && !servedProfiles.has(profile.name) && <span className="profile-unserved" title={zh ? 'Gateway 尚未服务此 Profile' : 'Gateway is not serving this profile'}>{zh ? '待启用' : 'Unavailable'}</span>}
             <span className="sidebar-profile-chevron" aria-hidden="true">⌄</span>
-          </button><button type="button" className="sidebar-profile-manage" disabled={!connected || profileBusy || !servedProfiles.has(profile.name)} aria-label={zh ? `管理 ${profile.display_name || profile.name}` : `Manage ${profile.display_name || profile.name}`} title={zh ? '管理专家' : 'Manage expert'} onClick={() => onOpenProfile(profile.name)}>⚙</button></div>
+          </button>{!remoteMode && <button type="button" className="sidebar-profile-manage" disabled={!connected || profileBusy || !servedProfiles.has(profile.name)} aria-label={zh ? `管理 ${profile.display_name || profile.name}` : `Manage ${profile.display_name || profile.name}`} title={zh ? '管理专家' : 'Manage expert'} onClick={() => onOpenProfile(profile.name)}>⚙</button>}</div>
           {connected && expandedProfiles.has(profile.name) && profileSessions.slice(0, visibleCount).map(session => <div className="sidebar-session-entry" key={session.id}><button
             className={`sidebar-profile-session ${view === 'chat' && !activeGroupId && profiles?.selected === profile.name && session.id === activeSessionId ? 'active' : ''} ${pendingSession?.profile === profile.name && pendingSession.id === session.id ? 'pending' : ''}`}
             aria-busy={pendingSession?.profile === profile.name && pendingSession.id === session.id} title={session.title || session.preview || session.id}
-            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button><button type="button" className="sidebar-session-archive" disabled={busy || deleteBusy || archiveBusy !== null || session.running} aria-label={zh ? `归档会话 ${session.title || session.preview || session.id}` : `Archive session ${session.title || session.preview || session.id}`} title={session.running ? (zh ? '运行中的会话不能归档' : 'Running sessions cannot be archived') : (zh ? '归档会话' : 'Archive session')} onClick={() => void archiveSession(profile.name, session)}>{archiveBusy === `${profile.name}:${session.id}` ? '…' : '□'}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy || archiveBusy !== null} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}>×</button></div>)}
+            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button>{!remoteMode && <><button type="button" className="sidebar-session-archive" disabled={busy || deleteBusy || archiveBusy !== null || session.running} aria-label={zh ? `归档会话 ${session.title || session.preview || session.id}` : `Archive session ${session.title || session.preview || session.id}`} title={session.running ? (zh ? '运行中的会话不能归档' : 'Running sessions cannot be archived') : (zh ? '归档会话' : 'Archive session')} onClick={() => void archiveSession(profile.name, session)}>{archiveBusy === `${profile.name}:${session.id}` ? '…' : '□'}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy || archiveBusy !== null} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}>×</button></>}</div>)}
           {connected && expandedProfiles.has(profile.name) && profileSessions.length > 5 && <button type="button" className="sidebar-profile-more" onClick={() => toggleMoreSessions(profile.name, profileSessions.length)}>{allVisible ? (zh ? '收起' : 'Show less') : (zh ? '展示更多' : 'Show more')}</button>}
         </div>})}
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}
@@ -169,8 +170,8 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
         <nav id="sidebar-feature-menu" className="sidebar-feature-menu" aria-label={zh ? '功能导航' : 'Feature navigation'} hidden={!featuresOpen}>
           <span className="sidebar-feature-heading">{zh ? '聊天与文件' : 'Chat and files'}</span>
           <button className={view === 'bots' ? 'active' : ''} onClick={() => openFeatureView('bots')}>◉ <span>{zh ? 'Bot 模式' : 'Bot Mode'}</span></button>
-          <button className={view === 'sessions' ? 'active' : ''} onClick={() => openFeatureView('sessions')}>☷ <span>{zh ? '会话管理' : 'Sessions'}</span></button>
-          <button className={view === 'files' ? 'active' : ''} onClick={() => openFeatureView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
+          {!remoteMode && <button className={view === 'sessions' ? 'active' : ''} onClick={() => openFeatureView('sessions')}>☷ <span>{zh ? '会话管理' : 'Sessions'}</span></button>}
+          {!remoteMode && <><button className={view === 'files' ? 'active' : ''} onClick={() => openFeatureView('files')}>▣ <span>{zh ? '文件管理' : 'Files'}</span></button>
           <button className={view === 'workspaces' ? 'active' : ''} onClick={() => openFeatureView('workspaces')}>▣ <span>{t('ui.workspace.title')}</span></button>
           <span className="sidebar-feature-heading">{zh ? '任务与扩展' : 'Tasks and extensions'}</span>
           <button className={view === 'personal-tasks' ? 'active' : ''} onClick={() => openFeatureView('personal-tasks')}>▤ <span>{zh ? '持续任务' : 'Ongoing tasks'}</span></button>
@@ -180,12 +181,12 @@ export default function Sidebar({ view, open, connected, busy, sessions, otherPr
           {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => openFeaturePlugin(plugin.name)}>◇ <span>{plugin.label}</span></button>)}
           <button className={view === 'webhooks' ? 'active' : ''} onClick={() => openFeatureView('webhooks')}>⌁ <span>Webhooks</span></button>
           <button className={view === 'tools' ? 'active' : ''} onClick={() => openFeatureView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
-          <DashboardPluginSlot name="sidebar" />
+          <DashboardPluginSlot name="sidebar" /></>}
         </nav>
       </div>
       <div className="sidebar-footer"><span className={`status-dot ${connected ? 'ready' : ''}`} />
-        <span>{connected ? t('ui.runtime.connected') : t('ui.runtime.not.started')}</span>
-        <button onClick={() => onOpenView('runtime')}>{t('ui.manage')}</button>
+        <span>{remoteMode ? (connected ? (zh ? '远程 Gateway 已连接' : 'Remote gateway connected') : (zh ? '远程 Gateway 未连接' : 'Remote gateway disconnected')) : connected ? t('ui.runtime.connected') : t('ui.runtime.not.started')}</span>
+        {!remoteMode && <button onClick={() => onOpenView('runtime')}>{t('ui.manage')}</button>}
       </div>
     </aside>
     {deleteTarget && <div className="session-delete-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !deleteBusy) setDeleteTarget(null) }}>

@@ -3,7 +3,11 @@ use super::{
     GatewayClient, GatewayRequestError, PendingRpc,
 };
 use serde_json::{json, Value};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc},
+    time::Duration,
+};
 use tokio::{
     sync::{mpsc, oneshot},
     time::timeout,
@@ -186,6 +190,7 @@ async fn closing_an_old_gateway_releases_an_inflight_rpc() {
     let gateway = Arc::new(GatewayClient {
         sender,
         task,
+        events_enabled: Arc::new(AtomicBool::new(true)),
         replay_epoch: String::new(),
     });
     let waiting = {
@@ -213,6 +218,7 @@ async fn closing_an_old_gateway_releases_an_inflight_answer() {
     let gateway = Arc::new(GatewayClient {
         sender,
         task,
+        events_enabled: Arc::new(AtomicBool::new(true)),
         replay_epoch: String::new(),
     });
     let waiting = {
