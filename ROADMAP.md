@@ -2,6 +2,10 @@
 
 本文件按计划发布版本记录本产品的开发范围与实际进度。版本分支不等于发布 tag；RC tag 可从对应版本的 `feature/vX.Y.Z` 分支在完成本地检查和发行输入核对后创建，正式版 tag 只能从合入 `main` 且通过 CI 的提交创建。功能写入代码、脚本通过、原生窗口验收和正式发布是不同状态。具体接口及逐项验证证据见 [能力矩阵](docs/capability-matrix.md)。
 
+## v0.1.10（RC 准备中，未发布）
+
+2026-11-06 将当前插件市场与深色主题修复分支整理为 `feature/v0.1.10`，准备 `v0.1.10-rc.1` 版本说明。Windows 本地 `node scripts/release-version.mjs check v0.1.10-rc.1`、`pnpm verify:upstream`、`pnpm build`（含插件目录、TypeScript 与桌面资源检查）、`pnpm check:architecture`、`cargo fmt --all -- --check`、`cargo check --locked`、`cargo test --locked --quiet`（226 通过、38 忽略）及 `git diff --check` 通过。下列逐项记录保留各功能已有的 Windows 验证证据；macOS 原生窗口、安装包安装/升级和 OpenViking 实际记忆读写尚未验收；PR 必需检查和维护者手动合并仍在后续进行。RC tag 推送后仍须由工作流构建安装包，不能把本地检查视为发行或安装验收。
+
 2026-11-06 `v0.1.10` 使用引导深色补漏：引导弹窗、步骤、状态提示、输入框及操作按钮跟随设备深色主题，浅色样式不变。Windows 本地浏览器预览核对引导弹窗结构和浅色状态，前端类型检查、桌面生产构建与差异检查通过；原生 Preview 窗口当前最小化，深色弹窗的原生视觉核对未完成，macOS 和安装包未验收，未发布。
 
 2026-11-06 `v0.1.10` 运行时与存储深色补漏：完整备份和恢复卡片、状态与输出区，以及主机状态统计卡片和数值改用深色主题颜色。Windows 原生 Preview 已目测核对主机状态及完整备份两页，未创建或恢复备份；前端类型检查、桌面生产构建与差异检查通过。macOS、安装包和实际备份流程未在本轮验收，未发布。
