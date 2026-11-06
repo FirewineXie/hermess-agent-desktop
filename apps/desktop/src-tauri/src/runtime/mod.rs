@@ -8,6 +8,7 @@ pub mod channel_vendor_qr;
 pub mod channel_whatsapp;
 pub mod channels;
 pub mod chat;
+mod chat_create;
 pub mod chat_rollback;
 pub mod chat_subagents;
 mod composer_agents;

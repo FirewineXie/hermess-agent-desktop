@@ -4,6 +4,12 @@
 
 ## v0.1.10（RC 准备中，未发布）
 
+2026-11-06 准备 `v0.1.10-rc.2`：在已有 RC.1 基础上纳入新聊天发送失败与凭据池按钮文字修复；版本说明已按锁定 Hermes fork 填写。Windows 本地版本说明、上游来源与官方基线、内嵌许可证、前端生产构建、架构与契约检查、Rust 格式/编译/全量测试（226 通过、38 忽略）通过；Gateway 已接受修正后的命名 Profile 会话创建与消息提交。macOS 原生窗口、RC 安装包和真实模型最终回复尚待验收，不能把 RC 构建写成实机通过。
+
+2026-11-06 `v0.1.10` 新聊天发送失败修复：正式 Windows 安装版在 `hermess_clear` 新聊天中发送时，Gateway 的 `session.create` 以 `4001 invalid_params` 拒绝 `idempotency_key` 和 `reasoning_effort`，前端恢复草稿并提示提交失败。客户端现按锁定 fork 的 canonical Gateway 契约发送 `request_id` 与 `reasoning`，保留新建会话的重试身份和思考级别，并记录创建开始、RPC 错误码或最终结果日志（不记录凭据或消息）。Windows 上使用 Rust 生产参数构造函数生成的命名 Profile 请求，向正在运行的产品自有 Gateway 验证 `session.create` 返回会话标识、`prompt.submit` 返回接受回执，返回思考级别为 `medium`；同一 Gateway 对默认 Profile 的旧字段请求也返回 `4001`，说明这项拒绝不是命名 Profile 专属。`pnpm verify:upstream`、`pnpm check:architecture`、契约及生成契约检查、`pnpm build`、Rust 编译与全量测试（226 通过、38 忽略）通过。此次未在修复版原生窗口、重新打包的安装版或 macOS 实机验证；现有已安装程序仍为旧代码，真实模型最终回复未在此项验收，未发布。
+
+2026-11-06 `v0.1.10` 凭据池按钮文字修复：凭据池页的刷新、添加凭据、删除按钮此前使用白色背景，但继承通用设置按钮的白色文字，导致文字不可见；现为该页按钮指定深色文字。Windows 源码核对和前端类型检查、桌面生产构建通过；尚未在更新后的原生窗口或安装包中目测验收，macOS 未验证，未发布。
+
 2026-11-06 将当前插件市场与深色主题修复分支整理为 `feature/v0.1.10`，准备 `v0.1.10-rc.1` 版本说明。Windows 本地 `node scripts/release-version.mjs check v0.1.10-rc.1`、`pnpm verify:upstream`、`pnpm build`（含插件目录、TypeScript 与桌面资源检查）、`pnpm check:architecture`、`cargo fmt --all -- --check`、`cargo check --locked`、`cargo test --locked --quiet`（226 通过、38 忽略）及 `git diff --check` 通过。下列逐项记录保留各功能已有的 Windows 验证证据；macOS 原生窗口、安装包安装/升级和 OpenViking 实际记忆读写尚未验收；PR 必需检查和维护者手动合并仍在后续进行。RC tag 推送后仍须由工作流构建安装包，不能把本地检查视为发行或安装验收。
 
 2026-11-06 `v0.1.10` 使用引导深色补漏：引导弹窗、步骤、状态提示、输入框及操作按钮跟随设备深色主题，浅色样式不变。Windows 本地浏览器预览核对引导弹窗结构和浅色状态，前端类型检查、桌面生产构建与差异检查通过；原生 Preview 窗口当前最小化，深色弹窗的原生视觉核对未完成，macOS 和安装包未验收，未发布。

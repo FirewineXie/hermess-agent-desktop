@@ -1,7 +1,8 @@
+use super::chat_create::{session_create_params, validate_workspace_path};
 use super::BackendState;
 use crate::errors::DesktopFailure;
 use crate::gateway::GatewayRequestError;
-use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
+use crate::paths::{filesystem_path, CanonicalizePlain};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -56,13 +57,36 @@ pub async fn create_chat_session(
     {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_chat_profile(&profile).await?.gateway;
-    let result = gateway
-        .request(
-            "session.create",
-            session_create_params(cwd, provider, model, reasoning),
-        )
-        .await?;
+    let scope = state.resolve_chat_profile(&profile).await?;
+    let params = session_create_params(cwd, provider, model, reasoning);
+    let operation = params["request_id"].as_str().unwrap_or("").to_owned();
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_session_create_start operation={operation} profile={profile}"),
+    );
+    let result = scope
+        .gateway
+        .request_detailed("session.create", params)
+        .await;
+    let outcome = match &result {
+        Ok(value)
+            if value.get("session_id").and_then(Value::as_str).is_some()
+                && value
+                    .get("stored_session_id")
+                    .and_then(Value::as_str)
+                    .is_some() =>
+        {
+            "completed=true".to_owned()
+        }
+        Ok(_) => "failed=true kind=incomplete_result".to_owned(),
+        Err(GatewayRequestError::Rpc { code, .. }) => format!("failed=true kind=rpc code={code}"),
+        Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_session_create_result operation={operation} profile={profile} {outcome}"),
+    );
+    let result = result.map_err(|error| DesktopFailure::from(error.to_string()))?;
     if result.get("session_id").and_then(Value::as_str).is_none()
         || result
             .get("stored_session_id")
@@ -72,40 +96,6 @@ pub async fn create_chat_session(
         return Err("网关未返回完整会话标识".into());
     }
     Ok(result)
-}
-
-fn session_create_params(
-    cwd: Option<String>,
-    provider: Option<String>,
-    model: Option<String>,
-    reasoning: Option<String>,
-) -> Value {
-    let mut params = json!({
-        "source": "gui", "idempotency_key": Uuid::new_v4().to_string()
-    });
-    if let Some(cwd) = cwd {
-        params["cwd"] = json!(cwd);
-        params["cwd_explicit"] = json!(true);
-    }
-    if let (Some(provider), Some(model)) = (provider, model) {
-        params["provider"] = json!(provider);
-        params["model"] = json!(model);
-    }
-    if let Some(reasoning) = reasoning {
-        params["reasoning_effort"] = json!(reasoning);
-    }
-    params
-}
-
-fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, DesktopFailure> {
-    let Some(path) = cwd.filter(|path| !path.trim().is_empty()) else {
-        return Ok(None);
-    };
-    let directory = plain_path(PathBuf::from(&path).as_path());
-    if !directory.is_absolute() || !filesystem_path(&directory).is_dir() {
-        return Err(DesktopFailure::invalid_input());
-    }
-    Ok(Some(directory.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
