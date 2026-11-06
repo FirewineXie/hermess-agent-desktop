@@ -130,6 +130,12 @@ pub async fn activate_saved_remote_gateway(
     app: AppHandle,
     state: State<'_, BackendState>,
 ) -> Result<ActiveGateway, DesktopFailure> {
+    state.6.interrupt();
+    let mut cancellation = state.6.subscribe();
+    let _lifecycle = state.6.gate.lock().await;
+    if cancellation.has_changed().unwrap_or(true) {
+        return Err(DesktopFailure::conflict());
+    }
     let config = remote_config::read(&app)?.ok_or_else(DesktopFailure::invalid_input)?;
     let token = remote_config::token(config.id.clone()).await?;
     let operation = Uuid::new_v4();
@@ -140,7 +146,7 @@ pub async fn activate_saved_remote_gateway(
             config.id
         ),
     );
-    let result = async {
+    let activation = async {
         let storage = app
             .path()
             .app_data_dir()
@@ -182,8 +188,12 @@ pub async fn activate_saved_remote_gateway(
             replay_epoch: gateway.replay_epoch.clone(),
             selected_profile,
         })
-    }
-    .await;
+    };
+    let result = tokio::select! {
+        biased;
+        _ = cancellation.changed() => Err(DesktopFailure::conflict()),
+        result = activation => result,
+    };
     log(
         &app,
         &format!(
@@ -203,6 +213,12 @@ pub async fn activate_local_gateway(
     app: AppHandle,
     state: State<'_, BackendState>,
 ) -> Result<ActiveGateway, DesktopFailure> {
+    state.6.interrupt();
+    let mut cancellation = state.6.subscribe();
+    let _lifecycle = state.6.gate.lock().await;
+    if cancellation.has_changed().unwrap_or(true) {
+        return Err(DesktopFailure::conflict());
+    }
     let operation = Uuid::new_v4();
     log(
         &app,
@@ -211,7 +227,12 @@ pub async fn activate_local_gateway(
     let mut active = state.5.lock().await;
     let local = state.0.lock().await;
     if let Some(backend) = local.as_ref() {
-        if backend.gateway.enable_local_events().await.is_err() {
+        let enabled = tokio::select! {
+            biased;
+            _ = cancellation.changed() => return Err(DesktopFailure::conflict()),
+            result = backend.gateway.enable_local_events() => result,
+        };
+        if enabled.is_err() {
             log(
                 &app,
                 &format!("remote_gateway_deactivate_failed operation={operation}"),
@@ -275,6 +296,7 @@ pub fn saved_remote_gateway(app: AppHandle) -> Result<Option<RemoteGatewayConfig
 #[tauri::command]
 pub async fn save_remote_gateway(
     app: AppHandle,
+    state: State<'_, BackendState>,
     label: String,
     url: String,
     token: String,
@@ -286,6 +308,7 @@ pub async fn save_remote_gateway(
     );
     let result = async {
         probe(&app, &url, &token).await?;
+        let _lifecycle = state.6.gate.lock().await;
         remote_config::save(&app, label, url, token).await
     }
     .await;
@@ -302,3 +325,43 @@ pub async fn save_remote_gateway(
     );
     result
 }
+
+#[tauri::command]
+pub async fn delete_remote_gateway(
+    app: AppHandle,
+    state: State<'_, BackendState>,
+    id: String,
+) -> Result<(), DesktopFailure> {
+    let operation = Uuid::new_v4();
+    log(
+        &app,
+        &format!("remote_gateway_delete_start operation={operation}"),
+    );
+    let result = async {
+        Uuid::parse_str(&id).map_err(|_| DesktopFailure::invalid_input())?;
+        let _lifecycle = state.6.gate.lock().await;
+        if state.5.lock().await.is_some() {
+            return Err(DesktopFailure::conflict());
+        }
+        remote_config::delete(&app, &id, operation).await
+    }
+    .await;
+    match &result {
+        Ok(()) => log(
+            &app,
+            &format!("remote_gateway_delete_completed operation={operation}"),
+        ),
+        Err(error) => log(
+            &app,
+            &format!(
+                "ERROR remote_gateway_delete_failed operation={operation} error={}",
+                serde_json::to_string(error).unwrap_or_default()
+            ),
+        ),
+    }
+    result
+}
+
+#[cfg(all(test, windows))]
+#[path = "tests/remote_gateway.rs"]
+mod tests;

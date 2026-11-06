@@ -15,9 +15,9 @@ test('deduplicates a MEDIA path when the same file has an inline preview', () =>
   ])
 })
 
-test('keeps unmatched MEDIA references and directives inside code fences as text', () => {
+test('renders a MEDIA file reference and keeps directives inside code fences as text', () => {
   const text = 'MEDIA:C:\\tmp\\report.pdf\n```\n::preview{file="C:\\tmp\\inside.html"}\n```'
-  assert.deepEqual(parseTranscriptParts(text, supported), [{ kind: 'markdown', value: `${text}\n` }])
+  assert.deepEqual(parseTranscriptParts(text, supported), [{ kind: 'markdown', value: '[report.pdf](#hermess-media:C%3A%5Ctmp%5Creport.pdf)\n```\n::preview{file="C:\\tmp\\inside.html"}\n```\n' }])
 })
 
 test('parses registered directives generically and leaves unknown directives as text', () => {

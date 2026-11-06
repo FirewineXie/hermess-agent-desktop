@@ -1,5 +1,6 @@
 import type { ResumeResult } from '@hermess/contracts'
 import type { SentAttachment } from './sentAttachments'
+import { historyMedia } from './historyMedia.ts'
 
 export type ToolStep = {
   id: string
@@ -13,7 +14,7 @@ export type ToolStep = {
 }
 
 export type TimelineItem =
-  | { kind: 'message'; role: 'user' | 'assistant'; text: string; attachments?: SentAttachment[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
+  | { kind: 'message'; role: 'user' | 'assistant'; text: string; attachments?: SentAttachment[]; media?: string[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
   | { kind: 'reasoning'; text: string; streaming: boolean; expanded: boolean }
 
@@ -60,31 +61,33 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
   let pendingUserTimestamp: number | undefined
   for (const row of rows) {
     const text = historyText(row)
+    const media = historyMedia(row.content)
+    const mediaFields = media.length ? { media } : {}
     if (row.role === 'tool') {
       items = appendTool(items, {
         id: row.tool_call_id || `history-${items.length}-${row.tool_name || row.name || 'tool'}`,
         name: row.tool_name || row.name || 'tool', context: row.context || undefined,
         args: row.args, state: 'recorded',
       })
-    } else if (row.role === 'user' && text.trim()) {
+    } else if (row.role === 'user' && (text.trim() || media.length)) {
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
       pendingUserIndex = items.length
       pendingUserTimestamp = timestamp
-      items = [...items, { kind: 'message', role: 'user', text, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
+      items = [...items, { kind: 'message', role: 'user', text, ...mediaFields, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
     } else if (row.role === 'assistant') {
       const thinking = reasoningText(row)
-      if (!text.trim() && !thinking) continue
+      if (!text.trim() && !thinking && !media.length) continue
       const timestamp = typeof row.timestamp === 'number' && Number.isFinite(row.timestamp) && row.timestamp > 0
         ? row.timestamp : undefined
-      if (!running && text.trim() && pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
+      if (!running && (text.trim() || media.length) && pendingUserIndex !== -1 && pendingUserTimestamp != null && timestamp != null && timestamp >= pendingUserTimestamp) {
         const user = items[pendingUserIndex]
         if (user.kind === 'message' && user.role === 'user') {
           items[pendingUserIndex] = { ...user, duration: timestamp - pendingUserTimestamp, turnState: 'completed' }
         }
       }
       if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false, expanded: false }]
-      if (text.trim()) items = [...items, { kind: 'message', role: 'assistant', text }]
+      if (text.trim() || media.length) items = [...items, { kind: 'message', role: 'assistant', text, ...mediaFields }]
     }
   }
   return items

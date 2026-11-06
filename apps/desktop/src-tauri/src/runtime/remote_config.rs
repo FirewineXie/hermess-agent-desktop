@@ -135,3 +135,41 @@ pub async fn token(id: String) -> Result<String, DesktopFailure> {
     .map_err(|_| DesktopFailure::operation_failed())?
     .map_err(|_| DesktopFailure::operation_failed())
 }
+
+pub async fn delete(app: &AppHandle, id: &str, operation: Uuid) -> Result<(), DesktopFailure> {
+    Uuid::parse_str(id).map_err(|_| DesktopFailure::invalid_input())?;
+    let Some(config) = read(app)? else {
+        return Ok(());
+    };
+    if config.id != id {
+        return Err(DesktopFailure::conflict());
+    }
+    let credential = tokio::task::spawn_blocking(move || {
+        keyring::Entry::new(KEYRING_SERVICE, &config.id).and_then(|entry| entry.delete_credential())
+    })
+    .await;
+    if !matches!(credential, Ok(Ok(())) | Ok(Err(keyring::Error::NoEntry))) {
+        return Err(delete_failure(app, operation, "credential"));
+    }
+    // Keep the configuration until credential cleanup succeeds so a failed
+    // deletion can still be retried using the same credential identifier.
+    match fs::remove_file(filesystem_path(&config_path(app)?)) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(delete_failure(app, operation, "config")),
+    }
+}
+
+fn delete_failure(app: &AppHandle, operation: Uuid, step: &str) -> DesktopFailure {
+    if let Ok(storage) = app.path().app_data_dir() {
+        let _ = crate::diagnostics::append_client_event(
+            &storage,
+            &format!("ERROR remote_gateway_delete_failed operation={operation} step={step}"),
+        );
+    }
+    DesktopFailure::operation_failed()
+}
+
+#[cfg(all(test, windows))]
+#[path = "tests/remote_config.rs"]
+pub(super) mod tests;

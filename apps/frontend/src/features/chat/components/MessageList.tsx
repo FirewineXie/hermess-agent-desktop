@@ -3,6 +3,7 @@ import type { TimelineItem, ToolStep } from '../timeline'
 import { assistantCopyLabel, copyAssistantText, type AssistantCopyState } from '../assistantCopy'
 import MarkdownMessage from './MarkdownMessage'
 import SentAttachmentList from './SentAttachmentList'
+import MediaAttachment from './MediaAttachment'
 
 type Language = 'zh-CN' | 'en-US'
 
@@ -81,7 +82,7 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
   </details>
 }
 
-function AssistantMessage({ text, language }: { text: string; language: Language }) {
+function AssistantMessage({ text, language, streaming = false, media }: { text: string; language: Language; streaming?: boolean; media?: string[] }) {
   const [copyState, setCopyState] = React.useState<AssistantCopyState>('idle')
   const resetTimer = React.useRef<number | null>(null)
   React.useEffect(() => () => {
@@ -93,7 +94,11 @@ function AssistantMessage({ text, language }: { text: string; language: Language
     if (resetTimer.current != null) window.clearTimeout(resetTimer.current)
     resetTimer.current = window.setTimeout(() => setCopyState('idle'), 1500)
   }
-  return <div className="message message-assistant"><div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div><MarkdownMessage text={text} language={language} /></div>
+  return <div className="message message-assistant"><div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div><MarkdownMessage text={text} language={language} streaming={streaming} /><HistoryMedia sources={media} language={language} /></div>
+}
+
+function HistoryMedia({ sources, language }: { sources?: string[]; language: Language }) {
+  return sources?.map((source, index) => <MediaAttachment key={index} source={source} language={language} />)
 }
 
 function ReasoningBlock({ text, streaming, expanded, language }: { text: string; streaming: boolean; expanded: boolean; language: Language }) {
@@ -103,7 +108,7 @@ function ReasoningBlock({ text, streaming, expanded, language }: { text: string;
   }, [text, streaming, expanded])
   return <details className="reasoning-block" open={expanded}>
     <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
-    <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} /></div>
+    <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} streaming={streaming} /></div>
   </details>
 }
 
@@ -177,12 +182,12 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         ? label(language, `已发送 ${message.attachments.length} 个附件`, `Sent ${message.attachments.length} attachments`)
         : message.text
       blocks.push(<React.Fragment key={`turn-${index}`}>
-        <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}</div>
+        <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}<HistoryMedia sources={message.media} language={language} /></div>
         {!steps.length && hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
         {steps.length > 0 && <TurnActivity user={message} steps={steps} now={now} showTime={hasTime} language={language} />}
         {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} expanded={reasoning.some(part => part.expanded)} language={language} />}
-        {intermediateMessages.map((item, position) => <AssistantMessage key={position} text={item.text} language={language} />)}
-        {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} language={language} />}
+        {intermediateMessages.map((item, position) => <AssistantMessage key={position} text={item.text} media={item.media} language={language} />)}
+        {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} media={finalMessage.media} language={language} />}
       </React.Fragment>)
       index = end
     } else {
@@ -190,9 +195,9 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
         : message.kind === 'reasoning'
           ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
-          : <AssistantMessage key={`orphan-${index}`} text={message.text} language={language} />)
+          : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} />)
       index++
     }
   }
-  return <div className="messages">{blocks}{assistant.trim() && <AssistantMessage text={assistant} language={language} />}</div>
+  return <div className="messages">{blocks}{assistant.trim() && <AssistantMessage text={assistant} language={language} streaming={turnBusy} />}</div>
 }

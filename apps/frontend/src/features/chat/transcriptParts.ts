@@ -1,3 +1,5 @@
+import { mediaPathKey, nextCodeFence, renderMediaLine, type CodeFence } from './mediaModel.ts'
+
 export type TranscriptDirective = { kind: 'directive'; name: string; attrs: Record<string, string> }
 export type TranscriptPart = { kind: 'markdown'; value: string } | TranscriptDirective
 
@@ -22,50 +24,48 @@ function directive(line: string, supported: ReadonlySet<string>): TranscriptDire
   return attrs ? { kind: 'directive', name: match[1], attrs } : null
 }
 
-function pathKey(path: string): string {
-  const trimmed = path.trim()
-  return /^(?:[a-z]:[\\/]|\\\\)/i.test(trimmed)
-    ? trimmed.replaceAll('/', '\\').toLocaleLowerCase('en-US')
-    : trimmed
-}
-
-function previewPaths(lines: string[], supported: ReadonlySet<string>): Set<string> {
+function previewPaths(lines: string[], supported: ReadonlySet<string>, streaming: boolean): Set<string> {
   const paths = new Set<string>()
-  let fenced = false
-  for (const line of lines) {
-    const fence = /^\s*```/.test(line)
-    if (!fenced && !fence) {
+  let fence: CodeFence | null = null
+  const inline = { ticks: '' }
+  for (const [index, line] of lines.entries()) {
+    const next = nextCodeFence(line, fence)
+    if (!fence && !next.boundary && !inline.ticks && (!streaming || index < lines.length - 1)) {
       const parsed = directive(line, supported)
-      if (parsed?.name === 'preview' && parsed.attrs.file) paths.add(pathKey(parsed.attrs.file))
+      if (parsed?.name === 'preview' && parsed.attrs.file) paths.add(mediaPathKey(parsed.attrs.file))
     }
-    if (fence) fenced = !fenced
+    if (!fence && !next.boundary) renderMediaLine(line, new Set(), false, inline)
+    fence = next.fence
   }
   return paths
 }
 
-export function parseTranscriptParts(text: string, supported: ReadonlySet<string>): TranscriptPart[] {
+export function parseTranscriptParts(text: string, supported: ReadonlySet<string>, streaming = false): TranscriptPart[] {
   const lines = text.split(/\r?\n/)
-  const previews = previewPaths(lines, supported)
+  const previews = previewPaths(lines, supported, streaming)
   const parts: TranscriptPart[] = []
   let markdown = ''
-  let fenced = false
+  let fence: CodeFence | null = null
+  const inline = { ticks: '' }
 
   const flush = () => {
     if (markdown.trim()) parts.push({ kind: 'markdown', value: markdown })
     markdown = ''
   }
 
-  for (const line of lines) {
-    const fence = /^\s*```/.test(line)
-    const parsed = !fenced && !fence ? directive(line, supported) : null
-    const media = !fenced && !fence ? line.trim().match(/^MEDIA:(.+)$/) : null
+  for (const [index, line] of lines.entries()) {
+    const next = nextCodeFence(line, fence)
+    const complete = !streaming || index < lines.length - 1
+    const prose = !fence && !next.boundary && !/^ {4}|^\t/.test(line)
+    const parsed = prose && !inline.ticks && complete ? directive(line, supported) : null
     if (parsed) {
       flush()
       parts.push(parsed)
-    } else if (!(media && previews.has(pathKey(media[1])))) {
-      markdown += `${line}\n`
+    } else {
+      const rendered = prose ? renderMediaLine(line, previews, complete, inline) : line
+      if (rendered.trim() || !line.trim()) markdown += `${rendered}\n`
     }
-    if (fence) fenced = !fenced
+    fence = next.fence
   }
   flush()
   return parts

@@ -15,7 +15,7 @@ function previewTheme(): PreviewTheme {
   }
 }
 
-export default function LocalPreview({ path, language }: { path: string; language: Language }) {
+export default function LocalPreview({ path, language, readHtml }: { path: string; language: Language; readHtml?: (path: string) => Promise<{ content: string }> }) {
   const { localPreview } = useDesktop()
   const iframe = React.useRef<HTMLIFrameElement>(null)
   const operation = React.useRef(0)
@@ -37,7 +37,7 @@ export default function LocalPreview({ path, language }: { path: string; languag
     setContent('')
     console.info('[local-preview] load started', { preview: previewId, operation: id, extension: path.split('.').at(-1)?.toLowerCase() || '' })
     try {
-      const result = await localPreview.readHtml(path)
+      const result = await (readHtml || localPreview.readHtml)(path)
       if (id !== operation.current) return
       setContent(result.content)
       console.info('[local-preview] file loaded', { preview: previewId, operation: id, characters: result.content.length })
@@ -48,7 +48,7 @@ export default function LocalPreview({ path, language }: { path: string; languag
     } finally {
       if (id === operation.current) setBusy(false)
     }
-  }, [localPreview, path, previewId, zh])
+  }, [localPreview, readHtml, path, previewId, zh])
 
   React.useEffect(() => {
     void load()

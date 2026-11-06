@@ -58,6 +58,10 @@ fn prune_abandoned_rpc(pending: &mut PendingRpc) {
 #[path = "tests/gateway_state.rs"]
 mod state_tests;
 
+#[cfg(test)]
+#[path = "tests/media_gateway_fixture.rs"]
+pub(crate) mod media_test_support;
+
 enum GatewayCommand {
     Rpc(RpcRequest),
     Answer {
@@ -170,6 +174,7 @@ fn is_forwarded_event(kind: &str) -> bool {
     matches!(
         kind,
         "message.start"
+            | "message.interim"
             | "message.delta"
             | "message.complete"
             | "reasoning.delta"

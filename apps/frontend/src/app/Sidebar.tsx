@@ -13,6 +13,7 @@ type Props = {
   view: View
   open: boolean
   connected: boolean
+  connectionLabel?: string
   remoteMode?: boolean
   busy: boolean
   sessions: SessionRow[]
@@ -44,7 +45,7 @@ type Props = {
   onOpenDashboardPlugin: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
+export default function Sidebar({ view, open, connected, connectionLabel, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -187,7 +188,7 @@ export default function Sidebar({ view, open, connected, remoteMode = false, bus
         </nav>
       </div>}
       <div className="sidebar-footer"><span className={`status-dot ${connected ? 'ready' : ''}`} />
-        <span>{remoteMode ? (connected ? (zh ? '远程 Gateway 已连接' : 'Remote gateway connected') : (zh ? '远程 Gateway 未连接' : 'Remote gateway disconnected')) : connected ? t('ui.runtime.connected') : t('ui.runtime.not.started')}</span>
+        <span>{connectionLabel || (remoteMode ? (connected ? (zh ? '远程 Gateway 已连接' : 'Remote gateway connected') : (zh ? '远程 Gateway 未连接' : 'Remote gateway disconnected')) : connected ? t('ui.runtime.connected') : t('ui.runtime.not.started'))}</span>
         {!remoteMode && <button onClick={() => onOpenView('runtime')}>{t('ui.manage')}</button>}
       </div>
     </aside>

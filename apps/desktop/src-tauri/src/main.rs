@@ -28,6 +28,17 @@ fn main() {
     }
     diagnostics::install_panic_logger();
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol(
+            "hermess-media",
+            |context, request, responder| {
+                runtime::media::handle_protocol(
+                    context.app_handle().clone(),
+                    context.webview_label().to_owned(),
+                    request,
+                    responder,
+                );
+            },
+        )
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app);
         }))
@@ -47,6 +58,7 @@ fn main() {
         .manage(quick_input::QuickState::default())
         .manage(chat_windows::ChatWindowState::default())
         .manage(runtime::BackendState::default())
+        .manage(runtime::media::MediaResources::default())
         .manage(runtime::dashboard_plugins::DashboardPluginSockets::default())
         .manage(runtime::console_socket::ConsoleSockets::default())
         .manage(runtime::kanban_dashboard::KanbanEventStreams::default())
@@ -75,6 +87,9 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                runtime::media::release_window(window.app_handle(), window.label());
+            }
             tray::on_window_event(window, event);
             chat_windows::on_window_event(window, event);
         })
@@ -100,6 +115,11 @@ fn main() {
             workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
             workspace_panel::read_local_preview_html,
+            runtime::media::prepare_chat_media,
+            runtime::media::preview_chat_media,
+            runtime::media::save_chat_media,
+            runtime::media::reveal_chat_media,
+            runtime::media::release_chat_media,
             panel_terminal::start_panel_terminal,
             panel_terminal::activate_panel_terminal,
             panel_terminal::write_panel_terminal,
@@ -116,6 +136,7 @@ fn main() {
             runtime::remote_gateway::test_remote_gateway,
             runtime::remote_gateway::saved_remote_gateway,
             runtime::remote_gateway::save_remote_gateway,
+            runtime::remote_gateway::delete_remote_gateway,
             runtime::remote_gateway::active_gateway,
             runtime::remote_gateway::activate_saved_remote_gateway,
             runtime::remote_gateway::activate_local_gateway,

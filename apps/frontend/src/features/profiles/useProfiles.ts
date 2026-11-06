@@ -8,9 +8,10 @@ type Options = {
   connected: boolean
   backendEpoch: string | null
   restart: () => Promise<unknown>
+  retainOffline?: boolean
 }
 
-export function useProfiles({ connected, backendEpoch, restart }: Options) {
+export function useProfiles({ connected, backendEpoch, restart, retainOffline = false }: Options) {
   const { profiles } = useDesktop()
   const language = useLanguage()
   const [roster, setRoster] = React.useState<ProfilesSnapshot | null>(null)
@@ -43,7 +44,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
   React.useEffect(() => {
     if (!connected) {
       generation.current += 1
-      setRoster(null)
+      if (!retainOffline) setRoster(null)
       setPendingName(null)
       return
     }
@@ -52,7 +53,7 @@ export function useProfiles({ connected, backendEpoch, restart }: Options) {
       if (active && pendingName && latest.gateways.some(gateway => gateway.profile === pendingName || gateway.served_profiles?.includes(pendingName))) setPendingName(null)
     }).catch(cause => { if (active) setError(describeError(cause, language)) })
     return () => { active = false }
-  }, [connected, backendEpoch])
+  }, [connected, backendEpoch, retainOffline])
 
   const select = async (name: string) => {
     if (snapshot?.selected === name) return

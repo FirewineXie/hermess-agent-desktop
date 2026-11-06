@@ -174,6 +174,15 @@ for (const [scope, names] of Object.entries(commandScopes)) {
 for (const name of registered) if (!scopedCommands.has(name)) failures.push(`native command has no scope declaration: ${name}`)
 for (const name of scopedCommands.keys()) if (!registered.has(name)) failures.push(`scope declaration has no native command: ${name}`)
 for (const [name, scope] of scopedCommands) {
+  if (scope === 'media-session' && !/\bscope\s*:\s*MediaScope\b/.test(commandHeaders.get(name) || '')) {
+    failures.push(`media preparation lacks explicit session and Gateway ownership: ${name}`)
+  }
+  if (['media-session', 'media-resource'].includes(scope) && !/\bwindow\s*:\s*WebviewWindow\b/.test(commandHeaders.get(name) || '')) {
+    failures.push(`media command lacks a calling window identity: ${name}`)
+  }
+  if (scope === 'media-resource' && !/\bid\s*:\s*String\b/.test(commandHeaders.get(name) || '')) {
+    failures.push(`media command lacks a registered resource handle: ${name}`)
+  }
   if (['profile', 'session', 'profile-or-session'].includes(scope) && !/\bprofile\s*:\s*String\b/.test(commandHeaders.get(name) || '')) {
     failures.push(`profile-bound native command lacks explicit profile argument: ${name}`)
   }

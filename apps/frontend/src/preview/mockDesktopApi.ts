@@ -50,6 +50,13 @@ export const previewDesktopApi: DesktopApi = {
   localPreview: {
     async readHtml() { throw previewOnly() },
   },
+  media: {
+    async prepare() { throw previewOnly() },
+    async preview() { throw previewOnly() },
+    async save() { throw previewOnly() },
+    async reveal() { throw previewOnly() },
+    async release() {},
+  },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
     async dataDirectory() { throw previewOnly() },
@@ -116,6 +123,7 @@ export const previewDesktopApi: DesktopApi = {
     async savedRemote() { return null },
     async testRemote() { throw previewOnly() },
     async saveRemote() { throw previewOnly() },
+    async deleteRemote() { throw previewOnly() },
     async activeGateway() { return { mode: 'local' as const } },
     async activateSavedRemote() { throw previewOnly() },
     async activateLocalGateway() { return { mode: 'local' as const } },
