@@ -15,6 +15,17 @@
   color: var(--settings-ink);
 }
 
+:root[data-color-theme='dark'] .unified-settings {
+  --settings-ink: #e7edf6;
+  --settings-muted: #9aa8bb;
+  --settings-line: #2a394b;
+  background: #0f1723;
+}
+:root[data-color-theme='dark'] .settings-category-nav { background: #111b28; }
+:root[data-color-theme='dark'] .settings-category-nav > button { color: #d5deea; }
+:root[data-color-theme='dark'] .settings-category-nav > button:hover { background: #1c2939; }
+:root[data-color-theme='dark'] .settings-category-nav > button.selected { color: #78aaff; background: #18365f; }
+
 .notification-settings { display: grid; gap: 14px; }
 .notification-settings .settings-form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .notification-settings .settings-form-heading h2 { margin: 0 0 6px; }
