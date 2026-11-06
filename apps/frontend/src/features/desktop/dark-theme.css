@@ -7,6 +7,11 @@
   --dark-muted: #9aa8bb;
   --dark-hover: #223249;
   --dark-selected: #18365f;
+  --settings-surface: #182231;
+  --settings-subtle: #223249;
+  --settings-border: #2a394b;
+  --border-color: #2a394b;
+  --panel-bg: #182231;
 }
 
 :root[data-color-theme='dark'] .workspace-header,
@@ -158,3 +163,58 @@
   .profile-tabs, .memory-settings-fields .config-field,
   .memory-settings-fields .compression-route-picker
 ) { border-color: var(--dark-border); }
+
+/* Session management keeps its own cards and controls outside the legacy settings panel. */
+:root[data-color-theme='dark'] .unified-settings .sessions-page { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-stats > div, .sessions-list, .sessions-detail, .sessions-prune,
+  .sessions-source-filter > div, .sessions-row
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .sessions-row:hover { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .sessions-row.selected { background: var(--dark-selected); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-heading button, .sessions-search button:not([type='submit']),
+  .sessions-actions button, .sessions-pagination button,
+  .sessions-maintenance button, .sessions-prune button,
+  .sessions-selection button, .sessions-controls select,
+  .sessions-source-filter summary
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .sessions-search button[type='submit'] { color: #fff; background: #285fc8; border-color: #285fc8; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-list-header, .sessions-selection, .sessions-detail-head,
+  .sessions-actions, .sessions-messages article, .sessions-prune-preview
+) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-controls label, .sessions-source-filter, .sessions-stats span,
+  .sessions-list-header span, .sessions-selection span, .sessions-row-meta,
+  .sessions-row small, .sessions-empty, .sessions-pagination span,
+  .sessions-detail-head span, .sessions-messages > p
+) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .unified-settings .sessions-messages h3 { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings .sessions-source-filter > div > label { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings .sessions-source-filter > div > label:hover { background: var(--dark-hover); }
+
+/* Configuration search, tree and runtime controls must match their dark parent page. */
+:root[data-color-theme='dark'] .unified-settings .configuration-settings :is(input:not([type='checkbox']), select, textarea) {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .unified-settings .configuration-settings input::placeholder { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .unified-settings .configuration-settings button:not(.config-field-preview) {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .unified-settings .configuration-settings button:hover:not(:disabled) { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .configuration-settings :is(.config-field-actions button:first-child, .configuration-mode button[aria-pressed='true']) {
+  color: #fff;
+  background: #1b6ffd;
+  border-color: #1b6ffd;
+}
+:root[data-color-theme='dark'] .unified-settings :is(.config-tree-root, .config-tree-node, .config-tree-children, .config-field, .configuration-subsection) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(.config-tree-root-heading, .config-tree-node summary) { color: #a8c9ff; }
+:root[data-color-theme='dark'] .unified-settings :is(.config-field.editing, .configuration-prune-result pre) { color: var(--dark-text); background: var(--dark-surface); }
+:root[data-color-theme='dark'] .unified-settings .runtime-controls { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .runtime-control-status { color: var(--dark-muted); background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .runtime-remote-settings { border-color: var(--dark-border); }
