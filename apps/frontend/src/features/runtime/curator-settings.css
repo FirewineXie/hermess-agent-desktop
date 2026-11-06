@@ -24,3 +24,25 @@
 .curator-settings-error { color: #b42318 !important; }
 .curator-settings-notice { color: #167343 !important; }
 @media (max-width: 650px) { .curator-settings-header { flex-wrap: wrap; } .curator-settings dl { grid-template-columns: 1fr; } }
+
+:root[data-color-theme='dark'] .unified-settings .curator-settings-detail {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .curator-settings :is(.curator-settings-label, dt) { color: var(--settings-muted); }
+:root[data-color-theme='dark'] .unified-settings .curator-settings dd { color: var(--settings-text); }
+:root[data-color-theme='dark'] .unified-settings .curator-settings :is(.curator-settings-actions, .curator-run-output) { border-color: var(--settings-line); }
+:root[data-color-theme='dark'] .unified-settings .curator-settings button:not(.curator-settings-primary) {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .curator-settings button:not(.curator-settings-primary):hover:not(:disabled) { background: #223249; border-color: #4b79b8; }
+:root[data-color-theme='dark'] .unified-settings .curator-settings .curator-settings-actions .curator-settings-primary { color: #fff; background: #1b6ffd; border-color: #1b6ffd; }
+:root[data-color-theme='dark'] .unified-settings .curator-settings .curator-settings-actions .curator-settings-primary:hover:not(:disabled) { background: #155fdc; border-color: #155fdc; }
+:root[data-color-theme='dark'] .unified-settings .curator-settings button:disabled { color: var(--settings-muted); background: #182231; border-color: var(--settings-line); }
+:root[data-color-theme='dark'] .unified-settings .curator-settings-summary strong[data-state='active'] { color: #9de5bc; background: #173b2c; }
+:root[data-color-theme='dark'] .unified-settings .curator-settings-summary strong[data-state='paused'] { color: #f3d194; background: #44341d; }
+:root[data-color-theme='dark'] .unified-settings .curator-settings-summary strong[data-state='disabled'] { color: var(--settings-muted); background: #223249; }
+:root[data-color-theme='dark'] .unified-settings .curator-run-output pre { color: var(--settings-text); background: #0f1723; border-color: var(--settings-line); }
