@@ -38,9 +38,12 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
   const [opening, setOpening] = React.useState('')
   const [installing, setInstalling] = React.useState(false)
   const [message, setMessage] = React.useState('')
+  const [installedByProfile, setInstalledByProfile] = React.useState<Record<string, string[]> | null>(null)
 
   const removed = new Map(snapshot.removed.map(item => [item.name, item.reason]))
   const os = navigator.userAgent.includes('Windows') ? 'windows' : navigator.userAgent.includes('Mac') ? 'macos' : 'other'
+  const served = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
+  const servedProfiles = profiles?.profiles.map(profile => profile.name).filter(name => served.has(name)) || []
   const term = searchTerm.trim().toLocaleLowerCase()
   const visibleCatalog = snapshot.entries.filter(item => !term || `${item.name} ${item.title} ${item.description} ${item.category} ${item.maintainer} ${item.repo} ${pluginSearchAliases[item.name] || ''}`.toLocaleLowerCase().includes(term))
     .sort((a, b) => {
@@ -52,6 +55,24 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
       return rank(a) - rank(b)
     })
 
+  React.useEffect(() => {
+    if (!connected || !profiles) { setInstalledByProfile(null); return }
+    let cancelled = false
+    const names = profiles.profiles.map(profile => profile.name).filter(name =>
+      profiles.gateways.some(gateway => gateway.profile === name || gateway.served_profiles?.includes(name)))
+    setInstalledByProfile(null)
+    void Promise.allSettled(names.map(async name => {
+      const value = await extensions.request<HermesPluginRuntime>({ kind: 'profile', profile: name }, 'hermesPlugins.list')
+      return [name, value.installed.flatMap(plugin => [plugin.catalog_name, plugin.name].filter((key): key is string => Boolean(key)))] as const
+    })).then(results => {
+      if (cancelled) return
+      const installed: Record<string, string[]> = {}
+      for (const result of results) if (result.status === 'fulfilled') installed[result.value[0]] = result.value[1]
+      setInstalledByProfile(installed)
+    })
+    return () => { cancelled = true }
+  }, [connected, profiles, extensions])
+
   function search() {
     setSearchTerm(query)
     setLimit(40)
@@ -61,14 +82,21 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
     if (!connected || !profiles || opening || installing) return
     setOpening(item.name)
     setMessage('')
-    const served = new Set(profiles.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]))
-    const names = profiles.profiles.map(profile => profile.name).filter(name => served.has(name))
+    const names = servedProfiles
     const results = await Promise.allSettled(names.map(async name => {
       const value = await extensions.request<HermesPluginRuntime>({ kind: 'profile', profile: name }, 'hermesPlugins.list')
-      return value.installed.some(plugin => plugin.catalog_name === item.name || plugin.name === item.name)
+      return value.installed
     }))
+    setInstalledByProfile(current => {
+      const next = { ...current }
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') next[names[index]] = result.value.flatMap(plugin =>
+          [plugin.catalog_name, plugin.name].filter((key): key is string => Boolean(key)))
+      })
+      return next
+    })
     setTargetStatus({
-      installed: names.filter((_, index) => results[index].status === 'fulfilled' && results[index].value),
+      installed: names.filter((_, index) => results[index].status === 'fulfilled' && results[index].value.some(plugin => plugin.catalog_name === item.name || plugin.name === item.name)),
       unavailable: names.filter((_, index) => results[index].status === 'rejected'),
     })
     setSelected(item)
@@ -90,7 +118,10 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
           continue
         }
         const installed = await extensions.request<HermesPluginRuntime>({ kind: 'profile', profile }, 'hermesPlugins.list')
-        if (installed.installed.some(plugin => plugin.catalog_name === item.name || plugin.name === item.name)) completed += 1
+        if (installed.installed.some(plugin => plugin.catalog_name === item.name || plugin.name === item.name)) {
+          completed += 1
+          setInstalledByProfile(current => ({ ...current, [profile]: [...new Set([...(current?.[profile] || []), item.name])] }))
+        }
         else failures.push(profile)
       } catch (cause) {
         failures.push(`${profile}（${describeError(cause, language)}）`)
@@ -108,6 +139,14 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
     const supported = !item.platforms.length || item.platforms.some(platform => platform.toLowerCase() === os)
     const link = marketLink(item.docs_url, item.repo)
     const title = item.title || item.name
+    const installedCount = servedProfiles.filter(name => installedByProfile?.[name]?.includes(item.name)).length
+    const statusUnknown = installedByProfile === null || servedProfiles.some(name => !installedByProfile[name])
+    const allInstalled = servedProfiles.length > 0 && !statusUnknown && installedCount === servedProfiles.length
+    const buttonLabel = installedByProfile === null ? (zh ? '查询安装状态…' : 'Checking installation…')
+      : statusUnknown ? (zh ? '检查安装状态' : 'Check installation')
+      : allInstalled ? (zh ? '已安装' : 'Installed')
+        : installedCount > 0 ? (zh ? '安装到其他 Profile' : 'Install to other profiles')
+          : zh ? '安装' : 'Install'
     return <article className="extension-card market-card" key={item.name}>
       <div className="market-card-header"><h3 className="market-card-title">{link ? <a href={link} target="_blank" rel="noopener noreferrer">{title}</a> : title}</h3><span className="market-card-source">{item.tier}</span></div>
       {title !== item.name && <p><code>{item.name}</code></p>}
@@ -119,8 +158,9 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
       {!!item.capabilities.requires_env?.length && <p>{zh ? '所需环境变量' : 'Required environment'}: {item.capabilities.requires_env.join(', ')}</p>}
       {blocked && <p>{zh ? '已移除' : 'Removed'}: {removed.get(item.name)}</p>}
       {!supported && <p>{zh ? '当前平台不适用' : 'Not available on this platform'}</p>}
+      {installedCount > 0 && <p>{zh ? `已安装到 ${installedCount} 个 Profile` : `Installed on ${installedCount} profile(s)`}</p>}
       <div className="market-card-footer">
-        <button disabled={!connected || !profiles || blocked || !supported || !!opening || installing} onClick={() => void openInstall(item)}>{opening === item.name ? '…' : zh ? '安装' : 'Install'}</button>
+        <button disabled={!connected || !profiles || !servedProfiles.length || blocked || !supported || installedByProfile === null || allInstalled || !!opening || installing} onClick={() => void openInstall(item)}>{opening === item.name ? '…' : buttonLabel}</button>
       </div>
     </article>
   }
