@@ -6,9 +6,6 @@ use serde_json::{json, Value};
 use std::{collections::HashSet, fs, time::Duration};
 use tauri::State;
 
-const CATALOG: &str =
-    include_str!("../../../../frontend/src/features/extensions/hermesPluginCatalog.generated.json");
-
 fn log_plugin_action(
     scope: &ResolvedProfileScope,
     operation: &str,
@@ -97,10 +94,6 @@ fn context_engine_write_request(
     ))
 }
 
-fn catalog() -> Result<Value, DesktopFailure> {
-    serde_json::from_str(CATALOG).map_err(|_| DesktopFailure::operation_failed())
-}
-
 pub(super) async fn request(
     state: &State<'_, BackendState>,
     scope: &ResolvedProfileScope,
@@ -108,6 +101,7 @@ pub(super) async fn request(
     payload: &Value,
 ) -> Result<Value, DesktopFailure> {
     match operation {
+        "hermesPlugins.catalog" => live_catalog(state, scope).await,
         "hermesPlugins.list" => list(state, scope).await,
         "hermesPlugins.contextEngines" => context_engines(state, scope).await,
         "hermesPlugins.contextEngine.save" => save_context_engine(state, scope, payload).await,
@@ -572,6 +566,69 @@ fn safe_string_list(value: Option<&Value>, max_items: usize, max_len: usize) -> 
         .unwrap_or_default()
 }
 
+async fn live_catalog(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+) -> Result<Value, DesktopFailure> {
+    let catalog = config_request_for_scope(
+        state,
+        scope,
+        Method::GET,
+        "/api/dashboard/plugins/catalog",
+        None,
+    )
+    .await?;
+    if !catalog["entries"].is_array() || !catalog["removed"].is_array() {
+        return Err(DesktopFailure::operation_failed());
+    }
+    Ok(catalog)
+}
+
+fn current_catalog_entry<'a>(
+    catalog: &'a Value,
+    name: &str,
+    expected: &Value,
+) -> Result<&'a Value, DesktopFailure> {
+    let entry = catalog["entries"]
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["name"] == name))
+        .ok_or_else(DesktopFailure::conflict)?;
+    let sha = entry["sha"]
+        .as_str()
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    let repo = entry["repo"]
+        .as_str()
+        .ok_or_else(DesktopFailure::operation_failed)?;
+    if sha.len() != 40
+        || !sha.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || !repo.starts_with("https://")
+        || expected["sha"] != sha
+        || expected["repo"] != repo
+    {
+        return Err(DesktopFailure::conflict());
+    }
+    if catalog["removed"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .any(|item| item["name"] == name || item["repo"] == repo)
+    }) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let platform = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+    if entry["platforms"].as_array().is_some_and(|platforms| {
+        !platforms.is_empty() && !platforms.iter().any(|item| item == platform)
+    }) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(entry)
+}
+
 async fn mutate(
     state: &State<'_, BackendState>,
     scope: &ResolvedProfileScope,
@@ -604,60 +661,21 @@ async fn mutate(
         log_install(scope, name, "start", "pending");
     }
     if operation == "hermesPlugins.install" {
-        let snapshot = catalog()?;
-        let entry = snapshot["entries"]
-            .as_array()
-            .and_then(|items| items.iter().find(|item| item["name"] == name))
-            .ok_or_else(DesktopFailure::invalid_input)?;
-        if snapshot["removed"].as_array().is_some_and(|items| {
-            items
-                .iter()
-                .any(|item| item["name"] == name || item["repo"] == entry["repo"])
-        }) {
-            return Err(DesktopFailure::invalid_input());
-        }
-        let platform = if cfg!(target_os = "windows") {
-            "windows"
-        } else if cfg!(target_os = "macos") {
-            "macos"
-        } else {
-            "linux"
-        };
-        if entry["platforms"].as_array().is_some_and(|platforms| {
-            !platforms.is_empty() && !platforms.iter().any(|item| item == platform)
-        }) {
-            return Err(DesktopFailure::invalid_input());
-        }
-        let live = config_request_for_scope(
-            state,
-            scope,
-            Method::GET,
-            "/api/dashboard/plugins/catalog",
-            None,
-        )
-        .await
-        .map_err(|error| {
+        let live = live_catalog(state, scope).await.map_err(|error| {
             log_install(scope, name, "catalog_request", &format!("error={error:?}"));
             error
         })?;
-        let current = live["entries"]
-            .as_array()
-            .and_then(|items| items.iter().find(|item| item["name"] == name))
-            .ok_or_else(|| {
-                log_install(scope, name, "catalog_match", "missing");
-                DesktopFailure::conflict()
-            })?;
-        if current["sha"] != entry["sha"] || current["repo"] != entry["repo"] {
-            log_install(scope, name, "catalog_match", "pin_mismatch");
-            return Err(DesktopFailure::conflict());
-        }
+        let current = current_catalog_entry(&live, name, payload).map_err(|error| {
+            log_install(scope, name, "catalog_match", &format!("error={error:?}"));
+            error
+        })?;
         log_install(scope, name, "catalog_match", "matched");
         return write_request(
             state,
             scope,
             Method::POST,
             "/api/dashboard/agent-plugins/install",
-            Some(catalog_install_body(name, &entry["sha"], payload)?),
+            Some(catalog_install_body(name, &current["sha"], payload)?),
         )
         .await;
     }
@@ -683,32 +701,19 @@ async fn mutate(
     }
     if operation == "hermesPlugins.update" {
         if let Some(catalog_name) = row.get("catalog_name").and_then(Value::as_str) {
-            let snapshot = catalog()?;
-            let entry = snapshot["entries"]
-                .as_array()
-                .and_then(|items| items.iter().find(|item| item["name"] == catalog_name))
-                .ok_or_else(DesktopFailure::invalid_input)?;
-            if snapshot["removed"].as_array().is_some_and(|items| {
-                items
-                    .iter()
-                    .any(|item| item["name"] == catalog_name || item["repo"] == entry["repo"])
-            }) {
-                return Err(DesktopFailure::invalid_input());
-            }
-            let live = config_request_for_scope(
-                state,
-                scope,
-                Method::GET,
-                "/api/dashboard/plugins/catalog",
-                None,
-            )
-            .await?;
+            let live = live_catalog(state, scope).await?;
+            // The locked Gateway resolves its own current catalog pin during update.
+            // Here we only reject entries removed since installation.
             let current = live["entries"]
                 .as_array()
                 .and_then(|items| items.iter().find(|item| item["name"] == catalog_name))
                 .ok_or_else(DesktopFailure::conflict)?;
-            if current["sha"] != entry["sha"] || current["repo"] != entry["repo"] {
-                return Err(DesktopFailure::conflict());
+            if live["removed"].as_array().is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|item| item["name"] == catalog_name || item["repo"] == current["repo"])
+            }) {
+                return Err(DesktopFailure::invalid_input());
             }
         }
     }

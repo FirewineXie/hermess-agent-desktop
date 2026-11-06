@@ -21,6 +21,7 @@ export type HermesPluginRuntime = {
   can_manage: boolean; runtime_status_available: boolean
 }
 type CatalogItem = (typeof snapshot.entries)[number]
+type CatalogResponse = { entries: CatalogItem[]; removed: typeof snapshot.removed }
 type TargetStatus = { installed: string[]; unavailable: string[] }
 const pluginSearchAliases: Record<string, string> = {
   'hermes-session-reset-policy': '会话 自动新对话 自动新会话 空闲 长时间不用 每日重置 微信 飞书 session reset idle daily',
@@ -39,13 +40,17 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
   const [installing, setInstalling] = React.useState(false)
   const [message, setMessage] = React.useState('')
   const [installedByProfile, setInstalledByProfile] = React.useState<Record<string, string[]> | null>(null)
+  const [liveCatalog, setLiveCatalog] = React.useState<CatalogResponse | null>(null)
+  const [catalogError, setCatalogError] = React.useState('')
+  const [catalogRefresh, setCatalogRefresh] = React.useState(0)
 
-  const removed = new Map(snapshot.removed.map(item => [item.name, item.reason]))
+  const catalog = connected ? liveCatalog : snapshot
+  const removed = new Map((catalog?.removed || []).map(item => [item.name, item.reason]))
   const os = navigator.userAgent.includes('Windows') ? 'windows' : navigator.userAgent.includes('Mac') ? 'macos' : 'other'
   const served = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const servedProfiles = profiles?.profiles.map(profile => profile.name).filter(name => served.has(name)) || []
   const term = searchTerm.trim().toLocaleLowerCase()
-  const visibleCatalog = snapshot.entries.filter(item => !term || `${item.name} ${item.title} ${item.description} ${item.category} ${item.maintainer} ${item.repo} ${pluginSearchAliases[item.name] || ''}`.toLocaleLowerCase().includes(term))
+  const visibleCatalog = (catalog?.entries || []).filter(item => !term || `${item.name} ${item.title} ${item.description} ${item.category} ${item.maintainer} ${item.repo} ${pluginSearchAliases[item.name] || ''}`.toLocaleLowerCase().includes(term))
     .sort((a, b) => {
       if (!term) return 0
       const rank = (item: CatalogItem) => item.name.toLocaleLowerCase() === term ? 0
@@ -54,6 +59,17 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
             : (pluginSearchAliases[item.name] || '').toLocaleLowerCase().includes(term) ? 3 : 4
       return rank(a) - rank(b)
     })
+
+  React.useEffect(() => {
+    if (!connected || !servedProfiles.length) { setLiveCatalog(null); setCatalogError(''); return }
+    let cancelled = false
+    setLiveCatalog(null)
+    setCatalogError('')
+    void extensions.request<CatalogResponse>({ kind: 'profile', profile: servedProfiles[0] }, 'hermesPlugins.catalog')
+      .then(value => { if (!cancelled) setLiveCatalog(value) })
+      .catch(cause => { if (!cancelled) setCatalogError(describeError(cause, language)) })
+    return () => { cancelled = true }
+  }, [connected, servedProfiles.join('\0'), extensions, catalogRefresh, language])
 
   React.useEffect(() => {
     if (!connected || !profiles) { setInstalledByProfile(null); return }
@@ -112,7 +128,7 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
     let completed = 0
     for (const profile of targets) {
       try {
-        const result = await extensions.request<{ ok: boolean; consent_required?: boolean; scan_blocked?: boolean }>({ kind: 'profile', profile }, 'hermesPlugins.install', { name: item.name })
+        const result = await extensions.request<{ ok: boolean; consent_required?: boolean; scan_blocked?: boolean }>({ kind: 'profile', profile }, 'hermesPlugins.install', { name: item.name, sha: item.sha, repo: item.repo })
         if (result.ok !== true || result.consent_required || result.scan_blocked) {
           failures.push(profile)
           continue
@@ -132,6 +148,7 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
     setMessage(failures.length
       ? (zh ? `已安装到 ${completed} 个 Profile；以下 Profile 未完成：${failures.join('、')}` : `Installed to ${completed} profiles; these did not complete: ${failures.join(', ')}`)
       : (zh ? `已安装到 ${completed} 个 Profile，默认未启用。请在对应 Profile 的「插件」页检查后启用。` : `Installed to ${completed} profiles and left disabled by default. Review and enable them on each Profile's Plugins page.`))
+    if (failures.length) setCatalogRefresh(value => value + 1)
   }
 
   function catalogCard(item: CatalogItem) {
@@ -160,22 +177,26 @@ export default function HermesPlugins({ connected, profiles }: { connected: bool
       {!supported && <p>{zh ? '当前平台不适用' : 'Not available on this platform'}</p>}
       {installedCount > 0 && <p>{zh ? `已安装到 ${installedCount} 个 Profile` : `Installed on ${installedCount} profile(s)`}</p>}
       <div className="market-card-footer">
-        <button disabled={!connected || !profiles || !servedProfiles.length || blocked || !supported || installedByProfile === null || allInstalled || !!opening || installing} onClick={() => void openInstall(item)}>{opening === item.name ? '…' : buttonLabel}</button>
+        <button disabled={!connected || !profiles || !servedProfiles.length || !liveCatalog || blocked || !supported || installedByProfile === null || allInstalled || !!opening || installing} onClick={() => void openInstall(item)}>{opening === item.name ? '…' : buttonLabel}</button>
       </div>
     </article>
   }
 
   return <>
     <h3>{zh ? '插件源列表' : 'Plugin sources'}</h3>
-    <p>{zh ? `来源：锁定的 Hermes Agent 目录（提交 ${snapshot.sourceCommit.slice(0, 8)}）。点击安装后选择目标 Profile；已安装插件统一在对应 Profile 的「插件」页管理。` : `Source: pinned Hermes Agent catalog (${snapshot.sourceCommit.slice(0, 8)}). Select target profiles when installing; manage installed plugins on each Profile's Plugins page.`}</p>
+    <p>{connected
+      ? (zh ? '来源：当前 Hermes Agent 插件目录。点击安装后选择目标 Profile；已安装插件在对应 Profile 的「插件」页管理。' : 'Source: current Hermes Agent plugin catalog. Select target profiles when installing; manage installed plugins on each Profile’s Plugins page.')
+      : (zh ? `离线展示锁定目录（提交 ${snapshot.sourceCommit.slice(0, 8)}）；连接运行时后读取当前目录。` : `Showing bundled catalog (${snapshot.sourceCommit.slice(0, 8)}) offline; connect to load the current catalog.`)}</p>
     {!connected && <p>{zh ? '未连接运行时，暂无法安装插件。' : 'Connect the runtime to install plugins.'}</p>}
+    {connected && !liveCatalog && !catalogError && <p role="status">{zh ? '正在读取插件目录…' : 'Loading plugin catalog…'}</p>}
+    {catalogError && <p role="alert">{zh ? `插件目录读取失败：${catalogError}` : `Could not load plugin catalog: ${catalogError}`} <button type="button" onClick={() => setCatalogRefresh(value => value + 1)}>{zh ? '重试' : 'Retry'}</button></p>}
     <form className="row extension-toolbar" onSubmit={event => { event.preventDefault(); search() }}>
       <input type="search" aria-label={zh ? '搜索 Hermes 插件源' : 'Search Hermes plugin sources'} value={query} onChange={event => { setQuery(event.target.value); setSearchTerm(event.target.value); setLimit(40) }} placeholder={zh ? '搜索名称、说明或来源' : 'Search name, description or source'} />
       <button type="submit">{zh ? '搜索' : 'Search'}</button>
     </form>
     {message && <p role="status">{message}</p>}
-    <p role="status">{searchTerm.trim() ? (zh ? `“${searchTerm.trim()}”找到 ${visibleCatalog.length} 个插件源` : `${visibleCatalog.length} plugin sources found for “${searchTerm.trim()}”`) : (zh ? `共 ${visibleCatalog.length} 个插件源` : `${visibleCatalog.length} plugin sources`)}</p>
-    {!visibleCatalog.length && <p>{zh ? '没有匹配的插件源。' : 'No matching plugin sources.'}</p>}
+    {catalog && <p role="status">{searchTerm.trim() ? (zh ? `“${searchTerm.trim()}”找到 ${visibleCatalog.length} 个插件源` : `${visibleCatalog.length} plugin sources found for “${searchTerm.trim()}”`) : (zh ? `共 ${visibleCatalog.length} 个插件源` : `${visibleCatalog.length} plugin sources`)}</p>}
+    {catalog && !visibleCatalog.length && <p>{zh ? '没有匹配的插件源。' : 'No matching plugin sources.'}</p>}
     <div className="extension-list">{visibleCatalog.slice(0, limit).map(catalogCard)}</div>
     {limit < visibleCatalog.length && <button onClick={() => setLimit(value => value + 40)}>{zh ? '显示更多' : 'Show more'}</button>}
     {selected && profiles && <TargetProfilesDialog itemName={selected.title || selected.name} profiles={profiles} alreadyInstalled={targetStatus.installed} unavailable={targetStatus.unavailable} busy={installing} onClose={() => setSelected(null)} onConfirm={installToTargets}>
