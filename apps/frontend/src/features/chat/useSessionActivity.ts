@@ -1,8 +1,9 @@
 import React from 'react'
 import type { GatewayRequest, SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { snapshotActivity, terminalActivity, type SessionActivity } from './sessionActivityState'
 
-export type SessionActivity = 'running' | 'completed' | 'failed' | 'approval' | 'suggestion'
+export type { SessionActivity } from './sessionActivityState'
 type ActivityMap = Record<string, SessionActivity>
 type PendingMap = Record<string, Record<string, 'approval' | 'suggestion'>>
 
@@ -23,6 +24,10 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
   refreshRef.current = refresh
   const sessionRowsRef = React.useRef({ selectedProfile, sessions, otherProfileSessions, activeSessionId, activeRuntimeId })
   sessionRowsRef.current = { selectedProfile, sessions, otherProfileSessions, activeSessionId, activeRuntimeId }
+  const visibleSessionRef = React.useRef({ selectedProfile, activeSessionId, chatVisible })
+  visibleSessionRef.current = { selectedProfile, activeSessionId, chatVisible }
+  const idleSnapshotsRef = React.useRef<Record<string, number>>({})
+  const lastSessionListsRef = React.useRef<{ sessions: SessionRow[]; otherProfileSessions: Record<string, SessionRow[]> } | null>(null)
   const resolveKey = (profile: string, runtimeId: string) => {
     const rows = sessionRowsRef.current
     const profileSessions = profile === rows.selectedProfile ? rows.sessions : rows.otherProfileSessions[profile] || []
@@ -59,7 +64,19 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
       if (!active || !event.profile || !event.session_id) return
       const key = resolveKeyRef.current(event.profile, event.session_id)
       if (event.kind === 'message.complete' || event.kind === 'error') {
-        setActivity(current => ({ ...current, [key]: event.kind === 'error' || event.payload?.status === 'error' ? 'failed' : 'completed' }))
+        delete idleSnapshotsRef.current[key]
+        const visible = visibleSessionRef.current
+        const viewed = visible.chatVisible && visible.selectedProfile === event.profile && key === keyFor(event.profile, visible.activeSessionId)
+        const status = terminalActivity(viewed, event.kind === 'error' || event.payload?.status === 'error')
+        setActivity(current => {
+          if (!status) {
+            if (!(key in current)) return current
+            const next = { ...current }
+            delete next[key]
+            return next
+          }
+          return { ...current, [key]: status }
+        })
         setPending(current => { const next = { ...current }; delete next[key]; return next })
       } else if (event.kind === 'message.start' || event.kind === 'message.delta' || event.kind === 'reasoning.delta' || event.kind === 'tool.start') {
         setActivity(current => current[key] === 'running' ? current : { ...current, [key]: 'running' })
@@ -94,17 +111,30 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
     if (!connectionId) return
     const rows = Object.entries(otherProfileSessions)
     if (selectedProfile) rows.push([selectedProfile, sessions])
+    const listChanged = lastSessionListsRef.current?.sessions !== sessions || lastSessionListsRef.current?.otherProfileSessions !== otherProfileSessions
+    lastSessionListsRef.current = { sessions, otherProfileSessions }
+    const idleSnapshots: Record<string, number> = {}
+    for (const [profile, profileSessions] of rows) for (const session of profileSessions) {
+      const key = keyFor(profile, session.id)
+      const viewed = chatVisible && profile === selectedProfile && session.id === activeSessionId
+      if (session.running || (viewed && turnBusy)) delete idleSnapshotsRef.current[key]
+      else if (listChanged && activity[key] === 'running') idleSnapshotsRef.current[key] = (idleSnapshotsRef.current[key] || 0) + 1
+      idleSnapshots[key] = idleSnapshotsRef.current[key] || 0
+    }
     setActivity(current => {
       let next = current
       for (const [profile, profileSessions] of rows) for (const session of profileSessions) {
         const key = keyFor(profile, session.id)
         const previous = next[key]
         const viewed = chatVisible && profile === selectedProfile && session.id === activeSessionId
-        // The picker may briefly report idle between reasoning and the final reply.
-        // Only message.complete or error can settle a running turn.
-        const status = viewed && turnBusy ? 'running' : session.running && previous !== 'completed' && previous !== 'failed' && !(viewed && !turnBusy)
-          ? 'running' : previous
-        if (status && status !== previous) next = { ...next, [key]: status }
+        // A single idle list result can occur between reasoning and the final reply.
+        // Two successive idle snapshots also clear a running badge when its terminal event was missed.
+        const status = snapshotActivity(previous, Boolean(session.running), viewed, turnBusy, idleSnapshots[key])
+        if (status !== previous) {
+          if (next === current) next = { ...next }
+          if (status) next[key] = status
+          else delete next[key]
+        }
       }
       return next
     })

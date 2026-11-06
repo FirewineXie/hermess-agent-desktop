@@ -1,32 +1,53 @@
 import React from 'react'
-import type { ProfilesSnapshot } from '@hermess/contracts'
+import type { ProfileCreateOptions, ProfilesSnapshot } from '@hermess/contracts'
+import { useDesktop } from '../../app/DesktopContext'
+import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import PersonalFilesView from '../personal-files/PersonalFilesView'
 import ProfileOverview from './ProfileOverview'
+import type { ProfileTab } from './ProfileOverview'
+import ProfileCreateDialog from './ProfileCreateDialog'
+import ProfileImportDialog from './ProfileImportDialog'
 import { keepFocusInside } from '../extensions/dialogFocus'
+import WorkBuddyImportDialog from './WorkBuddyImportDialog'
 import './ProfilesView.css'
 
 type Props = {
   connected: boolean
   epoch: string | null
   profiles: ProfilesSnapshot | null
-  toolsetsRequest: number
+  activeProfile: string | null
+  tabRequest: { id: number; tab: ProfileTab }
+  onTabChange: (tab: ProfileTab) => void
+  onCreateOpenChange: (open: boolean) => void
   profileBusy: boolean
+  onCreateProfile: (name: string, options?: ProfileCreateOptions) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined>
+  onExportProfile: (name: string, destination: string) => Promise<{ archive: string; bytes: number }>
+  onImportProfile: (archive: string, name?: string) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined>
+  onImportPackage: (path: string, name: string, digest: string) => Promise<{ name: string; served: boolean } | undefined>
   onSelectProfile: (name: string) => Promise<unknown>
+  onActivateProfile: (name: string) => Promise<unknown>
   onDeleteProfile: (name: string) => Promise<{ settlement_pending: boolean; refreshed: boolean }>
   onRenameProfile: (name: string, displayName: string) => Promise<{ display_name: string; refreshed: boolean }>
+  onRenameProfileId: (name: string, newName: string) => Promise<{ name: string; selection_persisted: boolean; served: boolean; refreshed: boolean }>
+  onSaveDescription: (name: string, description: string) => Promise<{ description: string; description_auto: false }>
+  onDescribeAuto: (name: string, overwrite: boolean) => Promise<{ ok: boolean; reason: string | null; description: string | null; description_auto: boolean }>
   memoryOpen: boolean
+  personalFilesInitialTab: 'soul' | 'memory'
   onMemoryDirtyChange: (dirty: boolean) => void
   onCloseMemory: () => void
   onOpenExtensions: () => void
   onOpenMemory: () => void
+  onOpenSoul: () => void
   onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
   onNewChat: () => void
+  onLearnSkill: (command: string) => void
 }
 
 export default function ProfilesView(props: Props) {
+  const { nativeFiles } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const [query, setQuery] = React.useState('')
@@ -41,9 +62,17 @@ export default function ProfilesView(props: Props) {
   const [renameBusy, setRenameBusy] = React.useState(false)
   const [renameError, setRenameError] = React.useState('')
   const [renameNotice, setRenameNotice] = React.useState('')
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [createNotice, setCreateNotice] = React.useState('')
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [archiveBusy, setArchiveBusy] = React.useState(false)
+  const [archiveError, setArchiveError] = React.useState('')
+  const [archiveNotice, setArchiveNotice] = React.useState('')
   const servedProfiles = new Set(props.profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const matchingProfiles = (props.profiles?.profiles || []).filter(profile =>
     `${profile.display_name || ''} ${profile.name}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+
+  React.useEffect(() => { props.onCreateOpenChange(createOpen) }, [createOpen, props.onCreateOpenChange])
 
   const selectProfile = async (name: string) => {
     if (name === props.profiles?.selected) return
@@ -94,6 +123,24 @@ export default function ProfilesView(props: Props) {
     }
   }
 
+  const exportProfile = async () => {
+    const profile = props.profiles?.profiles.find(item => item.name === props.profiles?.selected)
+    if (!profile || archiveBusy || props.profileBusy) return
+    setArchiveBusy(true)
+    setArchiveError('')
+    setArchiveNotice('')
+    try {
+      const destination = await nativeFiles.save(`${profile.name}.tar.gz`)
+      if (!destination) return
+      const result = await props.onExportProfile(profile.name, destination)
+      setArchiveNotice(zh ? `Profile 已安全导出（${result.bytes.toLocaleString()} 字节）。` : `Profile safely exported (${result.bytes.toLocaleString()} bytes).`)
+    } catch (cause) {
+      setArchiveError(describeError(cause, language))
+    } finally {
+      setArchiveBusy(false)
+    }
+  }
+
   return <section className="settings-panel flat-settings-panel profile-management">
     <aside className="profile-directory" aria-label={zh ? '专家列表' : 'Expert list'}>
       <div className="profile-directory-heading">
@@ -107,15 +154,16 @@ export default function ProfilesView(props: Props) {
       <div className="profile-directory-count">{zh ? '已创建的专家' : 'Created experts'}{props.profiles ? ` · ${props.profiles.profiles.length}` : ''}</div>
       {selectionError && <p className="profile-directory-error" role="alert">{selectionError}</p>}
       {deleteNotice && <p className="profile-directory-notice" role="status">{deleteNotice}</p>}
-      {renameNotice && <p className="profile-directory-notice" role="status">{renameNotice}</p>}
+      {(renameNotice || createNotice || archiveNotice) && <p className="profile-directory-notice" role="status">{renameNotice || createNotice || archiveNotice}</p>}
+      {archiveError && <p className="profile-directory-error" role="alert">{archiveError}</p>}
       <div className="profile-directory-list">
         {matchingProfiles.map(profile => {
           const name = profile.display_name || profile.name
           const served = props.connected && servedProfiles.has(profile.name)
           const selected = props.profiles?.selected === profile.name
           return <button key={profile.name} type="button" className={`profile-directory-item ${selected ? 'is-selected' : ''}`}
-            aria-current={selected ? 'page' : undefined} disabled={!served || props.profileBusy}
-            title={!served ? (zh ? `${name}：等待 Gateway 启用` : `${name}: waiting for Gateway`) : name}
+            aria-current={selected ? 'page' : undefined} disabled={props.profileBusy}
+            title={!served ? (zh ? `${name}：可查看管理，运行时功能等待 Gateway 启用` : `${name}: management is available; runtime actions await the Gateway`) : name}
             onClick={() => void selectProfile(profile.name)}>
             <span className="profile-directory-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
             <span className="profile-directory-item-text"><strong>{name}</strong><small>{profile.display_name && profile.display_name !== profile.name ? `${profile.name} · ` : ''}{served ? (zh ? 'Gateway 已服务' : 'Served by Gateway') : (zh ? '待启用' : 'Not served')}</small></span>
@@ -125,16 +173,19 @@ export default function ProfilesView(props: Props) {
         {!props.profiles && <p className="profile-directory-empty">{props.connected ? (zh ? '正在读取专家…' : 'Loading experts…') : (zh ? '连接 Gateway 后显示专家。' : 'Connect to Gateway to view experts.')}</p>}
         {props.profiles && matchingProfiles.length === 0 && <p className="profile-directory-empty">{zh ? '没有匹配的专家。' : 'No matching experts.'}</p>}
       </div>
-      <button type="button" className="profile-directory-create" onClick={props.onOpenExtensions}>{zh ? '前往「扩展中心」' : 'Open Extension Hub'} <span aria-hidden="true">›</span></button>
+      <div className="profile-directory-actions"><button type="button" className="profile-directory-create" disabled={!props.connected || props.profileBusy} onClick={() => { setCreateNotice(''); setCreateOpen(true) }}>＋ {zh ? '新建 Profile' : 'Create profile'}</button><button type="button" className="profile-directory-import" disabled={!props.connected || props.profileBusy} onClick={() => { setArchiveNotice(''); setArchiveError(''); setImportOpen(true) }}>{zh ? '导入 Hermes 归档' : 'Import Hermes archive'}</button><WorkBuddyImportDialog profiles={props.profiles} busy={!props.connected || props.profileBusy} onImport={props.onImportPackage} onNotice={message => { setCreateNotice(message); setArchiveNotice(''); setArchiveError('') }} /></div>
     </aside>
     <div className="profile-detail-scroll">{props.memoryOpen ? <PersonalFilesView
       connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
-      initialTab="memory" onDirtyChange={props.onMemoryDirtyChange} onClose={props.onCloseMemory} /> : <ProfileOverview
+      initialTab={props.personalFilesInitialTab} onDirtyChange={props.onMemoryDirtyChange} onClose={props.onCloseMemory} /> : <ProfileOverview
       connected={props.connected}
       epoch={props.epoch}
       profiles={props.profiles}
-      toolsetsRequest={props.toolsetsRequest}
+      activeProfile={props.activeProfile}
+      tabRequest={props.tabRequest}
+      onTabChange={props.onTabChange}
       profileBusy={props.profileBusy}
+      onActivateProfile={props.onActivateProfile}
       onDeleteProfile={() => {
         const name = props.profiles?.selected
         if (!name || name === 'default') return
@@ -149,8 +200,14 @@ export default function ProfilesView(props: Props) {
         setRenameDraft(profile.display_name || profile.name)
         setRenameError('')
       }}
+      onRenameProfileId={props.onRenameProfileId}
+      onSaveDescription={props.onSaveDescription}
+      onDescribeAuto={props.onDescribeAuto}
+      onExportProfile={() => void exportProfile()}
       onNewChat={props.onNewChat}
+      onLearnSkill={props.onLearnSkill}
       onOpenMemory={props.onOpenMemory}
+      onOpenSoul={props.onOpenSoul}
       onOpenConfiguration={props.onOpenConfiguration}
       onOpenChannels={props.onOpenChannels}
       onOpenUsage={props.onOpenUsage}
@@ -176,5 +233,7 @@ export default function ProfilesView(props: Props) {
         <div className="profile-delete-actions"><button type="button" disabled={renameBusy} onClick={() => setRenameTarget(null)}>{zh ? '取消' : 'Cancel'}</button><button type="submit" disabled={renameBusy || !renameDraft.trim()}>{renameBusy ? (zh ? '正在保存…' : 'Saving…') : (zh ? '保存名称' : 'Save name')}</button></div>
       </form>
     </div>}
+    {createOpen && <ProfileCreateDialog language={language} profiles={props.profiles} busy={props.profileBusy} onCreate={props.onCreateProfile} onClose={() => setCreateOpen(false)} onCreated={setCreateNotice} />}
+    {importOpen && <ProfileImportDialog language={language} busy={props.profileBusy} onImport={props.onImportProfile} onClose={() => setImportOpen(false)} onImported={message => { setArchiveNotice(message); setArchiveError('') }} />}
   </section>
 }

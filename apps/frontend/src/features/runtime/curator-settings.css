@@ -1,0 +1,26 @@
+.curator-settings { display: grid; gap: 22px; }
+.curator-settings-header { display: flex; align-items: start; justify-content: space-between; gap: 24px; }
+.curator-settings-header p { margin: 8px 0 0; }
+.curator-settings button { min-height: 40px; padding: 8px 14px; border: 1px solid #d5dde8; border-radius: 10px; color: #243348; background: #fff; font: inherit; cursor: pointer; }
+.curator-settings button:hover:not(:disabled) { border-color: #aebdd1; background: #f8fafc; }
+.curator-settings button:disabled { color: #94a1b1; background: #f4f6f8; cursor: default; }
+.curator-settings-detail { padding: 22px; border: 1px solid #e3e8ef; border-radius: 14px; background: #fff; }
+.curator-settings-summary { display: flex; align-items: center; gap: 14px; }
+.curator-settings-label, .curator-settings dt { color: #66758c; font-size: 14px; }
+.curator-settings-summary strong { padding: 5px 10px; border-radius: 8px; color: #286445; background: #eaf7ef; font-size: 14px; }
+.curator-settings-summary strong[data-state="paused"] { color: #935e14; background: #fff4df; }
+.curator-settings-summary strong[data-state="disabled"] { color: #66758c; background: #f0f2f5; }
+.curator-settings dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.curator-settings dl div { display: grid; gap: 6px; min-width: 0; }
+.curator-settings dd { margin: 0; color: #111827; font-size: 15px; overflow-wrap: anywhere; }
+.curator-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 18px; border-top: 1px solid #e3e8ef; }
+.curator-run-output { display: grid; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #e3e8ef; }
+.curator-run-output p { margin: 0; }
+.curator-run-output pre { max-height: 280px; margin: 0; padding: 14px; overflow: auto; border: 1px solid #d5dde8; border-radius: 10px; color: #334155; background: #f8fafc; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.curator-settings .curator-settings-primary { border-color: #1b6ffd; color: #fff; background: #1b6ffd; }
+.curator-settings .curator-settings-primary:hover:not(:disabled) { border-color: #155fdc; background: #155fdc; }
+.curator-settings .curator-settings-primary:disabled { border-color: #d5dde8; color: #94a1b1; background: #f4f6f8; }
+.curator-settings-empty { padding: 22px; border: 1px dashed #d5dde8; border-radius: 12px; }
+.curator-settings-error { color: #b42318 !important; }
+.curator-settings-notice { color: #167343 !important; }
+@media (max-width: 650px) { .curator-settings-header { flex-wrap: wrap; } .curator-settings dl { grid-template-columns: 1fr; } }

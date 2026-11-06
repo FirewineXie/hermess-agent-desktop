@@ -131,6 +131,7 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/diagnostics.rs',
   'apps/desktop/src-tauri/src/device.rs',
   'apps/desktop/src-tauri/src/quick_input.rs',
+  'apps/desktop/src-tauri/src/chat_windows.rs',
   'apps/desktop/src-tauri/src/notifications.rs',
   'apps/desktop/src-tauri/src/webview_cache.rs',
   'apps/desktop/src-tauri/src/updates.rs',
@@ -141,7 +142,9 @@ const definedCommands = new Set()
 const commandHeaders = new Map()
 for (const file of nativeCommandFiles) {
   const source = readFileSync(resolve(root, file), 'utf8')
-  if (!file.endsWith('/runtime/mod.rs') && !file.endsWith('/runtime/profiles.rs') && /\.selected_profile\b|\bstate\.gateway\s*\(/.test(source)) {
+  // The remote connection owner stores its selected profile as connection metadata;
+  // profile-bound requests still go through resolve_chat_profile.
+  if (!file.endsWith('/runtime/mod.rs') && !file.endsWith('/runtime/profiles.rs') && !file.endsWith('/runtime/remote_gateway.rs') && /\.selected_profile\b|\bstate\.gateway\s*\(/.test(source)) {
     failures.push(`${file}: profile operations must use resolve_profile instead of global selection`)
   }
   for (const marker of source.matchAll(/#\[tauri::command\]/g)) {
@@ -180,8 +183,10 @@ for (const [name, scope] of scopedCommands) {
 }
 const extensionSource = readFileSync(resolve(runtimeDir, 'extensions.rs'), 'utf8')
 const jobsSource = readFileSync(resolve(runtimeDir, 'jobs.rs'), 'utf8')
+const hooksSource = readFileSync(resolve(runtimeDir, 'hooks.rs'), 'utf8')
+const credentialPoolSource = readFileSync(resolve(runtimeDir, 'credential_pool.rs'), 'utf8')
 const declaredOperations = new Set(extensionOperations.trim().split(/\s+/))
-const handledOperations = new Set([...(extensionSource + '\n' + jobsSource).matchAll(/^\s*((?:"[a-z]+(?:\.[a-z]+)+"\s*(?:\|\s*)?)+)=>/gm)]
+const handledOperations = new Set([...(extensionSource + '\n' + jobsSource + '\n' + hooksSource + '\n' + credentialPoolSource).matchAll(/^\s*((?:"[a-z]+(?:\.[a-z]+)+"\s*(?:\|\s*)?)+)=>/gm)]
   .flatMap(match => [...match[1].matchAll(/"([a-z]+(?:\.[a-z]+)+)"/g)].map(value => value[1])))
 for (const operation of declaredOperations) {
   if (!handledOperations.has(operation)) failures.push(`extension operation has no handler: ${operation}`)

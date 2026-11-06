@@ -4,6 +4,7 @@ import type { HubScan, HubSkill } from './model'
 import type { labels } from './labels'
 import TargetProfilesDialog from './TargetProfilesDialog'
 import { marketLink } from './marketLink'
+import SkillHubDetailDialog from './SkillHubDetailDialog'
 
 type T = ReturnType<typeof labels>
 type TargetStatus = { installed: string[]; unavailable: string[] }
@@ -23,6 +24,7 @@ export default function SkillHub({ official, featured, sources, results, results
   const [query, setQuery] = React.useState('')
   const [source, setSource] = React.useState('official')
   const [selected, setSelected] = React.useState<HubSkill | null>(null)
+  const [detail, setDetail] = React.useState<HubSkill | null>(null)
   const [targetStatus, setTargetStatus] = React.useState<TargetStatus>({ installed: [], unavailable: [] })
   const [openingId, setOpeningId] = React.useState('')
   const [preparing, setPreparing] = React.useState(false)
@@ -95,9 +97,10 @@ export default function SkillHub({ official, featured, sources, results, results
           <span className="market-card-source">{item.source}</span>
         </div>
         <p className="market-card-description">{item.description}</p>
-        <div className="market-card-footer"><button disabled={busy || !!openingId || !profiles} onClick={() => void openInstall(item)}>{openingId === item.identifier ? t('loading') : t('install')}</button></div>
+        <div className="market-card-footer"><button disabled={busy} onClick={() => setDetail(item)}>{t('detail')}</button><button disabled={busy || !!openingId || !profiles} onClick={() => void openInstall(item)}>{openingId === item.identifier ? t('loading') : t('install')}</button></div>
       </article>
     })}</div>
+    {detail && <SkillHubDetailDialog item={detail} busy={busy || !!openingId} request={request} onClose={() => setDetail(null)} onInstall={() => { const item = detail; setDetail(null); void openInstall(item) }} />}
     {selected && profiles && <TargetProfilesDialog itemName={selected.name} profiles={profiles} alreadyInstalled={targetStatus.installed} unavailable={targetStatus.unavailable} busy={busy || preparing} onClose={() => setSelected(null)} onConfirm={installToTargets} />}
   </>
 }

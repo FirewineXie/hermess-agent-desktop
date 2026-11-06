@@ -1,0 +1,14 @@
+.chat-tabs { display: flex; align-items: center; flex: none; min-width: 0; min-height: 40px; border-bottom: 1px solid #e8ebef; background: #fafbfc; }
+.chat-tabs-list { display: flex; flex: 1; gap: 3px; min-width: 0; padding: 4px 8px; overflow-x: auto; scrollbar-width: thin; }
+.chat-tab { display: flex; align-items: center; flex: none; max-width: 190px; min-width: 0; border-radius: 7px; background: #edf1f5; }
+.chat-tab:has([aria-selected="true"]) { background: #dfe9fa; }
+.chat-tabs .chat-tab button { min-height: 29px; padding: 4px 8px; border: 0; border-radius: 7px; color: #526176; background: transparent; }
+.chat-tabs .chat-tab [role="tab"] { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: 12px; }
+.chat-tabs .chat-tab [aria-selected="true"] { color: #245eb8; font-weight: 650; }
+.chat-tabs .chat-tab .chat-tab-close { padding: 2px 7px; font-size: 17px; }
+.chat-tabs .chat-tab .chat-tab-window { padding: 2px 5px; font-size: 15px; }
+.chat-tabs .chat-tab .chat-tab-window:hover { color: #245eb8; background: #e5edf8; }
+.chat-tabs .chat-tab .chat-tab-close:hover, .chat-tabs .chat-tab-new:hover { color: #245eb8; background: #e5edf8; }
+.chat-tabs .chat-tab-new { flex: none; width: 32px; height: 30px; margin: 0 8px; padding: 0; border: 0; border-radius: 7px; color: #526176; background: transparent; font-size: 18px; }
+.chat-tabs button:disabled { opacity: .5; cursor: not-allowed; }
+.chat-panel.chat-design-new .chat-tabs { position: absolute; top: 0; right: 0; left: 0; }

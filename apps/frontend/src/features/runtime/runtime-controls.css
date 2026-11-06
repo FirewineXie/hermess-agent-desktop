@@ -1,0 +1,13 @@
+.runtime-controls { margin: 24px 0; padding: 20px; border: 1px solid var(--settings-border, #dce3ec); border-radius: 14px; background: var(--settings-surface, #fff); }
+.runtime-controls > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.runtime-controls h3 { margin: 0; color: var(--settings-text, #182230); font-size: 17px; }
+.runtime-controls header p { max-width: 650px; margin: 7px 0 0; font-size: 13px; }
+.runtime-controls header > span { flex: none; padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; }
+.runtime-controls header > span.connected { color: #176743; background: #e4f6ed; }
+.runtime-controls header > span.stopped { color: #59677a; background: #edf1f5; }
+.runtime-control-status { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: var(--settings-subtle, #f6f8fb); }
+.runtime-control-status strong { color: var(--settings-text, #182230); font-size: 13px; }
+.runtime-control-status small { margin: 0; }
+.runtime-control-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.settings-panel .runtime-control-actions button.danger { color: #a43b3b; background: #fff; box-shadow: inset 0 0 0 1px #e3b8b8; }
+@media (max-width: 680px) { .runtime-controls > header { flex-direction: column; } }

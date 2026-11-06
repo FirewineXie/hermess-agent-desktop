@@ -432,16 +432,69 @@ pub(super) async fn ticket(
     {
         return Err("网关身份已变化".into());
     }
-    let gateway_pid = lock_pid(home)?.ok_or("自有网关锁不存在")?;
+    issue_ticket(home, profile, instance, launched_pid, "interactive", "host").await
+}
+
+fn native_profile_id(control_home: &Path, profile_home: &Path) -> Result<String, String> {
+    let control = control_home
+        .canonicalize_plain()
+        .map_err(|_| "无法解析产品 Gateway 目录".to_string())?;
+    let profile = profile_home
+        .canonicalize_plain()
+        .map_err(|_| "无法解析命名 Profile 目录".to_string())?;
+    let profiles = control
+        .join("profiles")
+        .canonicalize_plain()
+        .map_err(|_| "无法解析产品 Profile 目录".to_string())?;
+    if profile.parent() != Some(profiles.as_path()) {
+        return Err("命名 Profile 不属于当前产品 Gateway".into());
+    }
+    Ok(plain_path(&profile).to_string_lossy().into_owned())
+}
+
+pub(super) async fn native_http_ticket(
+    control_home: &Path,
+    profile_home: &Path,
+    endpoint: &Value,
+    launched_pid: u32,
+) -> Result<String, String> {
+    if endpoint.get("runtime_protocol").and_then(Value::as_u64) != Some(1) {
+        return Err("网关身份已变化".into());
+    }
+    let instance = endpoint
+        .get("instance_id")
+        .and_then(Value::as_str)
+        .ok_or("网关实例无效")?;
+    let profile = native_profile_id(control_home, profile_home)?;
+    issue_ticket(
+        control_home,
+        &profile,
+        instance,
+        launched_pid,
+        "native-http",
+        "profile",
+    )
+    .await
+}
+
+async fn issue_ticket(
+    control_home: &Path,
+    profile: &str,
+    instance: &str,
+    launched_pid: u32,
+    purpose: &str,
+    scope: &str,
+) -> Result<String, String> {
+    let gateway_pid = lock_pid(control_home)?.ok_or("自有网关锁不存在")?;
     if !owned_process(launched_pid, gateway_pid) {
         return Err("网关进程不属于当前桌面实例".into());
     }
     let result = exchange(
-        home,
+        control_home,
         gateway_pid,
         &json!({"protocol": 1, "id": 1,
         "verb": "session-ticket", "params": {"profile_id": profile,
-        "instance_id": instance, "purpose": "interactive", "scope": "host"}}),
+        "instance_id": instance, "purpose": purpose, "scope": scope}}),
         Duration::from_secs(5),
     )
     .await?

@@ -1,17 +1,15 @@
 import React from 'react'
-import type { ProfilePresetSelection, ProfilesSnapshot } from '@hermess/contracts'
+import type { ProfileCreateOptions, ProfilesSnapshot } from '@hermess/contracts'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { expertPresets, type ExpertPreset } from './expertPresets'
 import { keepFocusInside } from './dialogFocus'
-import WorkBuddyImportDialog from './WorkBuddyImportDialog'
 
 type CreateResult = { name: string; warnings?: string[]; served: boolean } | undefined
 type Props = {
   profiles: ProfilesSnapshot | null
   busy: boolean
-  onCreate: (name: string, preset?: ProfilePresetSelection) => Promise<CreateResult>
-  onImport: (path: string, name: string, digest: string) => Promise<{ name: string; served: boolean } | undefined>
+  onCreate: (name: string, options?: ProfileCreateOptions) => Promise<CreateResult>
 }
 
 function availableName(base: string, profiles: ProfilesSnapshot | null) {
@@ -23,10 +21,10 @@ function availableName(base: string, profiles: ProfilesSnapshot | null) {
   }
 }
 
-export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Props) {
+export default function ExpertCatalog({ profiles, busy, onCreate }: Props) {
   const language = useLanguage()
   const zh = language === 'zh-CN'
-  const [chosen, setChosen] = React.useState<ExpertPreset | 'custom' | null>(null)
+  const [chosen, setChosen] = React.useState<ExpertPreset | null>(null)
   const [name, setName] = React.useState('')
   const [skills, setSkills] = React.useState<string[]>([])
   const [mcp, setMcp] = React.useState<string[]>([])
@@ -43,12 +41,12 @@ export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Pr
     return () => { document.body.style.overflow = previous }
   }, [chosen])
 
-  function open(preset: ExpertPreset | 'custom', button: HTMLButtonElement) {
+  function open(preset: ExpertPreset, button: HTMLButtonElement) {
     openerRef.current = button
     setChosen(preset)
-    setName(preset === 'custom' ? '' : availableName(preset.id, profiles))
-    setSkills(preset === 'custom' ? [] : [...preset.skills])
-    setMcp(preset === 'custom' ? [] : [...preset.mcp])
+    setName(availableName(preset.id, profiles))
+    setSkills([...preset.skills])
+    setMcp([...preset.mcp])
     setError('')
     setNotice('')
   }
@@ -75,13 +73,13 @@ export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Pr
     setSubmitting(true)
     setError('')
     try {
-      const preset = chosen === 'custom' ? undefined : {
+      const preset = {
         personalityName: chosen.personality.name,
         personalityPrompt: chosen.personality.prompt,
         skills,
         mcp,
       }
-      const result = await onCreate(normalized, preset)
+      const result = await onCreate(normalized, { preset })
       if (!result) return
       setChosen(null)
       setNotice(result.served
@@ -95,8 +93,8 @@ export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Pr
     }
   }
 
-  return <section className="expert-catalog" aria-label={zh ? '内置专家预设' : 'Built-in expert presets'}>
-    <div className="expert-catalog-heading"><div><h2>{zh ? '内置专家预设' : 'Built-in expert presets'}</h2><p>{zh ? '选一个预设，创建独立的 Profile。创建后从侧栏管理。' : 'Choose a preset to create a separate profile. Manage it from the sidebar.'}</p></div></div>
+  return <section className="expert-catalog" aria-label={zh ? '专家预设市场' : 'Expert preset market'}>
+    <div className="expert-catalog-heading"><div><h2>{zh ? '专家预设' : 'Expert presets'}</h2><p>{zh ? '从市场选择预设并安装为独立 Profile；安装后的配置在 Profile 管理页维护。' : 'Install a market preset as a separate profile. Manage it from the Profiles page afterward.'}</p></div></div>
     {notice && <p className="expert-catalog-notice" role="status">{notice}</p>}
     <div className="capability-experts">
       {expertPresets.map(preset => <article className="capability-expert-card" key={preset.id}>
@@ -105,27 +103,20 @@ export default function ExpertCatalog({ profiles, busy, onCreate, onImport }: Pr
         <p>{preset.description[language]}</p>
         <small>{zh ? 'Skill：' : 'Skill: '}{preset.skills.length ? preset.skills.join(zh ? '、' : ', ') : (zh ? '无额外 Skill' : 'No extra skills')}</small>
         <small>{zh ? 'MCP：' : 'MCP: '}{preset.mcp.length ? preset.mcp.join(zh ? '、' : ', ') : (zh ? '无' : 'None')}</small>
-        <button type="button" disabled={busy || submitting} onClick={event => open(preset, event.currentTarget)}>{zh ? '创建为新专家' : 'Create new expert'}</button>
+        <button type="button" disabled={busy || submitting} onClick={event => open(preset, event.currentTarget)}>{zh ? '安装预设' : 'Install preset'}</button>
       </article>)}
-      <article className="capability-expert-card">
-        <span className="expert-card-source">{zh ? '不使用预设' : 'No preset'}</span>
-        <h3>{zh ? '自定义专家' : 'Custom expert'}</h3>
-        <p>{zh ? '创建不套用预设的新 Profile，之后再配置人格与能力。' : 'Create a new profile without a preset, then configure its personality and capabilities.'}</p>
-        <button type="button" disabled={busy || submitting} onClick={event => open('custom', event.currentTarget)}>{zh ? '创建自定义专家' : 'Create custom expert'}</button>
-        <WorkBuddyImportDialog profiles={profiles} busy={busy || submitting} onImport={onImport} onNotice={setNotice} />
-      </article>
     </div>
     {chosen && <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
       <form className="expert-create-modal" role="dialog" aria-modal="true" aria-labelledby="expert-create-title" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close() } else keepFocusInside(event) }} onSubmit={event => void create(event)}>
-        <header><div><h2 id="expert-create-title">{chosen === 'custom' ? (zh ? '创建自定义专家' : 'Create custom expert') : (zh ? `创建 ${chosen.title[language]}` : `Create ${chosen.title[language]}`)}</h2><p>{zh ? '将创建一个独立的 Profile。' : 'This creates a separate profile.'}</p></div><button type="button" className="expert-modal-close" aria-label={zh ? '关闭' : 'Close'} disabled={submitting} onClick={close}>×</button></header>
+        <header><div><h2 id="expert-create-title">{zh ? `安装 ${chosen.title[language]}` : `Install ${chosen.title[language]}`}</h2><p>{zh ? '市场预设将安装为一个独立的 Profile。' : 'The market preset is installed as a separate profile.'}</p></div><button type="button" className="expert-modal-close" aria-label={zh ? '关闭' : 'Close'} disabled={submitting} onClick={close}>×</button></header>
         <div className="expert-modal-body">
           <label className="expert-name-field">{zh ? 'Profile 名称' : 'Profile name'}<input ref={nameRef} required maxLength={64} spellCheck={false} autoComplete="off" value={name} onChange={event => setName(event.target.value)} placeholder="my-expert" /></label>
           <p className="expert-name-hint">{zh ? '名称用于本地标识，只能使用字母、数字、-、_。' : 'The local identifier uses letters, numbers, hyphens and underscores.'}</p>
-          {chosen !== 'custom' && <>
+          <>
             <section className="expert-recipe-summary"><h3>{zh ? '预设人格' : 'Preset personality'}</h3><p>{chosen.description[language]}</p></section>
             {!!chosen.skills.length && <fieldset><legend>Skill</legend>{chosen.skills.map(skill => <label key={skill}><input type="checkbox" checked={skills.includes(skill)} onChange={event => setSkills(current => event.target.checked ? [...current, skill] : current.filter(item => item !== skill))} />{skill}</label>)}</fieldset>}
             {!!chosen.mcp.length && <fieldset><legend>MCP</legend>{chosen.mcp.map(server => <label key={server}><input type="checkbox" checked={mcp.includes(server)} onChange={event => setMcp(current => event.target.checked ? [...current, server] : current.filter(item => item !== server))} />{server}</label>)}<p>{zh ? '创建时写入配置；创建后可在 MCP 管理中测试连接。' : 'Configuration is written during creation. Test the connection in MCP management afterward.'}</p></fieldset>}
-          </>}
+          </>
           {error && <p className="expert-create-error" role="alert">{error}</p>}
         </div>
         <footer><button type="button" disabled={submitting} onClick={close}>{zh ? '取消' : 'Cancel'}</button><button type="submit" disabled={submitting || busy || !name.trim()}>{submitting ? (zh ? '正在创建…' : 'Creating…') : (zh ? '创建专家' : 'Create expert')}</button></footer>

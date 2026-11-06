@@ -50,11 +50,18 @@ function Preview() {
     <header className="workspace-header"><div><span className="workspace-kicker">PREVIEW_ONLY · 内存模拟</span><h1>学习时间线</h1></div></header>
     <aside className="sidebar"><div className="brand">Hermess</div><div className="primary-nav"><button type="button" className="active">学习时间线</button></div></aside>
     <main className="workspace">{agentPreview
-      ? <ProfilesView connected epoch="preview" profiles={profiles} toolsetsRequest={0} profileBusy={false} memoryOpen={false}
-          onSelectProfile={async name => { setProfiles(current => ({ ...current, selected: name })) }} onDeleteProfile={async () => ({ settlement_pending: false, refreshed: true })}
+      ? <ProfilesView connected epoch="preview" profiles={profiles} activeProfile={profiles.selected} tabRequest={{ id: 0, tab: 'overview' }} onTabChange={() => {}} onCreateOpenChange={() => {}} profileBusy={false} memoryOpen={false} personalFilesInitialTab="memory"
+          onCreateProfile={async name => ({ name, served: true })}
+          onExportProfile={async (name, destination) => ({ archive: destination, bytes: name.length })}
+          onImportProfile={async (_archive, name) => ({ name: name || 'imported', served: true })}
+          onImportPackage={async (_path, name) => ({ name, served: true })}
+          onSelectProfile={async name => { setProfiles(current => ({ ...current, selected: name })) }} onActivateProfile={async name => { setProfiles(current => ({ ...current, selected: name })) }} onDeleteProfile={async () => ({ settlement_pending: false, refreshed: true })}
           onRenameProfile={async () => ({ display_name: '默认 Agent', refreshed: true })} onMemoryDirtyChange={() => {}}
-          onCloseMemory={() => {}} onOpenExtensions={() => {}} onOpenMemory={() => {}} onOpenConfiguration={() => {}}
-          onOpenChannels={() => {}} onOpenUsage={() => {}} onNewChat={() => {}} />
+          onRenameProfileId={async (_name, newName) => ({ name: newName, selection_persisted: true, served: true, refreshed: true })}
+          onSaveDescription={async (_name, description) => ({ description, description_auto: false as const })}
+          onDescribeAuto={async () => ({ ok: true, reason: null, description: '自动说明', description_auto: true })}
+          onCloseMemory={() => {}} onOpenExtensions={() => {}} onOpenMemory={() => {}} onOpenSoul={() => {}} onOpenConfiguration={() => {}}
+          onOpenChannels={() => {}} onOpenUsage={() => {}} onNewChat={() => {}} onLearnSkill={() => {}} />
       : <JourneyView connected profile="default" epoch="preview" />}</main>
   </div>
 }

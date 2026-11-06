@@ -1,6 +1,8 @@
 import React from 'react'
 import type { TimelineItem, ToolStep } from '../timeline'
+import { assistantCopyLabel, copyAssistantText, type AssistantCopyState } from '../assistantCopy'
 import MarkdownMessage from './MarkdownMessage'
+import SentAttachmentList from './SentAttachmentList'
 
 type Language = 'zh-CN' | 'en-US'
 
@@ -80,7 +82,18 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
 }
 
 function AssistantMessage({ text, language }: { text: string; language: Language }) {
-  return <div className="message message-assistant"><MarkdownMessage text={text} language={language} /></div>
+  const [copyState, setCopyState] = React.useState<AssistantCopyState>('idle')
+  const resetTimer = React.useRef<number | null>(null)
+  React.useEffect(() => () => {
+    if (resetTimer.current != null) window.clearTimeout(resetTimer.current)
+  }, [])
+  const copy = async () => {
+    const state = await copyAssistantText(text, value => navigator.clipboard.writeText(value))
+    setCopyState(state)
+    if (resetTimer.current != null) window.clearTimeout(resetTimer.current)
+    resetTimer.current = window.setTimeout(() => setCopyState('idle'), 1500)
+  }
+  return <div className="message message-assistant"><div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div><MarkdownMessage text={text} language={language} /></div>
 }
 
 function ReasoningBlock({ text, streaming, expanded, language }: { text: string; streaming: boolean; expanded: boolean; language: Language }) {
@@ -160,8 +173,11 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       const intermediateMessages = process.filter((item): item is Extract<TimelineItem, { kind: 'message' }> => item.kind === 'message' && item.role === 'assistant')
       const hasTime = message.duration != null || index === activeUserIndex
       const finalMessage = finalIndex >= 0 ? following[finalIndex] : undefined
+      const userText = message.attachments?.length && message.text === t('ui.please.see.attachment')
+        ? label(language, `已发送 ${message.attachments.length} 个附件`, `Sent ${message.attachments.length} attachments`)
+        : message.text
       blocks.push(<React.Fragment key={`turn-${index}`}>
-        <p className="message message-user">{message.text}</p>
+        <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}</div>
         {!steps.length && hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
         {steps.length > 0 && <TurnActivity user={message} steps={steps} now={now} showTime={hasTime} language={language} />}
         {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} expanded={reasoning.some(part => part.expanded)} language={language} />}

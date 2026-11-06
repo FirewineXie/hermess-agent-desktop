@@ -9,6 +9,9 @@ import AttachmentQueue from './components/AttachmentQueue'
 import CommandSuggestions from './components/CommandSuggestions'
 import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
+import { clipboardImages } from './clipboardImages'
+import RollbackDialog from './components/RollbackDialog'
+import { SubagentPanelForSession } from './components/SubagentPanel'
 
 type Picker = {
   modelButtonRef: React.RefObject<HTMLButtonElement | null>
@@ -32,6 +35,7 @@ type Picker = {
 }
 
 type Props = {
+  active: boolean
   connected: boolean
   backendStatus: string
   language: 'zh-CN' | 'en-US'
@@ -48,9 +52,13 @@ type Props = {
   profiles: ProfilesSnapshot | null
   profileBusy: boolean
   onSelectProfile: (name: string) => void
+  tabs: React.ReactNode
+  scrollKey: string
+  standalone?: boolean
+  remoteMode?: boolean
 }
 
-export default function ChatView({ connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile }: Props) {
+export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey, standalone = false, remoteMode = false }: Props) {
   const backend = connected
   const blankClicks = React.useRef({ count: 0, last: 0 })
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -59,7 +67,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     const now = Date.now()
     const count = now - blankClicks.current.last <= 1200 ? blankClicks.current.count + 1 : 1
     blankClicks.current = { count, last: now }
-    if (count !== 5) return
+    if (count !== 5 || remoteMode) return
     blankClicks.current = { count: 0, last: 0 }
     onOpenDiagnostics()
   }
@@ -69,7 +77,7 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
     chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, sideQuestions, dismissSideQuestion, reasoningEffort,
-    reasoningBusy, reasoningLoadFailed, chatUsage,
+    reasoningBusy, reasoningLoadFailed, chatUsage, rollback,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
@@ -78,32 +86,68 @@ export default function ChatView({ connected, backendStatus, language, t, contro
     openModelPicker, pickModel,
   } = picker
   const contentRef = React.useRef<HTMLDivElement>(null)
+  const panelRef = React.useRef<HTMLElement>(null)
   const followMessagesRef = React.useRef(true)
   const lastUserCountRef = React.useRef(0)
-  const lastSessionRef = React.useRef(sessionId)
+  const lastScrollKeyRef = React.useRef(scrollKey)
+  const scrollPositionsRef = React.useRef(new Map<string, { top: number; follow: boolean }>())
   const userCount = conversation.filter(item => item.kind === 'message' && item.role === 'user').length
   const hasSubmission = Boolean(draft.trim() || attachments.length)
 
   React.useLayoutEffect(() => {
-    if (sessionId !== lastSessionRef.current || userCount !== lastUserCountRef.current) followMessagesRef.current = true
-    lastSessionRef.current = sessionId
-    lastUserCountRef.current = userCount
     const content = contentRef.current
+    if (scrollKey !== lastScrollKeyRef.current) {
+      lastScrollKeyRef.current = scrollKey
+      const saved = scrollPositionsRef.current.get(scrollKey)
+      followMessagesRef.current = saved?.follow ?? true
+      if (content) content.scrollTop = saved && !saved.follow ? saved.top : content.scrollHeight
+    } else if (userCount !== lastUserCountRef.current) followMessagesRef.current = true
+    lastUserCountRef.current = userCount
     if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
-  }, [conversation, assistant, serverRequest, sideQuestions, sessionId, userCount])
+  }, [conversation, assistant, serverRequest, sideQuestions, scrollKey, userCount])
 
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const panelLabel = panelOpen ? (language === 'zh-CN' ? '收起面板' : 'Collapse panel') : (language === 'zh-CN' ? '文件、任务与终端' : 'Files, tasks & terminal')
-  const panelToggle = <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
-  return <section className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
+  const panelToggle = standalone || remoteMode ? null : <button type="button" className="chat-panel-toggle" aria-label={panelOpen ? (language === 'zh-CN' ? '收起右侧工作区' : 'Collapse side workspace') : (language === 'zh-CN' ? '打开文件与终端面板' : 'Open files and terminal panel')} aria-pressed={panelOpen} onClick={onTogglePanel}>{panelLabel}</button>
+  const handlePaste = (event: ClipboardEvent) => {
+    if (!active || remoteMode || !event.clipboardData) return
+    const target = event.target
+    if (target !== document && target !== document.body && !(target instanceof Node && panelRef.current?.contains(target))) return
+    const inDraft = target === draftInputRef.current
+    if (!inDraft && target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, [contenteditable="true"]'))) return
+    const images = clipboardImages(event.clipboardData)
+    if (!images.length || !backend || turnBusy || attachmentBusy || navigationBusy) return
+    event.preventDefault()
+    if (inDraft) {
+      const text = event.clipboardData.getData('text/plain')
+      if (text) {
+        const input = draftInputRef.current!
+        const start = input.selectionStart
+        const end = input.selectionEnd
+        const caret = start + text.length
+        setDraft(value => `${value.slice(0, start)}${text}${value.slice(end)}`)
+        setDraftCaret(caret)
+        requestAnimationFrame(() => input.setSelectionRange(caret, caret))
+      }
+    }
+    void pasteImages(images)
+  }
+  React.useEffect(() => {
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  })
+  return <section ref={panelRef} className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
+      <RollbackDialog controller={rollback} language={language} />
+      {tabs}
       {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
-      {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
-      {!empty && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
-        <div className="chat-workspace-actions"><button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>{panelToggle}</div></div>}
+      {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{remoteMode ? (language === 'zh-CN' ? '向远程 Gateway 描述任务。' : 'Describe a task to the remote gateway.') : language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
+      {!empty && !remoteMode && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
+        <div className="chat-workspace-actions">{!standalone && <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>}{panelToggle}</div></div>}
       <div ref={contentRef} className="chat-content" onScroll={event => {
         const content = event.currentTarget
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
+        scrollPositionsRef.current.set(lastScrollKeyRef.current, { top: content.scrollTop, follow: followMessagesRef.current })
       }}>
       {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
       {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>
@@ -114,24 +158,10 @@ export default function ChatView({ connected, backendStatus, language, t, contro
         onAnswerChange={setClarifyAnswer}
         onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
       </div>
+      {sessionId && !remoteMode && <SubagentPanelForSession key={`${controller.sessionProfileRef.current}\u0000${sessionId}`}
+        profile={controller.sessionProfileRef.current} sessionId={sessionId} active={active && backend} language={language} />}
       <div className="composer-wrap"><div className="composer">
-       <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
-         onPaste={event => {
-           const images = Array.from(event.clipboardData.items).filter(item => item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => Boolean(file))
-           if (!images.length) return
-           event.preventDefault()
-           const text = event.clipboardData.getData('text/plain')
-           if (text) {
-             const input = event.currentTarget
-             const start = input.selectionStart
-             const end = input.selectionEnd
-             const caret = start + text.length
-             setDraft(value => `${value.slice(0, start)}${text}${value.slice(end)}`)
-             setDraftCaret(caret)
-             requestAnimationFrame(() => input.setSelectionRange(caret, caret))
-           }
-           void pasteImages(images)
-         }}
+        <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
@@ -157,15 +187,15 @@ export default function ChatView({ connected, backendStatus, language, t, contro
           }
         }} placeholder={t("ui.what.do.you.want.to.do.today.enter.to.select.a.command.to.select.a.skill")} rows={3} />
       <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} hint={controller.argumentHint} t={t} onChoose={chooseCommand} />
-      <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />
+      {!remoteMode && <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />}
       <div className="composer-actions">
-        <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>
+        {!remoteMode && <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>}
         {!sessionId && profiles && <label className="composer-profile-picker"><span className="sr-only">Profile</span><select aria-label="Profile" value={profiles.selected} disabled={profileBusy || navigationBusy} onChange={event => onSelectProfile(event.target.value)}>
           {profiles.profiles.map(profile => <option value={profile.name} key={profile.name} disabled={profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}</option>)}
         </select></label>}
         <span className="composer-spacer" />
         <ContextUsageIndicator usage={chatUsage} language={language} />
-        <label className="reasoning-picker">
+        {!remoteMode && <label className="reasoning-picker">
           <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
             <option value="" disabled>{!backend
               ? language === 'zh-CN' ? '思考 · 未连接' : 'Reasoning · Disconnected'
@@ -174,8 +204,8 @@ export default function ChatView({ connected, backendStatus, language, t, contro
                 : language === 'zh-CN' ? '思考 · 读取中' : 'Reasoning · Loading'}</option>
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
-        </label>
-        <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>
+        </label>}
+        {!remoteMode && <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>}
         {turnBusy ? /^\/steer(?:\s|$)/.test(draft.trim())
           ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
           : /^\/queue(?:\s|$)/.test(draft.trim())
@@ -189,13 +219,13 @@ export default function ChatView({ connected, backendStatus, language, t, contro
             ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
             : <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
-      {modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
+      {!remoteMode && modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
         activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
         onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
-      </div>{empty && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
-      <small className="composer-hint">{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {choices.length
+      </div>{empty && !standalone && !remoteMode && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
+      <small className="composer-hint">{!remoteMode && <>{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · </>}{choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
         : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}

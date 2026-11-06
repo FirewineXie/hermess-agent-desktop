@@ -41,7 +41,7 @@ def main():
             fields = request("get", "/api/config/schema?profile=worker")["fields"]
             required = (
                 "command_allowlist", "approvals.mode", "checkpoints.enabled",
-                "agent.max_turns", "terminal.timeout", "tool_output.max_bytes")
+                "agent.max_turns", "terminal.timeout", "tool_output.max_bytes", "display.language")
             assert all(key in fields for key in required), [key for key in required if key not in fields]
             defaults = request("get", "/api/config/defaults")
             assert isinstance(defaults, dict)
@@ -54,6 +54,11 @@ def main():
             assert actual["agent"]["max_turns"] == 37
             assert actual["command_allowlist"] == []
             assert yaml.safe_load((home / "config.yaml").read_text(encoding="utf-8")) == {}
+
+            # Same nested PUT and readback used by the desktop's saveField route.
+            request("put", "/api/config?profile=worker", json={"config": {"display": {"language": "zh"}}})
+            assert request("get", "/api/config?profile=worker")["display"]["language"] == "zh"
+            assert yaml.safe_load((worker / "config.yaml").read_text(encoding="utf-8"))["display"]["language"] == "zh"
 
             # Full YAML replacement must actually delete omitted keys/sections.
             for document in (
@@ -79,7 +84,7 @@ def main():
             inventory = request("get", "/api/ops/checkpoints?profile=worker")
             assert inventory == {"sessions": [{"session": "settings-test-session", "files": 1, "bytes": 8}], "total_bytes": 8}
             assert request("get", "/api/ops/checkpoints")["sessions"] == []
-            print("PASS: schema, Profile field/list isolation, full replacement, consent, checkpoint inventory")
+            print("PASS: schema, Profile field/list isolation, language write/readback, full replacement, consent, checkpoint inventory")
 
 
 if __name__ == "__main__":

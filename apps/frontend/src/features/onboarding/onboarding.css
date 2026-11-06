@@ -1,0 +1,22 @@
+.onboarding-overlay { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 24px; background: rgba(12, 19, 29, .72); backdrop-filter: blur(8px); }
+.onboarding-dialog { width: min(620px, 100%); max-height: calc(100vh - 48px); overflow: auto; padding: 32px; border: 1px solid #dce2e8; border-radius: 20px; background: #fff; color: #20242d; box-shadow: 0 24px 80px rgba(0, 0, 0, .25); }
+.onboarding-dialog header h1 { margin: 8px 0; font-size: 28px; }
+.onboarding-dialog header p, .onboarding-content p { line-height: 1.6; opacity: .82; }
+.onboarding-eyebrow { color: #70c4ab; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.onboarding-steps { display: flex; gap: 8px; padding: 0; margin: 26px 0; list-style: none; }
+.onboarding-steps li { flex: 1; padding: 11px 8px; border: 1px solid #dce2e8; border-radius: 9px; text-align: center; font-size: 13px; opacity: .62; }
+.onboarding-steps li.current, .onboarding-steps li.done { border-color: #70c4ab; opacity: 1; }
+.onboarding-content { min-height: 190px; }
+.onboarding-content h2 { margin: 0 0 8px; font-size: 18px; }
+.onboarding-content label { display: block; margin-bottom: 8px; font-weight: 600; }
+.onboarding-content textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 12px; border: 1px solid #dce2e8; border-radius: 10px; color: inherit; background: #fff; font: inherit; }
+.onboarding-status { padding: 10px 12px; border-radius: 9px; background: rgba(246, 185, 80, .13); overflow-wrap: anywhere; }
+.onboarding-status.ready { background: rgba(112, 196, 171, .15); }
+.onboarding-error { color: #f08484; }
+.onboarding-dialog button { padding: 9px 14px; border: 1px solid #dce2e8; border-radius: 8px; color: inherit; background: #fff; cursor: pointer; }
+.onboarding-dialog button:disabled { cursor: not-allowed; opacity: .45; }
+.onboarding-dialog button.primary { border-color: #70c4ab; background: #147860; color: #fff; }
+.onboarding-dialog footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 28px; }
+.onboarding-dialog footer > div { display: flex; gap: 8px; }
+.onboarding-dialog .onboarding-skip { border: 0; opacity: .78; }
+@media (max-width: 520px) { .onboarding-overlay { padding: 12px; } .onboarding-dialog { padding: 20px; max-height: calc(100vh - 24px); } .onboarding-steps { flex-direction: column; } .onboarding-dialog footer { align-items: stretch; flex-direction: column-reverse; } .onboarding-dialog footer > div { justify-content: flex-end; } }

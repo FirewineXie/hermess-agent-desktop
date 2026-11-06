@@ -1,8 +1,26 @@
 use super::{
-    bound_notification_text, canonical_approval_request, is_forwarded_event, GatewayEvent,
-    GatewayServerRequest,
+    bound_notification_text, canonical_approval_request, is_forwarded_event,
+    project_subagent_event, remote_ws_url, GatewayEvent, GatewayServerRequest,
 };
 use serde_json::json;
+
+#[test]
+fn remote_static_token_is_sent_only_to_a_loopback_tunnel() {
+    let url = remote_ws_url("http://127.0.0.1:9119/hermes/", "token with spaces").unwrap();
+    assert_eq!(
+        url.as_str(),
+        "ws://127.0.0.1:9119/hermes/api/ws?token=token+with+spaces"
+    );
+    for base in [
+        "http://cloud.example:9119",
+        "https://cloud.example",
+        "http://user@127.0.0.1:9119",
+        "http://127.0.0.1:9119/?other=1",
+    ] {
+        assert!(remote_ws_url(base, "token").is_err(), "{base}");
+    }
+    assert!(remote_ws_url("http://127.0.0.1:9119", "").is_err());
+}
 
 #[test]
 fn forwards_reasoning_content_events() {
@@ -23,6 +41,31 @@ fn forwards_runtime_notification_and_background_events() {
     }
     assert!(!is_forwarded_event("credits.fake"));
     assert!(!is_forwarded_event("plugin.fake"));
+}
+
+#[test]
+fn forwards_session_list_change_signal() {
+    assert!(is_forwarded_event("sessions.changed"));
+}
+
+#[test]
+fn forwards_only_bounded_subagent_state() {
+    for kind in [
+        "subagent.spawn_requested",
+        "subagent.start",
+        "subagent.progress",
+        "subagent.complete",
+    ] {
+        assert!(is_forwarded_event(kind));
+    }
+    assert!(!is_forwarded_event("subagent.thinking"));
+    assert!(!is_forwarded_event("subagent.text"));
+    let mut payload = json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file", "text":"private output", "tool_preview":"private path"});
+    project_subagent_event("subagent.complete", &mut payload);
+    assert_eq!(
+        payload,
+        json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file"})
+    );
 }
 
 #[test]

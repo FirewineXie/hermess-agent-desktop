@@ -15,10 +15,11 @@ type Props = {
   onNavigate: (page: SettingsPage) => boolean
   onExit: () => void
   diagnosticsUnlocked: boolean
+  onOpenOnboarding: () => void
   children: ReactNode
 }
 
-export default function SettingsView({ language, page, connected, profile, profiles, profileBusy, onSelectProfile, onNavigate, onExit, diagnosticsUnlocked, children }: Props) {
+export default function SettingsView({ language, page, connected, profile, profiles, profileBusy, onSelectProfile, onNavigate, onExit, onOpenOnboarding, diagnosticsUnlocked, children }: Props) {
   const zh = language === 'zh-CN'
   const [error, setError] = React.useState('')
   const request = React.useRef(0)
@@ -39,17 +40,18 @@ export default function SettingsView({ language, page, connected, profile, profi
   return <section className="unified-settings" aria-label={zh ? '设置' : 'Settings'}>
     <aside className="settings-category-nav" aria-label={zh ? '设置分类' : 'Settings categories'}>
       <div className="settings-nav-heading"><button type="button" onClick={onExit}>{zh ? '← 返回' : '← Back'}</button><strong>{zh ? '设置' : 'Settings'}</strong></div>
+      <button type="button" onClick={onOpenOnboarding}>{zh ? '重新打开使用引导' : 'Open setup guide'}</button>
       {settingsCategories.filter(item => item.id !== 'diagnostics' || diagnosticsUnlocked).map(item => <button type="button" key={item.id} className={category === item.id ? 'selected' : ''} onClick={() => navigate(item.page)}>{zh ? item.zh : item.en}</button>)}
     </aside>
     <div className="settings-main">
       <header className="settings-content-heading">
         <div><h1>{zh ? categoryDefinition.zh : categoryDefinition.en}</h1>
           {(categoryDefinition.descriptionZh || categoryDefinition.descriptionEn) && <p>{zh ? categoryDefinition.descriptionZh : categoryDefinition.descriptionEn}</p>}</div>
-        {categoryDefinition.profileScoped && <label className="settings-profile-scope">{zh ? '当前 Profile' : 'Current Profile'}
+        {categoryDefinition.profileScoped && <label className="settings-profile-scope">{page === 'system-operations' ? (zh ? '操作 Profile' : 'Operation Profile') : (zh ? '当前 Profile' : 'Current Profile')}
           <select value={profile || ''} disabled={!connected || profileBusy || profiles.length === 0} onChange={event => selectProfile(event.target.value)}>
             {!profile && <option value="">{zh ? '未选择' : 'Not selected'}</option>}
             {profiles.map(item => <option key={item.name} value={item.name}>{item.display_name || item.name}</option>)}
-          </select><small>{zh ? '此分类的配置按 Profile 隔离' : 'Settings in this category are isolated by Profile'}</small>
+          </select><small>{page === 'system-operations' ? (zh ? '诊断按当前 Profile 执行' : 'Diagnostics run for this Profile') : (zh ? '此分类的配置按 Profile 隔离' : 'Settings in this category are isolated by Profile')}</small>
           {error && <small role="alert">{error}</small>}
         </label>}
       </header>

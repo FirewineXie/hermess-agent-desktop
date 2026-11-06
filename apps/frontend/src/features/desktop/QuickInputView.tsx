@@ -1,7 +1,11 @@
 import React from 'react'
 import type { QuickTarget, Unsubscribe } from '@hermess/contracts'
 import { QuickInputFlight } from './quickFlight'
+import { initializeAppearance } from './appearanceRuntime'
 import './desktop-settings.css'
+import './appearance.css'
+
+initializeAppearance()
 
 export type QuickInputApi = {
   target(): Promise<QuickTarget | null>

@@ -7,7 +7,7 @@
   "required": ["kind", "code", "category"],
   "properties": {
     "kind": { "enum": ["desktop_failure"] },
-    "code": { "enum": ["operation_failed", "runtime_unavailable", "connection_lost", "timeout", "conflict", "invalid_input", "session_owner_unknown", "session_profile_mismatch"] },
+    "code": { "enum": ["operation_failed", "runtime_unavailable", "connection_lost", "timeout", "conflict", "invalid_input", "pairing_not_found", "pairing_locked", "session_owner_unknown", "session_profile_mismatch"] },
     "category": { "enum": ["operation", "runtime", "connection", "validation"] }
   }
 }

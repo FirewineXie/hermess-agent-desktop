@@ -4,6 +4,7 @@ import type { ModelPick } from '../models/model'
 
 export type ChatControllerOptions = {
   backend: BackendInfo | null
+  remoteMode?: boolean
   profile: string | null
   chatVisible: boolean
   activeModel: ModelPick | null

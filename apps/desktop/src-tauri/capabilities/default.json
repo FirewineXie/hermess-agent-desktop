@@ -14,7 +14,10 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "notification:default",
-    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://github.com/FirewineXie/hermess-agent-desktop" }] },
+    { "identifier": "opener:allow-open-url", "allow": [
+      { "url": "https://github.com/FirewineXie/hermess-agent-desktop" },
+      { "url": "https://hermes-agent.nousresearch.com/docs/" }
+    ] },
     "core:webview:allow-create-webview",
     "core:webview:allow-webview-close",
     "core:webview:allow-webview-hide",

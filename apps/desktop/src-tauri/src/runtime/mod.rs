@@ -1,8 +1,15 @@
 use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
+pub mod bots;
 pub mod browser_bridge;
+pub mod channel_manage;
+pub mod channel_telegram;
+pub mod channel_vendor_qr;
+pub mod channel_whatsapp;
 pub mod channels;
 pub mod chat;
+pub mod chat_rollback;
+pub mod chat_subagents;
 mod composer_agents;
 pub mod composer_background;
 mod composer_branch;
@@ -14,35 +21,58 @@ pub mod composer_steer;
 mod composer_undo;
 pub mod config;
 mod config_document;
+pub mod console_socket;
+mod credential_pool;
+pub mod curator;
+pub mod dashboard_plugins;
 pub mod delegation;
 pub mod downloadable_tools;
+mod env_keys;
 pub mod extensions;
 mod gateway_control;
 mod helper_python;
 mod hermes_plugins;
+mod hooks;
 mod jobs;
+pub mod kanban_dashboard;
+mod local_http;
 mod location;
+mod logs;
+mod managed_files;
 mod mcp_registry;
 pub mod memory_provider;
+mod memory_provider_setup;
+pub mod model_oauth;
 pub mod models;
 mod modelscope;
 mod modelscope_mcp;
+mod pairing;
 mod payload;
 pub mod personal_files;
+pub mod personal_tasks;
 pub mod personalities;
 #[cfg(windows)]
 mod powershell_tool;
 mod product_skill;
+pub mod profile_archive;
+pub(crate) mod profile_create_adapter;
 pub mod profile_data;
+pub mod profile_identity;
 mod profile_scope;
 pub mod profiles;
 pub mod provider_copy;
+mod remote_config;
+pub mod remote_gateway;
 #[cfg(windows)]
 mod retired_payload;
 pub mod security;
 pub mod session_export;
+mod session_management;
+mod system_actions;
+pub mod system_stats;
 pub mod tools;
 pub mod usage;
+mod webhooks;
 pub mod workbuddy_import;
 
 use crate::diagnostics::{append_client_event, capture_backend_output};
@@ -82,6 +112,7 @@ pub struct BackendState(
     Mutex<Option<profile_scope::ProfileTopology>>,
     Mutex<HashMap<(String, String, String), Value>>,
     Mutex<()>,
+    Mutex<Option<remote_gateway::ActiveRemote>>,
 );
 
 struct OwnedBackend {
@@ -108,11 +139,40 @@ impl Drop for RestartDrainGuard {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct BackendInfo {
     port: u16,
     pid: u32,
     replay_epoch: String,
+}
+
+impl BackendState {
+    pub(crate) async fn validate_chat_window_profile(
+        &self,
+        profile: &str,
+    ) -> Result<(), DesktopFailure> {
+        self.resolve_chat_profile(profile).await.map(|_| ())
+    }
+
+    pub(crate) async fn chat_window_snapshot(
+        &self,
+    ) -> Result<Option<(BackendInfo, String)>, DesktopFailure> {
+        let mut owned = self.0.lock().await;
+        let Some(backend) = owned.as_mut() else {
+            return Ok(None);
+        };
+        if !backend_running(backend).map_err(DesktopFailure::from)? || backend.gateway.is_closed() {
+            return Ok(None);
+        }
+        Ok(Some((
+            BackendInfo {
+                port: backend.port,
+                pid: backend.child.id().unwrap_or(0),
+                replay_epoch: backend.gateway.replay_epoch.clone(),
+            },
+            plain_path(&backend.storage).to_string_lossy().into_owned(),
+        )))
+    }
 }
 
 #[derive(Serialize)]
@@ -158,17 +218,21 @@ pub fn dev_backend_defaults() -> Result<DevDefaults, DesktopFailure> {
         .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
     let build = product.join(".build");
-    let python = build.join("hermes-venv-i1").join(if cfg!(windows) {
-        "Scripts/python.exe"
-    } else {
-        "bin/python"
-    });
+    let python = std::env::var_os("HERMESS_DEV_PYTHON")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            build.join("hermes-venv-i1").join(if cfg!(windows) {
+                "Scripts/python.exe"
+            } else {
+                "bin/python"
+            })
+        });
+    let storage = std::env::var_os("HERMESS_DEV_STORAGE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| build.join("desktop-dev-data"));
     Ok(DevDefaults {
         python_path: python.to_string_lossy().into_owned(),
-        storage_path: build
-            .join("desktop-dev-data")
-            .to_string_lossy()
-            .into_owned(),
+        storage_path: storage.to_string_lossy().into_owned(),
     })
 }
 
@@ -286,7 +350,9 @@ pub async fn start_dev_backend(
         .join("../../..")
         .canonicalize_plain()
         .map_err(|_| "无法定位产品目录".to_string())?;
-    if !python.starts_with(product.join(".build")) {
+    let configured = std::env::var_os("HERMESS_DEV_PYTHON")
+        .and_then(|value| PathBuf::from(value).canonicalize_plain().ok());
+    if !python.starts_with(product.join(".build")) && configured.as_ref() != Some(&python) {
         return Err(DesktopFailure::invalid_input());
     }
     let hermes = python.with_file_name(if cfg!(windows) {
@@ -649,6 +715,7 @@ async fn restart_status(client: &Client, port: u16) -> Result<Value, DesktopFail
 pub async fn restart_backend_gracefully(
     app: AppHandle,
     state: State<'_, BackendState>,
+    whatsapp_setups: State<'_, channel_whatsapp::WhatsAppSetupState>,
 ) -> Result<GracefulRestartResult, DesktopFailure> {
     let _restart_gate = state.1.try_lock().map_err(|_| DesktopFailure::conflict())?;
     let (pid, port, token, hermes, storage, disable_lazy_installs) = {
@@ -722,6 +789,7 @@ pub async fn restart_backend_gracefully(
         sleep(Duration::from_secs(1)).await;
     }
 
+    channel_whatsapp::cancel_all(&state, &whatsapp_setups).await;
     let mut owned = state.0.lock().await;
     let backend = owned
         .as_mut()
@@ -781,9 +849,11 @@ pub async fn restart_backend_gracefully(
 pub async fn stop_backend(
     state: State<'_, BackendState>,
     browser_bridge: State<'_, browser_bridge::BrowserBridgeState>,
+    whatsapp_setups: State<'_, channel_whatsapp::WhatsAppSetupState>,
 ) -> Result<(), DesktopFailure> {
     // The browser's detach request needs the gateway, so end CDP first.
     browser_bridge.stop_all().await;
+    channel_whatsapp::cancel_all(&state, &whatsapp_setups).await;
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
         let _ = append_client_event(&backend.storage, "backend_stopping");

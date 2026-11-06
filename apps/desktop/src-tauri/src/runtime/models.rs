@@ -248,14 +248,9 @@ pub async fn get_saved_model_config(
     scope.ensure_current(&state).await?;
     let (port, auth_header, token) = scope.http_auth().await?;
     scope.ensure_current(&state).await?;
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|_| "无法建立本地配置连接".to_string())?;
-    let mut response = client
+    let mut response = super::local_http::client()?
         .get(format!("http://127.0.0.1:{port}/api/config/raw"))
+        .timeout(Duration::from_secs(15))
         .header(auth_header, token)
         .send()
         .await
@@ -613,19 +608,24 @@ pub(super) fn valid_moa_config(config: &Value) -> bool {
         && active
 }
 
+fn moa_path(profile: &str) -> Result<String, DesktopFailure> {
+    let mut url = reqwest::Url::parse("http://127.0.0.1/api/model/moa")
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    url.query_pairs_mut().append_pair("profile", profile);
+    Ok(format!(
+        "{}?{}",
+        url.path(),
+        url.query().unwrap_or_default()
+    ))
+}
+
 #[tauri::command]
 pub async fn get_moa_config(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
-    config_request_to_profile(
-        &state,
-        &profile,
-        reqwest::Method::GET,
-        "/api/model/moa",
-        None,
-    )
-    .await
+    let path = moa_path(&profile)?;
+    config_request_to_profile(&state, &profile, reqwest::Method::GET, &path, None).await
 }
 
 #[tauri::command]
@@ -638,14 +638,8 @@ pub async fn save_moa_config(
     if encoded.len() > 512 * 1024 || !valid_moa_config(&config) {
         return Err(DesktopFailure::invalid_input());
     }
-    config_request_to_profile(
-        &state,
-        &profile,
-        reqwest::Method::PUT,
-        "/api/model/moa",
-        Some(config),
-    )
-    .await
+    let path = moa_path(&profile)?;
+    config_request_to_profile(&state, &profile, reqwest::Method::PUT, &path, Some(config)).await
 }
 
 #[tauri::command]
@@ -701,14 +695,9 @@ pub async fn set_default_model(
     scope.ensure_current(&state).await?;
     let (port, auth_header, token) = scope.http_auth().await?;
     scope.ensure_current(&state).await?;
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(45))
-        .build()
-        .map_err(|_| "无法建立本地配置连接".to_string())?;
-    let mut response = client
+    let mut response = super::local_http::client()?
         .post(format!("http://127.0.0.1:{port}/api/model/set"))
+        .timeout(Duration::from_secs(45))
         .header(auth_header, token)
         .json(&json!({
             "scope": "main", "provider": provider, "model": model,

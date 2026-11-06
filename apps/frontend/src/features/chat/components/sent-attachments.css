@@ -1,0 +1,12 @@
+.messages .message-user > p { margin: 0; }
+.sent-attachments { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 10px 0 0; padding: 0; }
+.sent-attachments li { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 6px 8px; border: 1px solid #dbe1e8; border-radius: 9px; background: #fff; }
+.sent-attachment-image, .sent-attachment-icon { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border: 1px solid #e3e8ed; border-radius: 6px; background: #f7f9fb; }
+.sent-attachment-image { padding: 0; cursor: zoom-in; }
+.sent-attachment-image img { width: 100%; height: 100%; object-fit: contain; }
+.sent-attachment-icon { color: #59697e; font-size: 28px; }
+.sent-attachment-name { min-width: 0; overflow-wrap: anywhere; }
+.sent-attachments small { color: #697789; white-space: nowrap; }
+.sent-attachment-lightbox { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 40px; background: rgba(15, 23, 42, .82); }
+.sent-attachment-lightbox > img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.sent-attachment-close { position: absolute; top: 16px; right: 20px; border: 0; background: transparent; color: #fff; font-size: 32px; cursor: pointer; }

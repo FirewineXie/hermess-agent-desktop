@@ -18,11 +18,21 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
             let _ = window.hide();
         }
     }
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        api.prevent_close();
-        let _ = window.hide();
+    if hides_on_close(window.label()) {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.hide();
+        }
     }
 }
+
+fn hides_on_close(label: &str) -> bool {
+    matches!(label, "main" | "quick-input")
+}
+
+#[cfg(test)]
+#[path = "tests/tray.rs"]
+mod tests;
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let open = MenuItem::with_id(app, "open", "打开主界面", true, None::<&str>)?;
@@ -56,6 +66,9 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                         app.exit(1);
                         return;
                     };
+                    let state = app.state::<crate::runtime::BackendState>();
+                    let whatsapp =
+                        app.state::<crate::runtime::channel_whatsapp::WhatsAppSetupState>();
                     if !processes.begin_shutdown() {
                         return;
                     }
@@ -63,13 +76,12 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     crate::panel_terminal::close_all_panel_terminals(
                         app.state::<crate::panel_terminal::TerminalState>(),
                     );
-                    let state = app.state::<crate::runtime::BackendState>();
                     let bridge = app.state::<crate::runtime::browser_bridge::BrowserBridgeState>();
                     bridge.stop_all().await;
                     let _ = processes.kill_temporary();
                     let stopped = tokio::time::timeout(
                         std::time::Duration::from_secs(25),
-                        crate::runtime::stop_backend(state, bridge),
+                        crate::runtime::stop_backend(state, bridge, whatsapp),
                     )
                     .await;
                     let remaining = processes.kill_remaining();

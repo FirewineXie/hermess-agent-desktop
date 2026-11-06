@@ -1,4 +1,4 @@
-use super::valid_moa_config;
+use super::{moa_path, valid_moa_config};
 use serde_json::json;
 
 #[cfg(windows)]
@@ -56,6 +56,14 @@ fn config() -> serde_json::Value {
 #[test]
 fn accepts_a_bounded_moa_config() {
     assert!(valid_moa_config(&config()));
+}
+
+#[test]
+fn moa_route_scopes_and_encodes_the_selected_profile() {
+    assert_eq!(
+        moa_path("research & review").unwrap(),
+        "/api/model/moa?profile=research+%26+review"
+    );
 }
 
 #[test]

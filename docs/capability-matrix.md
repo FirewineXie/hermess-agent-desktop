@@ -7,14 +7,15 @@
 | v0.1.8 通知 N01 扩展 | background.complete、notification.show/clear（credits. / plugin-message:） | 七类独立开关，后台子任务与其他会话完成、额度、插件消息，按作用域/键去重与原会话点击定位 | 前端59项/Rust100项及生产函数、上游定向、构建与PREVIEW_ONLY通过；双平台原生真实服务待验收，见 [通知记录](settings-notification-events.md) |
 | v0.1.8 安全与高级配置 S01–S03/A01 | Profile Schema/config/raw、共享指标同意、检查点清单 | 统一安全三页/高级五页；对象准确替换与 YAML 冲突/语义校验；删除旧 Agent 页面与内嵌状态 | Windows 前端53项/Rust98项通过及5项环境忽略，隔离运行时与上游25项、构建/边界/Gateway冒烟及预览检查通过；真实原生流程和macOS待验收，见 [本批记录](settings-security-advanced.md) |
 | v0.1.8 委派路由 M05 | Profile 级 `/api/delegation/*`、现有 Schema | 设置中的默认/模型/Profile 策略、路由密钥操作、有序回退与请求覆盖；删除通用表单重复入口 | 本地边界测试、12 项锁定上游接口测试及 PREVIEW_ONLY 交互通过；真实子 Agent 和双平台原生待验收，见 [本批记录](settings-models-desktop-capabilities.md) |
-| v0.1.8 提供商同步 M07 | `/api/providers/custom-endpoints`、产品模型候选目录 | 仅允许目标不存在该提供商时新建，预览/执行重查、独立 ID、无凭据复制、回读核对 | 宿主冲突/载荷单测及 PREVIEW_ONLY 同步/重复阻止通过；真实双 Profile 流程未验收，无外部并发原子唯一性保证 |
+| v0.1.8 提供商同步 M07，v0.1.9 扩展 API Key | `/api/providers/custom-endpoints`、`/api/env/reveal`、`/api/env`、产品模型候选目录 | 仅允许目标不存在该提供商时新建，预览/执行重查、独立 ID、来源有 API Key 时复制到目标独立密钥槽，回读核对；OAuth 和其他凭据不复制 | Windows 锁定 Gateway 隔离双 Profile 的真实票据请求与拒绝用例通过；完整桌面窗口操作及 macOS 尚未验收，无外部并发原子唯一性保证 |
 | v0.1.8 桌面能力 A02 | Tauri 全局快捷键、Power Request/IOKit、WebView2 | 宿主设备偏好、唤醒、Windows F12、独立输入窗、一次性领取与主聊天提交、退出清理 | 快捷键校验、请求领取、Windows Power Request 申请/释放及预览交互通过；Windows 完整窗口流程与 macOS 原生待验收 |
 | 本地独立启动 | `hermes gateway run`、私有发现接口 | Rust 管理一个自有网关进程、私有数据根与锁目录；发现时核对自有 PID | Windows 开发态及重新构建的 core payload 均启动成功；原生窗口未操作验收 |
 | 本地鉴权 | loopback HTTP 使用 `HERMES_DASHBOARD_SESSION_TOKEN`；会话 WebSocket 使用私有控制端票据 | 令牌和票据仅在 Rust 层；前端收不到凭据 | 私有 HTTP、票据 WebSocket ping 和带浏览器 Origin 的拒绝路径已用本机探针验证；并行官方 Hermes 共存与原生窗口仍待验收 |
 | 网关连通 | `ping` | Rust 持续连接 + RPC 请求匹配；另有独立 ping | 原版后端脚本通过；Rust 长连接未完成窗口验收 |
 | 新建会话 | `session.create`，`source: gui`、`request_id` | Rust RPC 保留运行时 ID 与持久化 ID，开发态 UI 分别记录 | 票据连接以显式模型创建会话通过；无模型配置时上游返回 `storage_unavailable`；新流程的 UI 未验收 |
 | 工作区模式 | `session.create` 的 `cwd`、`cwd_explicit` | 工作区页保存本地目录快捷入口，所选目录只作用于新会话；Rust 校验目录存在，聊天页显示当前会话目录，恢复会话沿用原目录 | 前端类型检查、桌面 UI 构建、Rust 目录校验单元测试与编译通过；假模型 Gateway 冒烟包含显式 `cwd` 创建和文件工具执行，但原生目录选择、跨重启保存及工作区内实际文件操作仍待窗口验收 |
-| 飞书与微信扫码 | 飞书设备注册；微信 iLink 二维码；`/api/messaging/platforms` | Rust 保管待确认凭据，前端只取得扫码 URL；授权后由网关保存配置并重启该自有进程 | 两个线上二维码启动接口返回有效数据；锁定 fork 的 core payload 含所需 Python 依赖，打包网关的渠道列表可读取。手机扫码、实际收发和重启后生效未验收 |
+| 飞书与微信扫码、私聊准入 | 飞书设备注册；微信 iLink 二维码；`/api/env`、`/api/messaging/platforms`、`/api/pairing/approve` | Rust 保管待确认凭据，前端弹窗展示二维码并选择私聊直接放行或配对审批；确认后写入当前 Profile 并重启自有网关，已接入渠道可批准配对码 | 两个线上二维码启动接口曾返回有效数据；2026-10-31 Windows 隔离锁定 Dashboard 接收方验证默认/命名 Profile 的两种配置与配对批准、拒绝；前端构建、架构、契约、Rust 格式/编译/单测通过。手机扫码、实际收发、Windows/macOS 原生窗口与重启后生效未验收 |
+| 其他消息渠道配置与扫码 | `/api/messaging/platforms` 列表、更新和测试；Telegram、钉钉、企微群机器人、QQ Bot 扫码服务；WhatsApp Dashboard 配对接口 | 前端按渠道元数据配置、启停和测试；Rust 校验必填项且只返回非敏感字段，扫码凭据留在 Rust。空配置不启用，元宝还需 App ID 和密钥；WhatsApp 扫码后经渠道配置接口保存并由桌面端重启；不改锁定 fork | Windows 隔离 Dashboard 接收方验证 Telegram、钉钉、企微、QQ Bot、元宝在默认和命名 Profile 的保存、停用、测试和非法字段拒绝，及 WhatsApp 已配对分支的启动、状态、保存和取消；四个其他扫码服务返回有效字段，Rust 编译与前端构建通过。WhatsApp 首次 Node 配对、手机扫码、真实运行连接、原生窗口、macOS 和异常退出的子进程回收未验收 |
 | 系统托盘 | Tauri tray icon、单实例插件 | 关闭窗口隐藏；菜单恢复与退出，退出前停止自有网关 | Rust 编译和单元测试通过；Windows 原生窗口行为未验收 |
 | 提交消息 | `prompt.submit` | Rust RPC 命令，无盲目重试 | 脚本取得 admission；UI 未验收 |
 | 命令与 Skill 输入 | `commands.catalog`、`slash.exec`、`command.dispatch` | `/` 显示网关完整命令目录并标出桌面可用状态，`/model` 打开模型配置页；`@` 显示当前会话已安装的 Skill。每项显示用途说明，Skill 调用经网关展开后提交 | Windows x64 假模型脚本验证目录含 `/model`、`/help` 可执行及临时 Skill 分发；前端与 Rust 构建通过。原生窗口候选菜单与键盘交互未操作验收 |

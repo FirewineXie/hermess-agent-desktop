@@ -1,5 +1,6 @@
 use super::{
-    decode, file_version, memory_text, parse_entries, read_bytes, write_checked, ENTRY_DELIMITER,
+    decode, file_version, memory_reset_request_shape, memory_text, parse_entries, read_bytes,
+    write_checked, MemoryResetTarget, ENTRY_DELIMITER,
 };
 use std::{fs, path::Path};
 use uuid::Uuid;
@@ -45,4 +46,22 @@ fn reject_symlink_or_non_file_targets() {
     fs::create_dir_all(&root).unwrap();
     assert!(matches!(read_bytes(Path::new(&root)), Err(_)));
     fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn memory_reset_shape_is_profile_scoped_and_bounded() {
+    let (method, path, body) = memory_reset_request_shape("writer", MemoryResetTarget::User);
+    assert_eq!(method, reqwest::Method::POST);
+    assert_eq!(path, "/api/memory/reset?profile=writer");
+    assert_eq!(body, serde_json::json!({ "target": "user" }));
+}
+
+#[test]
+#[ignore = "prints the production request for the locked receiver integration test"]
+fn print_production_memory_reset_request_shape() {
+    let (method, path, body) = memory_reset_request_shape("writer", MemoryResetTarget::All);
+    println!(
+        "MEMORY_RESET_SHAPE={}",
+        serde_json::json!({ "method": method.as_str(), "path": path, "body": body })
+    );
 }

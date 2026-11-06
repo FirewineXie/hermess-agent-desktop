@@ -1,0 +1,13 @@
+.scheduled-detail { min-width: 830px; padding: 20px 24px; border-top: 1px solid #dce6f4; background: #f8fbff; color: #32445d; font-size: 13px; }
+.scheduled-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+.scheduled-detail-grid > div { min-width: 0; }
+.scheduled-detail-grid span { display: block; margin-bottom: 5px; color: #71819a; font-size: 11px; }
+.scheduled-detail-grid strong { font-weight: 600; overflow-wrap: anywhere; }
+.scheduled-detail-grid pre { max-height: 180px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.scheduled-detail h4 { margin: 20px 0 10px; font-size: 14px; }
+.scheduled-detail h4 small { color: #8794a7; }
+.scheduled-runs { list-style: none; margin: 0; padding: 0; }
+.scheduled-runs li { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid #e3eaf3; }
+.scheduled-runs li time { color: #687994; font-variant-numeric: tabular-nums; }
+.scheduled-runs li p { width: 100%; margin: 0; color: #536273; }
+.scheduled-detail-error { color: #b34444; }

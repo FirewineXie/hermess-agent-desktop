@@ -39,7 +39,7 @@ export function useNativeNotifications({ connectionId, activeTarget, language, o
     let active = true
     let stopAction: (() => void) | undefined
     const handle = async (action: NotificationAction) => {
-      if (!active || action.target.connectionId !== connectionId) return
+      if (!active || action.target.connectionId !== connectionId || action.target.taskId) return
       if (action.kind === 'approval' && action.target.approvalRequestId && action.choice) {
         await chat.answerRequest({ kind: 'session', profile: action.target.profile, sessionId: action.target.sessionId }, {
           requestId: action.target.approvalRequestId,

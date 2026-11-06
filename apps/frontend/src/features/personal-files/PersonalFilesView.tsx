@@ -94,6 +94,27 @@ export default function PersonalFilesView({ connected, profile, epoch, onDirtyCh
     } finally { setBusy(false) }
   }
 
+  async function resetMemory(target: 'all' | 'memory' | 'user') {
+    if (!profile || busy) return
+    if (dirty && !window.confirm(say('此操作会放弃当前未保存修改并删除磁盘记忆，仍要继续吗？', 'This discards unsaved changes and deletes memory from disk. Continue?'))) return
+    if (!dirty && !window.confirm(target === 'all'
+      ? say('确定删除当前 Profile 的 MEMORY.md 和 USER.md？此操作不能撤销。', 'Delete MEMORY.md and USER.md for this Profile? This cannot be undone.')
+      : say(`确定删除当前 Profile 的 ${target === 'memory' ? 'MEMORY.md' : 'USER.md'}？此操作不能撤销。`, `Delete ${target === 'memory' ? 'MEMORY.md' : 'USER.md'} for this Profile? This cannot be undone.`))) return
+    setBusy(true)
+    setStatus('')
+    try {
+      const result = await api.reset({ kind: 'profile', profile }, target)
+      setFile(null); setDraft(''); setEntries([])
+      await load(tab)
+      setStatus(result.deleted.length
+        ? say(`已删除：${result.deleted.join('、')}。新会话会读取重置后的记忆。`, `Deleted: ${result.deleted.join(', ')}. New sessions will use the reset memory.`)
+        : say('目标文件原本不存在，没有删除内容。', 'The target files did not exist; nothing was deleted.'))
+    } catch (error) {
+      setStatus(say('重置失败：', 'Reset failed: ') + describeError(error, language))
+      setBusy(false)
+    }
+  }
+
   const usage = entries.map(entry => entry.trim()).join('\n§\n')
   const overLimit = tab !== 'soul' && file?.limit != null && chars(usage) > file.limit
   const normalizedEntries = entries.map(entry => entry.trim())
@@ -136,6 +157,12 @@ export default function PersonalFilesView({ connected, profile, epoch, onDirtyCh
       </label>}
       <div className="personal-actions"><button type="button" disabled={!dirty || busy || overLimit || invalidEntry} onClick={() => void save()}>
         {busy ? say('处理中…', 'Working…') : say('保存', 'Save')}</button>
+        {tab !== 'soul' && <button type="button" className="personal-memory-reset" disabled={busy} onClick={() => void resetMemory(tab)}>
+          {tab === 'memory' ? say('重置 MEMORY.md', 'Reset MEMORY.md') : say('重置 USER.md', 'Reset USER.md')}
+        </button>}
+        {tab !== 'soul' && <button type="button" className="personal-memory-reset" disabled={busy} onClick={() => void resetMemory('all')}>
+          {say('重置全部记忆', 'Reset all memory')}
+        </button>}
         {dirty && <span>{say('有未保存修改', 'Unsaved changes')}</span>}
       </div>
     </>}

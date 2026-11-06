@@ -1,4 +1,5 @@
 import React from 'react'
+import type { ModelOAuthProvider } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { localizeAppMessage } from '../../i18n'
@@ -6,6 +7,7 @@ import { getField } from '../agent-settings/model'
 import { endpointForProvider, VOLCENGINE_PRESETS } from './model'
 import ProviderCard from './components/ProviderCard'
 import ProviderCopyDialog from './ProviderCopyDialog'
+import ModelOAuthSettings from './ModelOAuthSettings'
 import type { useModelController } from './useModelController'
 
 type Props = {
@@ -34,6 +36,11 @@ export default function ModelSettingsView({ connected, profile, language, t, con
   } = controller
   const [copyTarget, setCopyTarget] = React.useState<string | null>(null)
   const [copyBusy, setCopyBusy] = React.useState(false)
+  const [oauthBusy, setOauthBusy] = React.useState(false)
+  const [oauthProviders, setOauthProviders] = React.useState<ModelOAuthProvider[]>([])
+  const [oauthOpenRequest, setOauthOpenRequest] = React.useState<{ providerId: string; nonce: number } | null>(null)
+  const oauthRequest = React.useRef(0)
+  const updateOauthProviders = React.useCallback((items: ModelOAuthProvider[]) => setOauthProviders(items), [])
   React.useEffect(() => { setCopyTarget(null) }, [profile])
   const { agentSettings } = useDesktop()
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null)
@@ -50,8 +57,16 @@ export default function ModelSettingsView({ connected, profile, language, t, con
     : Boolean(newProviderName || newProviderUrl || newProviderModel || newProviderKey))
   const dirty = editorDirty || Object.values(cardDrafts).some(Boolean)
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) }, [dirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(copyBusy || modelBusy || modelListBusy || Boolean(discoveryBusy)); return () => onBusyChange(false) }, [copyBusy, modelBusy, modelListBusy, discoveryBusy, onBusyChange])
+  React.useEffect(() => { onBusyChange(copyBusy || oauthBusy || modelBusy || modelListBusy || Boolean(discoveryBusy)); return () => onBusyChange(false) }, [copyBusy, oauthBusy, modelBusy, modelListBusy, discoveryBusy, onBusyChange])
   const closeEditor = () => { setAddingProvider(false); setEditingEndpoint(null); setProviderFormError('') }
+  const chooseAddProvider = (value: string) => {
+    if (value.startsWith('oauth:')) {
+      closeEditor()
+      setOauthOpenRequest({ providerId: value.slice('oauth:'.length), nonce: ++oauthRequest.current })
+      return
+    }
+    chooseProviderPreset(value)
+  }
   const openEditor = () => {
     editorOrigin.current = document.activeElement as HTMLElement
     setEditingEndpoint(null); setProviderFormError(''); setNewProviderPreset(''); setNewProviderName('')
@@ -94,8 +109,8 @@ export default function ModelSettingsView({ connected, profile, language, t, con
       <div className="row model-page-heading"><h2>{t('ui.model.providers')}</h2><div className="model-page-actions"><button disabled={modelBusy} onClick={() => void loadModelOptions()}>{t('ui.reload.settings.and.options')}</button><button type="button" onClick={openEditor}>{t('ui.add.provider')}</button></div></div>
       <p>{t('ui.provider.model.list.local.note')}</p>
       {!modelOptionsLoaded && <p role={modelOptionsError ? 'alert' : 'status'}>{modelOptionsError || t('ui.loading.runtime.model.settings')}</p>}
-      {modelOptionsLoaded && <div className="provider-section">{providerCards.length === 0 && <p>{t('ui.no.configured.providers')}</p>}
-        <div className="provider-grid">{providerCards.map(provider => {
+      <div className="provider-section">{modelOptionsLoaded && providerCards.length === 0 && !oauthProviders.some(provider => provider.status.logged_in) && <p>{t('ui.no.configured.providers')}</p>}
+        <div className="provider-grid"><ModelOAuthSettings profile={profile} language={language} onBusyChange={setOauthBusy} openRequest={oauthOpenRequest} onRequestHandled={() => setOauthOpenRequest(null)} onProvidersChange={updateOauthProviders} />{modelOptionsLoaded && providerCards.map(provider => {
           const endpoint = endpointForProvider(provider, customEndpoints)
           const modelListKey = endpoint?.id || provider.slug
           return <ProviderCard onCopyProvider={endpoint => setCopyTarget(endpoint.id)} key={`${profile}:${provider.slug}`} provider={provider} endpoint={endpoint} models={visibleModels(provider.slug)} modelListKey={modelListKey}
@@ -105,7 +120,7 @@ export default function ModelSettingsView({ connected, profile, language, t, con
             onSaveModels={saveProviderModels} onSetDiscovery={(item, enabled) => void setProviderDiscovery(item, enabled)}
             onSyncModels={() => void syncProviderModels(provider.slug, modelListKey)}
             onDirtyChange={changeCardDraft} />
-        })}</div></div>}
+        })}</div></div>
       {deleteTarget && <div className="provider-modal-backdrop"><div className="provider-add-form" role="dialog" aria-modal="true" aria-label={language === 'zh-CN' ? '删除提供商' : 'Delete provider'} onKeyDown={event => dialogKeyDown(event, () => setDeleteTarget(null))}>
         <h3>{language === 'zh-CN' ? '删除提供商' : 'Delete provider'}</h3><p>{customEndpoints.find(item => item.id === deleteTarget)?.name}</p>
         {deleteReferences && <p role="alert">{deleteReferences}</p>}
@@ -115,8 +130,8 @@ export default function ModelSettingsView({ connected, profile, language, t, con
         <div className="actions"><button type="button" disabled={modelBusy || checkingReferences} onClick={() => { const target = customEndpoints.find(item => item.id === deleteTarget); setDeleteTarget(null); if (target) void deleteProvider(target) }}>{t('ui.delete.provider')}</button><button type="button" autoFocus onClick={() => setDeleteTarget(null)}>{t('ui.cancel')}</button></div>
       </div></div>}
       {addingProvider && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !modelBusy) closeEditor() }}><div className="provider-add-form" role="dialog" aria-modal="true" aria-labelledby="provider-add-title" onKeyDown={event => dialogKeyDown(event, closeEditor)}>
-        <div className="row model-editor-heading"><h3 id="provider-add-title">{t(editingEndpoint ? 'ui.edit.provider' : 'ui.add.custom.provider')}</h3><button type="button" aria-label={t('ui.close')} disabled={modelBusy} onClick={closeEditor}>×</button></div>
-        {!editingEndpoint && <label>{t('ui.provider.preset')}<select autoFocus value={newProviderPreset} onChange={event => chooseProviderPreset(event.target.value)}><option value="">{t('ui.custom.provider.template')}</option>{VOLCENGINE_PRESETS.map(preset => <option key={preset.id} value={`preset:${preset.id}`}>{t(preset.name)}</option>)}{modelProviders.filter(item => item.slug !== 'custom' && !item.slug.startsWith('custom:') && !item.is_user_defined).map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></label>}
+        <div className="row model-editor-heading"><h3 id="provider-add-title">{editingEndpoint ? t('ui.edit.provider') : (language === 'zh-CN' ? '新增模型提供商' : 'Add model provider')}</h3><button type="button" aria-label={t('ui.close')} disabled={modelBusy} onClick={closeEditor}>×</button></div>
+        {!editingEndpoint && <label>{t('ui.provider.preset')}<select autoFocus value={newProviderPreset} onChange={event => chooseAddProvider(event.target.value)}>{oauthProviders.some(provider => !provider.status.logged_in) && <optgroup label={language === 'zh-CN' ? '账户授权（推荐）' : 'Account authorization (recommended)'}>{oauthProviders.filter(provider => !provider.status.logged_in).map(provider => <option key={provider.id} value={`oauth:${provider.id}`}>{provider.name} · {provider.flow === 'device_code' ? (language === 'zh-CN' ? '设备码' : 'Device code') : (language === 'zh-CN' ? '外部流程' : 'External')}</option>)}</optgroup>}<optgroup label={language === 'zh-CN' ? 'API 密钥与自定义端点' : 'API keys and custom endpoints'}><option value="">{t('ui.custom.provider.template')}</option>{VOLCENGINE_PRESETS.map(preset => <option key={preset.id} value={`preset:${preset.id}`}>{t(preset.name)}</option>)}{modelProviders.filter(item => item.slug !== 'custom' && !item.slug.startsWith('custom:') && !item.is_user_defined).map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</optgroup></select></label>}
         <label>{t('ui.provider.name')}<input autoFocus={Boolean(editingEndpoint)} value={newProviderName} onChange={event => setNewProviderName(event.target.value)} /></label>
         <label>{t('ui.provider.endpoint')}<input type="url" value={newProviderUrl} onChange={event => setNewProviderUrl(event.target.value)} placeholder="https://api.your-provider.example/v1" /></label>
         <label>{language === 'zh-CN' ? '初始模型 ID' : 'Initial model ID'}<input value={newProviderModel} onChange={event => setNewProviderModel(event.target.value)} placeholder={t('ui.model.id')} /></label>

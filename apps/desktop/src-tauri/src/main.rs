@@ -3,6 +3,7 @@
 use crate::paths::plain_path;
 use tauri::Manager;
 
+mod chat_windows;
 mod device;
 mod device_power;
 mod diagnostics;
@@ -44,9 +45,16 @@ fn main() {
         )
         .manage(device::DeviceState::default())
         .manage(quick_input::QuickState::default())
+        .manage(chat_windows::ChatWindowState::default())
         .manage(runtime::BackendState::default())
+        .manage(runtime::dashboard_plugins::DashboardPluginSockets::default())
+        .manage(runtime::console_socket::ConsoleSockets::default())
+        .manage(runtime::kanban_dashboard::KanbanEventStreams::default())
         .manage(runtime::browser_bridge::BrowserBridgeState::default())
         .manage(runtime::channels::ChannelState::default())
+        .manage(runtime::channel_telegram::TelegramSetupState::default())
+        .manage(runtime::channel_vendor_qr::VendorQrState::default())
+        .manage(runtime::channel_whatsapp::WhatsAppSetupState::default())
         .manage(panel_terminal::TerminalState::default())
         .manage(updates::UpdateDownloadState::default())
         .setup(|app| {
@@ -66,7 +74,10 @@ fn main() {
             webview_cache::start(app.handle().clone());
             Ok(())
         })
-        .on_window_event(tray::on_window_event)
+        .on_window_event(|window, event| {
+            tray::on_window_event(window, event);
+            chat_windows::on_window_event(window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             device::get_device_status,
             device::save_device_preferences,
@@ -75,6 +86,8 @@ fn main() {
             quick_input::submit_quick_input,
             quick_input::take_quick_submission,
             quick_input::finish_quick_submission,
+            chat_windows::open_chat_window,
+            chat_windows::get_chat_window_context,
             runtime::delegation::get_delegation_routing,
             runtime::delegation::save_delegation_routing,
             runtime::provider_copy::preview_provider_copy,
@@ -100,13 +113,26 @@ fn main() {
             runtime::reconnect_backend,
             runtime::restart_backend_gracefully,
             runtime::stop_backend,
+            runtime::remote_gateway::test_remote_gateway,
+            runtime::remote_gateway::saved_remote_gateway,
+            runtime::remote_gateway::save_remote_gateway,
+            runtime::remote_gateway::active_gateway,
+            runtime::remote_gateway::activate_saved_remote_gateway,
+            runtime::remote_gateway::activate_local_gateway,
             runtime::profiles::list_profiles,
             runtime::profiles::create_profile,
+            runtime::profile_archive::export_profile_archive,
+            runtime::profile_archive::import_profile_archive,
             runtime::profiles::delete_profile,
             runtime::profiles::set_profile_display_name,
+            runtime::profile_identity::rename_profile_id,
+            runtime::profile_identity::get_profile_identity,
+            runtime::profile_identity::get_profile_setup_command,
+            runtime::profile_identity::save_profile_description,
+            runtime::profile_identity::describe_profile_auto,
             runtime::workbuddy_import::inspect_workbuddy_import,
             runtime::workbuddy_import::import_workbuddy_package,
-            runtime::profiles::select_profile,
+            runtime::profiles::activate_profile,
             runtime::profile_data::get_profile_data_directory,
             runtime::profile_data::list_profile_data_directory,
             runtime::profile_data::open_profile_data_directory,
@@ -120,13 +146,38 @@ fn main() {
             updates::start_update_download,
             updates::get_update_download_status,
             runtime::channels::channel_status,
+            runtime::channel_manage::channel_save,
+            runtime::channel_manage::channel_test,
+            runtime::channel_telegram::channel_telegram_start,
+            runtime::channel_telegram::channel_telegram_poll,
+            runtime::channel_telegram::channel_telegram_apply,
+            runtime::channel_telegram::channel_telegram_cancel,
+            runtime::channel_vendor_qr::channel_vendor_qr_start,
+            runtime::channel_vendor_qr::channel_vendor_qr_poll,
+            runtime::channel_vendor_qr::channel_vendor_qr_apply,
+            runtime::channel_vendor_qr::channel_vendor_qr_cancel,
+            runtime::channel_whatsapp::channel_whatsapp_start,
+            runtime::channel_whatsapp::channel_whatsapp_poll,
+            runtime::channel_whatsapp::channel_whatsapp_apply,
+            runtime::channel_whatsapp::channel_whatsapp_cancel,
             runtime::channels::channel_qr_start,
             runtime::channels::channel_qr_poll,
+            runtime::channels::channel_pairing_approve,
             runtime::channels::channel_qr_cancel,
             runtime::chat::create_chat_session,
+            runtime::bots::list_bots,
+            runtime::bots::open_bot_chat,
+            runtime::bots::bot_groups_request,
             runtime::chat::submit_chat_prompt,
             runtime::chat::list_composer_commands,
             runtime::chat::execute_composer_command,
+            runtime::chat_subagents::list_chat_subagents,
+            runtime::chat_subagents::read_chat_subagent_tail,
+            runtime::chat_subagents::steer_chat_subagent,
+            runtime::chat_subagents::stop_chat_subagent,
+            runtime::chat_rollback::list_chat_rollback_checkpoints,
+            runtime::chat_rollback::diff_chat_rollback_checkpoint,
+            runtime::chat_rollback::restore_chat_rollback_checkpoint,
             runtime::session_export::export_chat_session,
             runtime::chat::dispatch_composer_skill,
             runtime::chat::attach_chat_file,
@@ -141,8 +192,25 @@ fn main() {
             runtime::downloadable_tools::list_downloadable_tools,
             runtime::downloadable_tools::install_downloadable_tool,
             runtime::usage::get_usage_statistics,
+            runtime::system_stats::get_system_stats,
+            runtime::usage::get_model_usage_statistics,
             runtime::extensions::extension_request,
+            runtime::personal_tasks::personal_task_request,
+            runtime::kanban_dashboard::kanban_dashboard_request,
+            runtime::dashboard_plugins::dashboard_plugin_socket_subscribe,
+            runtime::dashboard_plugins::dashboard_plugin_socket_send,
+            runtime::dashboard_plugins::dashboard_plugin_socket_unsubscribe,
+            runtime::console_socket::console_socket_subscribe,
+            runtime::console_socket::console_socket_send,
+            runtime::console_socket::console_socket_unsubscribe,
+            runtime::kanban_dashboard::kanban_dashboard_subscribe,
+            runtime::kanban_dashboard::kanban_dashboard_unsubscribe,
             runtime::models::list_model_options,
+            runtime::model_oauth::list_model_oauth_providers,
+            runtime::model_oauth::start_model_oauth,
+            runtime::model_oauth::poll_model_oauth,
+            runtime::model_oauth::cancel_model_oauth,
+            runtime::model_oauth::disconnect_model_oauth,
             runtime::models::select_chat_model,
             runtime::models::get_moa_config,
             runtime::models::save_moa_config,
@@ -152,8 +220,11 @@ fn main() {
             runtime::security::get_checkpoint_inventory,
             runtime::config::get_agent_config,
             runtime::config::get_agent_config_schema,
+            runtime::config::get_agent_config_defaults,
             runtime::config::get_agent_config_raw,
+            runtime::config::get_auxiliary_models,
             runtime::config::save_auxiliary_route,
+            runtime::config::reset_auxiliary_models,
             runtime::chat::get_chat_reasoning,
             runtime::chat::set_chat_reasoning,
             runtime::chat::get_chat_usage,
@@ -165,7 +236,10 @@ fn main() {
             runtime::models::set_custom_endpoint_discovery,
             runtime::models::delete_custom_endpoint,
             runtime::config::save_agent_config_field,
+            runtime::config::save_agent_config,
             runtime::config::save_agent_config_raw,
+            runtime::config::import_agent_config_json,
+            runtime::config::export_agent_config_json,
             runtime::memory_provider::get_memory_providers,
             runtime::memory_provider::get_memory_provider_config,
             runtime::memory_provider::save_memory_provider_config,
@@ -173,6 +247,7 @@ fn main() {
             runtime::memory_provider::get_memory_provider_oauth_status,
             runtime::personal_files::read_personal_file,
             runtime::personal_files::save_personal_file,
+            runtime::personal_files::reset_personal_memory,
             runtime::models::check_model_runtime,
             runtime::models::set_default_model,
             runtime::chat::resume_chat_session,
