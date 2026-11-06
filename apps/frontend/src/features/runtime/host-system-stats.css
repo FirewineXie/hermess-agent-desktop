@@ -9,3 +9,18 @@
 .host-system-grid dt { color: #64748b; font-size: 12px; }
 .host-system-grid dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
 .host-system-note { margin: 15px 0 0; color: #64748b; font-size: 12px; }
+
+:root[data-color-theme='dark'] .unified-settings .host-system-stats { border-color: var(--settings-line); }
+:root[data-color-theme='dark'] .unified-settings :is(.host-system-heading p, .host-system-grid dt, .host-system-note) { color: var(--settings-muted); }
+:root[data-color-theme='dark'] .unified-settings .host-system-grid > div {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .host-system-grid dd { color: var(--settings-text); }
+:root[data-color-theme='dark'] .unified-settings .host-system-heading button {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .host-system-heading button:hover:not(:disabled) { background: #223249; border-color: #4b79b8; }
