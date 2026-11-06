@@ -1,5 +1,5 @@
 import React from 'react'
-import type { BackendInfo } from '@hermess/contracts'
+import type { ActiveGateway, BackendInfo } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
@@ -9,24 +9,28 @@ import { displayPath } from '../../shared/displayPath'
 type Options = {
   t: (key: string, ...values: unknown[]) => string
   onReset: () => void
+  gateway?: ActiveGateway
 }
 
-export function useRuntimeController({ t, onReset }: Options) {
+export function useRuntimeController({ t, onReset, gateway }: Options) {
   const { nativeFiles, runtime, diagnostics } = useDesktop()
   const language = useLanguage()
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
-  const [freshInstallation, setFreshInstallation] = React.useState<boolean | null>(null)
-  const [backend, setBackendState] = React.useState<BackendInfo | null>(null)
-  const [workspaceGeneration, setWorkspaceGeneration] = React.useState(0)
+  const [freshInstallation, setFreshInstallation] = React.useState<boolean | null>(gateway?.mode === 'remote' ? false : null)
+  const [backend, setBackendState] = React.useState<BackendInfo | null>(gateway?.mode === 'remote'
+    ? { port: 0, pid: 0, replay_epoch: gateway.replay_epoch } : null)
+  const [workspaceGeneration, setWorkspaceGeneration] = React.useState(() => gateway?.mode === 'remote'
+    ? activateWorkspaceEpoch(gateway.replay_epoch) : 0)
   const setBackend = (next: BackendInfo | null) => {
     setWorkspaceGeneration(activateWorkspaceEpoch(next?.replay_epoch, next === null || !next.replay_epoch))
     setBackendState(next)
   }
-  const [backendStatus, setBackendStatus] = React.useState(t("ui.not.started"))
+  const [backendStatus, setBackendStatus] = React.useState(gateway?.mode === 'remote' ? t('ui.connected') : t("ui.not.started"))
   const [busy, setBusy] = React.useState(false)
   React.useEffect(() => {
+    if (gateway?.mode === 'remote') return
     let active = true
     setBusy(true)
     setBackendStatus(t("ui.reading.startup.configuration"))

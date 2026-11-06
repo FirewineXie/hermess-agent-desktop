@@ -58,6 +58,7 @@ import { usePersonalTaskEvents } from './features/personal-tasks/usePersonalTask
 import type { View } from './app/types'
 import type { ModelPick } from './features/models/model'
 import type { SessionRow } from '@hermess/contracts'
+import type { ActiveGateway } from '@hermess/contracts'
 import BotGroupConversation from './features/bots/BotGroupConversation'
 import { useGroupRooms } from './features/bots/useGroupRooms'
 import { useDesktop } from './app/DesktopContext'
@@ -73,7 +74,8 @@ import { paletteItems, type PaletteItem } from './features/command-palette/model
 import OnboardingDialog from './features/onboarding/OnboardingDialog'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 
-function App() {
+function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; onRemote: () => void; onLocal: () => void }) {
+  const remoteMode = gateway.mode === 'remote'
   const { chat, events, extensions, windowChrome, chatWindows } = useDesktop()
   const language = useLanguage()
   const languageRef = React.useRef(language)
@@ -108,6 +110,7 @@ function App() {
   } = useRuntimeController({
     t,
     onReset: () => { setActiveModel(null); resetChat(); resetModel() },
+    gateway,
   })
   const onboarding = useOnboarding(freshInstallation, storagePath)
   const commandPalette = useCommandPalette(!onboarding.visible)
@@ -119,13 +122,13 @@ function App() {
   const viewedProfile = profileController.snapshot?.selected || null
   const groupRooms = useGroupRooms(Boolean(backend), backend?.replay_epoch || null, language)
   const dashboardPluginLifecycle = React.useMemo(() => ({ start: startBackendStrict, stop: stopBackendStrict, restart: restartBackend }), [startBackendStrict, stopBackendStrict, restartBackend])
-  const dashboardPlugins = useDashboardPlugins(Boolean(backend), viewedProfile, backend?.replay_epoch || null, language, dashboardPluginLifecycle)
+  const dashboardPlugins = useDashboardPlugins(Boolean(backend) && !remoteMode, viewedProfile, backend?.replay_epoch || null, language, dashboardPluginLifecycle)
   const dashboardManifest = dashboardPlugins.manifests.find(plugin => plugin.name === activeDashboardPlugin) || null
   const dashboardRoutePath = dashboardBuiltinRoute({ view, settingsPage, profileTab, profileCreateOpen })
   const dashboardOverride = dashboardRoutePath ? dashboardPlugins.manifests.find(plugin => plugin.tab.override === dashboardRoutePath) || null : null
   const dashboardSlotPage = dashboardOverride ? null : dashboardPageSlot(dashboardRoutePath)
   useGatewayLanguage({
-    profiles: profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [],
+    profiles: remoteMode ? [] : profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [],
     epoch: backend?.replay_epoch || null,
     language,
     storagePath,
@@ -135,7 +138,7 @@ function App() {
   const [activeModel, setActiveModel] = useProfileState<ModelPick | null>(workspaceKey(backend?.replay_epoch, viewedProfile), null, 'app:active-model')
   const commandFinishedRef = React.useRef<(profile: string, sessionId: string) => void>(() => {})
   const chatController = useChatController({
-    backend, profile: viewedProfile, chatVisible: view === 'chat' && !activeGroupId && !dashboardOverride, activeModel, language, storagePath, workspacePath: workspaces.selected, t,
+    backend, remoteMode, profile: viewedProfile, chatVisible: view === 'chat' && !activeGroupId && !dashboardOverride, activeModel, language, storagePath, workspacePath: remoteMode ? '' : workspaces.selected, t,
     openChat: () => { if (openView('chat')) setActiveGroupId(null) }, openModelSettings: () => { openSettings('main') }, setSidebarOpen, setActiveModel,
     onCommandFinished: (owner, id) => commandFinishedRef.current(owner, id),
     onBackgroundStarted: () => setPanelOpen(true),
@@ -178,7 +181,7 @@ function App() {
   React.useEffect(() => {
     if (!backend || !viewedProfile) return
     if (sessionsState !== 'ready') void loadSessions(true, viewedProfile)
-    if (!modelOptionsLoaded) void loadModelOptions()
+    if (!remoteMode && !modelOptionsLoaded) void loadModelOptions()
   }, [backend, viewedProfile])
   const openView = (next: View): boolean => {
     if (next === view) { setSidebarOpen(false); return true }
@@ -238,7 +241,7 @@ function App() {
     setPendingLearnCommand(command)
   }
   useQuickInputBridge({
-    target: backend && viewedProfile ? { profile: viewedProfile, sessionId: storedSessionRef.current || '', epoch: backend.replay_epoch, busy: turnBusy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || settingsBusy || settingsDirty || personalFilesDirty || Boolean(chatController.draft.trim()) || chatController.attachments.length > 0 } : null,
+    target: !remoteMode && backend && viewedProfile ? { profile: viewedProfile, sessionId: storedSessionRef.current || '', epoch: backend.replay_epoch, busy: turnBusy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || settingsBusy || settingsDirty || personalFilesDirty || Boolean(chatController.draft.trim()) || chatController.attachments.length > 0 } : null,
     send: async text => { if (!openView('chat')) return false; setActiveGroupId(null); return Boolean(await chatController.sendMessage(text, true)) },
   })
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
@@ -352,7 +355,7 @@ function App() {
     language,
     onOpenSession: async (profile, id) => { await openProfileSession(profile, id) },
   })
-  usePersonalTaskEvents(Boolean(backend), backend?.replay_epoch || null, storagePath || '', profileController.snapshot, target => {
+  usePersonalTaskEvents(Boolean(backend) && !remoteMode, backend?.replay_epoch || null, storagePath || '', profileController.snapshot, target => {
     setPersonalTaskTarget(target)
     openView('personal-tasks')
   })
@@ -369,13 +372,18 @@ function App() {
     const restarted = force ? await forceRestartBackend() : await restartBackend()
     return Boolean(restarted)
   }
-  const commandItems = paletteItems({
+  const allCommandItems = paletteItems({
     language, connected: Boolean(backend), diagnosticsUnlocked, selectedProfile: viewedProfile,
     sessions, otherProfileSessions, dashboardPlugins: dashboardPlugins.manifests,
     profileNames: Object.fromEntries((profileController.snapshot?.profiles || []).map(profile => [profile.name, profile.display_name || profile.name])),
   })
+  const commandItems = remoteMode ? allCommandItems.filter(item => item.target.kind === 'session'
+    || item.target.kind === 'action'
+    || (item.target.kind === 'page' && item.target.view === 'chat')) : allCommandItems
   const executeCommand = async (item: PaletteItem): Promise<boolean> => {
     const target = item.target
+    if (remoteMode && target.kind === 'page' && target.view !== 'chat') return false
+    if (remoteMode && (target.kind === 'setting' || target.kind === 'plugin')) return false
     if (target.kind === 'page') {
       if (target.view === 'personal-tasks') setPersonalTaskTarget(null)
       return openView(target.view)
@@ -394,10 +402,10 @@ function App() {
   }
   return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
     <div className="dashboard-plugin-backdrop" aria-hidden="true"><DashboardPluginSlot name="backdrop" /></div>
-    <WorkspaceHeader view={view} sessionTitle={activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={Boolean(backend)} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings') openSettings(); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { openSettings('update') }} onOpenCommandPalette={commandPalette.show} />
+    <WorkspaceHeader view={view} sessionTitle={activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={Boolean(backend)} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchRemote={onRemote} onSwitchLocal={onLocal} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
-    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
+    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={Boolean(backend)} remoteMode={remoteMode} busy={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (remoteMode) { if (next === 'bots' || next === 'sessions' || next === 'chat') openView(next) } else if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
       profiles={profileController.snapshot} profileBusy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
       onOpenProfile={name => {
@@ -410,7 +418,7 @@ function App() {
     <DashboardPluginSlot name="pre-main" />
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:top`} />}
     {dashboardOverride ? <DashboardPluginPage manifest={dashboardOverride} component={dashboardPlugins.components.get(dashboardOverride.name)} error={dashboardPlugins.error} /> : <>
-    {view === 'bots' && <BotsView active={view === 'bots'} connected={Boolean(backend)} language={language} onOpenChat={(profile, id) => { void openProfileSession(profile, id) }} onOpenGroup={openGroup} onGroupsChanged={() => { void groupRooms.refresh() }} onOpenProfiles={() => openView('profiles')} />}
+    {view === 'bots' && <BotsView active={view === 'bots'} connected={Boolean(backend)} language={language} gatewayMode={remoteMode ? 'remote' : 'local'} onOpenChat={(profile, id) => { void openProfileSession(profile, id) }} onOpenGroup={openGroup} onGroupsChanged={() => { void groupRooms.refresh() }} onOpenProfiles={() => { if (!remoteMode) openView('profiles') }} />}
     {view === 'files' && <FilesView connected={Boolean(backend)} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
     {view === 'workspaces' && <WorkspacesView connected={Boolean(backend)} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
       paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
@@ -490,20 +498,20 @@ function App() {
       {settingsPage === 'about' && <AboutView updateStatus={updateStatus} />}
     </SettingsView>}
     {view === 'chat' && activeGroupId && <BotGroupConversation key={activeGroupId} roomId={activeGroupId} connected={Boolean(backend)} language={language} onDisband={() => { setActiveGroupId(null); void groupRooms.refresh() }} />}
-    <div className="chat-workspace-layout" style={view === 'chat' && !activeGroupId ? undefined : { display: 'none' }}><ChatView active={view === 'chat' && !activeGroupId} connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t}
+    <div className="chat-workspace-layout" style={view === 'chat' && !activeGroupId ? undefined : { display: 'none' }}><ChatView active={view === 'chat' && !activeGroupId} connected={Boolean(backend)} backendStatus={backendStatus} language={language} t={t} remoteMode={remoteMode}
       tabs={<ChatTabs tabs={chatTabs.tabs} activeKey={chatTabs.currentKey} disabled={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !backend} language={language}
         title={tab => tab.id ? (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)?.title || tab.id.slice(0, 12) : language === 'zh-CN' ? '新聊天' : 'New chat'}
         onSelect={tab => { void selectChatTab(tab) }} onClose={tab => { void closeChatTab(tab) }} onOpenWindow={tab => { void chatWindows.open(tab.profile, tab.id).catch(cause => setChatStatus(describeError(cause, language))) }} onNew={() => { void openNewChat() }} />}
       scrollKey={chatTabs.currentKey}
-      controller={chatController} workspacePath={workspaces.selected} onOpenWorkspaces={() => openView('workspaces')}
+      controller={chatController} workspacePath={remoteMode ? '' : workspaces.selected} onOpenWorkspaces={() => { if (!remoteMode) openView('workspaces') }}
       panelOpen={panelOpen} onTogglePanel={() => setPanelOpen(value => !value)}
       profiles={profileController.snapshot} profileBusy={profileController.busy} onSelectProfile={name => { void profileController.select(name).catch(() => {}) }} picker={{ modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
         activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders, pickerProvider, setPickerProvider,
         pickerModels, pickerModelInput, setPickerModelInput, openModelPicker, pickModel }}
       onOpenRuntime={() => openSettings('runtime')} onOpenModelSettings={() => openSettings('main')} onOpenDiagnostics={openDiagnostics} />
-      <WorkspacePanel open={view === 'chat' && !activeGroupId && panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionCurrentDirectory : workspaces.selected} profile={viewedProfile} epoch={backend?.replay_epoch || null} ownerSessionId={sessionId}
+      {!remoteMode && <WorkspacePanel open={view === 'chat' && !activeGroupId && panelOpen} onOpenChange={setPanelOpen} cwd={sessionId ? chatController.sessionCurrentDirectory : workspaces.selected} profile={viewedProfile} epoch={backend?.replay_epoch || null} ownerSessionId={sessionId}
         backgroundTasks={chatController.backgroundTasks}
-      /></div>
+      />}</div>
     </>}
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:bottom`} />}
     <DashboardPluginSlot name="post-main" />
@@ -513,7 +521,7 @@ function App() {
     </footer>
     </main>
     <div className="dashboard-plugin-overlay"><DashboardPluginSlot name="overlay" /></div>
-    {onboarding.visible && <OnboardingDialog language={language} step={onboarding.step} connected={Boolean(backend)} runtimeBusy={busy} runtimeStatus={backendStatus} profile={viewedProfile} model={savedModel?.model || null}
+    {!remoteMode && onboarding.visible && <OnboardingDialog language={language} step={onboarding.step} connected={Boolean(backend)} runtimeBusy={busy} runtimeStatus={backendStatus} profile={viewedProfile} model={savedModel?.model || null}
       messageBusy={turnBusy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || Boolean(chatController.draft.trim()) || chatController.attachments.length > 0}
       onStep={onboarding.setStep} onSkip={() => onboarding.finish('skipped')} onComplete={() => onboarding.finish('completed')}
       onOpenRuntime={() => { if (openSettings('runtime')) onboarding.pause() }} onOpenModels={() => { if (openSettings('providers')) onboarding.pause() }}
@@ -530,6 +538,37 @@ function App() {
         } catch (cause) { onboarding.record('message_send_failed'); throw cause }
       }} />}
   </div>
+}
+
+function App() {
+  const { runtime } = useDesktop()
+  const language = useLanguage()
+  const [gateway, setGateway] = React.useState<ActiveGateway | null>(null)
+  const [switchError, setSwitchError] = React.useState('')
+  React.useEffect(() => {
+    let live = true
+    void runtime.activeGateway().then(value => { if (live) setGateway(value) })
+      .catch(error => { if (live) { setSwitchError(describeError(error, language)); setGateway({ mode: 'local' }) } })
+    return () => { live = false }
+  }, [runtime, language])
+  const switchRemote = async () => {
+    setSwitchError('')
+    try {
+      const saved = await runtime.savedRemote()
+      if (!saved) throw new Error(language === 'zh-CN' ? '请先在运行时设置中保存远程 Gateway。' : 'Save a remote gateway in Runtime settings first.')
+      setGateway(await runtime.activateSavedRemote())
+    } catch (error) { setSwitchError(describeError(error, language)) }
+  }
+  const switchLocal = async () => {
+    setSwitchError('')
+    try { setGateway(await runtime.activateLocalGateway()) }
+    catch (error) { setSwitchError(describeError(error, language)) }
+  }
+  return <>
+    {gateway ? <WorkspaceApp key={gateway.mode === 'remote' ? `remote:${gateway.replay_epoch}` : 'local'} gateway={gateway} onRemote={() => void switchRemote()} onLocal={() => void switchLocal()} />
+      : <div className="app-shell"><div className="chat-gate" role="status">{language === 'zh-CN' ? '正在读取 Gateway 连接…' : 'Loading gateway connection…'}</div></div>}
+    {switchError && <div className="gateway-switch-error" role="alert">{switchError}<button type="button" onClick={() => setSwitchError('')}>×</button></div>}
+  </>
 }
 
 export default App

@@ -25,7 +25,7 @@ import type { ChatControllerOptions } from './chatControllerOptions'
 import { useRollbackController } from './useRollbackController'
 import { requireProfileScope, requireSessionScope } from './chatScopes'
 
-export function useChatController({ backend, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
+export function useChatController({ backend, remoteMode = false, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
   const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
   const sideQuestions = useSideQuestions(chat, diagnostics, storagePath)
   const backgroundTasks = useBackgroundTasks(chat, diagnostics, storagePath)
@@ -252,7 +252,7 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     const creation = (async () => {
       const owner = profileScope()
       let selectedModel = activeModel
-      if (!selectedModel) {
+      if (!selectedModel && !remoteMode) {
         const [configResult, optionsResult] = await Promise.allSettled([
           models.savedConfig(owner),
           models.options(owner, { refresh: false, includeUnconfigured: false }),
@@ -267,8 +267,8 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
       }
       const created = await chat.createSession(owner, {
         cwd: workspacePath || undefined,
-        provider: selectedModel.provider,
-        model: selectedModel.model,
+        provider: selectedModel?.provider,
+        model: selectedModel?.model,
         reasoning: draftReasoningRef.current || undefined,
       })
       if (generation !== sessionGenerationRef.current) throw new Error('Session creation was cancelled')
@@ -880,7 +880,12 @@ export function useChatController({ backend, profile, chatVisible, activeModel, 
     setBusy(true)
     setBackendStatus(t("ui.reconnecting"))
     try {
-      const info = await runtime.reconnect()
+      const info = remoteMode
+        ? await runtime.activateSavedRemote().then(active => {
+          if (active.mode !== 'remote') throw new Error('Remote Gateway was not activated')
+          return { port: 0, pid: 0, replay_epoch: active.replay_epoch }
+        })
+        : await runtime.reconnect()
       const epochChanged = Boolean(backend?.replay_epoch && info.replay_epoch !== backend.replay_epoch)
       setBackend(info)
       setBackendStatus(epochChanged

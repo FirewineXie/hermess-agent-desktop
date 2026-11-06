@@ -142,7 +142,9 @@ const definedCommands = new Set()
 const commandHeaders = new Map()
 for (const file of nativeCommandFiles) {
   const source = readFileSync(resolve(root, file), 'utf8')
-  if (!file.endsWith('/runtime/mod.rs') && !file.endsWith('/runtime/profiles.rs') && /\.selected_profile\b|\bstate\.gateway\s*\(/.test(source)) {
+  // The remote connection owner stores its selected profile as connection metadata;
+  // profile-bound requests still go through resolve_chat_profile.
+  if (!file.endsWith('/runtime/mod.rs') && !file.endsWith('/runtime/profiles.rs') && !file.endsWith('/runtime/remote_gateway.rs') && /\.selected_profile\b|\bstate\.gateway\s*\(/.test(source)) {
     failures.push(`${file}: profile operations must use resolve_profile instead of global selection`)
   }
   for (const marker of source.matchAll(/#\[tauri::command\]/g)) {

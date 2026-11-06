@@ -1,7 +1,14 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 use tauri::{AppHandle, Emitter};
 use tokio::{
     sync::{mpsc, oneshot},
@@ -291,7 +298,14 @@ fn result_session_owners(
 pub struct GatewayClient {
     sender: mpsc::Sender<GatewayCommand>,
     task: JoinHandle<()>,
+    events_enabled: Arc<AtomicBool>,
     pub replay_epoch: String,
+}
+
+impl Drop for GatewayClient {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
 
 impl GatewayClient {
@@ -305,21 +319,48 @@ impl GatewayClient {
             "Sec-WebSocket-Protocol",
             HeaderValue::from_str(&protocol).map_err(|_| "无效的网关票据".to_string())?,
         );
+        Self::connect_request(request, app, true, true, true).await
+    }
+
+    pub async fn connect_remote(
+        base_url: &str,
+        session_token: &str,
+        app: AppHandle,
+        emit_events: bool,
+    ) -> Result<Self, String> {
+        let url = remote_ws_url(base_url, session_token)?;
+        let request = url
+            .as_str()
+            .into_client_request()
+            .map_err(|_| "无法构造远程网关连接".to_string())?;
+        Self::connect_request(request, app, false, false, emit_events).await
+    }
+
+    async fn connect_request(
+        request: tokio_tungstenite::tungstenite::http::Request<()>,
+        app: AppHandle,
+        require_protocol: bool,
+        desktop_local: bool,
+        emit_events: bool,
+    ) -> Result<Self, String> {
         let (socket, response) = timeout(Duration::from_secs(5), connect_async(request))
             .await
             .map_err(|_| "网关连接超时".to_string())?
             .map_err(|_| "网关鉴权或连接失败".to_string())?;
-        if response
-            .headers()
-            .get("Sec-WebSocket-Protocol")
-            .and_then(|v| v.to_str().ok())
-            != Some("hermes-gateway-v1")
+        if require_protocol
+            && response
+                .headers()
+                .get("Sec-WebSocket-Protocol")
+                .and_then(|v| v.to_str().ok())
+                != Some("hermes-gateway-v1")
         {
             return Err("网关未确认桌面会话协议".into());
         }
         let (mut writer, mut reader) = socket.split();
         let (sender, mut receiver) = mpsc::channel::<GatewayCommand>(64);
         let (ready_sender, ready_receiver) = oneshot::channel();
+        let events_enabled = Arc::new(AtomicBool::new(emit_events));
+        let task_events_enabled = Arc::clone(&events_enabled);
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
             let mut pending = PendingRpc::new();
@@ -514,7 +555,7 @@ impl GatewayClient {
                                 if let Some(profile) = profile.as_deref() {
                                     register_owner(&mut request_owners, id_text, profile);
                                     let request = GatewayServerRequest { id: id_text.to_owned(), method: method.to_owned(), profile: Some(profile.to_owned()), params };
-                                    if app.emit("hermes-request", request).is_ok() { continue; }
+                                    if task_events_enabled.load(Ordering::Acquire) && app.emit("hermes-request", request).is_ok() { continue; }
                                 }
                                 server_requests.remove(id_text);
                                 request_owners.remove(id_text);
@@ -550,7 +591,7 @@ impl GatewayClient {
                                         (request.method.clone(), request.params.clone()),
                                     );
                                     register_owner(&mut request_owners, &request.id, &profile);
-                                    let _ = app.emit("hermes-request", request);
+                                    if task_events_enabled.load(Ordering::Acquire) { let _ = app.emit("hermes-request", request); }
                                 }
                             }
                             continue;
@@ -582,7 +623,7 @@ impl GatewayClient {
                             seq: params.get("seq").and_then(Value::as_u64),
                             payload,
                         };
-                        let _ = app.emit("hermes-event", event);
+                        if task_events_enabled.load(Ordering::Acquire) { let _ = app.emit("hermes-event", event); }
                     }
                 }
             }
@@ -592,7 +633,9 @@ impl GatewayClient {
             for (_, (_, reply)) in pending_answers {
                 let _ = reply.send(Err("网关连接已断开".into()));
             }
-            let _ = app.emit("hermes-disconnected", ());
+            if task_events_enabled.load(Ordering::Acquire) {
+                let _ = app.emit("hermes-disconnected", ());
+            }
         });
         let replay_epoch = match timeout(Duration::from_secs(5), ready_receiver).await {
             Ok(Ok(epoch)) => epoch,
@@ -608,12 +651,13 @@ impl GatewayClient {
         let client = Self {
             sender,
             task,
+            events_enabled,
             replay_epoch,
         };
         if let Err(error) = client
             .request(
                 "client.capabilities",
-                json!({"server_requests":true,"desktop_local":true}),
+                json!({"server_requests":emit_events,"desktop_local":desktop_local}),
             )
             .await
         {
@@ -621,6 +665,30 @@ impl GatewayClient {
             return Err(error);
         }
         Ok(client)
+    }
+
+    pub async fn enable_remote_events(&self) -> Result<(), String> {
+        self.request(
+            "client.capabilities",
+            json!({"server_requests":true,"desktop_local":false}),
+        )
+        .await?;
+        self.events_enabled.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    pub async fn enable_local_events(&self) -> Result<(), String> {
+        self.request(
+            "client.capabilities",
+            json!({"server_requests":true,"desktop_local":true}),
+        )
+        .await?;
+        self.events_enabled.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    pub fn disable_events(&self) {
+        self.events_enabled.store(false, Ordering::Release);
     }
 
     pub async fn request(&self, method: &'static str, params: Value) -> Result<Value, String> {
@@ -688,6 +756,30 @@ impl GatewayClient {
     pub fn is_closed(&self) -> bool {
         self.task.is_finished()
     }
+}
+
+fn remote_ws_url(base_url: &str, session_token: &str) -> Result<reqwest::Url, String> {
+    let mut url = reqwest::Url::parse(base_url).map_err(|_| "远程网关地址无效".to_string())?;
+    if url.scheme() != "http"
+        || !matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
+        || url.username() != ""
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || session_token.is_empty()
+    {
+        return Err("静态令牌连接需要本机回环地址和会话令牌".into());
+    }
+    let path = format!("{}/api/ws", url.path().trim_end_matches('/'));
+    url.set_path(&path);
+    url.set_scheme("ws")
+        .map_err(|_| "远程网关地址无效".to_string())?;
+    url.query_pairs_mut().append_pair("token", session_token);
+    Ok(url)
+}
+
+pub(crate) fn validate_remote_gateway_url(base_url: &str) -> Result<(), String> {
+    remote_ws_url(base_url, "validation-only").map(|_| ())
 }
 
 #[cfg(test)]

@@ -359,6 +359,9 @@ pub(super) fn is_served(status: &Value, name: &str) -> bool {
 
 #[tauri::command]
 pub async fn list_profiles(state: State<'_, BackendState>) -> Result<Value, DesktopFailure> {
+    if let Some(roster) = super::remote_gateway::list_remote_profiles(&state).await? {
+        return Ok(roster);
+    }
     let (client, selected, storage, pid, port, token) = {
         let owned = state.0.lock().await;
         let backend = owned
@@ -676,6 +679,9 @@ pub async fn activate_profile(
     state: State<'_, BackendState>,
     name: String,
 ) -> Result<(), DesktopFailure> {
+    if super::remote_gateway::activate_remote_profile(&state, &name).await? {
+        return Ok(());
+    }
     let (client, storage, pid, port, token) = {
         let owned = state.0.lock().await;
         let backend = owned
