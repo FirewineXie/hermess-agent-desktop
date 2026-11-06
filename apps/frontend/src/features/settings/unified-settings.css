@@ -261,7 +261,22 @@
 .main-model-settings p, .model-route-settings p { color: var(--settings-muted); line-height: 1.55; }
 .main-model-settings .model-service-tier-help { color: var(--settings-muted); font-size: 13px; font-weight: 400; line-height: 1.5; }
 .main-model-settings .actions, .model-route-settings .actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.unified-settings :is(.main-model-settings, .model-route-settings) button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #34445b;
+  font-size: 13px;
+  font-weight: 550;
+}
+.unified-settings :is(.main-model-settings, .model-route-settings) button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
+.unified-settings :is(.main-model-settings, .model-route-settings) :is(button[type='submit'], button.primary) { border-color: var(--settings-blue); background: var(--settings-blue); color: #fff; }
+.unified-settings :is(.main-model-settings, .model-route-settings) :is(button[type='submit'], button.primary):hover:not(:disabled) { border-color: #155ed9; background: #155ed9; }
 .main-model-settings .actions button, .model-route-settings .actions button { min-height: 38px; padding: 7px 14px; }
+.unified-settings .model-route-settings .auxiliary-card .row button { min-height: 34px; background: #fff; color: #245b9d; }
+.unified-settings .model-route-settings .auxiliary-card .row button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
 .fallback-row { display: grid; grid-template-columns: 22px minmax(120px, 1fr) minmax(140px, 1.4fr) repeat(3, 38px); gap: 8px; align-items: center; margin: 10px 0; }
 .fallback-row input, .fallback-row select { min-width: 0; width: 100%; }
 
