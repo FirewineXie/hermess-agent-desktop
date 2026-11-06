@@ -23,6 +23,7 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
   const [oauthAvailable, setOauthAvailable] = React.useState(false)
   const [setupRun, setSetupRun] = React.useState<SetupRun | null>(null)
   const generation = React.useRef(0)
+  const providerGeneration = React.useRef(0)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const scope = React.useMemo(() => ({ kind: 'profile' as const, profile }), [profile])
   const dirty = Object.keys(drafts).length > 0
@@ -36,21 +37,21 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
   React.useEffect(() => () => { cancelPolling(); onDirtyChange(false); onBusyChange(false) }, [cancelPolling, onDirtyChange, onBusyChange])
 
   const loadProviders = React.useCallback(async () => {
-    const current = ++generation.current
+    const current = ++providerGeneration.current
     try {
       const result = await memory.providers(scope)
-      if (current !== generation.current) return
+      if (current !== providerGeneration.current) return
       setProviders(result.providers)
       setActiveProvider(result.active)
       setProvider(result.active && result.providers.some(row => row.name === result.active) ? result.active : builtin)
     } catch (error) {
-      if (current === generation.current) setStatus(describeError(error, language))
+      if (current === providerGeneration.current) setStatus(describeError(error, language))
     }
   }, [memory, scope, language])
   React.useEffect(() => {
     setProvider(builtin); setActiveProvider(''); setProviders([])
     void loadProviders()
-    return () => { ++generation.current }
+    return () => { ++providerGeneration.current }
   }, [loadProviders])
 
   const load = React.useCallback(async (name: string) => {
