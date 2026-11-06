@@ -2,6 +2,7 @@ use super::{
     action_args, actions_conflict, backup_args, copy_backup, debug_share_body, export_destination,
     restore_args, restore_source, tail, toolset_setup_args, valid_archive,
 };
+use crate::paths::CanonicalizePlain;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -90,7 +91,10 @@ fn backup_export_requires_valid_archive_and_new_zip_destination() {
     writer.finish().unwrap();
     let destination = base.join("download.zip");
     assert!(valid_archive(&source));
-    assert_eq!(restore_source(source.to_str().unwrap()).unwrap(), source);
+    assert_eq!(
+        restore_source(source.to_str().unwrap()).unwrap(),
+        source.canonicalize_plain().unwrap()
+    );
     assert_eq!(
         export_destination(destination.to_str().unwrap()).unwrap(),
         destination

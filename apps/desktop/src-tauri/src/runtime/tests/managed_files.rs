@@ -1,4 +1,5 @@
 use super::{operate, sensitive};
+use crate::paths::CanonicalizePlain;
 use serde_json::json;
 use std::fs;
 use uuid::Uuid;
@@ -30,7 +31,8 @@ fn browse_copy_preview_and_delete_stay_in_selected_root() {
         &json!({"root":path,"path":path,"name":"drafts"}),
     )
     .unwrap();
-    assert_eq!(result["path"], folder);
+    let resolved_folder = root.canonicalize_plain().unwrap().join("drafts");
+    assert_eq!(result["path"], resolved_folder.to_string_lossy().as_ref());
     let uploaded = operate(
         &root,
         "managedFiles.upload",
