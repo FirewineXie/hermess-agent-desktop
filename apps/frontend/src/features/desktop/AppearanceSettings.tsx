@@ -3,6 +3,7 @@ import type { Language } from '../../i18n'
 import { type AppearanceFont, type AppearanceTheme } from './appearanceModel'
 import { initializeAppearance, readAppearance, saveAppearance, subscribeAppearance } from './appearanceRuntime'
 import './appearance.css'
+import './dark-theme.css'
 
 initializeAppearance()
 
