@@ -20,3 +20,27 @@
 .onboarding-dialog footer > div { display: flex; gap: 8px; }
 .onboarding-dialog .onboarding-skip { border: 0; opacity: .78; }
 @media (max-width: 520px) { .onboarding-overlay { padding: 12px; } .onboarding-dialog { padding: 20px; max-height: calc(100vh - 24px); } .onboarding-steps { flex-direction: column; } .onboarding-dialog footer { align-items: stretch; flex-direction: column-reverse; } .onboarding-dialog footer > div { justify-content: flex-end; } }
+
+:root[data-color-theme='dark'] .onboarding-dialog {
+  color: #e7edf6;
+  background: #182231;
+  border-color: #34465b;
+}
+:root[data-color-theme='dark'] .onboarding-eyebrow { color: #8edbc4; }
+:root[data-color-theme='dark'] .onboarding-steps li { color: #9aa8bb; border-color: #34465b; }
+:root[data-color-theme='dark'] .onboarding-steps li.current,
+:root[data-color-theme='dark'] .onboarding-steps li.done { color: #e7edf6; border-color: #70c4ab; }
+:root[data-color-theme='dark'] .onboarding-status { color: #f3d194; background: #44341d; }
+:root[data-color-theme='dark'] .onboarding-status.ready { color: #a6e6c9; background: #173b2c; }
+:root[data-color-theme='dark'] .onboarding-dialog textarea,
+:root[data-color-theme='dark'] .onboarding-dialog button:not(.primary) {
+  color: #e7edf6;
+  background: #223249;
+  border-color: #34465b;
+}
+:root[data-color-theme='dark'] .onboarding-dialog textarea::placeholder { color: #9aa8bb; }
+:root[data-color-theme='dark'] .onboarding-dialog button:not(.primary):hover:not(:disabled) { background: #2d425d; border-color: #70c4ab; }
+:root[data-color-theme='dark'] .onboarding-dialog button.primary { color: #fff; background: #147860; border-color: #70c4ab; }
+:root[data-color-theme='dark'] .onboarding-dialog button.primary:hover:not(:disabled) { background: #196f5b; }
+:root[data-color-theme='dark'] .onboarding-dialog .onboarding-skip { color: #9aa8bb; background: transparent; border-color: transparent; }
+:root[data-color-theme='dark'] .onboarding-dialog .onboarding-skip:hover:not(:disabled) { color: #e7edf6; background: #223249; border-color: transparent; }
