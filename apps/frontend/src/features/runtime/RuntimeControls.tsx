@@ -7,6 +7,9 @@ type Props = {
   storageReady: boolean
   pythonReady: boolean
   backend: { pid: number; port: number } | null
+  connected?: boolean
+  connectionLabel?: string
+  reconnecting?: boolean
   backendStatus: string
   busy: boolean
   onStart: () => Promise<void>
@@ -17,7 +20,7 @@ type Props = {
 }
 
 export default function RuntimeControls({
-  language, storageReady, pythonReady, backend, backendStatus, busy,
+  language, storageReady, pythonReady, backend, connected = Boolean(backend), connectionLabel, reconnecting = false, backendStatus, busy,
   onStart, onPing, onReconnect, onRestart, onStop,
 }: Props) {
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
@@ -32,7 +35,7 @@ export default function RuntimeControls({
         <h3 id="runtime-controls-title">{t('ui.runtime.control.title')}</h3>
         <p>{t('ui.runtime.control.description')}</p>
       </div>
-      <span className={backend ? 'connected' : 'stopped'}>{backend ? t('ui.runtime.connected') : t('ui.runtime.not.started')}</span>
+      <span className={connected ? 'connected' : 'stopped'}>{connectionLabel || (connected ? t('ui.runtime.connected') : t('ui.runtime.not.started'))}</span>
     </header>
     <div className="runtime-control-status" role="status" aria-live="polite">
       <strong>{localizeAppMessage(language, backendStatus)}</strong>
@@ -42,8 +45,8 @@ export default function RuntimeControls({
       {!backend
         ? <button type="button" disabled={busy || !storageReady || !pythonReady} onClick={() => void onStart()}>{t('ui.start')}</button>
         : <>
-          <button type="button" disabled={busy} onClick={() => void onPing()}>{t('ui.check.connection')}</button>
-          <button type="button" disabled={busy} onClick={() => void onReconnect()}>{t('ui.reconnect.and.restore')}</button>
+          <button type="button" disabled={busy || reconnecting} onClick={() => void onPing()}>{t('ui.check.connection')}</button>
+          <button type="button" disabled={busy || reconnecting} onClick={() => void onReconnect()}>{t('ui.reconnect.and.restore')}</button>
           <button type="button" disabled={busy} onClick={() => void onRestart()}>{t('ui.optional.runtime.tools.restart')}</button>
           <button className="danger" type="button" disabled={busy} onClick={stop}>{t('ui.stop')}</button>
         </>}

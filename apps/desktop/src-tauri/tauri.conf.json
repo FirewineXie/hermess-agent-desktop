@@ -10,7 +10,7 @@
   },
   "app": {
     "windows": [{ "title": "Hermess Agent Desktop", "width": 1080, "height": 760, "minWidth": 1080, "minHeight": 640, "devtools": false }],
-    "security": { "csp": "default-src 'self'; script-src 'self' http://127.0.0.1:*; connect-src ipc: http://ipc.localhost; img-src 'self' data: http://127.0.0.1:*; font-src 'self' data: http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://127.0.0.1:*" }
+    "security": { "csp": "default-src 'self'; script-src 'self' http://127.0.0.1:*; connect-src ipc: http://ipc.localhost; img-src 'self' data: blob: hermess-media: http://hermess-media.localhost https://hermess-media.localhost http://127.0.0.1:*; media-src 'self' data: blob: hermess-media: http://hermess-media.localhost https://hermess-media.localhost; frame-src 'self' blob: hermess-media: http://hermess-media.localhost https://hermess-media.localhost; font-src 'self' data: http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://127.0.0.1:*" }
   },
   "bundle": {
     "active": false,

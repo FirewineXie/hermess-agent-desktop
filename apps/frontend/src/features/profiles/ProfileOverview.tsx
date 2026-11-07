@@ -51,7 +51,7 @@ type Props = {
   onActivateProfile: (name: string) => Promise<unknown>
   onOpenMemory: () => void
   onOpenSoul: () => void
-  onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools') => void
+  onOpenConfiguration: (page: 'advanced-runtime' | 'advanced-tools' | 'memory-persistent') => void
   onOpenChannels: () => void
   onOpenUsage: () => void
   onOpenExtensions: () => void
@@ -366,7 +366,7 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
         </button>
       </li>)}</ul> : <p className="profile-skill-empty">{skillQuery.trim() ? (zh ? '没有匹配的技能。' : 'No matching skills.') : (zh ? '此 Profile 暂无技能。' : 'No skills in this profile.')}</p>)}
     </section>}
-    {tab === 'plugins' && <ProfileHermesPlugins key={workspace} profile={profiles?.selected || null} served={served} onOpenSources={onOpenExtensions} />}
+    {tab === 'plugins' && <ProfileHermesPlugins key={workspace} profile={profiles?.selected || null} served={served} onOpenSources={onOpenExtensions} onOpenMemorySettings={() => onOpenConfiguration('memory-persistent')} />}
     {tab === 'mcp' && <section className="profile-skills-panel profile-mcp-panel" aria-label={zh ? '此 Profile 的 MCP' : 'MCP in this profile'}>
       <div className="profile-skills-heading"><div><h3>{zh ? '此 Profile 的 MCP' : 'MCP in this profile'}</h3><p>{servers === null ? (zh ? '读取 MCP 中…' : 'Loading MCP…') : (zh ? `${servers.length} 个已配置 MCP` : `${servers.length} configured MCP servers`)}</p></div>
         <button type="button" disabled={!served || mcpBusy} onClick={() => void refreshMcp()}>{zh ? '刷新' : 'Refresh'}</button></div>

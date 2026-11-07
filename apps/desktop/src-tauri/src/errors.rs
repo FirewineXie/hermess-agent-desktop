@@ -60,6 +60,19 @@ impl DesktopFailure {
     }
 }
 
+impl From<crate::gateway::GatewayRequestError> for DesktopFailure {
+    fn from(error: crate::gateway::GatewayRequestError) -> Self {
+        match error {
+            crate::gateway::GatewayRequestError::Rpc { message, .. }
+                if message == "session_superseded" =>
+            {
+                Self::new("session_superseded", "validation")
+            }
+            _ => Self::operation_failed(),
+        }
+    }
+}
+
 impl From<String> for DesktopFailure {
     fn from(value: String) -> Self {
         match value.as_str() {

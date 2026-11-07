@@ -36,7 +36,6 @@ export default function DeviceSettings({ page, language }: { page: 'device' | 'q
   }
   if (!status) return <p role="status">{error || (zh ? '正在读取设备设置…' : 'Loading device settings…')}</p>
   return <section className="settings-form-page desktop-settings">
-    <h2>{page === 'device' ? (zh ? '设备偏好' : 'Device preferences') : (zh ? '全局快捷输入' : 'Global quick input')}</h2>
     <p>{zh ? '仅保存在本产品的设备配置中。' : 'Saved in this product’s device configuration only.'}</p>
     {page === 'device' ? <>
       <AppearanceSettings language={language} />

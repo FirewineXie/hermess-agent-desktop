@@ -13,6 +13,7 @@ type Props = {
   view: View
   open: boolean
   connected: boolean
+  connectionLabel?: string
   remoteMode?: boolean
   busy: boolean
   sessions: SessionRow[]
@@ -44,7 +45,7 @@ type Props = {
   onOpenDashboardPlugin: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
+export default function Sidebar({ view, open, connected, connectionLabel, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -63,7 +64,7 @@ export default function Sidebar({ view, open, connected, remoteMode = false, bus
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const hasAnySession = groups.length > 0 || sessions.length > 0 || Object.values(otherProfileSessions).some(rows => rows.length > 0)
   React.useEffect(() => {
-    setExpandedProfiles(new Set([profiles?.selected || 'default']))
+    setExpandedProfiles(current => new Set([...current, profiles?.selected || 'default']))
   }, [profiles?.selected])
   React.useEffect(() => {
     if (!featuresOpen) return
@@ -154,7 +155,7 @@ export default function Sidebar({ view, open, connected, remoteMode = false, bus
         </div>}
         <div className="sidebar-section-heading"><strong>PROFILES</strong></div>
         {(profiles?.profiles || [{ name: 'default', is_default: true }]).map(profile => {
-          const profileSessions = profiles?.selected === profile.name ? sessions : otherProfileSessions[profile.name] || []
+          const profileSessions = profiles?.selected === profile.name && sessionsState === 'ready' ? sessions : otherProfileSessions[profile.name] || []
           const visibleCount = visibleSessionCounts[profile.name] || 5
           const allVisible = visibleCount >= profileSessions.length
           return <div className="sidebar-profile-group" key={profile.name}>
@@ -187,7 +188,7 @@ export default function Sidebar({ view, open, connected, remoteMode = false, bus
         </nav>
       </div>}
       <div className="sidebar-footer"><span className={`status-dot ${connected ? 'ready' : ''}`} />
-        <span>{remoteMode ? (connected ? (zh ? '远程 Gateway 已连接' : 'Remote gateway connected') : (zh ? '远程 Gateway 未连接' : 'Remote gateway disconnected')) : connected ? t('ui.runtime.connected') : t('ui.runtime.not.started')}</span>
+        <span>{connectionLabel || (remoteMode ? (connected ? (zh ? '远程 Gateway 已连接' : 'Remote gateway connected') : (zh ? '远程 Gateway 未连接' : 'Remote gateway disconnected')) : connected ? t('ui.runtime.connected') : t('ui.runtime.not.started'))}</span>
         {!remoteMode && <button onClick={() => onOpenView('runtime')}>{t('ui.manage')}</button>}
       </div>
     </aside>

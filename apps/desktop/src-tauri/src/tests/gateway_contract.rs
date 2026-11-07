@@ -30,6 +30,11 @@ fn forwards_reasoning_content_events() {
 }
 
 #[test]
+fn forwards_unstreamed_assistant_segments() {
+    assert!(is_forwarded_event("message.interim"));
+}
+
+#[test]
 fn forwards_runtime_notification_and_background_events() {
     for kind in [
         "background.complete",

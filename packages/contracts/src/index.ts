@@ -1,5 +1,7 @@
 import type { ProviderCopyPreview, ProviderCopyResult, DelegationRouting, DevicePreferences, DeviceStatus, QuickTarget, QuickSubmission } from './settings-capabilities'
 import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult, ConfigWriteResult, ConfigFileResult } from './configuration'
+import type { MediaApi } from './media'
+export * from './media'
 export * from './configuration'
 export type Unsubscribe = () => void
 
@@ -45,6 +47,7 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   pairing_locked: 'validation',
   session_owner_unknown: 'validation',
   session_profile_mismatch: 'validation',
+  session_superseded: 'validation',
 }
 
 export function isDesktopFailure(value: unknown): value is DesktopFailure {
@@ -479,6 +482,7 @@ export interface DesktopApi {
   localPreview: {
     readHtml(path: string): Promise<{ path: string; content: string }>
   }
+  media: MediaApi
   channels: {
     status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
     save(scope: ProfileScope, platform: string, update: ChannelSave): Promise<{ hot_served: boolean }>
@@ -517,12 +521,15 @@ export interface DesktopApi {
     startDev(storagePath: string, pythonPath: string): Promise<BackendInfo>
     startPacked(storagePath: string): Promise<BackendInfo>
     ping(): Promise<void>
-    reconnect(): Promise<BackendInfo>
+    /** Automatic recovery is bounded; only an explicit user retry resets its restart budget. */
+    reconnect(options?: { manualRetry?: boolean }): Promise<BackendInfo>
     restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
     savedRemote(): Promise<RemoteGatewayConfig | null>
     testRemote(url: string, token: string): Promise<RemoteGatewayProbe>
     saveRemote(label: string, url: string, token: string): Promise<RemoteGatewayConfig>
+    /** Remove the matching saved configuration and credential; reject while a remote gateway is active. */
+    deleteRemote(id: string): Promise<void>
     activeGateway(): Promise<ActiveGateway>
     activateSavedRemote(): Promise<ActiveGateway>
     activateLocalGateway(): Promise<ActiveGateway>

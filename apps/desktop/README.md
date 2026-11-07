@@ -29,11 +29,25 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
 - `src-tauri/src/tests/`、`src-tauri/src/runtime/tests/`：Rust 单元测试；生产模块只保留 `#[cfg(test)]` 下的模块声明。
 
-运行时所有者仍独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪仍持有所有权锁，最长 60 秒，尚未改为可中断启动。
+运行时所有者独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。启动时声明 `--external-supervisor`，让锁定 Gateway 的终端工具保护阻止 AI 停止或重启自己的宿主；支持的重启请求由客户端接续启动。主窗口收到断线后只请求一次 Rust 恢复：自有进程存活时最多用 5 秒重新核验身份和连接，健康连接直接复用；持续不可连时停止该进程管理登记对应的整棵树，再按保存的启动参数重新拉起，原进程已退出则直接重新拉起。目录相同或占用同一端口不构成进程归属依据，不接管其他 Hermes 安装。
+
+Rust 恢复总预算为 60 秒，包含等待生命周期锁；60 秒窗口内最多自动新建一次进程，手动重试可重新发起。前端本地恢复等待上限为 135 秒，为 Rust 恢复、新连接的 Profile 解析和会话恢复 RPC 留出时间，不叠加本地传输重试循环；远程保留原有重连策略。停止、退出和切换连接取消进行中的恢复。连接状态独立于运行时信息，失败时可在当前页重试；恢复持久会话并保留草稿和文件附件，原纪元的暂存图片提示重新添加，不自动重发消息。
+
+停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪持有所有权锁，最长 60 秒；停止和连接切换可取消这一等待。Windows 的 Job Object 会在原进程退出时结束它的后代，Rust 负责按原参数重新创建受管理的 Gateway；macOS 使用现有进程组管理，其主动脱离进程组的后代不等同于 Windows Job Object 的覆盖范围。具体测试与未验收范围见根目录路线图。
 
 桌面启动一个自有 `hermes gateway run` 进程，承载聊天会话和消息渠道。HTTP 配置接口使用 Rust 保管的随机会话令牌；聊天 WebSocket 使用网关私有控制端签发的一次性票据。Rust 直接连接私有控制端完成自有进程发现和取票请求，不再为这两步启动 Python 辅助进程；票据仍由 Gateway 签发。令牌不在根路径公布，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑和三个接入点由 [Hermes fork 的桌面分支](https://github.com/FirewineXie/hermes-agent/tree/hermess-desktop)直接跟踪；`pnpm fetch:upstream` 检出锁定 SHA，`pnpm verify:upstream` 校验来源、分支历史和干净工作区。Rust 启动时检查私有入口和浏览器握手；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。扫码成功后由桌面重启这一自有网关，加载新渠道配置。
 
 渠道扫码保存配置后，桌面通过 Hermes 现有 drain 接口暂停新任务，等待当前任务结束，再停止并重启自有网关。等待超过 60 秒或 Hermes 拒绝停止时保留旧网关，用户可继续等待或确认强制重启；单实例重启仍会短暂断线。
+
+## 聊天媒体读取
+
+聊天媒体通过 `DesktopApi.media` 和 `runtime/media*.rs` 适配锁定 fork Desktop 的行为，不修改 fork。前端只持有资源 ID 和 `hermess-media` URL；Rust 按调用窗口、Profile、会话和 Gateway 连接身份登记资源，在释放、窗口销毁或连接替换后拒绝继续读取。凭据和原始 HTTP 鉴权留在 Rust。
+
+本地文件按会话实际 `cwd` 解析相对路径，支持普通 Windows 盘符/UNC、macOS 路径和 `file:` URL；远程会话路径只交给对应 Gateway 的 `/api/fs/download`，保留反向代理路径前缀。消息中的独立 HTTP(S) URL 不继承 Gateway 凭据。音视频通过有界 Range 响应读取，文件另存为使用原生保存对话框和同目录临时文件，成功后替换目标；取消或失败清理临时文件。
+
+单次完整内嵌读取上限 32 MiB，Range 块上限 4 MiB，普通文本预览上限 2 MiB，HTML 预览保留既有 20 MiB 上限，下载上限 2 GiB。图片和音视频的实际解码能力取决于 WebView2/WKWebView；不支持的格式可另存为。PDF 内嵌查看同样依赖系统 WebView，普通 HTML 文件使用静态沙箱，`::preview` 保留既有自包含交互沙箱。
+
+锁定接收方验证位于 `tests/test_media_gateway.py`，使用隔离 Profile 和临时文件，调用生产 Rust URL 构造函数后交给 fork 的真实 HTTP 路由与鉴权中间件；它不调用模型，也不等同于原生播放验收。
 
 ## 本地命令
 

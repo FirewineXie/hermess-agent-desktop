@@ -12,6 +12,7 @@ const messageKeys: Record<DesktopFailureCode, string> = {
   pairing_locked: 'ui.desktop.error.pairing_locked',
   session_owner_unknown: 'ui.desktop.error.session_owner_unknown',
   session_profile_mismatch: 'ui.desktop.error.session_profile_mismatch',
+  session_superseded: 'ui.desktop.error.session_superseded',
 }
 
 export function describeError(error: unknown, language: Language): string {

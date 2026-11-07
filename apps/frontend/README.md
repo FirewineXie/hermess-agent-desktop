@@ -34,3 +34,9 @@ pnpm --dir apps/frontend dev
 ## 本批设置能力开发预览
 
 运行前端开发服务器后，访问 `/settings-capabilities-preview.html` 检查委派路由、提供商同步对话框和桌面设置；`?quick` 查看快捷输入窗。此入口始终使用 `PREVIEW_ONLY` 内存模拟，不注册系统快捷键或写入真实 Profile。实现及原生验收范围见 [设置能力记录](../../docs/settings-models-desktop-capabilities.md)。
+
+## 聊天媒体开发预览
+
+`/media-preview.html` 使用内存宿主检查 `MEDIA:`、Markdown 图片和文件链接、图片放大、音视频控件、文件卡、加载失败与重试、会话切换和资源释放。音频是内存生成的 WAV，视频由浏览器 Canvas/MediaRecorder 生成，不读取用户文件；模拟下载和定位不调用系统。此入口只验证前端，不证明 Tauri 自定义协议、原生保存对话框或双平台解码已经验收。
+
+媒体组件只调用注入的 `DesktopApi.media`，通过 `ChatMediaProvider` 获取对应会话及 Gateway epoch；后台任务使用任务自己的会话归属。解析保留代码块和行内代码，流式未完成路径等待完整边界再读取；历史恢复保留正文中的 `MEDIA:`。支持的宿主读取方式和大小边界见 [桌面客户端说明](../desktop/README.md#聊天媒体读取)。

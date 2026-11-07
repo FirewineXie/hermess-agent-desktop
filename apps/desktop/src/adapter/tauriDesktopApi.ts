@@ -1,4 +1,4 @@
-import { invoke as nativeInvoke } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -7,6 +7,10 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { isPermissionGranted, onAction, registerActionTypes, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { isDesktopFailure, type DashboardPluginSocketEvent, type DesktopApi, type DesktopFailure, type GatewayEvent, type GatewayRequest, type HermesConsoleSocketEvent, type KanbanEventMessage, type NativeDropEvent, type NotificationAction, type NotificationTarget, type ReplayResult, type ResumeResult, type Unsubscribe } from '@hermess/contracts'
 import { notificationApprovalChoice } from './notificationActions'
+import type { MediaResource } from '@hermess/contracts'
+type NativeMediaResource = Omit<MediaResource, 'url'>
+
+const mediaNames = new Map<string, string>()
 
 const notificationTargets = new Map<number, NotificationTarget>()
 const notificationHandlers = new Set<(action: NotificationAction) => void>()
@@ -252,6 +256,25 @@ export const tauriDesktopApi: DesktopApi = {
   localPreview: {
     readHtml: path => invoke('read_local_preview_html', { path }),
   },
+  media: {
+    async prepare(scope, source) {
+      const resource = await invoke<NativeMediaResource>('prepare_chat_media', { scope, source })
+      mediaNames.set(resource.id, resource.name)
+      return { ...resource, url: convertFileSrc(resource.id, 'hermess-media') }
+    },
+    preview: id => invoke('preview_chat_media', { id }),
+    async save(id) {
+      const destination = await nativeCall(() => save({ defaultPath: mediaNames.get(id) || 'download' }))
+      if (!destination) return false
+      await invoke('save_chat_media', { id, destination })
+      return true
+    },
+    reveal: id => invoke('reveal_chat_media', { id }),
+    async release(id) {
+      mediaNames.delete(id)
+      await invoke('release_chat_media', { id })
+    },
+  },
   profiles: {
     list: () => invoke('list_profiles'),
     dataDirectory: scope => invoke('get_profile_data_directory', { profile: scope.profile }),
@@ -316,12 +339,13 @@ export const tauriDesktopApi: DesktopApi = {
     startDev: (storagePath, pythonPath) => invoke('start_dev_backend', { storagePath, pythonPath }),
     startPacked: storagePath => invoke('start_packed_backend', { storagePath }),
     ping: () => invoke('ping_backend'),
-    reconnect: () => invoke('reconnect_backend'),
+    reconnect: options => invoke('reconnect_backend', { manualRetry: options?.manualRetry ?? false }),
     restartGracefully: () => invoke('restart_backend_gracefully'),
     stop: () => invoke('stop_backend'),
     savedRemote: () => invoke('saved_remote_gateway'),
     testRemote: (url, token) => invoke('test_remote_gateway', { url, token }),
     saveRemote: (label, url, token) => invoke('save_remote_gateway', { label, url, token }),
+    deleteRemote: id => invoke('delete_remote_gateway', { id }),
     activeGateway: () => invoke('active_gateway'),
     activateSavedRemote: () => invoke('activate_saved_remote_gateway'),
     activateLocalGateway: () => invoke('activate_local_gateway'),

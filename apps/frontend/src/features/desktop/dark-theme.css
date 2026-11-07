@@ -1,0 +1,220 @@
+/* Shared application chrome and chat surfaces follow the device appearance preference. */
+:root[data-color-theme='dark'] {
+  --dark-bg: #0f1723;
+  --dark-surface: #182231;
+  --dark-border: #2a394b;
+  --dark-text: #e7edf6;
+  --dark-muted: #9aa8bb;
+  --dark-hover: #223249;
+  --dark-selected: #18365f;
+  --settings-surface: #182231;
+  --settings-subtle: #223249;
+  --settings-border: #2a394b;
+  --border-color: #2a394b;
+  --panel-bg: #182231;
+}
+
+:root[data-color-theme='dark'] .workspace-header,
+:root[data-color-theme='dark'] .custom-titlebar-shell .workspace-header {
+  color: var(--dark-text);
+  background: #111b28;
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .window-title-text,
+:root[data-color-theme='dark'] .window-title-location,
+:root[data-color-theme='dark'] .header-location,
+:root[data-color-theme='dark'] .gateway-switcher-trigger,
+:root[data-color-theme='dark'] .custom-titlebar-shell .header-link,
+:root[data-color-theme='dark'] .custom-titlebar-shell .header-settings,
+:root[data-color-theme='dark'] .window-controls button { color: var(--dark-text); }
+:root[data-color-theme='dark'] .window-title-connection,
+:root[data-color-theme='dark'] .header-location small,
+:root[data-color-theme='dark'] .header-session-title,
+:root[data-color-theme='dark'] .header-brand span span { color: var(--dark-muted); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .header-github,
+:root[data-color-theme='dark'] .header-link,
+:root[data-color-theme='dark'] .header-settings { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .custom-titlebar-shell .header-github:hover,
+:root[data-color-theme='dark'] .custom-titlebar-shell .header-link:hover,
+:root[data-color-theme='dark'] .custom-titlebar-shell .header-settings:hover,
+:root[data-color-theme='dark'] .window-controls button:hover { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .window-controls .window-close:hover { color: #fff; background: #d73739; }
+:root[data-color-theme='dark'] .gateway-switcher-menu,
+:root[data-color-theme='dark'] .command-palette {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .gateway-switcher-menu button { color: var(--dark-text); }
+:root[data-color-theme='dark'] .gateway-switcher-menu button:hover,
+:root[data-color-theme='dark'] .command-palette-results button:hover,
+:root[data-color-theme='dark'] .command-palette-results button.selected { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .header-command-palette {
+  color: var(--dark-muted);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .header-command-palette:hover { color: var(--dark-text); background: var(--dark-hover); }
+:root[data-color-theme='dark'] .header-command-palette kbd,
+:root[data-color-theme='dark'] .command-palette-label small,
+:root[data-color-theme='dark'] .command-palette footer { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .command-palette-search,
+:root[data-color-theme='dark'] .command-palette footer,
+:root[data-color-theme='dark'] .command-palette-search kbd { border-color: var(--dark-border); }
+
+:root[data-color-theme='dark'] .sidebar-main-nav { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .sidebar-main-nav button,
+:root[data-color-theme='dark'] .sidebar-feature-trigger,
+:root[data-color-theme='dark'] .sidebar-feature-menu button,
+:root[data-color-theme='dark'] .sidebar-sessions .sidebar-profile-session,
+:root[data-color-theme='dark'] .sidebar-sessions .sidebar-profile-manage,
+:root[data-color-theme='dark'] .sidebar-sessions .sidebar-profile-more { color: var(--dark-text); }
+:root[data-color-theme='dark'] .sidebar-section-heading,
+:root[data-color-theme='dark'] .sidebar-feature-heading,
+:root[data-color-theme='dark'] .sidebar-profile-chevron { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .sidebar-main-nav button:hover,
+:root[data-color-theme='dark'] .sidebar-feature-menu button:hover { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .sidebar-main-nav button.active,
+:root[data-color-theme='dark'] .sidebar-feature-trigger[aria-expanded='true'],
+:root[data-color-theme='dark'] .sidebar-feature-menu button.active { color: #8bb7ff; background: var(--dark-selected); }
+:root[data-color-theme='dark'] .sidebar-feature-menu { background: var(--dark-surface); border-color: var(--dark-border); }
+
+:root[data-color-theme='dark'] .workspace-panel,
+:root[data-color-theme='dark'] .chat-tabs { background: var(--dark-bg); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .chat-tab { background: var(--dark-surface); }
+:root[data-color-theme='dark'] .chat-tab:has([aria-selected='true']) { background: var(--dark-selected); }
+:root[data-color-theme='dark'] .chat-tabs .chat-tab button,
+:root[data-color-theme='dark'] .chat-tabs .chat-tab-new { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .chat-tabs .chat-tab [aria-selected='true'] { color: #a8c9ff; }
+:root[data-color-theme='dark'] .chat-tabs .chat-tab button:hover,
+:root[data-color-theme='dark'] .chat-tabs .chat-tab-new:hover { color: var(--dark-text); background: var(--dark-hover); }
+:root[data-color-theme='dark'] .composer,
+:root[data-color-theme='dark'] .model-picker,
+:root[data-color-theme='dark'] .context-tooltip,
+:root[data-color-theme='dark'] .composer-choices { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .composer textarea { color: var(--dark-text); background: transparent; }
+:root[data-color-theme='dark'] .composer textarea::placeholder { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .composer-actions .secondary-button,
+:root[data-color-theme='dark'] .chat-panel .chat-workspace-below,
+:root[data-color-theme='dark'] .reasoning-picker select,
+:root[data-color-theme='dark'] .chat-panel .composer-profile-picker select { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .chat-workspace-below strong,
+:root[data-color-theme='dark'] .model-picker-header,
+:root[data-color-theme='dark'] .chat-panel .model-picker-list button { color: var(--dark-text); }
+:root[data-color-theme='dark'] .model-picker-list { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .chat-panel .model-picker-list button,
+:root[data-color-theme='dark'] .composer-choices button { color: var(--dark-text); background: var(--dark-surface); }
+:root[data-color-theme='dark'] .chat-panel .model-picker-list button:hover,
+:root[data-color-theme='dark'] .composer-choices button:hover,
+:root[data-color-theme='dark'] .composer-choices button.active { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .composer-choices button span,
+:root[data-color-theme='dark'] .model-picker-provider,
+:root[data-color-theme='dark'] .model-picker-message,
+:root[data-color-theme='dark'] .reasoning-picker,
+:root[data-color-theme='dark'] .context-indicator { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .context-ring-track { stroke: var(--dark-border); }
+:root[data-color-theme='dark'] .composer li { background: var(--dark-hover); }
+
+/* Settings categories reuse cards from older screens with literal light colors. */
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card, .provider-add-form, .provider-model-row, .provider-model-preview-row,
+  .notification-setting-row, .moa-card, .moa-preset-bar, .moa-slot,
+  .memory-settings-fields, .default-reasoning-field, .auxiliary-card,
+  .about-card, .extension-detail, .profile-overview-card, .profile-info-panel,
+  .profile-plugin-install, .profile-skill-list li, .model-oauth-inline-status
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card.selected, .workspace-design-row.is-selected
+) { background: var(--dark-selected); border-color: #4b79b8; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card-heading strong, .provider-model-preview-row span, .provider-model-row .provider-model-id,
+  .config-field-name, .profile-overview-card h3, .profile-identity h2
+) { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card-discovery label, .provider-add-form label, .moa-preset-bar label,
+  .moa-card label, .moa-flags label, .moa-check, .main-model-settings label,
+  .model-route-settings label, .settings-profile-scope
+) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card-discovery button, .provider-add-form .actions button:last-child,
+  .memory-settings-heading > button, .memory-settings-state button,
+  .desktop-settings button, .update-check-button,
+  .main-model-settings button, .model-route-settings button
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-card-discovery button, .provider-add-form .actions button:last-child,
+  .memory-settings-heading > button, .memory-settings-state button,
+  .desktop-settings button, .update-check-button,
+  .main-model-settings button, .model-route-settings button
+):hover:not(:disabled) { background: var(--dark-hover); border-color: #4b79b8; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .main-model-settings button[type='submit'], .main-model-settings button.primary,
+  .model-route-settings button[type='submit'], .model-route-settings button.primary,
+  .moa-settings .actions button
+) { color: #fff; background: #1b6ffd; border-color: #1b6ffd; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .provider-model-preview-row span.current, .provider-model-row .provider-model-id.current,
+  .provider-card-actions button, .provider-add-model, .config-field-edit
+) { color: #a8c9ff; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .profile-info-panel-heading, .config-field.editing, .model-oauth-card-meta span
+) { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .profile-tabs, .memory-settings-fields .config-field,
+  .memory-settings-fields .compression-route-picker
+) { border-color: var(--dark-border); }
+
+/* Session management keeps its own cards and controls outside the legacy settings panel. */
+:root[data-color-theme='dark'] .unified-settings .sessions-page { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-stats > div, .sessions-list, .sessions-detail, .sessions-prune,
+  .sessions-source-filter > div, .sessions-row
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .sessions-row:hover { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .sessions-row.selected { background: var(--dark-selected); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-heading button, .sessions-search button:not([type='submit']),
+  .sessions-actions button, .sessions-pagination button,
+  .sessions-maintenance button, .sessions-prune button,
+  .sessions-selection button, .sessions-controls select,
+  .sessions-source-filter summary
+) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .sessions-search button[type='submit'] { color: #fff; background: #285fc8; border-color: #285fc8; }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-list-header, .sessions-selection, .sessions-detail-head,
+  .sessions-actions, .sessions-messages article, .sessions-prune-preview
+) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(
+  .sessions-controls label, .sessions-source-filter, .sessions-stats span,
+  .sessions-list-header span, .sessions-selection span, .sessions-row-meta,
+  .sessions-row small, .sessions-empty, .sessions-pagination span,
+  .sessions-detail-head span, .sessions-messages > p
+) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .unified-settings .sessions-messages h3 { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings .sessions-source-filter > div > label { color: var(--dark-text); }
+:root[data-color-theme='dark'] .unified-settings .sessions-source-filter > div > label:hover { background: var(--dark-hover); }
+
+/* Configuration search, tree and runtime controls must match their dark parent page. */
+:root[data-color-theme='dark'] .unified-settings .configuration-settings :is(input:not([type='checkbox']), select, textarea) {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .unified-settings .configuration-settings input::placeholder { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .unified-settings .configuration-settings button:not(.config-field-preview) {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .unified-settings .configuration-settings button:hover:not(:disabled) { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .configuration-settings :is(.config-field-actions button:first-child, .configuration-mode button[aria-pressed='true']) {
+  color: #fff;
+  background: #1b6ffd;
+  border-color: #1b6ffd;
+}
+:root[data-color-theme='dark'] .unified-settings :is(.config-tree-root, .config-tree-node, .config-tree-children, .config-field, .configuration-subsection) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings :is(.config-tree-root-heading, .config-tree-node summary) { color: #a8c9ff; }
+:root[data-color-theme='dark'] .unified-settings :is(.config-field.editing, .configuration-prune-result pre) { color: var(--dark-text); background: var(--dark-surface); }
+:root[data-color-theme='dark'] .unified-settings .runtime-controls { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .runtime-control-status { color: var(--dark-muted); background: var(--dark-hover); }
+:root[data-color-theme='dark'] .unified-settings .runtime-remote-settings { border-color: var(--dark-border); }

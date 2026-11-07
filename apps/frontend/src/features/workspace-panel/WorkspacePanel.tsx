@@ -7,6 +7,7 @@ import TerminalTab from './TerminalTab'
 import DirectoryTree from './DirectoryTree'
 import type { BackgroundTask } from '../chat/backgroundTasks'
 import MarkdownMessage from '../chat/components/MarkdownMessage'
+import { ChatMediaProvider } from '../chat/ChatMediaContext'
 
 type PanelFile = Awaited<ReturnType<DesktopApi['workspacePanel']['readFile']>>
 type PanelDirectory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
@@ -159,7 +160,7 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
             <small>{tab.taskId}</small>
             <div className="panel-background-task-messages">
               {task?.prompt && <p className="panel-background-task-user">{task.prompt}</p>}
-              {task?.result && <div className="panel-background-task-assistant"><MarkdownMessage text={task.result} language={language} /></div>}
+              {task?.result && <div className="panel-background-task-assistant"><ChatMediaProvider scope={epoch && tab.scope.owner ? { ...tab.scope.owner, gatewayEpoch: epoch } : null}><MarkdownMessage text={task.result} language={language} /></ChatMediaProvider></div>}
             </div>
             {task?.truncated && <small>{zh ? '结果过长，仅显示部分内容。' : 'The result is too long; only part is shown.'}</small>}
           </div>

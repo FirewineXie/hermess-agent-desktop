@@ -578,6 +578,7 @@
   "ui.desktop.error.pairing_locked": "Too many incorrect codes. Pairing is temporarily locked for this channel. Try again later.",
   "ui.desktop.error.session_owner_unknown": "This session's Profile has not been confirmed. Reopen it in its Profile and try again.",
   "ui.desktop.error.session_profile_mismatch": "This session belongs to another Profile. Switch to its Profile and try again.",
+  "ui.desktop.error.session_superseded": "This conversation has been replaced by a newer session and is read-only. Your input is preserved. Use + to start a new chat, or open the channel's current session from the sidebar.",
   "ui.copy.provider.to.profile": "Copy to other Profiles",
   "ui.channels.docs": "View documentation",
   "ui.channels.ingress.copy": "Copy endpoint",
