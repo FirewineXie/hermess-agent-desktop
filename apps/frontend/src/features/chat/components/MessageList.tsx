@@ -18,16 +18,6 @@ const toolNames: Record<string, [string, string]> = {
 
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
-function activityTitle(steps: ToolStep[], language: Language, includeRunning = true) {
-  const failures = steps.filter(step => step.state === 'failed').length
-  const running = steps.some(step => step.state === 'running')
-  const parts = language === 'zh-CN'
-    ? ['工具调用', `${steps.length} 项操作`]
-    : ['Tool calls', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
-  if (running && includeRunning) parts.push(label(language, '正在执行', 'Running'))
-  if (failures) parts.push(language === 'zh-CN' ? `${failures} 项失败` : `${failures} failed`)
-  return parts.join(' · ')
-}
 function formatDuration(value: number, language: Language) {
   const seconds = Math.max(0, Math.round(value))
   if (seconds < 60) return language === 'zh-CN' ? `${seconds} 秒` : `${seconds}s`
@@ -76,13 +66,10 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
 }
 
 function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
-  return <details className={`tool-activity${steps.some(step => step.state === 'failed') ? ' has-failure' : ''}`}>
-    <summary className="tool-activity-heading"><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
-    <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
-  </details>
+  return <div className="tool-activity">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
 }
 
-function AssistantMessage({ text, language, streaming = false, media }: { text: string; language: Language; streaming?: boolean; media?: string[] }) {
+function AssistantMessage({ text, language, streaming = false, media, showCopy = false }: { text: string; language: Language; streaming?: boolean; media?: string[]; showCopy?: boolean }) {
   const [copyState, setCopyState] = React.useState<AssistantCopyState>('idle')
   const resetTimer = React.useRef<number | null>(null)
   React.useEffect(() => () => {
@@ -94,7 +81,11 @@ function AssistantMessage({ text, language, streaming = false, media }: { text: 
     if (resetTimer.current != null) window.clearTimeout(resetTimer.current)
     resetTimer.current = window.setTimeout(() => setCopyState('idle'), 1500)
   }
-  return <div className="message message-assistant"><div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div><MarkdownMessage text={text} language={language} streaming={streaming} /><HistoryMedia sources={media} language={language} /></div>
+  return <div className="message message-assistant">
+    <MarkdownMessage text={text} language={language} streaming={streaming} />
+    <HistoryMedia sources={media} language={language} />
+    {showCopy && !streaming && text.trim() && <div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div>}
+  </div>
 }
 
 function HistoryMedia({ sources, language }: { sources?: string[]; language: Language }) {
@@ -109,29 +100,6 @@ function ReasoningBlock({ text, streaming, expanded, language }: { text: string;
   return <details className="reasoning-block" open={expanded}>
     <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
     <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} streaming={streaming} /></div>
-  </details>
-}
-
-function TurnActivity({ user, steps, now, showTime, language }: { user: Extract<TimelineItem, { kind: 'message' }>; steps: ToolStep[]; now: number; showTime: boolean; language: Language }) {
-  const detailsRef = React.useRef<HTMLDetailsElement>(null)
-  const listRef = React.useRef<HTMLDivElement>(null)
-  const followStepsRef = React.useRef(true)
-  React.useLayoutEffect(() => {
-    if (user.turnState == null && detailsRef.current?.open && followStepsRef.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
-  }, [steps, user.turnState])
-  const failed = steps.filter(step => step.state === 'failed').length
-  const time = showTime ? turnTimeText(user, now, language) : ''
-  const title = time ? `${activityTitle(steps, language, false)} · ${time}` : activityTitle(steps, language)
-  return <details ref={detailsRef} className={`turn-activity${failed ? ' has-failure' : ''}`} onToggle={event => {
-    if (event.currentTarget.open && user.turnState == null && followStepsRef.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
-  }}>
-    <summary className="turn-duration" title={user.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>
-      <span>{title}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span>
-    </summary>
-    <div ref={listRef} className="turn-process" onScroll={event => {
-      const list = event.currentTarget
-      followStepsRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 32
-    }}>{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
 }
 
@@ -172,22 +140,18 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
           if (item.kind === 'message' && item.role === 'assistant') { finalIndex = position; break }
         }
       }
-      const process = following.filter((item, position) => item.kind === 'tools' || position !== finalIndex)
-      const steps = process.flatMap(item => item.kind === 'tools' ? item.steps : [])
-      const reasoning = process.filter((item): item is Extract<TimelineItem, { kind: 'reasoning' }> => item.kind === 'reasoning')
-      const intermediateMessages = process.filter((item): item is Extract<TimelineItem, { kind: 'message' }> => item.kind === 'message' && item.role === 'assistant')
       const hasTime = message.duration != null || index === activeUserIndex
-      const finalMessage = finalIndex >= 0 ? following[finalIndex] : undefined
       const userText = message.attachments?.length && message.text === t('ui.please.see.attachment')
         ? label(language, `已发送 ${message.attachments.length} 个附件`, `Sent ${message.attachments.length} attachments`)
         : message.text
       blocks.push(<React.Fragment key={`turn-${index}`}>
         <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}<HistoryMedia sources={message.media} language={language} /></div>
-        {!steps.length && hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
-        {steps.length > 0 && <TurnActivity user={message} steps={steps} now={now} showTime={hasTime} language={language} />}
-        {reasoning.length > 0 && <ReasoningBlock text={reasoning.map(part => part.text).join('\n\n')} streaming={reasoning.some(part => part.streaming)} expanded={reasoning.some(part => part.expanded)} language={language} />}
-        {intermediateMessages.map((item, position) => <AssistantMessage key={position} text={item.text} media={item.media} language={language} />)}
-        {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} media={finalMessage.media} language={language} />}
+        {hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
+        {following.map((item, position) => item.kind === 'tools'
+          ? <ToolActivity key={position} steps={item.steps} language={language} />
+          : item.kind === 'reasoning'
+            ? <ReasoningBlock key={position} text={item.text} streaming={item.streaming} expanded={item.expanded} language={language} />
+            : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} />)}
       </React.Fragment>)
       index = end
     } else {

@@ -47,6 +47,7 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   pairing_locked: 'validation',
   session_owner_unknown: 'validation',
   session_profile_mismatch: 'validation',
+  session_superseded: 'validation',
 }
 
 export function isDesktopFailure(value: unknown): value is DesktopFailure {

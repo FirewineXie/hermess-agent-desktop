@@ -578,6 +578,7 @@
   "ui.desktop.error.pairing_locked": "配对码错误次数过多，当前渠道已临时锁定，请稍后再试。",
   "ui.desktop.error.session_owner_unknown": "尚未确认会话归属，请在所属 Profile 中重新打开该会话后重试。",
   "ui.desktop.error.session_profile_mismatch": "会话与当前 Profile 不匹配，请切回会话所属的 Profile。",
+  "ui.desktop.error.session_superseded": "这段历史会话已被新会话替代，目前只读。输入已保留，请点击顶部＋新建聊天，或从侧栏打开该渠道的当前会话后继续。",
   "ui.copy.provider.to.profile": "同步到其他 Profile",
   "ui.channels.docs": "查看文档",
   "ui.channels.ingress.copy": "复制入口",

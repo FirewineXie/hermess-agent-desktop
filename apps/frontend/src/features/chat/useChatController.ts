@@ -1,5 +1,5 @@
 import React from 'react'
-import type { BackendInfo, GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
+import { isDesktopFailure, type BackendInfo, type GatewayEvent, type ReplayResult, type ResumeResult, type GatewayRequest, type ApprovalChoice, type SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
@@ -683,7 +683,9 @@ export function useChatController({ backend, connected = Boolean(backend), remot
         if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
           restoreUnsentPrompt()
         }
-        setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
+        const readOnly = isDesktopFailure(cause) && cause.code === 'session_superseded'
+        if (readOnly) setDraft(draft)
+        setChatStatus(readOnly ? describeError(cause, language) : t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
         finishCurrentTurn('failed')
         setTurnBusy(false)
       }

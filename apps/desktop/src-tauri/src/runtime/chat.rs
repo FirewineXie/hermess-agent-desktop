@@ -147,7 +147,23 @@ pub async fn submit_chat_prompt(
             &format!("chat_images_submit_start operation={operation} count={image_count}"),
         );
     }
-    let result = scope.gateway.request("prompt.submit", params).await;
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_prompt_submit_start operation={operation}"),
+    );
+    let result = scope
+        .gateway
+        .request_detailed("prompt.submit", params)
+        .await;
+    let outcome = if result.is_ok() {
+        "admitted"
+    } else {
+        "failed_or_unknown"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_prompt_submit_result operation={operation} outcome={outcome}"),
+    );
     if image_count > 0 {
         let outcome = if result.is_ok() { "admitted" } else { "failed" };
         let _ = crate::diagnostics::append_client_event(

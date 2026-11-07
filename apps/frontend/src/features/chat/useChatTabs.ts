@@ -1,10 +1,6 @@
 import React from 'react'
-
-export type ChatTab = { profile: string; id: string }
-
-export function chatTabKey(tab: ChatTab): string {
-  return `${tab.profile}\u0000${tab.id}`
-}
+import { chatTabKey, registerChatTab, removeChatTabs, type ChatTab } from './chatTabsState'
+export { chatTabKey, type ChatTab } from './chatTabsState'
 
 /** Tabs belong to this window. Sessions themselves remain in Gateway history. */
 export function useChatTabs(profile: string | null, sessionId: string, storedId: string) {
@@ -14,12 +10,16 @@ export function useChatTabs(profile: string | null, sessionId: string, storedId:
 
   React.useEffect(() => {
     if (!current) return
-    setTabs(previous => previous.some(tab => chatTabKey(tab) === currentKey) ? previous : [...previous, current])
+    setTabs(previous => registerChatTab(previous, current))
   }, [currentKey])
 
   const close = React.useCallback((tab: ChatTab) => {
     setTabs(previous => previous.filter(item => chatTabKey(item) !== chatTabKey(tab)))
   }, [])
 
-  return { tabs, currentKey, close }
+  const closeMany = React.useCallback((targets: ChatTab[], fallback?: ChatTab) => {
+    setTabs(previous => removeChatTabs(previous, targets, fallback))
+  }, [])
+
+  return { tabs, currentKey, close, closeMany }
 }

@@ -1,4 +1,31 @@
 use super::DesktopFailure;
+use crate::gateway::GatewayRequestError;
+
+#[test]
+fn superseded_rpc_preserves_the_named_refusal_without_exposing_gateway_details() {
+    let error = DesktopFailure::from(GatewayRequestError::Rpc {
+        message: "session_superseded".into(),
+        code: -32000,
+    });
+    assert_eq!(
+        serde_json::to_value(error).unwrap(),
+        serde_json::json!({
+            "kind": "desktop_failure", "code": "session_superseded", "category": "validation"
+        })
+    );
+    for error in [
+        GatewayRequestError::Transport("session_superseded".into()),
+        GatewayRequestError::Rpc {
+            message: "other internal details".into(),
+            code: -32000,
+        },
+    ] {
+        assert_eq!(
+            serde_json::to_value(DesktopFailure::from(error)).unwrap()["code"],
+            "operation_failed"
+        );
+    }
+}
 
 #[test]
 fn desktop_failure_serializes_contract_fields() {

@@ -64,7 +64,7 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const hasAnySession = groups.length > 0 || sessions.length > 0 || Object.values(otherProfileSessions).some(rows => rows.length > 0)
   React.useEffect(() => {
-    setExpandedProfiles(new Set([profiles?.selected || 'default']))
+    setExpandedProfiles(current => new Set([...current, profiles?.selected || 'default']))
   }, [profiles?.selected])
   React.useEffect(() => {
     if (!featuresOpen) return
@@ -155,7 +155,7 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
         </div>}
         <div className="sidebar-section-heading"><strong>PROFILES</strong></div>
         {(profiles?.profiles || [{ name: 'default', is_default: true }]).map(profile => {
-          const profileSessions = profiles?.selected === profile.name ? sessions : otherProfileSessions[profile.name] || []
+          const profileSessions = profiles?.selected === profile.name && sessionsState === 'ready' ? sessions : otherProfileSessions[profile.name] || []
           const visibleCount = visibleSessionCounts[profile.name] || 5
           const allVisible = visibleCount >= profileSessions.length
           return <div className="sidebar-profile-group" key={profile.name}>

@@ -14,7 +14,9 @@ import ChatTabs from './features/chat/ChatTabs'
 import BotsView from './features/bots/BotsView'
 import { useChatController } from './features/chat/useChatController'
 import { useChatTabs, chatTabKey, type ChatTab } from './features/chat/useChatTabs'
+import { chatTabStatus as resolveChatTabStatus } from './features/chat/chatTabsState'
 import { useSessionActivity } from './features/chat/useSessionActivity'
+import { useSidebarSessions } from './features/chat/useSidebarSessions'
 import ModelSettingsView from './features/models/ModelSettingsView'
 import MainModelSettings from './features/models/MainModelSettings'
 import MoaSettings from './features/models/MoaSettings'
@@ -221,8 +223,9 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     if (!openView('chat') || !viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return false
     setActiveGroupId(null)
     if (!sessionId && !storedSessionRef.current) return true
-    const restoreBlank = chatTabs.tabs.some(tab => tab.profile === viewedProfile && !tab.id)
-    await newChat(true, false, restoreBlank)
+    const blank = chatTabs.tabs.find(tab => !tab.id)
+    if (blank) return selectChatTab(blank)
+    await newChat(true)
     return !storedSessionRef.current
   }
   React.useEffect(() => {
@@ -264,6 +267,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   })
   const activeSession = sessions.find(session => session.id === storedSessionRef.current)
   const [otherProfileSessions, setOtherProfileSessions] = useProfileState<Record<string, SessionRow[]>>(workspaceKey(backend?.replay_epoch, 'sidebar-other'), {}, 'app:other-profile-sessions')
+  const sidebarSessions = useSidebarSessions(backend?.replay_epoch, viewedProfile, sessions, sessionsState, otherProfileSessions)
   const otherSessionsVersion = React.useRef(0)
   const [pendingSession, setPendingSession] = React.useState<ChatTab | null>(null)
   const servedProfileNames = profileController.snapshot?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]).filter(name => name !== profileController.snapshot?.selected).join('|') || ''
@@ -358,6 +362,33 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     }
     chatTabs.close(tab)
   }
+  const chatTabStatus = (tab: ChatTab) => {
+    const row = (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)
+    return resolveChatTabStatus(tab, connected, sessionActivity[activityKey(tab.profile, tab.id)],
+      chatTabKey(tab) === chatTabs.currentKey, turnBusy, Boolean(row?.running))
+  }
+  const closeChatTabs = async (targets: ChatTab[]) => {
+    if (navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !viewedProfile || !connected) return
+    const operation = crypto.randomUUID()
+    console.info('[chat-tabs] batch close started', { operation, count: targets.length })
+    try {
+      let fallback: ChatTab | undefined
+      if (targets.some(tab => chatTabKey(tab) === chatTabs.currentKey)) {
+        if (storedSessionRef.current) await newChat(true, false, true)
+        if (storedSessionRef.current) {
+          console.error('[chat-tabs] batch close blocked', { operation, reason: 'active-session-unchanged' })
+          setChatStatus(language === 'zh-CN' ? '当前操作尚未结束，请稍后重试关闭标签。' : 'Please wait for the current operation before closing tabs.')
+          return
+        }
+        fallback = { profile: viewedProfile, id: '' }
+      }
+      chatTabs.closeMany(targets, fallback)
+      console.info('[chat-tabs] batch close completed', { operation, count: targets.length, blankRetained: Boolean(fallback) })
+    } catch {
+      console.error('[chat-tabs] batch close failed', { operation })
+      setChatStatus(language === 'zh-CN' ? '关闭标签失败，请重试。' : 'Failed to close tabs. Try again.')
+    }
+  }
   const deleteProfileSession = async (profile: string, id: string) => {
     await chatController.deleteSession(profile, id)
     if (profile !== viewedProfile) await refreshOtherProfileSessions()
@@ -423,7 +454,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     <WorkspaceHeader view={view} sessionTitle={activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={connected} connectionLabel={connectionText} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchRemote={() => void switchGateway('remote')} onSwitchLocal={() => void switchGateway('local')} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
-    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={otherProfileSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (remoteMode) { if (next === 'bots' || next === 'sessions' || next === 'chat') openView(next) } else if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
+    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={sidebarSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (remoteMode) { if (next === 'bots' || next === 'sessions' || next === 'chat') openView(next) } else if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
       profiles={profileController.snapshot} profileBusy={!connected || profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
       onOpenProfile={name => {
@@ -519,6 +550,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     {view === 'chat' && activeGroupId && <BotGroupConversation key={activeGroupId} roomId={activeGroupId} connected={connected} language={language} onDisband={() => { setActiveGroupId(null); void groupRooms.refresh() }} />}
     <div className="chat-workspace-layout" style={view === 'chat' && !activeGroupId ? undefined : { display: 'none' }}><ChatView runtimeAvailable={Boolean(backend)} active={view === 'chat' && !activeGroupId} connected={connected} backendStatus={backendStatus} language={language} t={t} remoteMode={remoteMode}
       tabs={<ChatTabs tabs={chatTabs.tabs} activeKey={chatTabs.currentKey} disabled={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !connected} language={language}
+        status={chatTabStatus} onCloseMany={tabs => { void closeChatTabs(tabs) }}
         title={tab => tab.id ? (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)?.title || tab.id.slice(0, 12) : language === 'zh-CN' ? '新聊天' : 'New chat'}
         onSelect={tab => { void selectChatTab(tab) }} onClose={tab => { void closeChatTab(tab) }} onOpenWindow={tab => { void chatWindows.open(tab.profile, tab.id).catch(cause => setChatStatus(describeError(cause, language))) }} onNew={() => { void openNewChat() }} />}
       scrollKey={chatTabs.currentKey}
