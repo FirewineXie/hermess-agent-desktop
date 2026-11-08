@@ -5,6 +5,7 @@ import { localizeAppMessage } from '../../i18n'
 import type { useChatController } from './useChatController'
 import GatewayRequestCard from './components/GatewayRequestCard'
 import MessageList from './components/MessageList'
+import { ChatMediaProvider } from './ChatMediaContext'
 import AttachmentQueue from './components/AttachmentQueue'
 import CommandSuggestions from './components/CommandSuggestions'
 import ContextUsageIndicator from './components/ContextUsageIndicator'
@@ -37,6 +38,7 @@ type Picker = {
 type Props = {
   active: boolean
   connected: boolean
+  runtimeAvailable?: boolean
   backendStatus: string
   language: 'zh-CN' | 'en-US'
   t: (key: string, ...values: unknown[]) => string
@@ -58,7 +60,7 @@ type Props = {
   remoteMode?: boolean
 }
 
-export default function ChatView({ active, connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey, standalone = false, remoteMode = false }: Props) {
+export default function ChatView({ active, connected, runtimeAvailable = connected, backendStatus, language, t, controller, workspacePath, onOpenWorkspaces, panelOpen, onTogglePanel, picker, onOpenRuntime, onOpenModelSettings, onOpenDiagnostics, profiles, profileBusy, onSelectProfile, tabs, scrollKey, standalone = false, remoteMode = false }: Props) {
   const backend = connected
   const blankClicks = React.useRef({ count: 0, last: 0 })
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -140,7 +142,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
   return <section ref={panelRef} className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
       <RollbackDialog controller={rollback} language={language} />
       {tabs}
-      {!backend ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
+      {!runtimeAvailable ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
       {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{remoteMode ? (language === 'zh-CN' ? '向远程 Gateway 描述任务。' : 'Describe a task to the remote gateway.') : language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
       {!empty && !remoteMode && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
         <div className="chat-workspace-actions">{!standalone && <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>}{panelToggle}</div></div>}
@@ -149,7 +151,7 @@ export default function ChatView({ active, connected, backendStatus, language, t
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
         scrollPositionsRef.current.set(lastScrollKeyRef.current, { top: content.scrollTop, follow: followMessagesRef.current })
       }}>
-      {!empty && <MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} />}
+      {!empty && <ChatMediaProvider scope={controller.mediaScope}><MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} /></ChatMediaProvider>}
       {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>
         <div className="side-question-header"><strong>{language === 'zh-CN' ? '顺带提问' : 'Side question'}</strong><span>{item.status === 'running' ? language === 'zh-CN' ? '回答中' : 'Answering' : item.status === 'unknown' ? language === 'zh-CN' ? '结果待确认' : 'Result uncertain' : item.status === 'failed' ? language === 'zh-CN' ? '失败' : 'Failed' : language === 'zh-CN' ? '已完成' : 'Complete'}</span><button type="button" onClick={() => dismissSideQuestion(item.taskId, item.profile, item.sessionId)} aria-label={language === 'zh-CN' ? '关闭旁路提问卡片' : 'Dismiss side question'}>×</button></div>
         <p>{item.question}</p>{item.answer && <div className="side-question-answer">{item.answer}</div>}
@@ -189,14 +191,14 @@ export default function ChatView({ active, connected, backendStatus, language, t
       <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} hint={controller.argumentHint} t={t} onChoose={chooseCommand} />
       {!remoteMode && <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />}
       <div className="composer-actions">
-        {!remoteMode && <button className="secondary-button" disabled={turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>}
-        {!sessionId && profiles && <label className="composer-profile-picker"><span className="sr-only">Profile</span><select aria-label="Profile" value={profiles.selected} disabled={profileBusy || navigationBusy} onChange={event => onSelectProfile(event.target.value)}>
-          {profiles.profiles.map(profile => <option value={profile.name} key={profile.name} disabled={profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}</option>)}
+        {!remoteMode && <button className="secondary-button" disabled={!connected || turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>}
+        {!sessionId && profiles && <label className="composer-profile-picker"><span className="sr-only">Profile</span><select aria-label="Profile" value={profiles.selected} disabled={!connected || profileBusy || navigationBusy} onChange={event => onSelectProfile(event.target.value)}>
+          {profiles.profiles.map(profile => <option value={profile.name} key={profile.name} disabled={!connected || profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}</option>)}
         </select></label>}
         <span className="composer-spacer" />
         <ContextUsageIndicator usage={chatUsage} language={language} />
         {!remoteMode && <label className="reasoning-picker">
-          <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
+          <select aria-label={language === 'zh-CN' ? '思考强度' : 'Reasoning effort'} value={reasoningEffort} disabled={!connected || reasoningBusy || navigationBusy || !backend} onChange={event => void changeReasoning(event.target.value)}>
             <option value="" disabled>{!backend
               ? language === 'zh-CN' ? '思考 · 未连接' : 'Reasoning · Disconnected'
               : reasoningLoadFailed
@@ -205,19 +207,19 @@ export default function ChatView({ active, connected, backendStatus, language, t
             {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].map(value => <option value={value} key={value}>{language === 'zh-CN' ? '思考' : 'Reasoning'} · {value}</option>)}
           </select>
         </label>}
-        {!remoteMode && <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>}
+        {!remoteMode && <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={!connected || turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>}
         {turnBusy ? /^\/steer(?:\s|$)/.test(draft.trim())
-          ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
+          ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
           : /^\/queue(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
+            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
           : /^\/bg(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/bg\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '后台' : 'Background'}</button>
+            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/bg\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '后台' : 'Background'}</button>
           : /^\/btw(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/btw\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '旁问' : 'Ask'}</button>
+            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/btw\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '旁问' : 'Ask'}</button>
           : <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
           : canContinue && !hasSubmission
-            ? <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
-            : <button className="composer-submit" disabled={navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
+            : <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {!remoteMode && modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}

@@ -142,6 +142,10 @@ def execute(args: dict, *, task_id: str | None = None):
     if is_interrupted():
         return _result(error="Command was interrupted before it started", exit_code=130)
 
+    from agent.session_client_env import toolchain_environ
+    from tools.environments.local import build_subprocess_env, strip_launch_profile_env
+    child_env = build_subprocess_env(base=toolchain_environ(strip_launch_profile_env(os.environ.copy())))
+
     # The BOM lets Windows PowerShell 5.1 read the source; the prelude makes
     # text file input/output and captured process output UTF-8 by default.
     # An explicit -Encoding on a command still takes precedence.
@@ -160,6 +164,7 @@ def execute(args: dict, *, task_id: str | None = None):
                 proc = subprocess.Popen(
                     [str(executable), "-NoProfile", "-NonInteractive", "-File", str(script)],
                     cwd=workdir, stdin=subprocess.DEVNULL, stdout=output,
+                    env=child_env,
                     stderr=subprocess.STDOUT,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
                     | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),

@@ -7,7 +7,7 @@ import { DashboardPluginSlot } from '../features/dashboard-plugins/DashboardPlug
 import GatewaySwitcher from './GatewaySwitcher'
 import type { ActiveGateway } from '@hermess/contracts'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, gateway, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette, onSwitchRemote, onSwitchLocal }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; gateway: ActiveGateway; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void; onSwitchRemote: () => void; onSwitchLocal: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, connectionLabel, gateway, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette, onSwitchRemote, onSwitchLocal }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; connectionLabel?: string; gateway: ActiveGateway; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void; onSwitchRemote: () => void; onSwitchLocal: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
@@ -38,7 +38,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
       <img className="window-title-icon" src={windowIcon} alt="" draggable={false} data-tauri-drag-region />
       <span className="window-title-text" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()}>Hermess Agent Desktop</span>
       <GatewaySwitcher mode={gateway.mode} label={gateway.mode === 'remote' ? gateway.config.label : undefined} connected={connected} onLocal={onSwitchLocal} onRemote={onSwitchRemote} />
-      <span className="window-title-connection" data-tauri-drag-region>{connected ? t('ui.connected') : t('ui.not.started')}</span>
+      <span className="window-title-connection" data-tauri-drag-region>{connectionLabel || (connected ? t('ui.connected') : t('ui.not.started'))}</span>
       <div className="window-title-drag" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()} />
     </> : <>
       <DashboardPluginSlot name="header-left" />

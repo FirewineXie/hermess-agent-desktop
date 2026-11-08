@@ -12,11 +12,14 @@ type PluginMutationResult = {
   plugin_name?: string; warnings?: string[]; missing_env?: string[]; enabled?: boolean; error?: string
 }
 
-export default function ProfileHermesPlugins({ profile, served, onOpenSources }: { profile: string | null; served: boolean; onOpenSources: () => void }) {
-  const { extensions } = useDesktop()
+type MemoryState = { active: string; providers: Array<{ name: string }> }
+
+export default function ProfileHermesPlugins({ profile, served, onOpenSources, onOpenMemorySettings }: { profile: string | null; served: boolean; onOpenSources: () => void; onOpenMemorySettings: () => void }) {
+  const { extensions, memory } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const [data, setData] = React.useState<HermesPluginRuntime | null>(null)
+  const [memoryState, setMemoryState] = React.useState<MemoryState | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [busy, setBusy] = React.useState('')
   const [message, setMessage] = React.useState('')
@@ -29,16 +32,24 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources }:
   const [scanConsent, setScanConsent] = React.useState<{ item: InstalledHermesPlugin; verdict: string; findings: PluginScanFinding[]; acceptCapabilities: boolean } | null>(null)
 
   const refresh = React.useCallback(async () => {
-    if (!served || !profile) { setData(null); return }
+    if (!served || !profile) { setData(null); setMemoryState(null); return }
     setLoading(true)
     setMessage('')
     try {
-      setData(await extensions.request<HermesPluginRuntime>({ kind: 'profile', profile }, 'hermesPlugins.list'))
+      const scope = { kind: 'profile' as const, profile }
+      const [plugins, providers] = await Promise.allSettled([
+        extensions.request<HermesPluginRuntime>(scope, 'hermesPlugins.list'),
+        memory.providers(scope),
+      ])
+      if (plugins.status === 'rejected') throw plugins.reason
+      setData(plugins.value)
+      setMemoryState(providers.status === 'fulfilled' ? providers.value : null)
     } catch (error) {
       setData(null)
+      setMemoryState(null)
       setMessage(describeError(error, language))
     } finally { setLoading(false) }
-  }, [served, profile, extensions, language])
+  }, [served, profile, extensions, memory, language])
   React.useEffect(() => { void refresh() }, [refresh])
 
   async function rescan() {
@@ -121,7 +132,15 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources }:
     finally { setBusy('') }
   }
 
-  function status(item: InstalledHermesPlugin) {
+  function status(item: InstalledHermesPlugin, isMemoryProvider: boolean) {
+    if (busy === item.name) return zh ? '正在处理插件…' : 'Updating plugin…'
+    if (isMemoryProvider) {
+      if (!memoryState) return zh ? '已安装，记忆提供方状态暂不可用' : 'Installed, memory provider status unavailable'
+      const active = memoryState?.active === item.catalog_name || memoryState?.active === item.name
+      if (!active) return zh ? '已安装，未选为当前记忆提供方' : 'Installed, not the active memory provider'
+      return item.load_error ? (zh ? '当前记忆提供方，加载失败' : 'Active memory provider, load failed')
+        : (zh ? '当前记忆提供方' : 'Active memory provider')
+    }
     if (item.load_error) return zh ? '加载失败' : 'Load failed'
     if (item.loaded === true) return zh ? '已启用且已加载' : 'Enabled and loaded'
     if (item.runtime_status === 'enabled') return zh ? '已启用，加载状态未核实' : 'Enabled, load unverified'
@@ -148,9 +167,12 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources }:
     <label className="profile-skill-search"><span className="sr-only">{zh ? '搜索已安装插件' : 'Search installed plugins'}</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={zh ? '搜索已安装插件' : 'Search installed plugins'} /></label>
     {data && (visible.length ? <div className="extension-list">{visible.map(item => {
       const catalog = snapshot.entries.find(entry => entry.name === item.catalog_name)
+      const isMemoryProvider = memoryState?.providers.some(provider => provider.name === item.catalog_name || provider.name === item.name)
+        || (!memoryState && catalog?.category === 'memory')
       return <article className="extension-card" key={item.name}>
         <h4>{catalog?.title || item.name}</h4><p>{catalog?.description || item.description}</p>
-        <p>{status(item)} · {catalog ? (zh ? 'Hermes 目录' : 'Hermes catalog') : item.source === 'bundled' ? (zh ? '随 Hermes 提供' : 'Bundled with Hermes') : (zh ? '目录外安装' : 'Outside catalog')}</p>
+        <p>{status(item, isMemoryProvider)} · {catalog ? (zh ? 'Hermes 目录' : 'Hermes catalog') : item.source === 'bundled' ? (zh ? '随 Hermes 提供' : 'Bundled with Hermes') : (zh ? '目录外安装' : 'Outside catalog')}</p>
+        {isMemoryProvider && <p>{zh ? '记忆提供方须在「设置 → 持久记忆」中配置并选择；普通插件开关不能激活它。' : 'Configure and select memory providers in Settings → Persistent memory; the plugin toggle cannot activate them.'}</p>}
         {item.auth_required && <p>{zh ? '需要先完成此插件的认证配置。' : 'Authentication must be configured before this plugin can run.'}</p>}
         {item.removed_reason && <p>{zh ? '已从目录移除：' : 'Removed from catalog: '}{item.removed_reason}</p>}
         {item.installed_sha && <code>{zh ? '已安装提交' : 'Installed commit'}: {item.installed_sha}</code>}
@@ -159,7 +181,8 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources }:
           {!!item.dashboard_slots.length && <p>{zh ? '插槽：' : 'Slots: '}{item.dashboard_slots.join(', ')}</p>}
         </div>}
         {data.can_manage && item.can_manage && <div className="market-card-footer">
-          {item.can_toggle && <button disabled={!!busy || loading} onClick={() => void manage(item.runtime_status === 'enabled' ? 'disable' : 'enable', item)}>{item.runtime_status === 'enabled' ? zh ? '停用' : 'Disable' : zh ? '启用' : 'Enable'}</button>}
+          {isMemoryProvider && <button type="button" disabled={!!busy || loading} onClick={onOpenMemorySettings}>{zh ? '配置记忆提供方' : 'Configure memory provider'}</button>}
+          {item.can_toggle && !isMemoryProvider && <button disabled={!!busy || loading} onClick={() => void manage(item.runtime_status === 'enabled' ? 'disable' : 'enable', item)}>{item.runtime_status === 'enabled' ? zh ? '停用' : 'Disable' : zh ? '启用' : 'Enable'}</button>}
           {item.can_update_git && <button disabled={!!busy || loading || (!!catalog && item.installed_sha === catalog.sha)} onClick={() => void manage('update', item)}>{zh ? '更新' : 'Update'}</button>}
           {item.has_dashboard_manifest && <button disabled={!!busy || loading} onClick={() => void manage('visibility', item)}>{item.user_hidden ? (zh ? '在 Dashboard 显示' : 'Show in Dashboard') : (zh ? '从 Dashboard 隐藏' : 'Hide from Dashboard')}</button>}
           {item.can_remove && <button disabled={!!busy || loading} onClick={() => { setUpdateConsent(null); setScanConsent(null); void manage('remove', item) }}>{zh ? '卸载' : 'Remove'}</button>}

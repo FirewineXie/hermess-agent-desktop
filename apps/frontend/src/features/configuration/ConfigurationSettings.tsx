@@ -78,6 +78,10 @@ export default function ConfigurationSettings({connected,profile,page,language,o
       <button disabled={busy||consentDirty} onClick={editor.reload}>{zh?'重新读取':'Reload'}</button>
     </div></header>
     <p>{zh?'配置来自当前 Profile 的运行时 Schema。保存后读取实际值核实；部分配置需要新会话或重启运行时。':'Configuration comes from this Profile’s runtime Schema. Values are verified after saving; some changes require a new session or runtime restart.'}</p>
+    {page==='session-auto-archive'&&<section>
+      <p>{zh?'开启后，运行时会按配置的闲置天数自动归档会话。归档保留会话和消息，不会删除历史；固定的会话不会自动归档。归档由运行时定期检查，不会在保存设置后立即执行。':'When enabled, the runtime archives sessions after the configured idle period. Archiving preserves sessions and messages; pinned sessions are excluded. The runtime checks periodically, so saving does not immediately archive sessions.'}</p>
+      <button type="button" disabled={busy} onClick={()=>onNavigate('archived-sessions')}>{zh?'查看已归档会话':'View archived sessions'}</button>
+    </section>}
     {page==='advanced-config'&&<nav className="configuration-mode"><button aria-pressed={editor.mode==='schema'} disabled={busy} onClick={()=>editor.switchMode('schema')}>Schema</button><button aria-pressed={editor.mode==='yaml'} disabled={busy} onClick={()=>editor.switchMode('yaml')}>YAML</button></nav>}
     {editor.mode==='yaml'?<>
       <p>{zh?'这是完整配置原文。保存会替换整份配置，运行时可能重写格式和注释；外部修改后需要重新读取。':'This is the full configuration document. Saving replaces it; the runtime may rewrite formatting and comments. Reload after external changes.'}</p>
@@ -97,7 +101,7 @@ export default function ConfigurationSettings({connected,profile,page,language,o
           </>:<p>{zh?'当前运行时没有提供浏览器配置切换能力。':'The current runtime does not expose this browser setting.'}</p>}
         </section>}
         {page==='security-approvals'&&editor.schema.fields.command_allowlist&&(!query||match(['command_allowlist',editor.schema.fields.command_allowlist]))&&<AllowlistEditor text={editor.drafts.command_allowlist??fieldText(getField(editor.config,'command_allowlist')??[], 'list')} busy={busy||editor.documentDirty} editing={editor.editingKey==='command_allowlist'} language={language} onEdit={()=>editor.edit('command_allowlist')} onChange={text=>editor.setDrafts({command_allowlist:text})} onSave={()=>void editor.save('command_allowlist')} onCancel={editor.cancel}/>}
-        {page!=='browser'&&fields.length>0&&<ConfigTree visible={fields} queryActive={Boolean(query)} config={editor.config} drafts={editor.drafts} editingKey={editor.editingKey} busy={busy||editor.documentDirty} language={language} t={t} expandedPaths={editor.expandedPaths} setExpandedPaths={editor.setExpandedPaths} onEdit={editor.edit} onChange={(key,value)=>editor.setDrafts(previous=>({...previous,[key]:value}))} onSave={key=>void editor.save(key)} onCancel={editor.cancel}/>}
+        {page!=='browser'&&fields.length>0&&<ConfigTree visible={fields} queryActive={Boolean(query)||page==='session-auto-archive'} config={editor.config} drafts={editor.drafts} editingKey={editor.editingKey} busy={busy||editor.documentDirty} language={language} t={t} expandedPaths={editor.expandedPaths} setExpandedPaths={editor.setExpandedPaths} onEdit={editor.edit} onChange={(key,value)=>editor.setDrafts(previous=>({...previous,[key]:value}))} onSave={key=>void editor.save(key)} onCancel={editor.cancel}/>}
         {links.length>0&&<section className="configuration-links"><h3>{zh?'完整 Schema 目录 · 专用或受限字段':'Full Schema · dedicated or restricted fields'}</h3>{links.map(([key,field])=>{
           const owner=fieldOwner(key)
           const target=settingsPages.find(item=>item.id===owner)

@@ -1,7 +1,15 @@
-export type SettingsCategory = 'security' | 'advanced' | 'models' | 'management' | 'memory' | 'notifications' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
-export type SettingsPage = 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'local-tools' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'sessions' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'diagnostics' | 'update' | 'documentation' | 'about'
+export type SettingsCategory = 'sessions' | 'programming' | 'security' | 'advanced' | 'models' | 'management' | 'memory' | 'notifications' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
+export type SettingsPage = 'programming-config-file' | 'programming-mcp' | 'programming-skills' | 'programming-instructions' | 'programming-context' | 'programming-permissions' | 'programming-archives' | 'session-auto-archive' | 'archived-sessions' | 'programming' | 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'local-tools' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'sessions' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'diagnostics' | 'update' | 'documentation' | 'about'
 
 export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory; zh: string; en: string }> = [
+  { id: 'programming', category: 'programming', zh: '编程配置', en: 'Programming settings' },
+  { id: 'programming-mcp', category: 'programming', zh: 'MCP Servers', en: 'MCP Servers' },
+  { id: 'programming-skills', category: 'programming', zh: 'Skills', en: 'Skills' },
+  { id: 'programming-instructions', category: 'programming', zh: '指令与项目', en: 'Instructions and projects' },
+  { id: 'programming-context', category: 'programming', zh: '上下文', en: 'Context' },
+  { id: 'programming-permissions', category: 'programming', zh: '自定义权限', en: 'Custom permissions' },
+  { id: 'programming-archives', category: 'programming', zh: '已归档会话', en: 'Archived sessions' },
+  { id: 'programming-config-file', category: 'programming', zh: 'config.toml', en: 'config.toml' },
   { id: 'security-approvals', category: 'security', zh: '审批与允许列表', en: 'Approvals & allowlist' },
   { id: 'security-privacy', category: 'security', zh: '隐私与安全', en: 'Privacy & security' },
   { id: 'security-checkpoints', category: 'security', zh: '检查点', en: 'Checkpoints' },
@@ -23,7 +31,9 @@ export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory
   { id: 'fallbacks', category: 'models', zh: '回退模型', en: 'Fallback models' },
   { id: 'auxiliary', category: 'models', zh: '辅助模型', en: 'Auxiliary models' },
   { id: 'moa', category: 'models', zh: 'MoA', en: 'MoA' },
-  { id: 'sessions', category: 'management', zh: '会话管理', en: 'Sessions' },
+  { id: 'session-auto-archive', category: 'sessions', zh: '自动归档', en: 'Auto archive' },
+  { id: 'archived-sessions', category: 'sessions', zh: '已归档会话', en: 'Archived sessions' },
+  { id: 'sessions', category: 'sessions', zh: '会话管理', en: 'Session management' },
   { id: 'pairing', category: 'management', zh: '配对管理', en: 'Pairing' },
   { id: 'logs', category: 'management', zh: '运行日志', en: 'Logs' },
   { id: 'env-keys', category: 'management', zh: '密钥管理', en: 'Keys' },
@@ -51,7 +61,9 @@ export const settingsCategories: Array<{
   profileScoped: boolean
 }> = [
   { id: 'models', page: 'providers', zh: '模型', en: 'Models', descriptionZh: '当前 Profile 的提供商与模型配置', descriptionEn: 'Providers and models for the selected Profile', profileScoped: true },
-  { id: 'management', page: 'sessions', zh: 'Profile 管理', en: 'Profile management', descriptionZh: '当前 Profile 的会话、访问配对、运行日志与密钥', descriptionEn: 'Sessions, pairing, runtime logs, and keys for the selected Profile', profileScoped: true },
+  { id: 'programming', page: 'programming', zh: '编程', en: 'Programming', descriptionZh: '全局编程模型与独立运行时，所有 Profile 共用', descriptionEn: 'Global programming model and isolated runtime shared by all Profiles', profileScoped: false },
+  { id: 'sessions', page: 'session-auto-archive', zh: '会话', en: 'Sessions', descriptionZh: '当前 Profile 的自动归档、已归档会话与会话管理', descriptionEn: 'Auto archive, archived sessions, and session management for the selected Profile', profileScoped: true },
+  { id: 'management', page: 'pairing', zh: 'Profile 管理', en: 'Profile management', descriptionZh: '当前 Profile 的访问配对、运行日志与密钥', descriptionEn: 'Pairing, runtime logs, and keys for the selected Profile', profileScoped: true },
   { id: 'memory', page: 'memory-persistent', zh: '记忆与上下文', en: 'Memory & context', descriptionZh: '当前 Profile 的持久记忆、上下文和压缩配置', descriptionEn: 'Memory, context, and compression for the selected Profile', profileScoped: true },
   { id: 'notifications', page: 'notification-alerts', zh: '通知', en: 'Notifications', descriptionZh: '本机原生通知与完成提示音', descriptionEn: 'Native notifications and completion sounds on this device', profileScoped: false },
   { id: 'browser', page: 'browser', zh: '浏览器', en: 'Browser', descriptionZh: '当前 Profile 的浏览器控制方式', descriptionEn: 'Browser control for the selected Profile', profileScoped: true },

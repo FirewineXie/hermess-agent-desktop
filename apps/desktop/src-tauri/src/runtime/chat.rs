@@ -1,7 +1,9 @@
+#[cfg(test)]
+use super::chat_create::{session_create_params, validate_workspace_path};
 use super::BackendState;
 use crate::errors::DesktopFailure;
 use crate::gateway::GatewayRequestError;
-use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
+use crate::paths::{filesystem_path, CanonicalizePlain};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -41,71 +43,7 @@ pub async fn create_chat_session(
     model: Option<String>,
     reasoning: Option<String>,
 ) -> Result<Value, DesktopFailure> {
-    let cwd = validate_workspace_path(cwd)?;
-    if provider.as_deref().is_some_and(|value| {
-        value.is_empty() || value.len() > 128 || value.chars().any(char::is_whitespace)
-    }) || model.as_deref().is_some_and(|value| {
-        value.is_empty() || value.len() > 256 || value.chars().any(char::is_whitespace)
-    }) || provider.is_some() != model.is_some()
-        || reasoning.as_deref().is_some_and(|value| {
-            !matches!(
-                value,
-                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
-            )
-        })
-    {
-        return Err(DesktopFailure::invalid_input());
-    }
-    let gateway = state.resolve_chat_profile(&profile).await?.gateway;
-    let result = gateway
-        .request(
-            "session.create",
-            session_create_params(cwd, provider, model, reasoning),
-        )
-        .await?;
-    if result.get("session_id").and_then(Value::as_str).is_none()
-        || result
-            .get("stored_session_id")
-            .and_then(Value::as_str)
-            .is_none()
-    {
-        return Err("网关未返回完整会话标识".into());
-    }
-    Ok(result)
-}
-
-fn session_create_params(
-    cwd: Option<String>,
-    provider: Option<String>,
-    model: Option<String>,
-    reasoning: Option<String>,
-) -> Value {
-    let mut params = json!({
-        "source": "gui", "idempotency_key": Uuid::new_v4().to_string()
-    });
-    if let Some(cwd) = cwd {
-        params["cwd"] = json!(cwd);
-        params["cwd_explicit"] = json!(true);
-    }
-    if let (Some(provider), Some(model)) = (provider, model) {
-        params["provider"] = json!(provider);
-        params["model"] = json!(model);
-    }
-    if let Some(reasoning) = reasoning {
-        params["reasoning_effort"] = json!(reasoning);
-    }
-    params
-}
-
-fn validate_workspace_path(cwd: Option<String>) -> Result<Option<String>, DesktopFailure> {
-    let Some(path) = cwd.filter(|path| !path.trim().is_empty()) else {
-        return Ok(None);
-    };
-    let directory = plain_path(PathBuf::from(&path).as_path());
-    if !directory.is_absolute() || !filesystem_path(&directory).is_dir() {
-        return Err(DesktopFailure::invalid_input());
-    }
-    Ok(Some(directory.to_string_lossy().into_owned()))
+    super::chat_create::create(state, profile, cwd, provider, model, reasoning).await
 }
 
 #[tauri::command]
@@ -157,7 +95,23 @@ pub async fn submit_chat_prompt(
             &format!("chat_images_submit_start operation={operation} count={image_count}"),
         );
     }
-    let result = scope.gateway.request("prompt.submit", params).await;
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_prompt_submit_start operation={operation}"),
+    );
+    let result = scope
+        .gateway
+        .request_detailed("prompt.submit", params)
+        .await;
+    let outcome = if result.is_ok() {
+        "admitted"
+    } else {
+        "failed_or_unknown"
+    };
+    let _ = crate::diagnostics::append_client_event(
+        &scope.storage,
+        &format!("chat_prompt_submit_result operation={operation} outcome={outcome}"),
+    );
     if image_count > 0 {
         let outcome = if result.is_ok() { "admitted" } else { "failed" };
         let _ = crate::diagnostics::append_client_event(

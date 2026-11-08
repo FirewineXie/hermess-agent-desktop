@@ -1,7 +1,7 @@
 :root[data-font='system-sans'] { --app-font: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
 :root[data-font='system-serif'] { --app-font: ui-serif, Georgia, 'Songti SC', 'SimSun', serif; }
 :root[data-font='system-mono'] { --app-font: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; }
-:root { font-family: var(--app-font, system-ui, 'Microsoft YaHei', sans-serif); }
+:root { color-scheme: light; font-family: var(--app-font, system-ui, 'Microsoft YaHei', sans-serif); }
 
 .appearance-settings { display: grid; gap: 18px; margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--settings-line, #e3e8ef); }
 .appearance-settings h3 { margin: 0 0 5px; color: var(--appearance-text, #111827); font-size: 18px; }
@@ -11,7 +11,7 @@
 .appearance-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .appearance-options label { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 13px; border: 1px solid var(--settings-line, #e3e8ef); border-radius: 11px; background: var(--appearance-surface, #fff); cursor: pointer; }
 .appearance-options label.selected { border-color: #1b6ffd; background: var(--appearance-selected, #e4eefd); }
-.appearance-options input { margin: 3px 0 0; }
+.appearance-options input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; }
 .appearance-options span, .appearance-font > span { display: grid; min-width: 0; gap: 4px; }
 .appearance-options strong, .appearance-font strong { color: var(--appearance-text, #111827); font-size: 14px; }
 .appearance-options small, .appearance-font small { color: var(--appearance-muted, #66758c); line-height: 1.4; }

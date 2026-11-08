@@ -12,6 +12,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/paths.rs`：产品 Windows 路径统一为普通盘符或 UNC 写法；深路径只在内部文件系统调用时临时使用扩展写法，不向进程、前端或持久化配置传出。macOS 与 Linux 保持原样。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/process_manager.rs`：桌面创建的产品进程统一登记、封闭新启动与按用途退出；`process_manager/windows.rs` 用 Job Object 管理进程树，`process_manager/macos.rs` 用独立进程组和随主程序退出的守护进程回收组内成员，尚不能约束主动脱组的后代。
+- `src-tauri/src/runtime/plugin_services.rs` 与 `runtime/plugin_services.py`：托盘退出时枚举全部本地 Profile，通过统一服务命令注册表查询、停止并复查插件服务，首批接入 OpenViking Quick Local；失败项保留供下次正常退出重试。范围和验收限制见 [插件服务生命周期](../../docs/plugin-service-lifecycle.md)。
 - `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入、私聊放行或配对审批模式、配对码批准与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
 - `src-tauri/src/runtime/channel_manage.rs`：按当前 Profile 代理锁定 Gateway 的渠道配置与测试接口，启用前检查必填字段，返回给前端的渠道目录只含字段元数据。
 - `src-tauri/src/runtime/channel_telegram.rs`、`channel_vendor_qr.rs`：Telegram、钉钉、企微群机器人及 QQ Bot 的扫码状态与临时凭据；QQ 返回的密钥在 Rust 中解密。成功后经产品自有 Gateway 配置接口保存，不调用上游自带的自动重启。
@@ -20,20 +21,51 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/runtime/modelscope_mcp.rs`：ModelScope MCP 广场的公开搜索与详情适配；仅在公开详情提供静态 HTTPS 地址时经当前自有 Hermes 安装，不代管 ModelScope 账号部署。
 - `src-tauri/src/tray.rs`：窗口关闭时收起到系统托盘，托盘菜单可恢复窗口或退出。
 - `src-tauri/src/runtime/about.rs`：读取编译时产品版本、固定上游锁与随程序内嵌的产品及上游许可证。
-- `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
+- `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁；编程数据位于选定存储位置的 `HermessAgentDesktop/programming`，与 Gateway 的 `hermes-home` 并排。发行版默认采用应用本地数据目录（Windows 为 `%LOCALAPPDATA%/com.hermess.agentdesktop`），已有存储选择优先；开发态采用 `.build/desktop-dev-data` 或 `HERMESS_DEV_STORAGE`。编程目录解析不要求启动 Gateway，不读取、迁移或清理旧应用配置目录下的 `programming`。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
 - `src-tauri/src/runtime/retired_payload.rs`：Windows 发行版在新 Gateway 就绪后后台清理安装目录中带相邻 `.owner` 标记的旧运行时；占用或中断时保留标记，后续启动重试。
 - `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，在自有 Hermes 根目录及各命名 Profile 中部署并启用 `powershell_execute`；各 Profile 首次部署后仍可自行禁用。工具注册到仅桌面会话启用的 `desktop_ui` 工具集，使其在延迟工具搜索开启时仍直接出现在模型工具列表中。执行时使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。工具启动的脚本让常用文本读写命令默认使用 UTF-8；PowerShell 5.1 写入 UTF-8 时会带 BOM，显式 `-Encoding` 仍优先。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - 新建聊天会话可接收工作区目录；Rust 在调用网关前要求该目录是本机已存在的绝对目录，并向 `session.create` 传递明确的 `cwd`。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
+- `src-tauri/src/computer_activity.rs` 与 `computer_activity/window.rs`：Gateway 与 Codex 共用的电脑操作状态、原生提示窗和停止接管；界面仅显示固定提示及操作按钮。Codex 通过产品动态工具复用锁定电脑工具，Windows 接入，macOS 的独立驱动回收尚待适配，详见[范围与验证](../../docs/computer-activity.md)。
 - `src-tauri/src/tests/`、`src-tauri/src/runtime/tests/`：Rust 单元测试；生产模块只保留 `#[cfg(test)]` 下的模块声明。
 
-运行时所有者仍独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪仍持有所有权锁，最长 60 秒，尚未改为可中断启动。
+运行时所有者独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。启动时声明 `--external-supervisor`，让锁定 Gateway 的终端工具保护阻止 AI 停止或重启自己的宿主；支持的重启请求由客户端接续启动。主窗口收到断线后只请求一次 Rust 恢复：自有进程存活时最多用 5 秒重新核验身份和连接，健康连接直接复用；持续不可连时停止该进程管理登记对应的整棵树，再按保存的启动参数重新拉起，原进程已退出则直接重新拉起。目录相同或占用同一端口不构成进程归属依据，不接管其他 Hermes 安装。
+
+Rust 恢复总预算为 60 秒，包含等待生命周期锁；60 秒窗口内最多自动新建一次进程，手动重试可重新发起。前端本地恢复等待上限为 135 秒，为 Rust 恢复、新连接的 Profile 解析和会话恢复 RPC 留出时间，不叠加本地传输重试循环；远程保留原有重连策略。停止、退出和切换连接取消进行中的恢复。连接状态独立于运行时信息，失败时可在当前页重试；恢复持久会话并保留草稿和文件附件，原纪元的暂存图片提示重新添加，不自动重发消息。
+
+停止和重连关闭旧 Gateway，使旧连接上的等待调用返回错误。普通 RPC 与审批/澄清回应从排队发送到收到结果均有 30 秒上限。启动期间等待后端就绪持有所有权锁，最长 60 秒；停止和连接切换可取消这一等待。Windows 的 Job Object 会在原进程退出时结束它的后代，Rust 负责按原参数重新创建受管理的 Gateway；macOS 使用现有进程组管理，其主动脱离进程组的后代不等同于 Windows Job Object 的覆盖范围。具体测试与未验收范围见根目录路线图。
 
 桌面启动一个自有 `hermes gateway run` 进程，承载聊天会话和消息渠道。HTTP 配置接口使用 Rust 保管的随机会话令牌；聊天 WebSocket 使用网关私有控制端签发的一次性票据。Rust 直接连接私有控制端完成自有进程发现和取票请求，不再为这两步启动 Python 辅助进程；票据仍由 Gateway 签发。令牌不在根路径公布，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑和三个接入点由 [Hermes fork 的桌面分支](https://github.com/FirewineXie/hermes-agent/tree/hermess-desktop)直接跟踪；`pnpm fetch:upstream` 检出锁定 SHA，`pnpm verify:upstream` 校验来源、分支历史和干净工作区。Rust 启动时检查私有入口和浏览器握手；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。扫码成功后由桌面重启这一自有网关，加载新渠道配置。
 
 渠道扫码保存配置后，桌面通过 Hermes 现有 drain 接口暂停新任务，等待当前任务结束，再停止并重启自有网关。等待超过 60 秒或 Hermes 拒绝停止时保留旧网关，用户可继续等待或确认强制重启；单实例重启仍会短暂断线。
+
+### 新用户首次准备工具
+
+Windows 打包客户端首次使用全新的产品数据目录时，先在产品独立 `HERMES_HOME` 下运行自带的 `hermes pm install`，完成后再启动网关。该命令按锁定 PM 的默认集合安装工具和 `all` Python 依赖，包含平台支持的默认浏览器与电脑操作工具，不安装所有 GPU 推理后端。首次准备可能联网下载，安装等待上限为 30 分钟；客户端还检查默认工具记录与 `all` 依赖选择，避免 PM 忽略可选下载失败后误记完成。
+
+状态写入产品数据目录的 `control/first-run-install.json`：安装前记录待完成，成功核实后记录完成；失败、中断和退出保留待完成状态，下次启动重试，未完成时不启动网关。已存在 `hermes-home` 且没有首次安装记录的数据目录按已有用户处理，不补装默认集合；macOS/Linux、开发态和远程连接不执行此准备。安装与校验均在后台经产品进程管理器运行，详细结果见 `logs/first-run-install.log`，关键阶段见客户端日志。本次沿用现有产品数据目录的 PM 存储行为，不包含 `dev/windows-managed-tools-plan.md` 中独立安装目录或用户任务工具优先级的改造。
+
+后续安装入口复用「设置 → 桌面 → 工具与能力」：展开缺失工具，点击「下载并安装」，完成后重启运行时。当前锁定 PM 没有工具卸载命令，页面也未提供卸载按钮；系统已有工具和安装包内置运行时不由此页面删除。
+
+编程模式每次启动 Worker 时读取当前产品数据目录及安装包的 PM 工具记录，将已安装工具的目录加入 Codex 命令环境 PATH，产品数据目录优先；uv/uvx 通过 PM 的已安装启动器接口显式加入。权限/技能发现和 MCP 设置探测共用这条启动路径。发现过程不下载安装，不激活 Hermes 自身依赖虚拟环境，不传递 PM 存储重定向变量，保留会话独立目录、凭据过滤及原有权限策略。用户项目依赖仍由项目自行管理。
+
+## 本地聊天会话工具环境
+
+本地普通聊天在创建新会话时，将本产品 PM 已安装工具路径以 `session.create.client_env.PATH` 发送给锁定 Gateway；只传 PATH，不发送 Hermes 的 Python 依赖环境或凭据。路径发现经受进程管理器登记的后台辅助进程进行，不下载工具，不修改 Gateway 启动环境。内置终端沿用上游的会话工具链及依赖清理，产品 PowerShell 工具也读取当前会话的工具链并清理 Hermes 依赖和凭据。项目可以显式激活自己的 `.venv`；恢复会话沿用原会话环境，之后安装的工具在新建会话时重新读取。渠道消息会话不经过此创建入口，不在本次注入范围；远程聊天不注入本机工具路径，编程模式保留既有实现。
+
+Windows 真实接收方验证使用 `.build/hermes-venv-i1/Scripts/python.exe scripts/verify-chat-environment.py`；加 `--hermes .build/hermes-venv-i1/Scripts/hermes.exe` 验证开发态。测试通过生产 Tauri 创建/提交/恢复命令连接锁定 Gateway，使用本地合成模型执行 PowerShell 和内置终端，核对 PM Python、依赖隔离、项目虚拟环境、两个会话的 PATH 区分及非法 `client_env` 拒绝。本机内置终端测试通过上游支持的 `HERMES_GIT_BASH_PATH` 指定非标准安装位置的 Git Bash；测试资料保留在忽略的 `.build/chat-environment-*`。macOS 原生执行、真实在线模型与安装包尚未在本轮验收。
+
+## 聊天媒体读取
+
+聊天媒体通过 `DesktopApi.media` 和 `runtime/media*.rs` 适配锁定 fork Desktop 的行为，不修改 fork。前端只持有资源 ID 和 `hermess-media` URL；Rust 按调用窗口、Profile、会话和 Gateway 连接身份登记资源，在释放、窗口销毁或连接替换后拒绝继续读取。凭据和原始 HTTP 鉴权留在 Rust。
+
+本地文件按会话实际 `cwd` 解析相对路径，支持普通 Windows 盘符/UNC、macOS 路径和 `file:` URL；远程会话路径只交给对应 Gateway 的 `/api/fs/download`，保留反向代理路径前缀。消息中的独立 HTTP(S) URL 不继承 Gateway 凭据。音视频通过有界 Range 响应读取，文件另存为使用原生保存对话框和同目录临时文件，成功后替换目标；取消或失败清理临时文件。
+
+单次完整内嵌读取上限 32 MiB，Range 块上限 4 MiB，普通文本预览上限 2 MiB，HTML 预览保留既有 20 MiB 上限，下载上限 2 GiB。图片和音视频的实际解码能力取决于 WebView2/WKWebView；不支持的格式可另存为。PDF 内嵌查看同样依赖系统 WebView，普通 HTML 文件使用静态沙箱，`::preview` 保留既有自包含交互沙箱。
+
+锁定接收方验证位于 `tests/test_media_gateway.py`，使用隔离 Profile 和临时文件，调用生产 Rust URL 构造函数后交给 fork 的真实 HTTP 路由与鉴权中间件；它不调用模型，也不等同于原生播放验收。
 
 ## 本地命令
 
@@ -54,3 +86,15 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
 ## 设备偏好与快捷输入
 
 宿主将设备偏好保存在产品应用配置目录的 `desktop-preferences.json`；全局快捷键由同一 Tauri 进程注册，独立输入窗通过一次性请求交给主聊天控制器。Windows/macOS 保持唤醒分别使用原生 Power Request/IOKit，不启动辅助进程。托盘退出先释放这些资源，再按既有进程管理顺序关闭产品进程。功能及验收限制见 [本批设置能力记录](../../docs/settings-models-desktop-capabilities.md)。
+
+## 更改存储位置
+
+发行版在存储设置中提供“更改位置”。须先在运行时控制中停止本地 Gateway，运行中显示提示并禁用选择与保存；原生端在 Gateway 生命周期锁内再次核对所有权，拒绝运行中保存。确认后只保存待生效位置，本次运行的聊天、编程、独立窗口和退出清理继续使用原位置。必须从托盘完整退出再重新打开；隐藏窗口、刷新页面或重启后端不应用更改。开发环境继续使用隔离的开发目录，不写发行版定位文件。
+
+存储父目录下使用固定的 HermessAgentDesktop 子目录。新目录初始化产品数据，已有本产品数据目录沿用其中的数据；不复制、合并或删除旧位置数据，可重新选择旧位置切回。普通父目录中的其他文件保持原样。
+
+产品配置目录的 storage-location.json 保留 schema=1 与 storage_path，增加可空的 pending_path。保存时不更改 storage_path；原生初始化在任何存储相关功能启动前校验待生效位置，取得目标存储锁并原子写入新位置与清空 pending_path。校验或保存失败保留原位置与待生效记录，阻止数据功能启动；恢复页提供重试、取消更改和重新选择。目标初始化创建的空产品控制目录可能在保存失败后保留，不自动删除所选目录。位置启用后 Gateway 启动失败沿用新位置，允许正常重试。
+
+共享契约 runtime.storageLocation 的 get/save/cancel/retry 经桌面适配器调用主窗口专属的 storage_location_request；save 携带 path，返回当前位置、待生效位置、是否阻止启动及可展示的错误类别。不更改 Gateway 协议。Windows 路径经 plain_path 处理，定位文件替换复用现有 Windows 原子替换实现；macOS 使用同目录重命名。
+
+本轮 Windows 检查覆盖真实隔离文件系统的延后生效、旧数据保留、已有数据复用、切回、取消、重试、缺失目录、占用、结构冲突及保存失败；界面渲染与模拟 IPC 单独验证。Windows/macOS 原生目录选择、真实退出重开、UNC/外接盘、权限和安装包未验收，不将单元测试或构建记为原生验收。

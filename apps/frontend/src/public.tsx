@@ -19,3 +19,4 @@ export function mountChatWindow(element: HTMLElement, api: DesktopApi, onRenderE
 }
 
 export { default as QuickInputView, type QuickInputApi } from './features/desktop/QuickInputView'
+export { default as ComputerActivityView } from './features/desktop/ComputerActivityView'

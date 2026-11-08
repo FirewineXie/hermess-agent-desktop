@@ -1,7 +1,7 @@
 use super::{
-    agent_error_category, catalog, catalog_install_body, context_engine_write_request,
-    custom_install_body, plugin_mutation_request, safe_scan_findings, valid_context_engine,
-    valid_plugin_identifier, valid_plugin_name,
+    agent_error_category, catalog_install_body, context_engine_write_request,
+    current_catalog_entry, custom_install_body, plugin_mutation_request, safe_scan_findings,
+    valid_context_engine, valid_plugin_identifier, valid_plugin_name,
 };
 use serde_json::json;
 
@@ -36,19 +36,20 @@ fn plugin_routes_reject_path_and_query_injection() {
 }
 
 #[test]
-fn bundled_catalog_is_pinned_and_has_unique_names() {
-    let snapshot = catalog().expect("catalog JSON");
-    assert!(snapshot["sourceCommit"]
-        .as_str()
-        .is_some_and(|sha| sha.len() == 40));
-    let entries = snapshot["entries"].as_array().expect("entries");
-    assert!(!entries.is_empty());
-    let mut seen = std::collections::HashSet::new();
-    for entry in entries {
-        let name = entry["name"].as_str().expect("name");
-        assert!(seen.insert(name), "duplicate {name}");
-        assert!(entry["sha"].as_str().is_some_and(|sha| sha.len() == 40));
-    }
+fn live_catalog_requires_the_displayed_pin_and_rejects_removed_entries() {
+    let sha = "a".repeat(40);
+    let catalog = json!({"entries":[{"name":"openviking", "sha":sha,
+        "repo":"https://github.com/volcengine/OpenViking", "platforms":[]}], "removed":[]});
+    let shown = json!({"sha":sha, "repo":"https://github.com/volcengine/OpenViking"});
+    assert!(current_catalog_entry(&catalog, "openviking", &shown).is_ok());
+    assert!(current_catalog_entry(
+        &catalog,
+        "openviking",
+        &json!({"sha":"b".repeat(40), "repo":shown["repo"]})
+    )
+    .is_err());
+    let removed = json!({"entries":catalog["entries"], "removed":[{"name":"openviking"}]});
+    assert!(current_catalog_entry(&removed, "openviking", &shown).is_err());
 }
 
 #[test]

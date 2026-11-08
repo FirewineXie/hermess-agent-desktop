@@ -22,3 +22,17 @@ test('field parsing validates boolean, select, list and object semantics',()=>{
   assert.deepEqual(allowlistFromText('["first","second"]'),['first','second'])
   assert.throws(()=>allowlistFromText('[{"bad":1}]'))
 })
+
+test('auto archive owns only its switch and idle threshold, leaving deletion settings in advanced',()=>{
+  const fields={
+    'sessions.auto_archive':{type:'boolean'},
+    'sessions.auto_archive_days':{type:'number'},
+    'sessions.auto_prune':{type:'boolean'},
+    'sessions.retention_days':{type:'number'},
+  }
+  assert.deepEqual(pageFields({fields,category_order:[]},'session-auto-archive').map(([key])=>key),[
+    'sessions.auto_archive','sessions.auto_archive_days',
+  ])
+  assert.equal(fieldOwner('sessions.auto_prune'),'advanced-config')
+  assert.equal(fieldOwner('sessions.retention_days'),'advanced-config')
+})

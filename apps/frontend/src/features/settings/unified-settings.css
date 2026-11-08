@@ -15,6 +15,17 @@
   color: var(--settings-ink);
 }
 
+:root[data-color-theme='dark'] .unified-settings {
+  --settings-ink: #e7edf6;
+  --settings-muted: #9aa8bb;
+  --settings-line: #2a394b;
+  background: #0f1723;
+}
+:root[data-color-theme='dark'] .settings-category-nav { background: #111b28; }
+:root[data-color-theme='dark'] .settings-category-nav > button { color: #d5deea; }
+:root[data-color-theme='dark'] .settings-category-nav > button:hover { background: #1c2939; }
+:root[data-color-theme='dark'] .settings-category-nav > button.selected { color: #78aaff; background: #18365f; }
+
 .notification-settings { display: grid; gap: 14px; }
 .notification-settings .settings-form-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .notification-settings .settings-form-heading h2 { margin: 0 0 6px; }
@@ -23,6 +34,21 @@
 .notification-setting-row span { display: grid; gap: 5px; }
 .notification-setting-row small { color: var(--settings-muted); }
 .notification-setting-row input[type='checkbox'] { width: 18px; height: 18px; flex: 0 0 auto; }
+.unified-settings :is(.notification-settings, .moa-settings) button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #34445b;
+  font-size: 13px;
+  font-weight: 550;
+}
+.unified-settings :is(.notification-settings, .moa-settings) button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
+.unified-settings .moa-settings .actions button { border-color: var(--settings-blue); background: var(--settings-blue); color: #fff; }
+.unified-settings .moa-settings .actions button:hover:not(:disabled) { border-color: #155ed9; background: #155ed9; }
+.unified-settings .moa-settings button.danger-action { border-color: #e6caca; color: #b43f45; }
+.unified-settings .moa-settings button.danger-action:hover:not(:disabled) { border-color: #d9a5a8; background: #fff7f7; }
 .moa-heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 .moa-settings { max-width: 1100px; margin-top: 27px; }
@@ -167,7 +193,19 @@
 .memory-provider-editor :is(input, select, textarea) { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: var(--settings-ink); font: inherit; }
 .memory-provider-editor textarea { min-height: 96px; resize: vertical; }
 .memory-provider-editor .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.memory-provider-editor .actions button { min-height: 36px; padding: 7px 12px; }
+.memory-provider-editor .actions button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #34445b;
+  font-size: 13px;
+  font-weight: 550;
+}
+.memory-provider-editor .actions button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
+.memory-provider-editor .actions button:first-child { border-color: var(--settings-blue); background: var(--settings-blue); color: #fff; }
+.memory-provider-editor .actions button:first-child:hover:not(:disabled) { border-color: #155ed9; background: #155ed9; }
 
 /* One quiet surface per provider; models use the card's full width. */
 .unified-settings .model-settings-panel > p { max-width: 760px; margin: 9px 0 0; color: var(--settings-muted); font-size: 14px; line-height: 1.55; }
@@ -234,7 +272,22 @@
 .main-model-settings p, .model-route-settings p { color: var(--settings-muted); line-height: 1.55; }
 .main-model-settings .model-service-tier-help { color: var(--settings-muted); font-size: 13px; font-weight: 400; line-height: 1.5; }
 .main-model-settings .actions, .model-route-settings .actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.unified-settings :is(.main-model-settings, .model-route-settings) button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #d5deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #34445b;
+  font-size: 13px;
+  font-weight: 550;
+}
+.unified-settings :is(.main-model-settings, .model-route-settings) button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
+.unified-settings :is(.main-model-settings, .model-route-settings) :is(button[type='submit'], button.primary) { border-color: var(--settings-blue); background: var(--settings-blue); color: #fff; }
+.unified-settings :is(.main-model-settings, .model-route-settings) :is(button[type='submit'], button.primary):hover:not(:disabled) { border-color: #155ed9; background: #155ed9; }
 .main-model-settings .actions button, .model-route-settings .actions button { min-height: 38px; padding: 7px 14px; }
+.unified-settings .model-route-settings .auxiliary-card .row button { min-height: 34px; background: #fff; color: #245b9d; }
+.unified-settings .model-route-settings .auxiliary-card .row button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
 .fallback-row { display: grid; grid-template-columns: 22px minmax(120px, 1fr) minmax(140px, 1.4fr) repeat(3, 38px); gap: 8px; align-items: center; margin: 10px 0; }
 .fallback-row input, .fallback-row select { min-width: 0; width: 100%; }
 

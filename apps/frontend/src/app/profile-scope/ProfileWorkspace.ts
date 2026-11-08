@@ -18,6 +18,19 @@ export function workspaceKey(epoch: string | null | undefined, profile: string |
   return `${epoch || 'offline'}\u0000${profile || 'unselected'}`
 }
 
+/** Copy only explicitly retained UI values across a verified Gateway replacement. */
+export function captureWorkspaceState(epoch: string, slots: Record<string, (value: unknown, profile: string) => unknown>) {
+  const retained: Array<[string, string, unknown]> = []
+  for (const [address, value] of workspaceValues) {
+    const [slot, ownerEpoch, profile] = address.split('\u0000')
+    if (ownerEpoch === epoch && slots[slot]) retained.push([slot, profile, slots[slot](value, profile)])
+  }
+  return (nextEpoch: string) => {
+    if (activeEpoch !== nextEpoch) return
+    for (const [slot, profile, value] of retained) workspaceValues.set(`${slot}\u0000${workspaceKey(nextEpoch, profile)}`, value)
+  }
+}
+
 /** Keeps each feature's UI state in the workspace that started the operation. */
 export function useProfileState<T>(key: string, initial: T | (() => T), cacheSlot?: string): [T, React.Dispatch<React.SetStateAction<T>>] {
   const slot = React.useId()

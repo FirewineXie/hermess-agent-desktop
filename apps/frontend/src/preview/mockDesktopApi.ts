@@ -3,6 +3,30 @@ import type { DesktopApi } from '@hermess/contracts'
 const previewOnly = () => new Error('此操作需要桌面客户端；当前是前端预览。')
 
 export const previewDesktopApi: DesktopApi = {
+  coding: {
+    command: async () => { throw previewOnly() },
+    answer: async () => { throw previewOnly() },
+    configFile: async () => { throw previewOnly() }, saveConfigFile: async () => { throw previewOnly() },
+    settings: async () => { throw previewOnly() }, saveSettings: async () => { throw previewOnly() }, settingsProbe: async () => { throw previewOnly() },
+    openSkillDirectory: async () => { throw previewOnly() },
+    projectInstruction: async () => { throw previewOnly() }, saveProjectInstruction: async () => { throw previewOnly() },
+    permissionSettings: async () => { throw previewOnly() },
+    savePermissionSettings: async () => { throw previewOnly() },
+    openPermissionConfig: async () => { throw previewOnly() },
+    archive: async () => { throw previewOnly() },
+    permissionProfiles: async () => ['request', 'auto', 'full', 'custom'].map(id => ({ id, allowed: true })),
+    skills: async () => ({ skills: [], errors: [] }),
+    catalog: async () => ({ revision: 'PREVIEW_ONLY', enabled: false, effort: 'medium', default_model: '', providers: [] }),
+    profileProviders: async () => [],
+    saveProvider: async () => { throw previewOnly() }, syncProfile: async () => { throw previewOnly() }, removeProvider: async () => { throw previewOnly() }, preferences: async () => { throw previewOnly() },
+    runtime: async () => ({ tag: 'PREVIEW_ONLY', version: 'preview', supported: false, state: 'missing', downloaded: 0, total: 0 }),
+    installRuntime: async () => { throw previewOnly() },
+    config: async () => ({ id: '', enabled: false, base_url: '', model: '', effort: 'medium', executable: '', has_key: false, ignored_fields: [] }),
+    saveConfig: async () => { throw previewOnly() },
+    projects: async () => [], branch: async () => ({ state: 'not_repository', branch: null, detached: false, branches: [] }), switchBranch: async () => { throw previewOnly() }, saveProject: async () => { throw previewOnly() },
+    sessions: async () => [], create: async () => { throw previewOnly() }, read: async () => { throw previewOnly() },
+    send: async () => { throw previewOnly() }, stop: async () => {}, approve: async () => {}, remove: async () => {},
+  },
   hermesConsole: { async socket() { throw previewOnly() } },
   dashboardPlugins: { async socket() { throw previewOnly() } },
   kanbanDashboard: { async request() { throw previewOnly() }, async events() { throw previewOnly() } },
@@ -49,6 +73,13 @@ export const previewDesktopApi: DesktopApi = {
   },
   localPreview: {
     async readHtml() { throw previewOnly() },
+  },
+  media: {
+    async prepare() { throw previewOnly() },
+    async preview() { throw previewOnly() },
+    async save() { throw previewOnly() },
+    async reveal() { throw previewOnly() },
+    async release() {},
   },
   profiles: {
     async list() { return { profiles: [{ name: 'default', is_default: true }], selected: 'default', gateway_mode: 'single', gateways: [], reason: null } },
@@ -107,6 +138,7 @@ export const previewDesktopApi: DesktopApi = {
   runtime: {
     async devDefaults() { return { python_path: '', storage_path: '' } },
     async packedDefaults() { return { storage_path: '', initialized: false } },
+    async storageLocation() { return { currentPath: '', pendingPath: null, enabled: false, blocked: false, error: null } },
     async startDev() { throw previewOnly() },
     async startPacked() { throw previewOnly() },
     async ping() { throw previewOnly() },
@@ -116,6 +148,7 @@ export const previewDesktopApi: DesktopApi = {
     async savedRemote() { return null },
     async testRemote() { throw previewOnly() },
     async saveRemote() { throw previewOnly() },
+    async deleteRemote() { throw previewOnly() },
     async activeGateway() { return { mode: 'local' as const } },
     async activateSavedRemote() { throw previewOnly() },
     async activateLocalGateway() { return { mode: 'local' as const } },

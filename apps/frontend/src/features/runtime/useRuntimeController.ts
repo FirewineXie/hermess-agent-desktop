@@ -5,16 +5,22 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { activateWorkspaceEpoch } from '../../app/profile-scope/ProfileWorkspace'
 import { displayPath } from '../../shared/displayPath'
+import { useGatewayRecovery } from './useGatewayRecovery'
 
 type Options = {
   t: (key: string, ...values: unknown[]) => string
   onReset: () => void
   gateway?: ActiveGateway
+  onRestore: (info: BackendInfo, current: () => boolean) => Promise<void>
+  onCancelRestore: () => void
 }
 
-export function useRuntimeController({ t, onReset, gateway }: Options) {
+export function useRuntimeController({ t, onReset, gateway, onRestore, onCancelRestore }: Options) {
   const { nativeFiles, runtime, diagnostics } = useDesktop()
   const language = useLanguage()
+  const mounted = React.useRef(true)
+  const lifecycle = React.useRef(0)
+  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; lifecycle.current += 1 } }, [])
   const [pythonPath, setPythonPath] = React.useState('')
   const [storagePath, setStoragePath] = React.useState('')
   const [storageLocked, setStorageLocked] = React.useState(false)
@@ -24,11 +30,19 @@ export function useRuntimeController({ t, onReset, gateway }: Options) {
   const [workspaceGeneration, setWorkspaceGeneration] = React.useState(() => gateway?.mode === 'remote'
     ? activateWorkspaceEpoch(gateway.replay_epoch) : 0)
   const setBackend = (next: BackendInfo | null) => {
+    if (!mounted.current) return
     setWorkspaceGeneration(activateWorkspaceEpoch(next?.replay_epoch, next === null || !next.replay_epoch))
     setBackendState(next)
   }
   const [backendStatus, setBackendStatus] = React.useState(gateway?.mode === 'remote' ? t('ui.connected') : t("ui.not.started"))
   const [busy, setBusy] = React.useState(false)
+  const recovery = useGatewayRecovery({ backend, remote: gateway?.mode === 'remote', storagePath, restore: onRestore, cancelRestore: onCancelRestore, setStatus: setBackendStatus })
+  const suspendRecovery = () => { lifecycle.current += 1; recovery.suspend(); setBusy(false) }
+  const beginLifecycle = () => {
+    suspendRecovery()
+    const generation = lifecycle.current
+    return () => mounted.current && generation === lifecycle.current
+  }
   React.useEffect(() => {
     if (gateway?.mode === 'remote') return
     let active = true
@@ -62,26 +76,31 @@ export function useRuntimeController({ t, onReset, gateway }: Options) {
   }, [])
 
   async function startBackendOperation(selectedStoragePath: string, selectedPythonPath: string, propagate: boolean) {
+    const current = beginLifecycle()
     setBusy(true)
     setBackendStatus(t("ui.starting.and.authenticating"))
     try {
       const info = import.meta.env.DEV
         ? await runtime.startDev(selectedStoragePath, selectedPythonPath)
         : await runtime.startPacked(selectedStoragePath)
+      if (!current()) return null
       setBackend(info)
+      recovery.connectedNow()
       setBackendStatus(t("ui.ready.websocket.ping.succeeded"))
       if (!import.meta.env.DEV) setStorageLocked(true)
       return info
     } catch (cause) {
+      if (!current()) return null
       void diagnostics.recordEvent(selectedStoragePath, 'startup_failed').catch(() => {})
       if (!backend) {
         setBackend(null)
+        recovery.stopped()
         onReset()
-      }
+      } else recovery.disconnected()
       setBackendStatus(t("ui.startup.failed.arg", describeError(cause, language)))
       if (propagate) throw cause
       return null
-    } finally { setBusy(false) }
+    } finally { if (current()) setBusy(false) }
   }
 
   async function startBackend(selectedStoragePath = storagePath, selectedPythonPath = pythonPath) {
@@ -100,33 +119,43 @@ export function useRuntimeController({ t, onReset, gateway }: Options) {
   }
 
   async function pingBackend() {
+    const generation = lifecycle.current
+    const current = () => mounted.current && generation === lifecycle.current
     setBusy(true)
     try {
       await runtime.ping()
+      if (!current()) return
       setBackendStatus(t("ui.connection.healthy.websocket.ping.succeeded"))
     } catch (cause) {
+      if (!current()) return
       void diagnostics.recordEvent(storagePath, 'connection_failed').catch(() => {})
       setBackendStatus(t("ui.connection.failed.arg", describeError(cause, language)))
+      void recovery.recover()
     }
-    finally { setBusy(false) }
+    finally { if (current()) setBusy(false) }
   }
 
   async function stopBackendOperation(propagate: boolean) {
+    const current = beginLifecycle()
     const previous = backend
     setBusy(true)
     try {
       await runtime.stop()
+      if (!current()) return null
       setBackend(null)
+      recovery.stopped()
       onReset()
       setBackendStatus(t("ui.stopped"))
       return previous
     } catch (cause) {
+      if (!current()) return null
+      recovery.disconnected()
       void diagnostics.recordEvent(storagePath, 'stop_failed').catch(() => {})
       setBackendStatus(t("ui.stop.failed.arg", describeError(cause, language)))
       if (propagate) throw cause
       return null
     }
-    finally { setBusy(false) }
+    finally { if (current()) setBusy(false) }
   }
 
   async function stopBackend() { await stopBackendOperation(false) }
@@ -134,44 +163,56 @@ export function useRuntimeController({ t, onReset, gateway }: Options) {
   async function stopBackendStrict() { return stopBackendOperation(true) }
 
   async function restartBackend() {
+    const current = beginLifecycle()
     setBusy(true)
     setBackendStatus(t('ui.channels.waiting.for.restart'))
     try {
       const result = await runtime.restartGracefully()
+      if (!current()) return null
       if (result.status === 'deferred') {
+        recovery.connectedNow()
         setBackendStatus(t('ui.channels.restart.deferred'))
         return null
       }
       const info = result.info
       setBackend(info)
+      recovery.connectedNow()
       setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
       return info
     } catch (cause) {
-      try { await runtime.ping() }
-      catch { setBackend(null); onReset() }
+      if (!current()) return null
+      try { await runtime.ping(); if (current()) recovery.connectedNow() }
+      catch { if (current()) recovery.disconnected() }
+      if (!current()) return null
       setBackendStatus(t('ui.startup.failed.arg', describeError(cause, language)))
       throw cause
-    } finally { setBusy(false) }
+    } finally { if (current()) setBusy(false) }
   }
 
   async function forceRestartBackend() {
+    const current = beginLifecycle()
     setBusy(true)
     setBackendStatus(t('ui.channels.waiting.for.restart'))
     try {
       await runtime.stop()
+      if (!current()) return null
       setBackend(null)
       const info = import.meta.env.DEV
         ? await runtime.startDev(storagePath, pythonPath)
         : await runtime.startPacked(storagePath)
+      if (!current()) return null
       setBackend(info)
+      recovery.connectedNow()
       setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
       return info
     } catch (cause) {
-      try { await runtime.ping() }
-      catch { setBackend(null); onReset() }
+      if (!current()) return null
+      try { await runtime.ping(); if (current()) recovery.connectedNow() }
+      catch { if (current()) recovery.disconnected() }
+      if (!current()) return null
       setBackendStatus(t('ui.startup.failed.arg', describeError(cause, language)))
       throw cause
-    } finally { setBusy(false) }
+    } finally { if (current()) setBusy(false) }
   }
 
 
@@ -180,5 +221,7 @@ export function useRuntimeController({ t, onReset, gateway }: Options) {
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, startBackendStrict, chooseStoragePath, pingBackend, stopBackend, stopBackendStrict,
     restartBackend, forceRestartBackend,
+    connected: recovery.connected, connectionState: recovery.state,
+    reconnectBackend: recovery.retry, suspendRecovery,
   }
 }

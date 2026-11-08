@@ -1,5 +1,5 @@
 import React from 'react'
-import type { GatewayEvent, ReplayResult, ResumeResult, GatewayRequest, ApprovalChoice, SessionRow } from '@hermess/contracts'
+import { isDesktopFailure, type BackendInfo, type GatewayEvent, type ReplayResult, type ResumeResult, type GatewayRequest, type ApprovalChoice, type SessionRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
@@ -24,9 +24,13 @@ import { sentAttachments } from './sentAttachments'
 import type { ChatControllerOptions } from './chatControllerOptions'
 import { useRollbackController } from './useRollbackController'
 import { requireProfileScope, requireSessionScope } from './chatScopes'
+import { captureChatDrafts } from './recoveryDrafts'
+import { useGatewayChatEvents } from './useGatewayChatEvents'
+import { createChatRecoveryWaiter } from './chatRecoveryWaiter'
+import { consumeAssistantSegment, appendCompletedAssistant } from './assistantSegments'
 
-export function useChatController({ backend, remoteMode = false, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend, setBackendStatus, setBusy }: ChatControllerOptions) {
-  const { events, nativeFiles, chat, models, runtime, diagnostics } = useDesktop()
+export function useChatController({ backend, connected = Boolean(backend), remoteMode = false, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend }: ChatControllerOptions) {
+  const { events, nativeFiles, chat, models, diagnostics } = useDesktop()
   const sideQuestions = useSideQuestions(chat, diagnostics, storagePath)
   const backgroundTasks = useBackgroundTasks(chat, diagnostics, storagePath)
   const workspace = workspaceKey(backend?.replay_epoch, profile)
@@ -41,6 +45,8 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   const [sessionId, setSessionId] = useState('')
   const lastSessionByProfile = React.useRef<Record<string, string>>({})
   const attemptedEpochResume = React.useRef(new Set<string>())
+  const [pendingRecovery] = React.useState(createChatRecoveryWaiter)
+  const imageRecoveryNotice = React.useRef(new Set<string>())
   const [sessionWorkspacePath, setSessionWorkspacePath] = useState('')
   const [sessionCurrentDirectory, setSessionCurrentDirectory] = useState('')
   const [reasoningEffort, setReasoningEffort] = useState('')
@@ -53,7 +59,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   const [chatUsage, setChatUsage] = useState<ChatUsage | null>(null)
   const sessionRef = useRef('')
   const storedSessionRef = useRef('')
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useProfileState(workspace, '', 'chat:draft')
   const [commandCatalog, setCommandCatalog] = useState<CommandCatalog | null>(null)
   const [commandCatalogError, setCommandCatalogError] = useState('')
   const [activeChoice, setActiveChoice] = useState(0)
@@ -91,7 +97,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [sessionsState, setSessionsState] = useState<'loading' | 'ready' | 'error'>('loading')
   const sessionsRequestRef = useRef(0)
-  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [attachments, setAttachments] = useProfileState<PendingAttachment[]>(workspace, [], 'chat:attachments')
   const [attachmentBusy, setAttachmentBusy] = useState(false)
   const [draggingFiles, setDraggingFiles] = useState(false)
   const lastSeqRef = useRef<Record<string, number>>({})
@@ -123,6 +129,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
       if (data.seq <= (lastSeqRef.current[id] || 0)) return
       lastSeqRef.current[id] = data.seq
     }
+    if (consumeAssistantSegment(data, assistantRef, setAssistant, setConversation)) return
     if (data.kind === 'message.start' && turnStartedAtRef.current == null) {
       retryPendingRef.current = id
       setTurnBusy(true)
@@ -140,14 +147,14 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
       void chat.usage(sessionScope(id)).then(result => {
         if (sessionRef.current === id && (result.context_max ?? result.context_length)) setChatUsage(result)
       }).catch(() => {})
-      const text = typeof data.payload?.text === 'string' ? data.payload.text : ''
+      const text = typeof data.payload?.text === 'string' ? data.payload.text : assistantRef.current
       const startedAt = turnStartedAtRef.current
       const endedAt = Date.now()
       turnStartedAtRef.current = null
       setConversation(rows => {
         const closed = finishReasoning(rows)
         const finished = startedAt == null ? closed : finishTurn(closed, Math.max(0, (endedAt - startedAt) / 1000), 'completed')
-        return appendMessage(finished, 'assistant', text || assistantRef.current)
+        return appendCompletedAssistant(finished, text, data.payload)
       })
       assistantRef.current = ''
       setAssistant('')
@@ -198,27 +205,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     setConversation(rows => finishTurn(rows, elapsed, state))
   }
 
-  React.useEffect(() => {
-    let active = true
-    let unlistenEvent: (() => void) | undefined
-    let unlistenDisconnect: (() => void) | undefined
-    let unlistenRequest: (() => void) | undefined
-    void events.onGatewayEvent(data => {
-      if (!active) return
-      if (data.profile) eventProcessors.current[workspaceKey(currentEpochRef.current, data.profile)]?.(data)
-    }).then(fn => { if (active) unlistenEvent = fn; else fn() })
-    void events.onGatewayRequest(request => {
-      if (active && request.profile) requestProcessors.current[workspaceKey(currentEpochRef.current, request.profile)]?.(request)
-    }).then(fn => { if (active) unlistenRequest = fn; else fn() })
-    void events.onDisconnect(() => {
-      if (!active) return
-      const prefix = `${currentEpochRef.current || 'offline'}\u0000`
-      for (const [key, process] of Object.entries(disconnectProcessors.current)) {
-        if (key.startsWith(prefix)) process()
-      }
-    }).then(fn => { if (active) unlistenDisconnect = fn; else fn() })
-    return () => { active = false; unlistenEvent?.(); unlistenRequest?.(); unlistenDisconnect?.() }
-  }, [])
+  useGatewayChatEvents(events, currentEpochRef, eventProcessors, requestProcessors, disconnectProcessors)
 
   async function answerRequest(choice?: ApprovalChoice, supplements: Record<string, string> = {}) {
     if (!serverRequest) return
@@ -456,7 +443,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   }
 
   React.useEffect(() => {
-    if (!backend) return
+    if (!backend || !chatVisible) { setDraggingFiles(false); return }
     let active = true
     let unlisten: (() => void) | undefined
     void nativeFiles.onDrop(event => {
@@ -470,7 +457,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     }).then(fn => { if (active) unlisten = fn; else fn() })
       .catch(cause => setChatStatus(t("ui.file.drag.in.monitoring.failed.arg", describeError(cause, language))))
     return () => { active = false; unlisten?.() }
-  }, [backend, turnBusy, attachmentBusy])
+  }, [backend, chatVisible, turnBusy, attachmentBusy])
 
   async function removeAttachment(index: number) {
     const attachment = attachments[index]
@@ -486,6 +473,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   }
 
   async function sendMessage(overrideText?: string, quickInput = false) {
+    if (!connected) return false
     if (quickInput && (draft.trim() || attachments.length || navigationBusyRef.current || sessionCreationRef.current)) return false
     let refs = attachments.filter(item => item.kind === 'file' && item.ref_text).map(item => item.ref_text)
     const typed = (quickInput ? overrideText?.trim() : draft.trim() || overrideText?.trim()) || ''
@@ -695,7 +683,9 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
         if (optimisticStartedAt != null && !promptDispatchStartedRef.current) {
           restoreUnsentPrompt()
         }
-        setChatStatus(t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
+        const readOnly = isDesktopFailure(cause) && cause.code === 'session_superseded'
+        if (readOnly) setDraft(draft)
+        setChatStatus(readOnly ? describeError(cause, language) : t("ui.submission.failed.arg.please.check.the.history.first.to.avoid.repeated.subm", describeError(cause, language)))
         finishCurrentTurn('failed')
         setTurnBusy(false)
       }
@@ -788,7 +778,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     setNavigationBusy(false)
   }
 
-  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current, commandResume = false) {
+  async function resumeSession(id: string, force = false, replayEpoch = backend?.replay_epoch || '', ownerProfile = viewedProfileRef.current, commandResume = false, preserveDraft = false, current: () => boolean = () => true) {
     if (submittingRef.current || sessionCreationRef.current || attachmentBusy || reasoningChangeInFlightRef.current || navigationBusyRef.current || (!force && id === storedSessionRef.current)) return false
     navigationBusyRef.current = true
     setNavigationBusy(true)
@@ -796,6 +786,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     try {
       if (!ownerProfile) throw new Error('Session has no Profile owner')
       const result = await chat.resumeSession({ kind: 'session', profile: ownerProfile, sessionId: id })
+      if (!current()) return false
       pendingBySessionRef.current[storedSessionRef.current] = { draft: commandResume ? '' : draft, attachments }
       turnStartedAtRef.current = null
       sessionRef.current = result.session_id
@@ -813,8 +804,7 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
       setActiveModel(result.info?.provider && result.info.model ? { provider: result.info.provider, model: result.info.model } : null)
       setModelPickerOpen(false)
       const pending = pendingBySessionRef.current[storedSessionRef.current]
-      setDraft(pending?.draft || '')
-      setAttachments(pending?.attachments || [])
+      if (!preserveDraft) { setDraft(pending?.draft || ''); setAttachments(pending?.attachments || []) }
       setCanContinue(!result.running && interruptedSessionsRef.current.has(storedSessionRef.current))
       setCommandCatalog(null)
       commandCatalogPromiseRef.current = null
@@ -828,16 +818,27 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     finally { navigationBusyRef.current = false; setNavigationBusy(false) }
   }
 
-  useRetryRefresh(retryPendingRef, turnBusy, navigationBusy, backend, sessionId, storedSessionRef, sessionProfileRef, resumeSession)
+  useRetryRefresh(retryPendingRef, turnBusy, navigationBusy, connected ? backend : null, sessionId, storedSessionRef, sessionProfileRef, resumeSession)
 
+  function showRecoveredImageNotice() {
+    if (profile && imageRecoveryNotice.current.delete(profile)) setChatStatus(t('ui.reconnected.pictures.to.be.sent.need.to.be.added.again'))
+  }
   React.useEffect(() => {
+    const recovery = pendingRecovery.current
+    if (recovery && (!recovery.current() || recovery.profile !== profile)) {
+      pendingRecovery.current = null; recovery.complete(false); return
+    }
     if (!backend?.replay_epoch || !profile || sessionId) return
     const remembered = lastSessionByProfile.current[profile]
     const attempt = `${backend.replay_epoch}\u0000${profile}`
-    if (!remembered || attemptedEpochResume.current.has(attempt)) return
+    if (!remembered) { showRecoveredImageNotice(); return }
+    if (attemptedEpochResume.current.has(attempt)) return
     attemptedEpochResume.current.add(attempt)
-    void resumeSession(remembered, true, backend.replay_epoch, profile)
-  }, [backend?.replay_epoch, profile, sessionId])
+    void resumeSession(remembered, true, backend.replay_epoch, profile, false, true, recovery?.current).then(ok => {
+      if (ok && (!recovery || recovery.current())) showRecoveredImageNotice()
+      if (recovery && pendingRecovery.current === recovery) { pendingRecovery.current = null; recovery.complete(ok) }
+    })
+  }, [backend?.replay_epoch, profile, sessionId, connected])
 
   async function interruptSession() {
     if (submittingRef.current && !promptDispatchStartedRef.current) {
@@ -869,42 +870,42 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
     }
   }
 
-  async function reconnectBackend() {
-    if (recoveringRef.current) return
+  async function restoreConnection(info: BackendInfo, current: () => boolean = () => true) {
+    if (!current()) return
+    if (recoveringRef.current) throw new Error('Previous session recovery is still settling')
     recoveringRef.current = true
     bufferedEventsRef.current = []
     bufferedRequestsRef.current = []
     const previousId = sessionRef.current
     const previousEpoch = epochRef.current[previousId]
     const previousSeq = lastSeqRef.current[previousId] || 0
-    setBusy(true)
-    setBackendStatus(t("ui.reconnecting"))
     try {
-      const info = remoteMode
-        ? await runtime.activateSavedRemote().then(active => {
-          if (active.mode !== 'remote') throw new Error('Remote Gateway was not activated')
-          return { port: 0, pid: 0, replay_epoch: active.replay_epoch }
-        })
-        : await runtime.reconnect()
       const epochChanged = Boolean(backend?.replay_epoch && info.replay_epoch !== backend.replay_epoch)
-      setBackend(info)
-      setBackendStatus(epochChanged
-        ? t("ui.reconnected.pictures.to.be.sent.need.to.be.added.again") : t("ui.reconnected"))
       if (epochChanged) {
-        setAttachments(current => current.filter(item => item.kind === 'file'))
-        for (const pending of Object.values(pendingBySessionRef.current)) {
-          pending.attachments = pending.attachments.filter(item => item.kind === 'file')
-        }
+        const restoreDrafts = captureChatDrafts(backend!.replay_epoch)
+        imageRecoveryNotice.current = restoreDrafts.profilesWithImages
         if (profile && storedSessionRef.current) lastSessionByProfile.current[profile] = storedSessionRef.current
+        const restored = profile && storedSessionRef.current ? pendingRecovery.wait(info.replay_epoch, profile, current) : null
+        setBackend(info)
+        restoreDrafts(info.replay_epoch)
+        if (restored && !await restored && current()) throw new Error('Session recovery failed')
+        return
+      }
+      setBackend(info)
+      if (!storedSessionRef.current && profile && lastSessionByProfile.current[profile]) {
+        if (!await resumeSession(lastSessionByProfile.current[profile], true, info.replay_epoch, profile, false, true, current)) throw new Error('Session recovery failed')
+        if (current()) showRecoveredImageNotice()
         return
       }
       if (storedSessionRef.current) {
         const snapshot = await chat.resumeSession(sessionScope(storedSessionRef.current))
+        if (!current()) return
         const id = snapshot.session_id
         const sameStream = id === previousId && Boolean(previousEpoch) && info.replay_epoch === previousEpoch
         let replay: ReplayResult | undefined
         if (sameStream) {
           replay = await chat.replayEvents(sessionScope(id), previousSeq, previousEpoch)
+          if (!current()) return
         }
         const useSnapshot = !sameStream || !replay || replay.truncated || replay.epoch !== previousEpoch
         sessionRef.current = id
@@ -940,17 +941,13 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
         if (useSnapshot) setChatStatus(replay?.truncated ? t("ui.event.window.truncated.restored.from.session.snapshot") : t("ui.restored.from.session.snapshot"))
         else if (replay?.events.length === 0) setChatStatus(snapshot.running ? t("ui.restored.task.still.running") : t("ui.session.resumed"))
       }
-    } catch (cause) {
-      void diagnostics.recordEvent(storagePath, 'reconnect_failed').catch(() => {})
-      setBackendStatus(t("ui.reconnection.failed.arg", describeError(cause, language)))
-    }
-    finally {
+    } finally {
       recoveringRef.current = false
       for (const event of bufferedEventsRef.current.splice(0)) eventProcessorRef.current(event)
       bufferedRequestsRef.current = []
-      setBusy(false)
     }
   }
+  React.useEffect(() => pendingRecovery.cancel, [pendingRecovery])
   function resetChat(clearDraft = false) {
     draftReasoningRef.current = ''
     lastSessionByProfile.current = {}
@@ -988,13 +985,15 @@ export function useChatController({ backend, remoteMode = false, profile, chatVi
   }
 
   return {
+    mediaScope: sessionId && sessionProfileRef.current && backend?.replay_epoch ? { kind: 'session' as const, profile: sessionProfileRef.current, sessionId, gatewayEpoch: backend.replay_epoch } : null,
     sessionId, sessionWorkspacePath, sessionCurrentDirectory, reasoningEffort, reasoningLoadFailed, reasoningBusy, chatUsage, sessionRef, sessionProfileRef, storedSessionRef,
     draft, setDraft, commandCatalog, commandCatalogError, activeChoice, setActiveChoice,
     draftCaret, setDraftCaret, draftInputRef, conversation, assistant, chatStatus, setChatStatus,
     turnBusy, canContinue, navigationBusy, sessionCreating, serverRequest, serverRequests, clarifyAnswers, setClarifyAnswer, sessions, sessionsState, attachments,
     attachmentBusy, draggingFiles, trigger, choices, argumentHint, answerRequest,
     changeReasoning, chooseCommand, chooseAttachments, pasteImages, removeAttachment, sendMessage,
-    loadSessions, newChat, resumeSession, deleteSession, interruptSession, reconnectBackend, resetChat, rollback,
+    loadSessions, newChat, resumeSession, deleteSession, interruptSession, restoreConnection, resetChat, rollback,
+    cancelConnectionRecovery: pendingRecovery.cancel,
     sideQuestions: sideQuestions.forSession(sessionProfileRef.current, sessionRef.current), dismissSideQuestion: sideQuestions.dismiss, backgroundTasks: backgroundTasks.forSession(sessionProfileRef.current, sessionRef.current),
   }
 }

@@ -463,10 +463,10 @@ pub async fn download_update(
 
     let downloads = app
         .path()
-        .download_dir()
-        .map(|path| plain_path(&path))
+        .temp_dir()
+        .map(|path| plain_path(&path.join(&app.config().identifier).join("updates")))
         .map_err(|_| DesktopFailure::operation_failed())?;
-    crate::diagnostics::log_client_event("update download directory resolved");
+    crate::diagnostics::log_client_event("update product temporary directory resolved");
     tokio::fs::create_dir_all(filesystem_path(&downloads))
         .await
         .map_err(|_| DesktopFailure::operation_failed())?;

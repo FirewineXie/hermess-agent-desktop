@@ -7,6 +7,71 @@ use std::{
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
+// Windowless native tests supply an isolated selection without changing process
+// environment variables shared by parallel tests.
+#[cfg(test)]
+pub(super) struct TestStorageSelection(pub PathBuf);
+
+pub(super) fn selected_storage(app: &AppHandle) -> Result<PathBuf, String> {
+    #[cfg(test)]
+    if let Some(selected) = app.try_state::<TestStorageSelection>() {
+        return Ok(plain_path(&selected.0));
+    }
+    if cfg!(debug_assertions) {
+        return super::dev_backend_defaults()
+            .map(|defaults| PathBuf::from(defaults.storage_path))
+            .map_err(|_| "无法定位开发数据目录".into());
+    }
+    if let Some(state) = app.try_state::<super::storage_settings::StorageSettingsState>() {
+        return state.selected();
+    }
+    release_storage(app)
+}
+
+fn release_storage(app: &AppHandle) -> Result<PathBuf, String> {
+    match saved_storage_path(app)? {
+        Some(path) => Ok(path),
+        None => app
+            .path()
+            .app_local_data_dir()
+            .map(|path| plain_path(&path))
+            .map_err(|_| "无法定位默认数据目录".into()),
+    }
+}
+
+pub(super) fn programming_root(app: &AppHandle) -> Result<PathBuf, String> {
+    programming_root_at(&selected_storage(app)?)
+}
+
+fn programming_root_at(selected: &Path) -> Result<PathBuf, String> {
+    let selected = plain_path(selected);
+    if !selected.is_absolute() {
+        return Err("存储位置必须是绝对路径".into());
+    }
+    let root = selected.join("HermessAgentDesktop").join("programming");
+    // Resolve before Gateway startup, without requiring an existing Hermes home.
+    // Refuse links/junctions before callers create files below the product root.
+    for ancestor in root.ancestors() {
+        match fs::symlink_metadata(filesystem_path(ancestor)) {
+            Ok(metadata) => {
+                if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                    return Err("产品存储位置不是普通目录".into());
+                }
+                #[cfg(windows)]
+                {
+                    use std::os::windows::fs::MetadataExt;
+                    if metadata.file_attributes() & 0x400 != 0 {
+                        return Err("产品存储位置不能经过目录联接".into());
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("无法检查产品存储位置".into()),
+        }
+    }
+    Ok(root)
+}
+
 pub(super) fn acquire_storage_lock(storage: &std::path::Path) -> Result<fs::File, String> {
     let lock = fs::OpenOptions::new()
         .read(true)
@@ -19,7 +84,7 @@ pub(super) fn acquire_storage_lock(storage: &std::path::Path) -> Result<fs::File
     Ok(lock)
 }
 
-fn location_file(app: &AppHandle) -> Result<PathBuf, String> {
+pub(super) fn location_file(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
         .map(|dir| plain_path(&dir).join("storage-location.json"))
@@ -62,18 +127,26 @@ pub(super) fn write_storage_location(file: &Path, selected: &Path) -> Result<(),
     if !selected.is_absolute() {
         return Err("存储位置必须是绝对路径".into());
     }
+    write_location_json(
+        file,
+        &json!({"schema": 1, "storage_path": plain_path(selected).to_string_lossy()}),
+    )
+}
+
+pub(super) fn write_location_json(file: &Path, value: &Value) -> Result<(), String> {
     let parent = file.parent().ok_or("存储定位文件路径无效")?;
     fs::create_dir_all(filesystem_path(parent)).map_err(|_| "无法创建产品配置目录".to_string())?;
     let temporary = parent.join(format!("storage-location-{}.tmp", Uuid::new_v4()));
-    let bytes = serde_json::to_vec(
-        &json!({"schema": 1, "storage_path": plain_path(selected).to_string_lossy()}),
-    )
-    .map_err(|_| "无法编码存储定位文件".to_string())?;
+    let bytes = serde_json::to_vec(value).map_err(|_| "无法编码存储定位文件".to_string())?;
     fs::write(filesystem_path(&temporary), bytes)
         .map_err(|_| "无法写入存储定位文件".to_string())?;
-    if let Err(error) = fs::rename(filesystem_path(&temporary), filesystem_path(file)) {
+    if super::remote_config::replace_file(&temporary, file).is_err() {
         let _ = fs::remove_file(filesystem_path(&temporary));
-        return Err(format!("无法启用存储定位文件：{error}"));
+        return Err("无法启用存储定位文件".into());
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/location.rs"]
+mod tests;

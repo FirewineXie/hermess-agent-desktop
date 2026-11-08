@@ -23,6 +23,7 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
   const [oauthAvailable, setOauthAvailable] = React.useState(false)
   const [setupRun, setSetupRun] = React.useState<SetupRun | null>(null)
   const generation = React.useRef(0)
+  const providerGeneration = React.useRef(0)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const scope = React.useMemo(() => ({ kind: 'profile' as const, profile }), [profile])
   const dirty = Object.keys(drafts).length > 0
@@ -36,21 +37,21 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
   React.useEffect(() => () => { cancelPolling(); onDirtyChange(false); onBusyChange(false) }, [cancelPolling, onDirtyChange, onBusyChange])
 
   const loadProviders = React.useCallback(async () => {
-    const current = ++generation.current
+    const current = ++providerGeneration.current
     try {
       const result = await memory.providers(scope)
-      if (current !== generation.current) return
+      if (current !== providerGeneration.current) return
       setProviders(result.providers)
       setActiveProvider(result.active)
       setProvider(result.active && result.providers.some(row => row.name === result.active) ? result.active : builtin)
     } catch (error) {
-      if (current === generation.current) setStatus(describeError(error, language))
+      if (current === providerGeneration.current) setStatus(describeError(error, language))
     }
   }, [memory, scope, language])
   React.useEffect(() => {
     setProvider(builtin); setActiveProvider(''); setProviders([])
     void loadProviders()
-    return () => { ++generation.current }
+    return () => { ++providerGeneration.current }
   }, [loadProviders])
 
   const load = React.useCallback(async (name: string) => {
@@ -220,6 +221,15 @@ export default function MemoryProviderSettings({ profile, language, onDirtyChang
       <label>{zh ? '提供方' : 'Provider'}<select value={provider} disabled={busy || setupRunning} onChange={event => selectProvider(event.target.value)}><option value={builtin}>{zh ? '内置记忆（MEMORY.md / USER.md）' : 'Built-in memory (MEMORY.md / USER.md)'}</option>{providers.map(row => <option value={row.name} key={row.name}>{row.name} · {row.status}</option>)}</select></label>
       <p role="status">{(provider === builtin ? !activeProvider : activeProvider === provider) ? (zh ? '当前正在使用' : 'Currently active') : (zh ? '当前未启用' : 'Not active')}</p>
       {!providers.length && <p>{zh ? '没有发现外部记忆提供方；仍可使用内置记忆。' : 'No external memory providers were discovered; built-in memory remains available.'}</p>}
+      {provider === 'openviking' && <aside aria-label={zh ? '本地 embedding 安装提示' : 'Local embedding setup guidance'}>
+        <p><strong>{zh ? '使用本地 embedding' : 'Use local embeddings'}</strong></p>
+        <p>{zh ? '可以让当前 Profile 的 AI 帮你安装和配置 OpenViking 本地服务及 embedding 模型。安装需要联网；记忆抽取仍使用配置的语言模型，该模型可以是远程 API。' : 'Ask the AI in this profile to help install and configure the local OpenViking service and embedding model. Installation requires internet access. Memory extraction still uses the configured language model, which may be a remote API.'}</p>
+        <p>{zh ? '可以复制下面这段话发给 AI：' : 'Copy this request into your chat with the AI:'}</p>
+        <blockquote>{zh
+          ? `请使用 Hermess Desktop 自带的 Hermes，为当前 Profile「${profile}」配置 OpenViking。运行 hermes memory setup openviking，选择 Personal Agent 和 Quick Local，安装本地服务及 embedding 模型。保留现有对话历史设置，不修改其他 Hermes 安装。完成后检查记忆提供方配置与本地服务状态；如果无法完成交互或安装，请说明具体阻碍，不要报告安装成功。`
+          : `Use the Hermes bundled with Hermess Desktop to configure OpenViking for the current profile "${profile}". Run hermes memory setup openviking, choose Personal Agent and Quick Local, and install the local service and embedding model. Preserve conversation history settings and leave other Hermes installations untouched. Check the memory provider configuration and local service status afterward. If interaction or installation cannot be completed, explain the blocker instead of reporting success.`}</blockquote>
+        <small>{zh ? '“安装所需依赖”只准备插件依赖，不代表已安装本地服务和 embedding 模型。' : '“Install required dependencies” only prepares plugin dependencies; it does not mean the local service and embedding model have been installed.'}</small>
+      </aside>}
       <div className="actions"><button type="button" disabled={busy || setupRunning || dirty || selectedProvider?.available === false || (provider === builtin ? !activeProvider : activeProvider === provider)} onClick={() => void activate()}>{zh ? '设为活动提供方' : 'Set active'}</button>
         {provider !== builtin && selectedProvider?.available === false && <button type="button" disabled={busy || setupRunning} onClick={() => void setup()}>{setupRunning ? (zh ? '安装依赖中…' : 'Installing dependencies…') : (zh ? '安装所需依赖' : 'Install required dependencies')}</button>}</div>
       {config && config.fields.length === 0 && <p role="status">{zh ? '此提供方没有可在桌面端编辑的配置字段。' : 'This provider has no editable desktop configuration fields.'}</p>}

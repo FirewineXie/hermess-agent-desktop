@@ -13,6 +13,7 @@ import {
 } from './sessionSourceFilter'
 import { LOCKED_SESSION_MESSAGE_LIMIT, reachedSessionMessageLimit } from './sessionMessagePage'
 import { sessionHealthAlerts } from './sessionHealth'
+import { archivedSessions } from './sessionArchive'
 import './sessions.css'
 
 type Session = {
@@ -26,6 +27,7 @@ type Stats = { total: number; active_store: number; archived: number; messages: 
 type PrunePreview = { matched: number; skipped_open: number; sessions: { id: string; title?: string | null }[] }
 type Props = {
   connected: boolean; profile: string | null; profiles: ProfilesSnapshot | null; epoch: string | null
+  archivedOnly?: boolean
   onSelectProfile(name: string): Promise<unknown>
   onOpenSession(profile: string, id: string): Promise<void>
   onDeleteSession(profile: string, id: string): Promise<void>
@@ -39,13 +41,13 @@ function messageText(message: SessionManagementMessage) {
   return ''
 }
 
-export default function SessionsView({ connected, profile, profiles, epoch, onSelectProfile, onOpenSession, onDeleteSession }: Props) {
+export default function SessionsView({ connected, profile, profiles, epoch, archivedOnly = false, onSelectProfile, onOpenSession, onDeleteSession }: Props) {
   const { extensions, chat } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const [category, setCategory] = React.useState<SessionCategory>('all')
   const [sourceSelections, setSourceSelections] = React.useState<SourceSelections>({ all: null, chats: null, automation: null })
-  const [archived, setArchived] = React.useState('exclude')
+  const [archived, setArchived] = React.useState(archivedOnly ? 'only' : 'exclude')
   const [draft, setDraft] = React.useState('')
   const [query, setQuery] = React.useState('')
   const [offset, setOffset] = React.useState(0)
@@ -107,10 +109,13 @@ export default function SessionsView({ connected, profile, profiles, epoch, onSe
         extensions.request<SessionManagementHealth>(scope(profile), 'sessionManagement.health'),
       ])
       if (current !== revision.current) return
-      if ('results' in listing) { setRows(listing.results); setTotal(listing.results.length) }
+      if ('results' in listing) {
+        const results = archivedOnly ? archivedSessions(listing.results) : listing.results
+        setRows(results); setTotal(results.length)
+      }
       else {
         if (listing.storage && Object.keys(listing.storage).length) throw new Error(zh ? '会话库暂时不可读，请稍后重试。' : 'Session store is unavailable. Retry later.')
-        setRows(listing.sessions); setTotal(listing.total)
+        setRows(archivedOnly ? archivedSessions(listing.sessions) : listing.sessions); setTotal(listing.total)
       }
       setStats(counts); setEmptyCount(empty.count); setHealth(currentHealth); setError('')
     } catch (cause) {
@@ -118,7 +123,7 @@ export default function SessionsView({ connected, profile, profiles, epoch, onSe
     } finally {
       if (current === revision.current) setLoading(false)
     }
-  }, [connected, profile, epoch, category, sourceFilter, archived, query, offset, extensions, language, zh])
+  }, [connected, profile, epoch, category, sourceFilter, archived, archivedOnly, query, offset, extensions, language, zh])
 
   React.useEffect(() => { void refresh(); return () => { revision.current++ } }, [refresh])
   React.useEffect(() => { detailRevision.current++; setOffset(0); setSelected(null); setMessagePage(null); setSelectedIds(new Set()); setPrunePreview(null) }, [profile, category, sourceFilter, archived, query])
@@ -272,13 +277,13 @@ export default function SessionsView({ connected, profile, profiles, epoch, onSe
     {sessionHealthAlerts(health).length > 0 && <section className="sessions-health" aria-label={zh ? '运行故障' : 'Runtime issues'}>{sessionHealthAlerts(health).map(alert => <div key={alert.key} role="alert"><strong>{alert.title}</strong>{alert.detail && <span>{alert.detail}</span>}</div>)}</section>}
     <div className="sessions-stats"><div><span>{zh ? '总会话' : 'Total'}</span><strong>{stats?.total ?? '—'}</strong></div><div><span>{zh ? '未归档' : 'Active store'}</span><strong>{stats?.active_store ?? '—'}</strong></div><div><span>{zh ? '已归档' : 'Archived'}</span><strong>{stats?.archived ?? '—'}</strong></div><div><span>{zh ? '消息' : 'Messages'}</span><strong>{stats?.messages ?? '—'}</strong></div></div>
     <form className="sessions-search" onSubmit={event => { event.preventDefault(); setQuery(draft.trim()); setOffset(0) }}><input value={draft} maxLength={180} aria-label={zh ? '搜索会话' : 'Search sessions'} placeholder={zh ? '搜索会话编号与消息内容' : 'Search session IDs and messages'} onChange={event => setDraft(event.target.value)} /><button type="submit">{zh ? '搜索' : 'Search'}</button>{query && <button type="button" onClick={() => { setDraft(''); setQuery('') }}>{zh ? '清除' : 'Clear'}</button>}</form>
-    <div className="sessions-controls"><label>Profile <select value={profile || ''} disabled={!connected} onChange={event => { setError(''); void onSelectProfile(event.target.value).catch(cause => setError(describeError(cause, language))) }}>{(profiles?.profiles || []).map(item => <option key={item.name} value={item.name}>{item.display_name || item.name}</option>)}</select></label><label>{zh ? '类别' : 'Category'} <select value={category} onChange={event => setCategory(event.target.value as SessionCategory)}><option value="all">{zh ? '全部' : 'All'}</option><option value="chats">{zh ? '聊天' : 'Chats'}</option><option value="automation">{zh ? '自动化' : 'Automation'}</option></select></label><details className="sessions-source-filter"><summary>{zh ? '来源' : 'Sources'} · {selectedSources === null ? (zh ? '全部' : 'All') : effectiveSources.length}</summary><div><button type="button" onClick={() => setSourceSelections(current => ({ ...current, [category]: null }))}>{zh ? '恢复类别默认' : 'Reset category default'}</button>{sourceOptions.length === 0 && <span>{zh ? '暂无来源' : 'No sources yet'}</span>}{sourceOptions.map(source => <label key={source}><input type="checkbox" checked={effectiveSources.includes(source)} onChange={() => toggleSource(source)} />{source}<small>{stats?.by_source[source] ?? 0}</small></label>)}</div></details><label>{zh ? '归档' : 'Archive'} <select value={archived} onChange={event => setArchived(event.target.value)}><option value="exclude">{zh ? '未归档' : 'Unarchived'}</option><option value="only">{zh ? '仅归档' : 'Archived only'}</option><option value="include">{zh ? '全部' : 'All'}</option></select></label></div>
-    <div className="sessions-maintenance">
+    <div className="sessions-controls"><label>Profile <select value={profile || ''} disabled={!connected} onChange={event => { setError(''); void onSelectProfile(event.target.value).catch(cause => setError(describeError(cause, language))) }}>{(profiles?.profiles || []).map(item => <option key={item.name} value={item.name}>{item.display_name || item.name}</option>)}</select></label><label>{zh ? '类别' : 'Category'} <select value={category} onChange={event => setCategory(event.target.value as SessionCategory)}><option value="all">{zh ? '全部' : 'All'}</option><option value="chats">{zh ? '聊天' : 'Chats'}</option><option value="automation">{zh ? '自动化' : 'Automation'}</option></select></label><details className="sessions-source-filter"><summary>{zh ? '来源' : 'Sources'} · {selectedSources === null ? (zh ? '全部' : 'All') : effectiveSources.length}</summary><div><button type="button" onClick={() => setSourceSelections(current => ({ ...current, [category]: null }))}>{zh ? '恢复类别默认' : 'Reset category default'}</button>{sourceOptions.length === 0 && <span>{zh ? '暂无来源' : 'No sources yet'}</span>}{sourceOptions.map(source => <label key={source}><input type="checkbox" checked={effectiveSources.includes(source)} onChange={() => toggleSource(source)} />{source}<small>{stats?.by_source[source] ?? 0}</small></label>)}</div></details><label>{zh ? '归档' : 'Archive'} <select disabled={archivedOnly} value={archived} onChange={event => setArchived(event.target.value)}><option value="exclude">{zh ? '未归档' : 'Unarchived'}</option><option value="only">{zh ? '仅归档' : 'Archived only'}</option><option value="include">{zh ? '全部' : 'All'}</option></select></label></div>
+    {!archivedOnly && <div className="sessions-maintenance">
       <input ref={importInput} type="file" accept=".json,.jsonl,application/json,application/x-ndjson" hidden onChange={event => void importFile(event.currentTarget.files?.[0])} />
       <button type="button" disabled={!connected || busy} onClick={() => importInput.current?.click()}>{zh ? '导入 JSON / JSONL' : 'Import JSON / JSONL'}</button>
       <button type="button" disabled={!connected || busy || emptyCount === 0} onClick={() => void deleteEmpty()}>{zh ? `清理空会话 (${emptyCount})` : `Delete empty (${emptyCount})`}</button>
       <button type="button" disabled={!connected || busy} onClick={() => { setPruneOpen(value => !value); setPrunePreview(null) }}>{zh ? '修剪旧会话' : 'Prune old sessions'}</button>
-    </div>
+    </div>}
     {pruneOpen && <section className="sessions-prune">
       <div><strong>{zh ? '修剪已结束的旧会话' : 'Prune ended sessions'}</strong><p>{zh ? '先预览匹配项；默认不包含已归档会话，运行中的会话不会删除。' : 'Preview matches first. Archived sessions are excluded by default; open sessions are spared.'}</p></div>
       <label>{zh ? '超过天数' : 'Older than days'} <input type="number" min="1" max="36500" value={pruneDays} onChange={event => { setPruneDays(event.target.value); setPrunePreview(null) }} /></label>

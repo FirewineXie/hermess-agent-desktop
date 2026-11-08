@@ -25,3 +25,29 @@
 .system-debug-links { margin-top: 4px; }
 .system-operations-error { color: #b42318 !important; }
 @media (max-width: 650px) { .system-operations > header, .system-operation-heading, .system-backup-export { flex-wrap: wrap; } }
+
+:root[data-color-theme='dark'] .unified-settings .system-operation {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .system-operation-heading h3 { color: var(--settings-text); }
+:root[data-color-theme='dark'] .unified-settings .system-operation-title span { color: #a8c9ff; background: #223249; }
+:root[data-color-theme='dark'] .unified-settings .system-operations button {
+  color: var(--settings-text);
+  background: var(--settings-panel);
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .system-operations button:hover:not(:disabled) { background: #223249; border-color: #4b79b8; }
+:root[data-color-theme='dark'] .unified-settings .system-operations button:disabled { color: var(--settings-muted); background: #182231; border-color: var(--settings-line); }
+:root[data-color-theme='dark'] .unified-settings .system-operation-result { color: var(--settings-muted); border-color: var(--settings-line); }
+:root[data-color-theme='dark'] .unified-settings .system-operation-result strong { color: #9de5bc; }
+:root[data-color-theme='dark'] .unified-settings .system-operation-result strong[data-state='running'],
+:root[data-color-theme='dark'] .unified-settings .system-operation-result strong[data-state='findings'] { color: #f3d194; }
+:root[data-color-theme='dark'] .unified-settings .system-operation-result strong[data-state='failed'] { color: #ffaaa2; }
+:root[data-color-theme='dark'] .unified-settings :is(.system-operation pre, .system-backup-export) {
+  color: var(--settings-text);
+  background: #0f1723;
+  border-color: var(--settings-line);
+}
+:root[data-color-theme='dark'] .unified-settings .system-operation-check { color: var(--settings-muted); }

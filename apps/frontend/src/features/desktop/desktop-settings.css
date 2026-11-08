@@ -1,9 +1,11 @@
 .desktop-settings { max-width: 880px; }
+.desktop-settings > p:first-child { margin: 24px 0 20px; color: #66758c; font-size: 14px; line-height: 1.5; }
 .desktop-shortcut-form { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
 .desktop-shortcut-form label { display: grid; gap: 8px; flex: 1; min-width: 240px; }
 .desktop-settings small { display: block; margin-top: 6px; color: #66758c; }
-.desktop-settings input:not([type="checkbox"]) { box-sizing: border-box; width: 100%; border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font: inherit; }
-.desktop-settings button { border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 14px; background: #fff; font: inherit; cursor: pointer; }
+.desktop-shortcut-form input { box-sizing: border-box; width: 100%; border: 1px solid #e3e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font: inherit; }
+.desktop-settings button { border: 1px solid #d5deea; border-radius: 9px; padding: 10px 14px; background: #fff; color: #34445b; font: inherit; cursor: pointer; }
+.desktop-settings button:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
 .desktop-settings button:disabled { opacity: .5; cursor: default; }
 .quick-composer { box-sizing: border-box; height: 100dvh; display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; background: #fefefe; color: #111827; font: 14px system-ui, sans-serif; }
 .quick-composer * { box-sizing: border-box; }

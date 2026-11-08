@@ -1,6 +1,11 @@
 import type { ProviderCopyPreview, ProviderCopyResult, DelegationRouting, DevicePreferences, DeviceStatus, QuickTarget, QuickSubmission } from './settings-capabilities'
 import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult, ConfigWriteResult, ConfigFileResult } from './configuration'
+import type { MediaApi } from './media'
+export * from './media'
 export * from './configuration'
+export * from './coding'
+export * from './codingSettings'
+export * from './computerActivity'
 export type Unsubscribe = () => void
 
 /** Every profile-owned operation carries its owner explicitly. */
@@ -45,6 +50,7 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   pairing_locked: 'validation',
   session_owner_unknown: 'validation',
   session_profile_mismatch: 'validation',
+  session_superseded: 'validation',
 }
 
 export function isDesktopFailure(value: unknown): value is DesktopFailure {
@@ -425,6 +431,7 @@ export type HermesConsoleSocket = {
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  coding: import('./coding').CodingApi
   hermesConsole: {
     socket(scope: ProfileScope, handler: (event: HermesConsoleSocketEvent) => void): Promise<HermesConsoleSocket>
   }
@@ -479,6 +486,7 @@ export interface DesktopApi {
   localPreview: {
     readHtml(path: string): Promise<{ path: string; content: string }>
   }
+  media: MediaApi
   channels: {
     status(scope: ProfileScope): Promise<{ platforms: ChannelStatus[] }>
     save(scope: ProfileScope, platform: string, update: ChannelSave): Promise<{ hot_served: boolean }>
@@ -496,7 +504,7 @@ export interface DesktopApi {
     whatsappApply(scope: ProfileScope, id: string, options: WhatsAppApplyOptions): Promise<void>
     whatsappCancel(scope: ProfileScope, id: string): Promise<void>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
-    poll(scope: ProfileScope, id: string, access: ChannelAccess): Promise<ChannelQrPoll>
+    poll(scope: ProfileScope, id: string, access: ChannelAccess, onAuthorized?: () => void): Promise<ChannelQrPoll>
     approvePairing(scope: ProfileScope, platform: string, code: string): Promise<void>
     cancel(scope: ProfileScope, id: string): Promise<void>
   }
@@ -514,15 +522,19 @@ export interface DesktopApi {
   runtime: {
     devDefaults(): Promise<DevDefaults>
     packedDefaults(): Promise<PackedDefaults>
+    storageLocation(request: StorageLocationAction): Promise<StorageLocationSettings>
     startDev(storagePath: string, pythonPath: string): Promise<BackendInfo>
     startPacked(storagePath: string): Promise<BackendInfo>
     ping(): Promise<void>
-    reconnect(): Promise<BackendInfo>
+    /** Automatic recovery is bounded; only an explicit user retry resets its restart budget. */
+    reconnect(options?: { manualRetry?: boolean }): Promise<BackendInfo>
     restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
     savedRemote(): Promise<RemoteGatewayConfig | null>
     testRemote(url: string, token: string): Promise<RemoteGatewayProbe>
     saveRemote(label: string, url: string, token: string): Promise<RemoteGatewayConfig>
+    /** Remove the matching saved configuration and credential; reject while a remote gateway is active. */
+    deleteRemote(id: string): Promise<void>
     activeGateway(): Promise<ActiveGateway>
     activateSavedRemote(): Promise<ActiveGateway>
     activateLocalGateway(): Promise<ActiveGateway>
@@ -679,4 +691,14 @@ export interface DesktopApi {
     save(defaultPath: string): Promise<string | null>
     onDrop(handler: (event: NativeDropEvent) => void): Promise<Unsubscribe>
   }
+}
+
+/** Local product data selection; saving never changes this process's active root. */
+export type StorageLocationAction = { action: 'get' | 'cancel' | 'retry' } | { action: 'save'; path: string }
+export type StorageLocationSettings = {
+  currentPath: string
+  pendingPath: string | null
+  enabled: boolean
+  blocked: boolean
+  error: string | null
 }

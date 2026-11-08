@@ -395,6 +395,7 @@ pub async fn channel_qr_poll(
     profile: String,
     id: String,
     access: String,
+    on_authorized: tauri::ipc::Channel<()>,
 ) -> Result<QrPoll, DesktopFailure> {
     let access_env = {
         let pending = channels.0.lock().await;
@@ -478,6 +479,7 @@ pub async fn channel_qr_poll(
             };
             let _ = crate::diagnostics::append_client_event(&scope.storage,
                 &format!("channel_qr_confirmed operation={id} profile={profile} platform=feishu access={access}"));
+            let _ = on_authorized.send(());
             if let Err(error) = save_access_flag(&state, &scope, "feishu", &access_env).await {
                 let _ = crate::diagnostics::append_client_event(&scope.storage,
                     &format!("channel_qr_flag_failed operation={id} profile={profile} platform=feishu access={access}"));
@@ -575,6 +577,7 @@ pub async fn channel_qr_poll(
                 }
                 let _ = crate::diagnostics::append_client_event(&scope.storage,
                     &format!("channel_qr_confirmed operation={id} profile={profile} platform=weixin access={access}"));
+                let _ = on_authorized.send(());
                 if let Err(error) = save_access_flag(&state, &scope, "weixin", &access_env).await {
                     let _ = crate::diagnostics::append_client_event(&scope.storage,
                         &format!("channel_qr_flag_failed operation={id} profile={profile} platform=weixin access={access}"));

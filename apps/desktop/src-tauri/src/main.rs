@@ -4,6 +4,7 @@ use crate::paths::plain_path;
 use tauri::Manager;
 
 mod chat_windows;
+mod computer_activity;
 mod device;
 mod device_power;
 mod diagnostics;
@@ -28,6 +29,17 @@ fn main() {
     }
     diagnostics::install_panic_logger();
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol(
+            "hermess-media",
+            |context, request, responder| {
+                runtime::media::handle_protocol(
+                    context.app_handle().clone(),
+                    context.webview_label().to_owned(),
+                    request,
+                    responder,
+                );
+            },
+        )
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             tray::show_main_window(app);
         }))
@@ -36,17 +48,23 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        quick_input::show(app);
+                        if !computer_activity::handle_shortcut(app, shortcut) {
+                            quick_input::show(app);
+                        }
                     }
                 })
                 .build(),
         )
         .manage(device::DeviceState::default())
+        .manage(computer_activity::ComputerActivityState::default())
         .manage(quick_input::QuickState::default())
         .manage(chat_windows::ChatWindowState::default())
         .manage(runtime::BackendState::default())
+        .manage(runtime::coding::CodingState::default())
+        .manage(runtime::coding_runtime::CodingRuntimeState::default())
+        .manage(runtime::media::MediaResources::default())
         .manage(runtime::dashboard_plugins::DashboardPluginSockets::default())
         .manage(runtime::console_socket::ConsoleSockets::default())
         .manage(runtime::kanban_dashboard::KanbanEventStreams::default())
@@ -68,17 +86,35 @@ fn main() {
             {
                 diagnostics::set_client_log_storage(storage);
             }
+            runtime::storage_settings::initialize(app.handle())?;
+            if let Some(storage) = runtime::existing_client_log_storage(app.handle()) {
+                diagnostics::set_client_log_storage(storage);
+            }
+            runtime::coding::start_config_audit(app.handle().clone());
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
             device::setup(app.handle())?;
+            computer_activity::setup(app.handle());
             webview_cache::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                runtime::media::release_window(window.app_handle(), window.label());
+            }
             tray::on_window_event(window, event);
+            computer_activity::on_window_event(window, event);
             chat_windows::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            computer_activity::get_computer_activity,
+            computer_activity::stop_computer_activity,
+            runtime::coding::get_coding_config,
+            runtime::coding_providers::coding_provider_request,
+            runtime::coding_runtime::get_coding_runtime,
+            runtime::coding_runtime::install_coding_runtime,
+            runtime::coding::save_coding_config,
+            runtime::coding::coding_session_request,
             device::get_device_status,
             device::save_device_preferences,
             quick_input::set_quick_target,
@@ -100,6 +136,11 @@ fn main() {
             workspace_panel::list_workspace_panel_directory,
             workspace_panel::read_workspace_panel_file,
             workspace_panel::read_local_preview_html,
+            runtime::media::prepare_chat_media,
+            runtime::media::preview_chat_media,
+            runtime::media::save_chat_media,
+            runtime::media::reveal_chat_media,
+            runtime::media::release_chat_media,
             panel_terminal::start_panel_terminal,
             panel_terminal::activate_panel_terminal,
             panel_terminal::write_panel_terminal,
@@ -108,6 +149,7 @@ fn main() {
             runtime::dev_backend_defaults,
             runtime::start_dev_backend,
             runtime::packed_backend_defaults,
+            runtime::storage_settings::storage_location_request,
             runtime::start_packed_backend,
             runtime::ping_backend,
             runtime::reconnect_backend,
@@ -116,6 +158,7 @@ fn main() {
             runtime::remote_gateway::test_remote_gateway,
             runtime::remote_gateway::saved_remote_gateway,
             runtime::remote_gateway::save_remote_gateway,
+            runtime::remote_gateway::delete_remote_gateway,
             runtime::remote_gateway::active_gateway,
             runtime::remote_gateway::activate_saved_remote_gateway,
             runtime::remote_gateway::activate_local_gateway,

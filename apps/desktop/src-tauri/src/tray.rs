@@ -72,12 +72,18 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     if !processes.begin_shutdown() {
                         return;
                     }
+                    let service_cleanup = tokio::time::timeout(
+                        std::time::Duration::from_secs(5),
+                        crate::runtime::plugin_services::Cleanup::capture(&app, &state),
+                    )
+                    .await;
                     crate::device::shutdown(&app);
                     crate::panel_terminal::close_all_panel_terminals(
                         app.state::<crate::panel_terminal::TerminalState>(),
                     );
                     let bridge = app.state::<crate::runtime::browser_bridge::BrowserBridgeState>();
                     bridge.stop_all().await;
+                    let coding_stopped = crate::runtime::coding::shutdown(&app).await;
                     let _ = processes.kill_temporary();
                     let stopped = tokio::time::timeout(
                         std::time::Duration::from_secs(25),
@@ -88,12 +94,33 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     if !remaining.is_empty() {
                         eprintln!("Force-closed remaining desktop processes: {remaining:?}");
                     }
-                    crate::diagnostics::log_client_event(if matches!(stopped, Ok(Ok(()))) {
+                    // Gateway and tool trees are gone before service stop commands:
+                    // they must not restart a service during verification.
+                    let services_stopped = match service_cleanup {
+                        Ok(Ok(Some(cleanup))) => cleanup.run().await,
+                        Ok(Ok(None)) => true,
+                        Ok(Err(reason)) => {
+                            crate::diagnostics::log_client_event(&format!(
+                                "ERROR tray quit: plugin service cleanup context unavailable reason={reason}",
+                            ));
+                            false
+                        }
+                        Err(_) => {
+                            crate::diagnostics::log_client_event(
+                                "ERROR tray quit: plugin service cleanup context timed out",
+                            );
+                            false
+                        }
+                    };
+                    let _ = processes.kill_remaining();
+                    let clean_exit =
+                        coding_stopped && services_stopped && matches!(stopped, Ok(Ok(())));
+                    crate::diagnostics::log_client_event(if clean_exit {
                         "tray quit completed"
                     } else {
-                        "ERROR tray quit: backend stop failed or timed out"
+                        "ERROR tray quit: runtime or plugin service cleanup failed or timed out"
                     });
-                    app.exit(if matches!(stopped, Ok(Ok(()))) { 0 } else { 1 });
+                    app.exit(if clean_exit { 0 } else { 1 });
                 });
             }
             _ => {}

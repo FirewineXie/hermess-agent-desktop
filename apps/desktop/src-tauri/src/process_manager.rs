@@ -42,6 +42,36 @@ pub struct ProcessRegistration {
     manager: Arc<ProcessManager>,
 }
 
+impl ProcessRegistration {
+    /// Stop only this registered tree, leaving other product processes running.
+    pub async fn terminate_tree(&self) -> io::Result<()> {
+        let entry = self
+            .manager
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("进程管理器状态不可用"))?
+            .entries
+            .remove(&self.id);
+        let Some(mut entry) = entry else {
+            // The exit watcher may already have closed this tree.
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            if entry.tree.terminate_and_wait(deadline) {
+                Ok(())
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("进程树停止超时: {} {}", entry.kind, entry.pid),
+                ))
+            }
+        })
+        .await
+        .map_err(io::Error::other)?
+    }
+}
+
 impl Drop for ProcessRegistration {
     fn drop(&mut self) {
         if let Ok(mut state) = self.manager.state.lock() {
