@@ -1,5 +1,47 @@
 use super::*;
 use serde_json::json;
+
+#[cfg(windows)]
+#[test]
+#[ignore = "requires the local sealed payload and a windowless native Tauri context"]
+fn production_command_passes_only_selected_product_and_payload_stores() {
+    let isolated = crate::runtime::remote_config::tests::IsolatedRemoteConfig::new();
+    let app = &isolated.app;
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let payload = repo.join(".build/payload").canonicalize_plain().unwrap();
+    let temporary = tempfile::tempdir().unwrap();
+    let command = command(
+        app.handle(),
+        &payload.join("bin/hermes.exe"),
+        temporary.path(),
+    )
+    .unwrap();
+    let value = command
+        .as_std()
+        .get_envs()
+        .find(|(name, _)| *name == "HERMESS_PM_TOOL_ROOTS")
+        .and_then(|(_, value)| value)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let roots: Vec<std::path::PathBuf> = serde_json::from_str(value).unwrap();
+    let selected = super::super::location::selected_storage(app.handle()).unwrap();
+    assert_eq!(
+        roots,
+        vec![
+            plain_path(&selected.join("HermessAgentDesktop/hermes-home/tools")),
+            plain_path(&payload.join("tools")),
+        ]
+    );
+    assert!(roots
+        .iter()
+        .all(|root| !root.to_string_lossy().starts_with("\\\\?\\")));
+    assert!(command
+        .as_std()
+        .get_envs()
+        .all(|(name, _)| name != "HERMES_RUNTIME_DIR"));
+}
+
 #[test]
 fn session_commands_reject_invalid_modes_targets_and_budgets_before_spawn() {
     use crate::runtime::coding_command::validate;

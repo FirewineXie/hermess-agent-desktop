@@ -22,6 +22,9 @@ pub(super) fn selected_storage(app: &AppHandle) -> Result<PathBuf, String> {
             .map(|defaults| PathBuf::from(defaults.storage_path))
             .map_err(|_| "无法定位开发数据目录".into());
     }
+    if let Some(state) = app.try_state::<super::storage_settings::StorageSettingsState>() {
+        return state.selected();
+    }
     release_storage(app)
 }
 
@@ -81,7 +84,7 @@ pub(super) fn acquire_storage_lock(storage: &std::path::Path) -> Result<fs::File
     Ok(lock)
 }
 
-fn location_file(app: &AppHandle) -> Result<PathBuf, String> {
+pub(super) fn location_file(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
         .map(|dir| plain_path(&dir).join("storage-location.json"))
@@ -124,18 +127,22 @@ pub(super) fn write_storage_location(file: &Path, selected: &Path) -> Result<(),
     if !selected.is_absolute() {
         return Err("存储位置必须是绝对路径".into());
     }
+    write_location_json(
+        file,
+        &json!({"schema": 1, "storage_path": plain_path(selected).to_string_lossy()}),
+    )
+}
+
+pub(super) fn write_location_json(file: &Path, value: &Value) -> Result<(), String> {
     let parent = file.parent().ok_or("存储定位文件路径无效")?;
     fs::create_dir_all(filesystem_path(parent)).map_err(|_| "无法创建产品配置目录".to_string())?;
     let temporary = parent.join(format!("storage-location-{}.tmp", Uuid::new_v4()));
-    let bytes = serde_json::to_vec(
-        &json!({"schema": 1, "storage_path": plain_path(selected).to_string_lossy()}),
-    )
-    .map_err(|_| "无法编码存储定位文件".to_string())?;
+    let bytes = serde_json::to_vec(value).map_err(|_| "无法编码存储定位文件".to_string())?;
     fs::write(filesystem_path(&temporary), bytes)
         .map_err(|_| "无法写入存储定位文件".to_string())?;
-    if let Err(error) = fs::rename(filesystem_path(&temporary), filesystem_path(file)) {
+    if super::remote_config::replace_file(&temporary, file).is_err() {
         let _ = fs::remove_file(filesystem_path(&temporary));
-        return Err(format!("无法启用存储定位文件：{error}"));
+        return Err("无法启用存储定位文件".into());
     }
     Ok(())
 }

@@ -379,6 +379,7 @@ export const tauriDesktopApi: DesktopApi = {
   runtime: {
     devDefaults: () => invoke('dev_backend_defaults'),
     packedDefaults: () => invoke('packed_backend_defaults'),
+    storageLocation: request => invoke('storage_location_request', { request }),
     startDev: (storagePath, pythonPath) => invoke('start_dev_backend', { storagePath, pythonPath }),
     startPacked: storagePath => invoke('start_packed_backend', { storagePath }),
     ping: () => invoke('ping_backend'),

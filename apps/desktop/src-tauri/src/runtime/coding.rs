@@ -686,9 +686,9 @@ pub async fn coding_session_request(
             let snapshot =
                 coding_config::owned(&app, &Path::new("threads").join(&id).join("config.toml"))?;
             coding_config::write_bytes(&snapshot, b"")?;
-            let mut command = coding_worker::command(&hermes, &directory)?;
+            let mut command = coding_worker::command(&app, &hermes, &directory)?;
             let payload = json!({"integration":super::coding_settings::payload(&app)?, "home": plain_path(&directory), "private_root": coding_config::root(&app)?, "connection_id": config.id, "cwd": session.cwd, "model": config.model,
-                "computer_tools_roots": coding_worker::computer_tools_roots(&app, &hermes),
+                "computer_tools_roots": coding_worker::product_tools_roots(&app, &hermes),
                 "base_url": config.base_url, "effort": effort.unwrap_or(config.effort), "executable": config.executable,
                 "api_key": secret, "thread_id": session.thread_id, "text": text, "images": images.data_urls, "permissions": permissions,
                 "command":run_command, "mode":session.context.as_ref().and_then(|context| context["mode"].as_str()).unwrap_or("default")});

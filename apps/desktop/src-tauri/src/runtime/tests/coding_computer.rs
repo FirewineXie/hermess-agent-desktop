@@ -215,7 +215,7 @@ async fn run_takeover(app: tauri::AppHandle) {
         approval: None,
     }));
     let hermes = repo.join("upstream/hermes-agent/.venv/Scripts/hermes.exe");
-    let mut command = command(&hermes, &home).unwrap();
+    let mut command = command(&app, &hermes, &home).unwrap();
     let worker_stderr = root.join("worker-stderr.log");
     command.stderr(Stdio::from(fs::File::create(&worker_stderr).unwrap()));
     command.env(

@@ -88,10 +88,12 @@ pub(super) fn hermes_runtime(app: &AppHandle) -> Result<std::path::PathBuf, Desk
         .map_err(Into::into)
 }
 
-pub(super) fn computer_tools_roots(app: &AppHandle, hermes: &Path) -> Vec<std::path::PathBuf> {
+pub(super) fn product_tools_roots(app: &AppHandle, hermes: &Path) -> Vec<std::path::PathBuf> {
     let mut roots = Vec::new();
-    if let Some(storage) = super::existing_client_log_storage(app) {
-        roots.push(plain_path(&storage.join("hermes-home/tools")));
+    if let Ok(selected) = super::location::selected_storage(app) {
+        roots.push(plain_path(
+            &selected.join("HermessAgentDesktop/hermes-home/tools"),
+        ));
     }
     if let Some(payload) = hermes
         .parent()
@@ -119,7 +121,11 @@ fn worker_bootstrap() -> Result<String, DesktopFailure> {
     Ok(bootstrap)
 }
 
-pub(super) fn command(hermes: &Path, home: &Path) -> Result<Command, DesktopFailure> {
+pub(super) fn command(
+    app: &AppHandle,
+    hermes: &Path,
+    home: &Path,
+) -> Result<Command, DesktopFailure> {
     let mut command = helper_python::command(hermes, &worker_bootstrap()?)?;
     // Preserve only the helper's explicitly constructed Python import path plus OS execution essentials.
     let python_path = command
@@ -162,6 +168,11 @@ pub(super) fn command(hermes: &Path, home: &Path) -> Result<Command, DesktopFail
     }
     command
         .current_dir(home)
+        .env(
+            "HERMESS_PM_TOOL_ROOTS",
+            serde_json::to_string(&product_tools_roots(app, hermes))
+                .map_err(|_| DesktopFailure::operation_failed())?,
+        )
         .env("CODEX_HOME", home)
         .env("HERMES_HOME", home)
         .env("PYTHONIOENCODING", "utf-8")
@@ -397,6 +408,12 @@ pub(super) async fn run(
                 }
                 event = read_event(&mut reader, &mut bytes) => {
                     let event = event?.ok_or(())?;
+                    if event["kind"] == "tools_environment" {
+                        coding_config::log(&app, &format!("{}programming_tools_environment session={id} phase={} managed_path_count={}",
+                            if event["phase"] == "failed" { "ERROR " } else { "" },
+                            event["phase"].as_str().unwrap_or("unknown"), event["managed_path_count"].as_u64().unwrap_or(0)));
+                        continue;
+                    }
                     if event["kind"] == "computer_result" {
                         coding_config::log(&app, &format!("{}programming_computer_result operation={} call={} outcome={}",
                             if event["outcome"] == "completed" { "" } else { "ERROR " }, activity_connection,

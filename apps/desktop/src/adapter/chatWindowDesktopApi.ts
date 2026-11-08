@@ -11,6 +11,7 @@ export const chatWindowDesktopApi: DesktopApi = {
     ...tauriDesktopApi.runtime,
     startDev: mainWindowOnly,
     startPacked: mainWindowOnly,
+    storageLocation: mainWindowOnly,
     reconnect: mainWindowOnly,
     restartGracefully: mainWindowOnly,
     stop: mainWindowOnly,

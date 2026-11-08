@@ -68,7 +68,7 @@ async fn discover(app: &AppHandle, cwd: String, action: &str) -> Result<Value, D
             else { super::chat_create::validate_workspace_path(Some(cwd))?.ok_or_else(DesktopFailure::invalid_input)? };
         let executable = coding_runtime::executable(app)?;
         let hermes = coding_worker::hermes_runtime(app)?;
-        let mut command = coding_worker::command(&hermes, &home)?;
+        let mut command = coding_worker::command(app, &hermes, &home)?;
         let payload = json!({"integration":super::coding_settings::payload(app)?, "action":action, "home":plain_path(&home), "private_root":coding_config::root(app)?,
             "cwd":cwd, "executable":plain_path(&executable), "connection_id":"permission-discovery",
             "model":"permission-discovery", "base_url":"https://unused.invalid/v1", "effort":"medium", "api_key":"NOT_USED"});

@@ -94,6 +94,7 @@ mod retired_payload;
 pub mod security;
 pub mod session_export;
 mod session_management;
+pub mod storage_settings;
 mod system_actions;
 pub mod system_stats;
 pub mod tools;
@@ -423,6 +424,15 @@ pub async fn start_packed_backend(
 ) -> Result<BackendInfo, DesktopFailure> {
     if cfg!(debug_assertions) {
         return Err("内置运行时入口仅供打包构建使用".into());
+    }
+    if location::selected_storage(&app)?
+        .canonicalize_plain()
+        .map_err(|_| DesktopFailure::runtime_unavailable())?
+        != plain_path(Path::new(&storage_path))
+            .canonicalize_plain()
+            .map_err(|_| DesktopFailure::invalid_input())?
+    {
+        return Err(DesktopFailure::conflict());
     }
     let resource = app
         .path()

@@ -30,7 +30,7 @@ pub(super) async fn run(
             super::chat_create::validate_workspace_path(Some(cwd))?.ok_or_else(DesktopFailure::invalid_input)?
         };
         let hermes = coding_worker::hermes_runtime(app)?;
-        let mut command = coding_worker::command(&hermes, &home)?;
+        let mut command = coding_worker::command(app, &hermes, &home)?;
         let payload = json!({"action":"settings_probe", "integration":integration, "home":plain_path(&home), "private_root":coding_config::root(app)?,
             "cwd":cwd, "executable":plain_path(&coding_runtime::executable(app)?), "connection_id":"settings-probe", "model":"settings-probe",
             "base_url":"https://unused.invalid/v1", "effort":"medium", "api_key":"NOT_USED", "mcp_server":server, "mcp_login":login});

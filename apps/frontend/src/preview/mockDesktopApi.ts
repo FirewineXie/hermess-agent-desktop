@@ -138,6 +138,7 @@ export const previewDesktopApi: DesktopApi = {
   runtime: {
     async devDefaults() { return { python_path: '', storage_path: '' } },
     async packedDefaults() { return { storage_path: '', initialized: false } },
+    async storageLocation() { return { currentPath: '', pendingPath: null, enabled: false, blocked: false, error: null } },
     async startDev() { throw previewOnly() },
     async startPacked() { throw previewOnly() },
     async ping() { throw previewOnly() },

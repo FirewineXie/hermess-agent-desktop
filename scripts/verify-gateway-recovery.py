@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -186,6 +187,36 @@ def isolated_env(root: Path, storage: Path, hermes: Path) -> dict[str, str]:
     return env
 
 
+def cleanup_run(root: Path, sync: Path, process: subprocess.Popen | None,
+                model: FakeLLMServer | None) -> None:
+    try:
+        try:
+            if sync.is_dir():
+                (sync / "finish").write_text("finished", encoding="utf-8")
+        finally:
+            # Let Rust close its registered process trees before deleting data.
+            # Terminating Cargo alone could orphan its test child.
+            if process is not None and process.poll() is None:
+                try:
+                    process.wait(timeout=100)
+                except subprocess.TimeoutExpired as error:
+                    raise RuntimeError(
+                        f"Rust live test did not finish cleanup; inspect {root.relative_to(ROOT)}"
+                    ) from error
+    finally:
+        try:
+            if model is not None:
+                model.stop()
+        finally:
+            if process is None or process.poll() is not None:
+                # Delete only this run's direct child of the product build root.
+                target = root.resolve(strict=True)
+                if root.is_symlink() or target.parent != (ROOT / ".build").resolve() or not target.name.startswith("gateway-recovery-"):
+                    raise RuntimeError("Refusing to remove an unexpected Gateway test directory")
+                shutil.rmtree(target)
+                print(f"Gateway test directory removed: {root.relative_to(ROOT)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hermes", type=Path, default=Path(sys.executable).with_name("hermes.exe" if os.name == "nt" else "hermes"))
@@ -200,36 +231,37 @@ def main() -> None:
                                    text=True, creationflags=subprocess.CREATE_NO_WINDOW).strip()
     assert head == lock["commit"], "Gateway source does not match the product lock"
     root = Path(tempfile.mkdtemp(prefix="gateway-recovery-", dir=ROOT / ".build"))
-    storage = root / "HermessAgentDesktop"
-    home = storage / "hermes-home"
-    (storage / "control").mkdir(parents=True)
     sync = root / "sync"
-    sync.mkdir()
-    env = isolated_env(root, storage, hermes)
-    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    model = FakeLLMServer(default_text="RECOVERY_NO_DUPLICATE_SUBMISSION")
-    model.start()
-    write_hermes_home(home, model.base_url, extra_config=(
-        "gateway:\n  multiplex_profiles: false\n"
-        "terminal:\n  backend: local\n  local_persistent: false\n"
-        "platform_toolsets:\n  cli: [terminal]\n"
-        "auxiliary:\n  title_generation:\n    enabled: false\n"
-        "approvals:\n  mode: 'off'\n"
-    ))
-    # Windows service names are host-wide. Refuse even the test if this unique
-    # temporary Home would resolve to a registered task or the bare service.
-    service_check = (
-        "from hermes_cli.gateway import _profile_suffix; "
-        "from hermes_cli.gateway_windows import is_task_registered; "
-        "assert _profile_suffix(), 'test Home resolved to default service'; "
-        "assert not is_task_registered(), 'test Home already has a Windows task'"
-    )
-    subprocess.run([sys.executable, "-c", service_check], cwd=UPSTREAM, env=env,
-                   check=True, capture_output=True, creationflags=flags, timeout=20)
-    command = ["cargo", "test", "--manifest-path", str(ROOT / "apps/desktop/src-tauri/Cargo.toml"),
-               "--locked", "gateway_recovery_live", "--", "--ignored", "--nocapture"]
     process = None
+    model = None
     try:
+        storage = root / "HermessAgentDesktop"
+        home = storage / "hermes-home"
+        (storage / "control").mkdir(parents=True)
+        sync.mkdir()
+        env = isolated_env(root, storage, hermes)
+        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        model = FakeLLMServer(default_text="RECOVERY_NO_DUPLICATE_SUBMISSION")
+        model.start()
+        write_hermes_home(home, model.base_url, extra_config=(
+            "gateway:\n  multiplex_profiles: false\n"
+            "terminal:\n  backend: local\n  local_persistent: false\n"
+            "platform_toolsets:\n  cli: [terminal]\n"
+            "auxiliary:\n  title_generation:\n    enabled: false\n"
+            "approvals:\n  mode: 'off'\n"
+        ))
+        # Windows service names are host-wide. Refuse even the test if this unique
+        # temporary Home would resolve to a registered task or the bare service.
+        service_check = (
+            "from hermes_cli.gateway import _profile_suffix; "
+            "from hermes_cli.gateway_windows import is_task_registered; "
+            "assert _profile_suffix(), 'test Home resolved to default service'; "
+            "assert not is_task_registered(), 'test Home already has a Windows task'"
+        )
+        subprocess.run([sys.executable, "-c", service_check], cwd=UPSTREAM, env=env,
+                       check=True, capture_output=True, creationflags=flags, timeout=20)
+        command = ["cargo", "test", "--manifest-path", str(ROOT / "apps/desktop/src-tauri/Cargo.toml"),
+                   "--locked", "gateway_recovery_live", "--", "--ignored", "--nocapture"]
         with (root / "rust-test.log").open("wb") as log:
             process = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
                                        stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
@@ -255,20 +287,13 @@ def main() -> None:
                      for r in model.main_requests()]
             assert texts.count("WARM_HISTORY") == 1 and texts.count("RESTART_VIA_TERMINAL") == 2, texts
             assert texts.count("RESTART_VIA_POWERSHELL") == 1, texts
-            print(json.dumps({"platform": sys.platform, "terminal_restart_blocked": True,
+            report = {"platform": sys.platform, "terminal_restart_blocked": True,
                               "powershell_exit_0_auto_recovered": True, "supervised_exit_75_manual_recovered": True,
                               "new_tickets_and_history": True, "duplicate_input": False,
-                              "evidence": str(root.relative_to(ROOT))}))
+                              "temporary_directory_removed": True}
     finally:
-        # Let Rust's owner close its registered trees, including on a failed
-        # Python assertion. Terminating Cargo alone could orphan its test child.
-        (sync / "finish").write_text("finished", encoding="utf-8")
-        if process is not None and process.poll() is None:
-            try:
-                process.wait(timeout=100)
-            except subprocess.TimeoutExpired:
-                raise RuntimeError(f"Rust live test did not finish cleanup; inspect {root.relative_to(ROOT)}")
-        model.stop()
+        cleanup_run(root, sync, process, model)
+    print(json.dumps(report))
 
 
 if __name__ == "__main__":

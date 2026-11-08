@@ -2,6 +2,7 @@ import React from 'react'
 import type { ProfilesSnapshot } from '@hermess/contracts'
 import { useLanguage, changeLanguage, translateApp, type Language } from '../../i18n'
 import { displayPath } from '../../shared/displayPath'
+import StorageLocationSettings from './StorageLocationSettings'
 import WebviewCacheSettings from './WebviewCacheSettings'
 import HostSystemStats from './HostSystemStats'
 import RuntimeBackup from './RuntimeBackup'
@@ -47,9 +48,11 @@ export default function RuntimeView({ page, storagePath, onStoragePathChange: se
         {gatewayTopologyRows(profiles).map(row => <div className="runtime-topology-row" key={row.owner}><strong>{t('ui.runtime.gateway.owner', row.owner)}</strong><p>{row.served.join(' · ')}</p></div>)}
         {profiles?.reason && <p className="runtime-topology-reason" role="status">{profiles.reason}</p>}
       </section>}
-      <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
-      {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
-      {storageLocked && <small>{t("ui.the.storage.location.has.been.saved.automatic.relocation.is.not.available.i")}</small>}
+      {import.meta.env.DEV ? <>
+        {backend && backend.pid > 0 && <small role="status">{language === 'zh-CN' ? '请先在上方运行时控制中停止本地 Gateway，再更改存储位置。' : 'Stop the local gateway using the runtime controls above before changing the storage location.'}</small>}
+        <label>{t("ui.primary.storage.location")}<input value={displayPath(storagePath)} disabled={storageLocked || !!backend} onChange={event => setStoragePath(event.target.value)} /></label>
+        {!storageLocked && <button disabled={busy || !!backend} onClick={() => void chooseStoragePath()}>{t("ui.select.directory")}</button>}
+      </> : <StorageLocationSettings gatewayRunning={Boolean(backend && backend.pid > 0)} />}
       <WebviewCacheSettings />
     </>}
     {page === 'runtime-status' && <HostSystemStats connected={connected} />}

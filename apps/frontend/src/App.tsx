@@ -34,6 +34,7 @@ import { useProgrammingController } from './features/programming/useProgrammingC
 import type { SettingsPage } from './features/settings/model'
 import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
+import StorageLocationSettings from './features/runtime/StorageLocationSettings'
 import DiagnosticsView from './features/runtime/DiagnosticsView'
 import ShellHooksSettings from './features/runtime/ShellHooksSettings'
 import CuratorSettings from './features/runtime/CuratorSettings'
@@ -632,10 +633,16 @@ function App() {
   const language = useLanguage()
   const [gateway, setGateway] = React.useState<ActiveGateway | null>(null)
   const [switchError, setSwitchError] = React.useState('')
+  const [storageBlocked, setStorageBlocked] = React.useState(false)
   React.useEffect(() => {
     let live = true
-    void runtime.activeGateway().then(value => { if (live) setGateway(value) })
-      .catch(error => { if (live) { setSwitchError(describeError(error, language)); setGateway({ mode: 'local' }) } })
+    void Promise.all([runtime.activeGateway().catch(error => {
+      if (live) setSwitchError(describeError(error, language))
+      return { mode: 'local' } as ActiveGateway
+    }), runtime.storageLocation({ action: 'get' })]).then(([value, storage]) => {
+      if (live) { setStorageBlocked(storage.blocked); setGateway(value) }
+    })
+      .catch(error => { if (live) { setSwitchError(describeError(error, language)); setStorageBlocked(true); setGateway({ mode: 'local' }) } })
     return () => { live = false }
   }, [runtime, language])
   const switchRemote = async () => {
@@ -653,7 +660,7 @@ function App() {
     catch (error) { setSwitchError(describeError(error, language)); return false }
   }
   return <>
-    {gateway ? <WorkspaceApp key={gateway.mode === 'remote' ? `remote:${gateway.replay_epoch}` : 'local'} gateway={gateway} onRemote={switchRemote} onLocal={switchLocal} />
+    {storageBlocked ? <div className="app-shell"><main className="settings-panel"><StorageLocationSettings /></main></div> : gateway ? <WorkspaceApp key={gateway.mode === 'remote' ? `remote:${gateway.replay_epoch}` : 'local'} gateway={gateway} onRemote={switchRemote} onLocal={switchLocal} />
       : <div className="app-shell"><div className="chat-gate" role="status">{language === 'zh-CN' ? '正在读取 Gateway 连接…' : 'Loading gateway connection…'}</div></div>}
     {switchError && <div className="gateway-switch-error" role="alert">{switchError}<button type="button" onClick={() => setSwitchError('')}>×</button></div>}
   </>

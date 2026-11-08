@@ -76,7 +76,6 @@ fn main() {
         .manage(panel_terminal::TerminalState::default())
         .manage(updates::UpdateDownloadState::default())
         .setup(|app| {
-            runtime::coding::start_config_audit(app.handle().clone());
             if let Some(storage) =
                 runtime::existing_client_log_storage(app.handle()).or_else(|| {
                     app.path()
@@ -87,6 +86,11 @@ fn main() {
             {
                 diagnostics::set_client_log_storage(storage);
             }
+            runtime::storage_settings::initialize(app.handle())?;
+            if let Some(storage) = runtime::existing_client_log_storage(app.handle()) {
+                diagnostics::set_client_log_storage(storage);
+            }
+            runtime::coding::start_config_audit(app.handle().clone());
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
             device::setup(app.handle())?;
@@ -145,6 +149,7 @@ fn main() {
             runtime::dev_backend_defaults,
             runtime::start_dev_backend,
             runtime::packed_backend_defaults,
+            runtime::storage_settings::storage_location_request,
             runtime::start_packed_backend,
             runtime::ping_backend,
             runtime::reconnect_backend,

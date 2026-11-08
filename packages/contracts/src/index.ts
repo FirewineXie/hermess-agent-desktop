@@ -522,6 +522,7 @@ export interface DesktopApi {
   runtime: {
     devDefaults(): Promise<DevDefaults>
     packedDefaults(): Promise<PackedDefaults>
+    storageLocation(request: StorageLocationAction): Promise<StorageLocationSettings>
     startDev(storagePath: string, pythonPath: string): Promise<BackendInfo>
     startPacked(storagePath: string): Promise<BackendInfo>
     ping(): Promise<void>
@@ -690,4 +691,14 @@ export interface DesktopApi {
     save(defaultPath: string): Promise<string | null>
     onDrop(handler: (event: NativeDropEvent) => void): Promise<Unsubscribe>
   }
+}
+
+/** Local product data selection; saving never changes this process's active root. */
+export type StorageLocationAction = { action: 'get' | 'cancel' | 'retry' } | { action: 'save'; path: string }
+export type StorageLocationSettings = {
+  currentPath: string
+  pendingPath: string | null
+  enabled: boolean
+  blocked: boolean
+  error: string | null
 }

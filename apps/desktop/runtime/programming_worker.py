@@ -11,6 +11,40 @@ import tomllib
 import uuid
 from pathlib import Path
 
+
+def prepare_pm_tools(roots):
+    """Discover installed product tools only; never activate Hermes's dependency venv."""
+    from pm import store_first_path, uv_launcher
+
+    previous = os.environ.get("HERMES_RUNTIME_DIR")
+    managed = ""
+    try:
+        # PM's writable fallback is the isolated session home, never personal ~/.hermes.
+        # Keep the writable product store ahead of the sealed payload store.
+        for root in reversed(roots):
+            path = Path(root)
+            if not path.is_absolute():
+                raise ValueError("Product PM store must be absolute")
+            os.environ["HERMES_RUNTIME_DIR"] = str(path)
+            managed = store_first_path(managed)
+            # PM keeps uv off its global application PATH. Coding tasks also need
+            # uv/uvx; resolve the installed launcher without installing a package.
+            uv = uv_launcher("uv")
+            if uv is not None:
+                managed = os.pathsep.join([str(uv.parent), managed]) if managed else str(uv.parent)
+    finally:
+        if previous is None:
+            os.environ.pop("HERMES_RUNTIME_DIR", None)
+        else:
+            os.environ["HERMES_RUNTIME_DIR"] = previous
+    directories = list(dict.fromkeys(part for part in managed.split(os.pathsep) if part))
+    original = os.environ.get("PATH", "")
+    selected = {os.path.normcase(part) for part in directories}
+    remaining = [part for part in original.split(os.pathsep) if part and os.path.normcase(part) not in selected]
+    if directories:
+        os.environ["PATH"] = os.pathsep.join([*directories, *remaining])
+    return len(directories)
+
 if "run_session_command" not in globals():
     # Source-mode tests load the same helper embedded by the native adapter.
     exec(compile(Path(__file__).with_name("programming_session_commands.py").read_text(encoding="utf-8"),
@@ -602,6 +636,13 @@ def main():
                 emit(tool)
 
     try:
+        emit({"kind": "tools_environment", "phase": "started"})
+        try:
+            managed_count = prepare_pm_tools(json.loads(os.environ.pop("HERMESS_PM_TOOL_ROOTS", "[]")))
+        except Exception:
+            emit({"kind": "tools_environment", "phase": "failed"})
+            raise
+        emit({"kind": "tools_environment", "phase": "completed", "managed_path_count": managed_count})
         provider_id, provider, overrides = launch_policy(initial)
     except (OSError, ValueError, TypeError, RuntimeError):
         emit({"kind": "result", "text": "", "interrupted": False, "failed": True, "reason": "configuration_rejected"})

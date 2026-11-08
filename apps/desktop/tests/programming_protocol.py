@@ -31,7 +31,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--codex", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
+    parser.add_argument("--tools-root", type=Path, action="append", default=[],
+                        help="Product PM stores to verify by actual sandboxed tool execution")
+    parser.add_argument("--tools-only", action="store_true", help="Stop after actual tool and isolation checks")
     args = parser.parse_args()
+    if args.tools_only and not args.tools_root:
+        parser.error("--tools-only requires --tools-root")
     repo = Path(__file__).resolve().parents[3]
     worker = load_worker(repo)
     requests = []
@@ -136,6 +141,10 @@ def main():
                 "if [ -n \"$HERMESS_PROGRAMMING_KEY\" ]; then echo CREDENTIAL_LEAK; else echo ENV_ISOLATED; fi; " + \
                 "if cat " + shlex.quote(str(vault / "master.key")) + " >/dev/null 2>&1; then echo VAULT_READ_ALLOWED; else echo VAULT_READ_DENIED; fi; " + \
                 "if cat " + shlex.quote(str(personal_config)) + " >/dev/null 2>&1; then echo PERSONAL_READ_ALLOWED; else echo PERSONAL_READ_DENIED; fi"
+        if args.tools_root:
+            probe = "import json,sys,shutil;print('PM_TOOLS='+json.dumps({'python':sys.executable,'python_version':sys.version.split()[0],'node':shutil.which('node'),'npm':shutil.which('npm.cmd' if sys.platform=='win32' else 'npm'),'uv':shutil.which('uv')}))"
+            command_to_run += '; python -c "' + probe + '"; node -p "process.execPath"; node --version; '
+            command_to_run += ('npm.cmd' if os.name == 'nt' else 'npm') + ' --version; uv --version'
         initial = {"home": str(home), "private_root": str(root / "private"), "cwd": str(cwd),
                    "base_url": f"http://127.0.0.1:{server.server_port}/v1", "model": "gpt-5.2-codex",
                    "effort": "medium", "executable": str(args.codex.resolve()), "api_key": "TEST_ONLY_PROGRAMMING_KEY",
@@ -150,6 +159,7 @@ def main():
         env = {key: os.environ[key] for key in ("PATH", "SystemRoot", "SystemDrive", "WINDIR", "TEMP", "TMP", "HOME", "USERPROFILE") if key in os.environ}
         env.update(CODEX_HOME=str(home), CODEX_SQLITE_HOME=str(home), HERMES_HOME=str(home),
                    PYTHONPATH=str(repo / "upstream/hermes-agent"), PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+        env["HERMESS_PM_TOOL_ROOTS"] = json.dumps([str(root.resolve()) for root in args.tools_root])
         (home / "local-appdata").mkdir()
         env["LOCALAPPDATA"] = str(home / "local-appdata")
         env["HOME"] = str(personal)
@@ -280,6 +290,28 @@ def main():
         assert "TEST_ONLY_MASTER_CONTENT" not in tool_output
         assert "TEST_ONLY_PROGRAMMING_KEY" not in tool_output
         print("PASS actual tool file write, filtered environment, denied vault read")
+        if args.tools_root:
+            # Expected entries come from PM facts; observed paths and versions come from Codex's actual shell.
+            observed_output = '\n'.join(item.get('output', '') for item in requests[1]['input']
+                                        if item.get('type') == 'function_call_output')
+            observed = json.loads(next(line.removeprefix('PM_TOOLS=') for line in observed_output.splitlines()
+                                       if line.startswith('PM_TOOLS=')))
+            for name in ('python', 'node', 'npm', 'uv'):
+                for store in args.tools_root:
+                    facts_path = store / 'facts.json'
+                    facts = json.loads(facts_path.read_text(encoding='utf-8')) if facts_path.is_file() else {}
+                    fact = facts.get('packages', {}).get(name)
+                    if fact and 'entry' in fact:
+                        entry = str((store / fact['entry']).resolve()).replace('\\', '/')
+                        assert observed[name] and Path(observed[name]).resolve().is_relative_to(Path(entry)), (name, observed)
+                        assert fact['version'].split('+')[0] in observed_output, (name, observed_output)
+                        print('PASS actual Codex tool', name, 'version=' + fact['version'], 'entry=' + entry)
+                        break
+                else:
+                    raise AssertionError('No installed product PM record for ' + name)
+            if args.tools_only:
+                server.shutdown()
+                return
         expected_key = "ROTATED_TEST_ONLY_PROGRAMMING_KEY"
         assert turn({**initial, "api_key": expected_key, "thread_id": thread_id, "text": "Continue."}) == thread_id
         assert len(requests) == 3

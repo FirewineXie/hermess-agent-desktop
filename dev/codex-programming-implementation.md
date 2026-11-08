@@ -4,6 +4,8 @@
 
 目标保持为：用户能通过编程模式在选定项目中执行编程任务；运行时从 GitHub 固定 tag 按需下载，默认安装包不内置。范围和隔离要求见 [接入方案](codex-app-server-integration-plan.md)。
 
+2026-11-08 PM 工具复用：Rust 生产启动器将当前产品数据根和 payload 的工具目录以私有 Worker 环境变量传入；Worker 在独立 HOME/HERMES_HOME 建立后消费并移除该变量，按锁定 PM 安装记录调用 `store_first_path`，另用 `uv_launcher` 暴露 PM 默认不加入应用 PATH 的 uv/uvx。不调用安装/激活接口，不把 Hermes 依赖虚拟环境或 PM 重定向变量传给 Codex 工具。Windows 使用真实 Codex 0.167.0 和生产 Worker 对本地合成 Responses 模型执行 Python/Node/npm/uv，实际路径及版本均匹配产品工具记录；完整协议回归同时验证线程恢复、权限/技能发现、审批、凭据过滤和个人配置拒读。测试入口为 `apps/desktop/tests/programming_protocol.py` 的可重复 `--tools-root` 参数（产品可写目录在前、payload 目录在后）；5 项真实 PM 合成记录测试位于 `apps/desktop/tests/test_programming_tools.py`。无窗口 Tauri 专项核对生产命令实际传入的产品目录、payload 目录及普通 Windows 路径。macOS 原生执行和真实在线模型尚未验收。
+
 ## 已落地代码
 
 - 2026-11-08：编程数据改为复用产品存储位置，目录为 `<选定位置>/HermessAgentDesktop/programming`，与 `hermes-home` 并排；配置、加密连接与密钥、项目、会话、线程、日志、技能及下载运行时均沿用该统一根目录。发行版读取已有存储选择，未选择时默认应用本地数据目录；开发态与 Gateway 默认目录及 `HERMESS_DEV_STORAGE` 保持一致。目录定位不依赖 Gateway 进程，拒绝相对路径、文件父目录和符号链接/Windows junction，并保持普通 Windows 路径。用户明确无需兼容开发期旧数据，因此不读取、迁移或删除旧应用配置目录中的 `programming`；新位置需重新配置并下载运行时。Windows 已通过 Rust 格式、编译和全量测试（296 通过、53 按环境条件忽略），新增目录专项 5 项覆盖未初始化目录、相对路径/文件父目录拒绝、普通 Win32 路径、发行默认/自定义位置，以及新目录加密配置读写且不读取或改写旧数据；架构、共享契约与生成契约检查通过。未改跨层协议或 Hermes fork；macOS 原生、Windows 原生窗口和安装包未验收。
