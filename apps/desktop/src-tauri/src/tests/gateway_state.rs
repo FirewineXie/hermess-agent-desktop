@@ -192,6 +192,7 @@ async fn closing_an_old_gateway_releases_an_inflight_rpc() {
         task,
         events_enabled: Arc::new(AtomicBool::new(true)),
         replay_epoch: String::new(),
+        activity: None,
     });
     let waiting = {
         let gateway = Arc::clone(&gateway);
@@ -220,6 +221,7 @@ async fn closing_an_old_gateway_releases_an_inflight_answer() {
         task,
         events_enabled: Arc::new(AtomicBool::new(true)),
         replay_epoch: String::new(),
+        activity: None,
     });
     let waiting = {
         let gateway = Arc::clone(&gateway);

@@ -4,6 +4,7 @@ use crate::paths::plain_path;
 use tauri::Manager;
 
 mod chat_windows;
+mod computer_activity;
 mod device;
 mod device_power;
 mod diagnostics;
@@ -47,17 +48,22 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        quick_input::show(app);
+                        if !computer_activity::handle_shortcut(app, shortcut) {
+                            quick_input::show(app);
+                        }
                     }
                 })
                 .build(),
         )
         .manage(device::DeviceState::default())
+        .manage(computer_activity::ComputerActivityState::default())
         .manage(quick_input::QuickState::default())
         .manage(chat_windows::ChatWindowState::default())
         .manage(runtime::BackendState::default())
+        .manage(runtime::coding::CodingState::default())
+        .manage(runtime::coding_runtime::CodingRuntimeState::default())
         .manage(runtime::media::MediaResources::default())
         .manage(runtime::dashboard_plugins::DashboardPluginSockets::default())
         .manage(runtime::console_socket::ConsoleSockets::default())
@@ -70,6 +76,7 @@ fn main() {
         .manage(panel_terminal::TerminalState::default())
         .manage(updates::UpdateDownloadState::default())
         .setup(|app| {
+            runtime::coding::start_config_audit(app.handle().clone());
             if let Some(storage) =
                 runtime::existing_client_log_storage(app.handle()).or_else(|| {
                     app.path()
@@ -83,6 +90,7 @@ fn main() {
             process_manager::ProcessManager::init()?;
             tray::setup(app)?;
             device::setup(app.handle())?;
+            computer_activity::setup(app.handle());
             webview_cache::start(app.handle().clone());
             Ok(())
         })
@@ -91,9 +99,18 @@ fn main() {
                 runtime::media::release_window(window.app_handle(), window.label());
             }
             tray::on_window_event(window, event);
+            computer_activity::on_window_event(window, event);
             chat_windows::on_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            computer_activity::get_computer_activity,
+            computer_activity::stop_computer_activity,
+            runtime::coding::get_coding_config,
+            runtime::coding_providers::coding_provider_request,
+            runtime::coding_runtime::get_coding_runtime,
+            runtime::coding_runtime::install_coding_runtime,
+            runtime::coding::save_coding_config,
+            runtime::coding::coding_session_request,
             device::get_device_status,
             device::save_device_preferences,
             quick_input::set_quick_target,

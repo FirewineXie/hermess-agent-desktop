@@ -22,6 +22,9 @@ impl IsolatedRemoteConfig {
             .build(context)
             .expect("isolated windowless Tauri app");
         app.manage(crate::runtime::BackendState::default());
+        app.manage(crate::runtime::location::TestStorageSelection(plain_path(
+            &app.path().app_local_data_dir().unwrap(),
+        )));
         let mut roots = vec![
             plain_path(&app.path().app_config_dir().unwrap()),
             plain_path(&app.path().app_data_dir().unwrap()),

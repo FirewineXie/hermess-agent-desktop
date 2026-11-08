@@ -154,6 +154,8 @@
   "ui.channels.weixin.scan": "使用微信扫码并在手机上确认",
   "ui.channels.qr.alt": "渠道接入二维码",
   "ui.channels.waiting": "等待扫码…",
+  "ui.channels.authorized": "授权已确认，无需再次扫码。",
+  "ui.channels.saving": "授权成功，正在保存配置…",
   "ui.channels.scanned": "已扫码，请在手机上确认…",
   "ui.channels.expired": "二维码已过期，请重新扫码。",
   "ui.channels.connected": "渠道已接入，网关已重启。",

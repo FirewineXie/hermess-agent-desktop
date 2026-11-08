@@ -18,6 +18,9 @@ serde_yaml = "0.9"
 uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 tar = "0.4"
+flate2 = "1"
+toml = "1.1"
+toml_edit = "0.25"
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "multipart", "rustls"] }
 tauri-plugin-dialog = "2"
 chrono = "0.4"
@@ -31,7 +34,7 @@ tauri-plugin-global-shortcut = "2"
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native", "apple-native"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Power", "Win32_System_Pipes", "Win32_System_Diagnostics_ToolHelp"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Power", "Win32_System_Pipes", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
 windows = "0.62.2"
 windows-registry = "0.6.0"
 webview2-com = "0.39.1"
@@ -45,6 +48,9 @@ objc2-web-kit = { version = "0.3.2", features = ["WKWebView", "WKWebViewConfigur
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3.27"
 
 [profile.release]
 strip = "symbols"

@@ -1,0 +1,22 @@
+.programming-configuration { max-width: 1000px; }
+.programming-settings-root { min-width: 0; margin: 0; padding: 0; border: 0; }
+.programming-settings-fieldset { min-width: 0; margin: 18px 0; padding: 18px; border: 1px solid var(--settings-line, #e3e8ef); border-radius: 10px; }
+.programming-settings-fieldset legend { padding: 0 7px; font-weight: 600; font-size: 14px; }
+.programming-settings-fields { display: grid; gap: 18px; margin: 18px 0; }
+.programming-settings-fields > label, .programming-settings-fieldset > label { display: flex; flex-direction: column; gap: 8px; color: var(--settings-ink, #34445a); font-size: 14px; }
+.programming-settings textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 88px; resize: vertical; border: 1px solid var(--settings-line, #dce2e9); border-radius: 8px; padding: 10px 12px; background: #fff; color: #20242d; font: inherit; line-height: 1.6; }
+.programming-settings .programming-settings-code { min-height: 240px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.programming-settings-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.programming-settings input[type=checkbox] { width: 16px; height: 16px; flex: none; accent-color: #315f96; }
+.programming-settings .programming-settings-fields > .programming-settings-check { flex-direction: row; }
+.programming-settings .programming-permission-form > .programming-settings-check { flex-direction: row; align-items: center; }
+.programming-settings-path { overflow-wrap: anywhere; }
+.programming-configuration > button { margin-top: 16px; }
+.programming-configuration .programming-provider-actions { margin-top: 16px; }
+.programming-configuration button:disabled { opacity: .5; cursor: not-allowed; }
+:root[data-color-theme='dark'] .programming-settings textarea { color: var(--dark-text); background: var(--dark-bg); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .programming-settings-fields > label,
+:root[data-color-theme='dark'] .programming-settings-fieldset > label { color: var(--dark-text); }
+:root[data-color-theme='dark'] .programming-settings-fieldset { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .programming-configuration button:not(.programming-primary) { color: var(--dark-text); background: var(--dark-hover); border-color: var(--dark-border); }
+.programming-settings textarea:focus-visible { outline: 2px solid #5a84b9; outline-offset: 2px; }

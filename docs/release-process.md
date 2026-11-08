@@ -59,6 +59,8 @@ Release 附件在公开仓库的 Releases 页面查看。预发布仅表示构�
 
 「关于」页面内嵌 `legal/hermes-agent-LICENSE`；CI 和 tag 构建从锁定上游检出后运行 `pnpm check:legal`，要求它与上游许可证逐字节一致。更新通道规则见 [关于与软件更新](about-and-updates.md)。客户端可匿名检查公开 GitHub Release，并下载、校验 Windows 或 macOS 安装包；当前不执行自动安装。公开版本原则上不覆盖同 tag 附件，避免同一版本号指向不同字节的安装包；本次 `v0.1.6` 的明确重新发行须在 Release 说明中告知旧附件撤换和重新校验要求。
 
+编程 App Server 不随默认安装包分发，客户端按 `runtime/codex.lock.json` 中的固定 GitHub tag、平台资源和 SHA-256 下载到产品私有目录。`build-offline-runtime.py` 在生成归档或调用打包工具前检查 payload：发现 Codex 可执行文件或锁定的平台下载归档即拒绝打包；Hermes 的 Python 接入源码不受此限制。该检查在 Windows、macOS 和 Linux 共用打包入口执行，不替代各平台实际安装包内容与安装升级验收。
+
 ## 当前限制
 
 - macOS 暂采用临时签名，未配置 Apple Developer 正式签名与公证；Windows 也未配置签名证书。

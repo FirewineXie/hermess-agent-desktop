@@ -14,5 +14,6 @@ pub(crate) fn idle_gateway(epoch: &str) -> Arc<GatewayClient> {
         task,
         events_enabled: Arc::new(AtomicBool::new(false)),
         replay_epoch: epoch.to_owned(),
+        activity: None,
     })
 }

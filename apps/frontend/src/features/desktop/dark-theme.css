@@ -115,6 +115,56 @@
 :root[data-color-theme='dark'] .context-ring-track { stroke: var(--dark-border); }
 :root[data-color-theme='dark'] .composer li { background: var(--dark-hover); }
 
+/* Chat reasoning, tool activity and subagents share the existing dark surfaces. */
+:root[data-color-theme='dark'] .reasoning-block,
+:root[data-color-theme='dark'] .tool-step-detail {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .reasoning-heading,
+:root[data-color-theme='dark'] .tool-activity,
+:root[data-color-theme='dark'] .tool-step,
+:root[data-color-theme='dark'] .tool-step summary small,
+:root[data-color-theme='dark'] .tool-step-chevron,
+:root[data-color-theme='dark'] .tool-activity-chevron,
+:root[data-color-theme='dark'] .tool-step-detail > div,
+:root[data-color-theme='dark'] .chat-workspace { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .chat-workspace strong { color: var(--dark-text); }
+:root[data-color-theme='dark'] .chat-panel .chat-workspace button {
+  color: var(--dark-text);
+  background: var(--dark-surface);
+}
+:root[data-color-theme='dark'] .tool-step > summary:hover {
+  color: var(--dark-text);
+  background: var(--dark-hover);
+}
+:root[data-color-theme='dark'] .reasoning-block > summary:focus-visible {
+  outline-color: #8bb7ff;
+}
+:root[data-color-theme='dark'] .subagent-panel {
+  --text-color: var(--dark-text);
+  --muted-text: var(--dark-muted);
+  --surface-strong: var(--dark-hover);
+  color: var(--dark-text);
+}
+:root[data-color-theme='dark'] .tool-step-error,
+:root[data-color-theme='dark'] .subagent-body .subagent-error { color: #efa5aa; }
+
+/* Both chat modes render Markdown through the same component. */
+:root[data-color-theme='dark'] .markdown-body :not(pre) > code {
+  color: #c6d5e8;
+  background: var(--dark-hover);
+}
+:root[data-color-theme='dark'] .markdown-code-block {
+  background: var(--dark-surface);
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .chat-panel .markdown-copy {
+  color: var(--dark-text);
+  background: var(--dark-hover);
+}
+
 /* Settings categories reuse cards from older screens with literal light colors. */
 :root[data-color-theme='dark'] .unified-settings :is(
   .provider-card, .provider-add-form, .provider-model-row, .provider-model-preview-row,

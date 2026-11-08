@@ -310,6 +310,7 @@ async fn recover(
                 &backend.storage,
                 &format!("gateway_recovery_cleanup_completed operation={operation} pid={pid}"),
             );
+            backend.gateway.confirm_process_stopped();
         }
         // Reap our registration before relaunching. A lock or matching port alone
         // never authorizes attaching to a replacement PID created by somebody else.
@@ -357,10 +358,11 @@ async fn reconnect_owned(
     }
     let ticket = mint_gateway_ticket(&home, &endpoint, pid).await?;
     let replacement = Arc::new(
-        GatewayClient::connect(port, &ticket, app)
+        GatewayClient::connect(port, &ticket, app, &home)
             .await
             .map_err(|_| DesktopFailure::connection_lost())?,
     );
+    replacement.inherit_activity(&backend.gateway);
     std::mem::replace(&mut backend.gateway, replacement).close();
     backend.port = port;
     backend.endpoint = endpoint;
@@ -398,6 +400,10 @@ pub(super) async fn launch_owned(
     let storage_lock = acquire_storage_lock(&storage)?;
     crate::diagnostics::set_client_log_storage(storage.clone());
     #[cfg(windows)]
+    if disable_lazy_installs {
+        super::first_run_install::ensure(&hermes, &storage).await?;
+    }
+    #[cfg(windows)]
     {
         let _ = append_client_event(&storage, "powershell_tool_install_start");
         if let Err(error) = powershell_tool::install(&storage) {
@@ -431,7 +437,7 @@ pub(super) async fn launch_owned(
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let gateway_home = storage.join("hermes-home");
     let ticket = mint_gateway_ticket(&gateway_home, &endpoint, pid).await?;
-    let gateway = Arc::new(GatewayClient::connect(port, &ticket, app).await?);
+    let gateway = Arc::new(GatewayClient::connect(port, &ticket, app, &gateway_home).await?);
     let selected_profile =
         profiles::restore_selected_profile(&storage, &gateway, child.id(), port, &token).await;
     let replay_epoch = gateway.replay_epoch.clone();

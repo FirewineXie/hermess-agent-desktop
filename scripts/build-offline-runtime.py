@@ -13,6 +13,16 @@ import sys
 import tarfile
 
 
+def verify_optional_runtime_excluded(payload: Path, product: Path) -> None:
+    """Programming binaries are acquired by the client, never shipped in its payload."""
+    runtime_lock = json.loads((product / "runtime" / "codex.lock.json").read_text(encoding="utf-8"))
+    excluded = {"codex", "codex.exe", "codex-app-server", "codex-app-server.exe"}
+    excluded.update(asset["name"].casefold() for asset in runtime_lock["assets"].values())
+    for path in payload.rglob("*"):
+        if path.name.casefold() in excluded and (path.is_file() or path.is_symlink()):
+            raise RuntimeError(f"programming runtime must not be bundled: {path.relative_to(payload).as_posix()}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--payload", required=True, type=Path)
@@ -23,6 +33,7 @@ def main() -> None:
     payload = args.payload.resolve(strict=True)
     if not payload.is_relative_to(build):
         parser.error("payload must be prepared under the product .build directory")
+    verify_optional_runtime_excluded(payload, product)
     lock = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))
     manifest = json.loads((payload / "manifest.json").read_text(encoding="utf-8"))
     upstream = product / "upstream" / "hermes-agent"

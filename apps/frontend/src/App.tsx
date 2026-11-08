@@ -23,6 +23,14 @@ import MoaSettings from './features/models/MoaSettings'
 import ModelRouteSettings from './features/agent-settings/ModelRouteSettings'
 import MemoryContextSettings from './features/agent-settings/MemoryContextSettings'
 import SettingsView from './features/settings/SettingsView'
+import ProgrammingSettings from './features/programming/ProgrammingSettings'
+import ProgrammingPermissionSettings from './features/programming/ProgrammingPermissionSettings'
+import ProgrammingConfiguration from './features/programming/ProgrammingConfiguration'
+import ProgrammingChat from './features/programming/ProgrammingChat'
+import ProgrammingSessions from './features/programming/ProgrammingSessions'
+import ProgrammingConfigFile from './features/programming/ProgrammingConfigFile'
+import ProgrammingArchives from './features/programming/ProgrammingArchives'
+import { useProgrammingController } from './features/programming/useProgrammingController'
 import type { SettingsPage } from './features/settings/model'
 import { useModelController } from './features/models/useModelController'
 import RuntimeView from './features/runtime/RuntimeView'
@@ -90,6 +98,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   const [activeDashboardPlugin, setActiveDashboardPlugin] = React.useState<string | null>(null)
   const [dashboardRouteRequest, setDashboardRouteRequest] = React.useState<string | null>(() => normalizeDashboardRoute(window.location.pathname))
   const [settingsPage, setSettingsPage] = React.useState<SettingsPage>('providers')
+  const [programming, setProgramming] = React.useState(false)
   const [settingsReturnView, setSettingsReturnView] = React.useState<View>('chat')
   const [settingsDirty, setSettingsDirty] = React.useState(false)
   const [settingsBusy, setSettingsBusy] = React.useState(false)
@@ -106,6 +115,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
   const updateStatus = useUpdateStatus()
   const workspaces = useWorkspaces()
+  const programmingController = useProgrammingController(language, workspaces.selected, view === 'chat' && programming && !remoteMode)
   const restoreConnectionRef = React.useRef<(info: BackendInfo, current: () => boolean) => Promise<void>>(async () => {})
   const cancelConnectionRecoveryRef = React.useRef<() => void>(() => {})
   const {
@@ -146,7 +156,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   const [activeModel, setActiveModel] = useProfileState<ModelPick | null>(workspaceKey(backend?.replay_epoch, viewedProfile), null, 'app:active-model')
   const commandFinishedRef = React.useRef<(profile: string, sessionId: string) => void>(() => {})
   const chatController = useChatController({
-    backend, connected, remoteMode, profile: viewedProfile, chatVisible: view === 'chat' && !activeGroupId && !dashboardOverride, activeModel, language, storagePath, workspacePath: remoteMode ? '' : workspaces.selected, t,
+    backend, connected, remoteMode, profile: viewedProfile, chatVisible: view === 'chat' && !activeGroupId && !programming && !dashboardOverride, activeModel, language, storagePath, workspacePath: remoteMode ? '' : workspaces.selected, t,
     openChat: () => { if (openView('chat')) setActiveGroupId(null) }, openModelSettings: () => { openSettings('main') }, setSidebarOpen, setActiveModel,
     onCommandFinished: (owner, id) => commandFinishedRef.current(owner, id),
     onBackgroundStarted: () => setPanelOpen(true),
@@ -220,7 +230,9 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     return true
   }
   const openNewChat = async (): Promise<boolean> => {
-    if (!openView('chat') || !viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return false
+    if (!openView('chat')) return false
+    setProgramming(false)
+    if (!viewedProfile || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy) return false
     setActiveGroupId(null)
     if (!sessionId && !storedSessionRef.current) return true
     const blank = chatTabs.tabs.find(tab => !tab.id)
@@ -318,11 +330,12 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   }, [backend?.replay_epoch, events])
   const { activity: sessionActivity, markViewed, settleCommand, keyFor: activityKey } = useSessionActivity(
     storagePath, backend?.replay_epoch || null, viewedProfile, sessions, otherProfileSessions,
-    storedSessionRef.current, sessionId, serverRequests, view === 'chat' && !activeGroupId, turnBusy, refreshSessionActivity,
+    storedSessionRef.current, sessionId, serverRequests, view === 'chat' && !activeGroupId && !programming, turnBusy, refreshSessionActivity,
   )
   commandFinishedRef.current = settleCommand
   const openProfileSession = async (profile: string, id: string) => {
     if (!openView('chat')) return false
+    setProgramming(false)
     setActiveGroupId(null)
     if (profile === viewedProfile && id === storedSessionRef.current) { markViewed(profile, id); return true }
     try {
@@ -333,12 +346,14 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
   }
   const openGroup = (roomId: string) => {
     if (!openView('chat')) return
+    setProgramming(false)
     setActiveGroupId(roomId)
   }
   const selectChatTab = async (tab: ChatTab): Promise<boolean> => {
-    if (chatTabKey(tab) === chatTabs.currentKey) return true
+    if (chatTabKey(tab) === chatTabs.currentKey) { setProgramming(false); return true }
     if (tab.id) return openProfileSession(tab.profile, tab.id)
     if (!openView('chat')) return false
+    setProgramming(false)
     try {
       if (profileController.snapshot?.selected !== tab.profile) await profileController.select(tab.profile)
       setPendingSession(tab)
@@ -449,12 +464,27 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
     await Promise.all([loadSessions(true), refreshOtherProfileSessions()])
     return true
   }
+  const openProgramming = async (id?: string, directory?: string, projectId?: string) => {
+    if (remoteMode || programmingController.busy || !openView('chat')) return
+    setActiveGroupId(null)
+    setProgramming(true)
+    let loaded = false
+    await programmingController.run(async () => { await programmingController.refresh(); loaded = true })
+    if (!loaded) return
+    if (id) await programmingController.select(id)
+    else programmingController.newSession(directory, projectId)
+  }
   return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
     <div className="dashboard-plugin-backdrop" aria-hidden="true"><DashboardPluginSlot name="backdrop" /></div>
-    <WorkspaceHeader view={view} sessionTitle={activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={connected} connectionLabel={connectionText} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchRemote={() => void switchGateway('remote')} onSwitchLocal={() => void switchGateway('local')} />
+    <WorkspaceHeader view={view} sessionTitle={programming && !remoteMode ? programmingController.session?.title || (language === 'zh-CN' ? '新编程会话' : 'New programming chat') : activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId || programming ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={connected} connectionLabel={connectionText} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchRemote={() => void switchGateway('remote')} onSwitchLocal={() => void switchGateway('local')} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
-    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={sidebarSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={storedSessionRef.current} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (remoteMode) { if (next === 'bots' || next === 'sessions' || next === 'chat') openView(next) } else if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
+    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={sidebarSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={programming ? '' : storedSessionRef.current} programmingActive={view === 'chat' && programming} onSwitchMode={mode => {
+      if (remoteMode || !openView('chat')) return false
+      setProgramming(mode === 'code')
+      console.info('[workspace] conversation mode switched', { mode, target: mode === 'chat' ? 'chat' : programmingController.session ? 'session' : programmingController.draftVisible ? 'draft' : 'directories' })
+      return true
+    }} programmingSessions={<ProgrammingSessions controller={programmingController} language={language} active={view === 'chat' && programming} onOpen={(id, directory, projectId) => { void openProgramming(id, directory, projectId) }} />} onClose={() => setSidebarOpen(false)} onOpenView={next => { if (remoteMode) { if (next === 'bots' || next === 'sessions' || next === 'chat') openView(next) } else if (next === 'runtime') openSettings('runtime'); else if (next === 'about') openSettings('about'); else { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onNewChat={() => { void openNewChat() }} onNewGroup={() => { openView('bots') }} onOpenGroup={openGroup} onRefreshGroups={() => { void groupRooms.refresh() }} onResumeSession={(profile, id) => { void openProfileSession(profile, id) }} onArchiveSession={archiveProfileSession} onDeleteSession={deleteProfileSession}
       profiles={profileController.snapshot} profileBusy={!connected || profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} profileError={profileController.error} profilePendingRestart={profileController.pendingRestart}
       onRetryProfile={() => void profileController.retryPending()}
       onOpenProfile={name => {
@@ -516,7 +546,9 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
       onSelectProfile={async name => { if (name === viewedProfile) return true; if (settingsBusy) return false; if (settingsDirty && !window.confirm(t('ui.you.have.unsaved.settings.discard.changes'))) return false; modelController.discardSettingsDraft(); await profileController.select(name); setSettingsDirty(false); return true }}
       onNavigate={page => openSettings(page)}
       onExit={() => { if (openView(settingsReturnView)) { setSettingsDirty(false); onboarding.resume() } }}>
-      {settingsPage === 'sessions' && <SessionsView connected={connected} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
+      {(settingsPage === 'sessions' || settingsPage === 'archived-sessions') && <SessionsView key={settingsPage} archivedOnly={settingsPage === 'archived-sessions'} connected={connected} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onOpenSession={async (profile, id) => { await openProfileSession(profile, id) }} onDeleteSession={deleteProfileSession} />}
+      {settingsPage === 'programming-config-file' && <ProgrammingConfigFile language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onSaved={programmingController.retryPermissions} />}
+      {settingsPage === 'programming-archives' && <ProgrammingArchives controller={programmingController} language={language} />}
       {settingsPage === 'local-tools' && <ToolsView connected={connected} epoch={backend?.replay_epoch || null} generation={workspaceGeneration} onRestart={() => restartBackend().then(Boolean)} />}
       {isConfigurationPage(settingsPage) && <ConfigurationSettings key={backend?.replay_epoch + ':' + viewedProfile + ':' + settingsPage} connected={connected} profile={viewedProfile} page={settingsPage} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onNavigate={page => { openSettings(page) }} />}
       {(settingsPage === 'device' || settingsPage === 'quick-input') && <DeviceSettings page={settingsPage} language={language} />}
@@ -544,11 +576,15 @@ function WorkspaceApp({ gateway, onRemote, onLocal }: { gateway: ActiveGateway; 
       {settingsPage === 'curator' && <CuratorSettings key={`${backend?.replay_epoch || 'offline'}:${viewedProfile || 'none'}`} connected={connected} profile={viewedProfile} language={language} />}
       {settingsPage === 'system-operations' && <SystemOperations key={`${backend?.replay_epoch || 'offline'}:${viewedProfile || 'none'}`} connected={connected} profile={viewedProfile} language={language} />}
       {settingsPage === 'update' && <UpdateView updateStatus={updateStatus} />}
+      {(settingsPage === 'programming-mcp' || settingsPage === 'programming-skills' || settingsPage === 'programming-instructions' || settingsPage === 'programming-context') && <ProgrammingConfiguration onOpenConfig={() => openSettings('programming-config-file')} key={settingsPage} page={settingsPage} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onSaved={programmingController.retryPermissions} />}
+      {settingsPage === 'programming-permissions' && <ProgrammingPermissionSettings onOpenConfig={() => openSettings('programming-config-file')} language={language} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} onSaved={programmingController.retryPermissions} />}
+      {settingsPage === 'programming' && <ProgrammingSettings onCatalogChange={programmingController.applyCatalog} providers={modelController.modelProviders} language={language} profiles={profileController.snapshot?.profiles || []} connected={connected} onDirtyChange={setSettingsDirty} onBusyChange={setSettingsBusy} />}
       {settingsPage === 'documentation' && <DocumentationView />}
       {settingsPage === 'about' && <AboutView updateStatus={updateStatus} />}
     </SettingsView>}
     {view === 'chat' && activeGroupId && <BotGroupConversation key={activeGroupId} roomId={activeGroupId} connected={connected} language={language} onDisband={() => { setActiveGroupId(null); void groupRooms.refresh() }} />}
-    <div className="chat-workspace-layout" style={view === 'chat' && !activeGroupId ? undefined : { display: 'none' }}><ChatView runtimeAvailable={Boolean(backend)} active={view === 'chat' && !activeGroupId} connected={connected} backendStatus={backendStatus} language={language} t={t} remoteMode={remoteMode}
+    {!remoteMode && programming && <div className="chat-workspace-layout" style={view === 'chat' ? undefined : { display: 'none' }}><ProgrammingChat onOpenSettings={target => openSettings(target === 'permissions' ? 'programming-permissions' : 'programming')} language={language} controller={programmingController} /></div>}
+    <div className="chat-workspace-layout" style={view === 'chat' && !activeGroupId && !programming ? undefined : { display: 'none' }}><ChatView runtimeAvailable={Boolean(backend)} active={view === 'chat' && !activeGroupId && !programming} connected={connected} backendStatus={backendStatus} language={language} t={t} remoteMode={remoteMode}
       tabs={<ChatTabs tabs={chatTabs.tabs} activeKey={chatTabs.currentKey} disabled={navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || !connected} language={language}
         status={chatTabStatus} onCloseMany={tabs => { void closeChatTabs(tabs) }}
         title={tab => tab.id ? (tab.profile === viewedProfile ? sessions : otherProfileSessions[tab.profile] || []).find(item => item.id === tab.id)?.title || tab.id.slice(0, 12) : language === 'zh-CN' ? '新聊天' : 'New chat'}

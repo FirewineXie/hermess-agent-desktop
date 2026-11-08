@@ -3,6 +3,9 @@ import type { SharedMetricsConsent, CheckpointInventory, RawConfigWriteResult, C
 import type { MediaApi } from './media'
 export * from './media'
 export * from './configuration'
+export * from './coding'
+export * from './codingSettings'
+export * from './computerActivity'
 export type Unsubscribe = () => void
 
 /** Every profile-owned operation carries its owner explicitly. */
@@ -428,6 +431,7 @@ export type HermesConsoleSocket = {
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
 export interface DesktopApi {
+  coding: import('./coding').CodingApi
   hermesConsole: {
     socket(scope: ProfileScope, handler: (event: HermesConsoleSocketEvent) => void): Promise<HermesConsoleSocket>
   }
@@ -500,7 +504,7 @@ export interface DesktopApi {
     whatsappApply(scope: ProfileScope, id: string, options: WhatsAppApplyOptions): Promise<void>
     whatsappCancel(scope: ProfileScope, id: string): Promise<void>
     start(scope: ProfileScope, platform: 'feishu' | 'weixin'): Promise<ChannelQrStart>
-    poll(scope: ProfileScope, id: string, access: ChannelAccess): Promise<ChannelQrPoll>
+    poll(scope: ProfileScope, id: string, access: ChannelAccess, onAuthorized?: () => void): Promise<ChannelQrPoll>
     approvePairing(scope: ProfileScope, platform: string, code: string): Promise<void>
     cancel(scope: ProfileScope, id: string): Promise<void>
   }

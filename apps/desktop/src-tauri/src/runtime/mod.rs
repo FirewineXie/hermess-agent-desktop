@@ -11,6 +11,23 @@ pub mod chat;
 mod chat_create;
 pub mod chat_rollback;
 pub mod chat_subagents;
+pub mod coding;
+mod coding_catalog;
+mod coding_command;
+mod coding_config;
+mod coding_context;
+mod coding_images;
+mod coding_permission_settings;
+mod coding_permissions;
+mod coding_projects;
+pub mod coding_providers;
+pub mod coding_runtime;
+mod coding_settings;
+mod coding_settings_files;
+mod coding_settings_probe;
+mod coding_validation;
+mod coding_vault;
+mod coding_worker;
 mod composer_agents;
 pub mod composer_background;
 mod composer_branch;
@@ -30,6 +47,8 @@ pub mod delegation;
 pub mod downloadable_tools;
 mod env_keys;
 pub mod extensions;
+#[cfg(windows)]
+mod first_run_install;
 mod gateway_control;
 mod gateway_recovery;
 mod helper_python;
@@ -57,6 +76,7 @@ mod payload;
 pub mod personal_files;
 pub mod personal_tasks;
 pub mod personalities;
+pub(crate) mod plugin_services;
 #[cfg(windows)]
 mod powershell_tool;
 mod product_skill;
@@ -387,16 +407,8 @@ pub fn packed_backend_defaults(app: AppHandle) -> Result<PackedDefaults, Desktop
     if cfg!(debug_assertions) {
         return Err("打包配置仅在发行构建可用".into());
     }
-    let saved = saved_storage_path(&app)?;
-    let initialized = saved.is_some();
-    let selected = match saved {
-        Some(path) => path,
-        None => app
-            .path()
-            .app_local_data_dir()
-            .map(|path| plain_path(&path))
-            .map_err(|_| "无法定位默认数据目录".to_string())?,
-    };
+    let initialized = saved_storage_path(&app)?.is_some();
+    let selected = location::selected_storage(&app)?;
     Ok(PackedDefaults {
         storage_path: selected.to_string_lossy().into_owned(),
         initialized,
@@ -650,6 +662,11 @@ async fn restart_backend_gracefully_inner(
     let old = owned
         .take()
         .ok_or_else(DesktopFailure::runtime_unavailable)?;
+    old._process
+        .terminate_tree()
+        .await
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    old.gateway.confirm_process_stopped();
     old.gateway.close();
     drop(old);
     drop(owned);
@@ -722,6 +739,12 @@ pub async fn stop_backend(
             .map_err(|_| DesktopFailure::timeout())?
             .map_err(|_| "后端退出状态读取失败".to_string())?;
         let _ = append_client_event(&backend.storage, "backend_stopped");
+        backend
+            ._process
+            .terminate_tree()
+            .await
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        backend.gateway.confirm_process_stopped();
     }
     if let Some(backend) = owned.take() {
         backend.gateway.close();

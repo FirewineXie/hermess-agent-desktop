@@ -675,8 +675,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .chat-gate button { margin: 25px 0 15px; }
 .chat-gate small { max-width: 70%; color: #87909b; line-height: 1.5; }
 .messages { padding: 16px 0 12px; }
-.messages .message { margin: 0 0 16px; line-height: 1.65; overflow-wrap: anywhere; }
-.messages .message-user { width: fit-content; max-width: 70%; margin-left: auto; padding: 11px 15px; border-radius: 14px; background: #f1f3f5; white-space: pre-wrap; }
+.messages .message { margin: 0 0 12px; font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+.messages .message-user { width: fit-content; max-width: 70%; margin-left: auto; padding: 9px 14px; border-radius: 14px; background: #f1f3f5; white-space: pre-wrap; }
 .messages .message-assistant { position: relative; max-width: 800px; padding: 0 4px; }
 .assistant-message-actions { display: flex; justify-content: flex-start; min-height: 24px; margin-top: 6px; }
 .assistant-message-actions button { padding: 3px 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #758398; font-size: 11px; }
@@ -690,7 +690,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .reasoning-content { max-height: 320px; padding: 0 12px 10px; overflow-y: auto; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body > :last-child { margin-bottom: 0; }
-.markdown-body p { margin: 0 0 10px; white-space: pre-wrap; }
+.markdown-body p { margin: 0 0 8px; white-space: pre-wrap; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 20px 0 8px; line-height: 1.35; }
 .markdown-body h1 { font-size: 22px; }
 .markdown-body h2 { font-size: 19px; }
@@ -713,7 +713,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .markdown-image-alt { color: #68717d; font-size: 12px; }
 .markdown-body hr { border: 0; border-top: 1px solid #e1e6ec; margin: 16px 0; }
 .turn-duration { min-height: 28px; margin: -8px 0 12px; padding: 4px 8px; border-bottom: 1px solid #eceff2; color: #68717d; font-size: 12px; }
-.tool-activity { margin: 0 0 14px; color: #68717d; font-size: 13px; }
+.tool-activity { margin: 0 0 12px; color: #68717d; font-size: 13px; }
 .tool-activity-chevron { color: #89919b; transition: transform .15s; }
 .tool-step { color: #68717d; font-size: 13px; }
 .tool-step > summary, .tool-step-heading { display: flex; align-items: center; gap: 6px; min-height: 27px; padding: 2px 4px; list-style: none; }

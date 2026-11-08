@@ -1,7 +1,7 @@
 :root[data-font='system-sans'] { --app-font: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
 :root[data-font='system-serif'] { --app-font: ui-serif, Georgia, 'Songti SC', 'SimSun', serif; }
 :root[data-font='system-mono'] { --app-font: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; }
-:root { font-family: var(--app-font, system-ui, 'Microsoft YaHei', sans-serif); }
+:root { color-scheme: light; font-family: var(--app-font, system-ui, 'Microsoft YaHei', sans-serif); }
 
 .appearance-settings { display: grid; gap: 18px; margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--settings-line, #e3e8ef); }
 .appearance-settings h3 { margin: 0 0 5px; color: var(--appearance-text, #111827); font-size: 18px; }

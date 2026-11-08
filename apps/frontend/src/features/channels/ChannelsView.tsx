@@ -50,6 +50,9 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
   const [polling, setPolling] = useProfileState(workspace, false, 'channels:polling')
   const [accessConfirmed, setAccessConfirmed] = useProfileState(workspace, false, 'channels:access-confirmed')
   const [pollError, setPollError] = useProfileState(workspace, false, 'channels:poll-error')
+  const [authorized, setAuthorized] = useProfileState(workspace, false, 'channels:authorized')
+  const restartRef = React.useRef(onRestart)
+  React.useEffect(() => { restartRef.current = onRestart }, [onRestart])
   const dialogRef = React.useRef<HTMLDivElement>(null)
   const dialogOpenerRef = React.useRef<HTMLElement | null>(null)
   const dialogWasOpen = React.useRef(false)
@@ -95,7 +98,11 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     const timer = window.setTimeout(async () => {
       setPolling(true)
       try {
-        const result = await channels.poll(scope(active.profile), active.qr.id, active.access)
+        const result = await channels.poll(scope(active.profile), active.qr.id, active.access, () => {
+          if (cancelled) return
+          setAuthorized(true)
+          setStatus(t('ui.channels.saving'))
+        })
         if (cancelled) return
         if (result.status === 'connected') {
           completing = true
@@ -104,7 +111,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
             setBusy(true)
             setStatus(t('ui.channels.waiting.for.restart'))
             restartPending = true
-            const restarted = await onRestart()
+            const restarted = await restartRef.current()
             if (!restarted) {
               setPendingRestart(true)
               setStatus(t('ui.channels.restart.deferred'))
@@ -131,7 +138,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
       } finally { if (!cancelled || completing) { if (completing) setBusy(false); setPolling(false) } }
     }, active.qr.poll_interval * 1000)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [active, accessConfirmed, channels, language, onRestart, pollError, refresh, tick])
+  }, [active, accessConfirmed, channels, language, pollError, refresh, tick])
 
   async function begin(platform: Platform) {
     dialogOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -139,6 +146,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     setPolling(false)
     setAccessConfirmed(false)
     setPollError(false)
+    setAuthorized(false)
     setStatus('')
     try {
       if (active) void channels.cancel(scope(active.profile), active.qr.id).catch(() => {})
@@ -156,6 +164,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     setPolling(false)
     setAccessConfirmed(false)
     setPollError(false)
+    setAuthorized(false)
     setStatus('')
     if (active) await channels.cancel(scope(active.profile), active.qr.id).catch(() => {})
   }
@@ -231,14 +240,14 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     {active && <div className="channel-qr-backdrop" onMouseDown={event => { if (!polling && event.target === event.currentTarget) void cancel() }}>
       <div className="channel-qr" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="channel-qr-title" onKeyDown={keepFocusInside}>
         <h3 id="channel-qr-title">{active.platform === 'feishu' ? t('ui.channels.feishu.scan') : t('ui.channels.weixin.scan')}</h3>
-        <img src={active.image} width="260" height="260" alt={t('ui.channels.qr.alt')} />
-        <p className="channel-qr-hint">{t('ui.channels.pairing.once')}</p>
+        {!authorized && <img src={active.image} width="260" height="260" alt={t('ui.channels.qr.alt')} />}
+        <p className="channel-qr-hint">{t(authorized ? 'ui.channels.authorized' : 'ui.channels.pairing.once')}</p>
         {!accessConfirmed ? <fieldset className="channel-access">
           <legend>{t('ui.channels.access.title')}</legend>
           <label data-selected={active.access === 'open'}><input type="radio" name="channel-access" checked={active.access === 'open'} onChange={() => setActive(current => current && { ...current, access: 'open' })} /><span>{t('ui.channels.access.open')}</span></label>
           <label data-selected={active.access === 'pairing'}><input type="radio" name="channel-access" checked={active.access === 'pairing'} onChange={() => setActive(current => current && { ...current, access: 'pairing' })} /><span>{t('ui.channels.access.pairing')}</span></label>
           <small>{t('ui.channels.access.replace')}</small>
-        </fieldset> : <p className="channel-access-locked">{t(active.access === 'open' ? 'ui.channels.access.selected.open' : 'ui.channels.access.selected.pairing')}</p>}
+        </fieldset> : !authorized && <p className="channel-access-locked">{t(active.access === 'open' ? 'ui.channels.access.selected.open' : 'ui.channels.access.selected.pairing')}</p>}
         <p className="channel-qr-status" role="status">{status}</p>
         <div className="channel-qr-actions">
           {!accessConfirmed && <button className="channel-qr-primary" onClick={() => { setAccessConfirmed(true); setStatus(t('ui.channels.waiting')) }}>{t('ui.channels.access.confirm')}</button>}

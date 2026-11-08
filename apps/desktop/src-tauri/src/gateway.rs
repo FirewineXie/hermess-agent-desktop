@@ -1,4 +1,5 @@
 use futures_util::{SinkExt, StreamExt};
+pub(crate) mod computer_activity;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -305,16 +306,25 @@ pub struct GatewayClient {
     task: JoinHandle<()>,
     events_enabled: Arc<AtomicBool>,
     pub replay_epoch: String,
+    activity: Option<(AppHandle, String)>,
 }
 
 impl Drop for GatewayClient {
     fn drop(&mut self) {
+        if let Some((app, connection)) = &self.activity {
+            crate::computer_activity::disconnected(app, connection);
+        }
         self.task.abort();
     }
 }
 
 impl GatewayClient {
-    pub async fn connect(port: u16, ticket: &str, app: AppHandle) -> Result<Self, String> {
+    pub async fn connect(
+        port: u16,
+        ticket: &str,
+        app: AppHandle,
+        home: &std::path::Path,
+    ) -> Result<Self, String> {
         let url = format!("ws://127.0.0.1:{port}/api/ws");
         let mut request = url
             .into_client_request()
@@ -324,7 +334,7 @@ impl GatewayClient {
             "Sec-WebSocket-Protocol",
             HeaderValue::from_str(&protocol).map_err(|_| "无效的网关票据".to_string())?,
         );
-        Self::connect_request(request, app, true, true, true).await
+        Self::connect_request(request, app, true, true, true, Some(home.to_path_buf())).await
     }
 
     pub async fn connect_remote(
@@ -338,7 +348,7 @@ impl GatewayClient {
             .as_str()
             .into_client_request()
             .map_err(|_| "无法构造远程网关连接".to_string())?;
-        Self::connect_request(request, app, false, false, emit_events).await
+        Self::connect_request(request, app, false, false, emit_events, None).await
     }
 
     async fn connect_request(
@@ -347,6 +357,7 @@ impl GatewayClient {
         require_protocol: bool,
         desktop_local: bool,
         emit_events: bool,
+        activity_home: Option<std::path::PathBuf>,
     ) -> Result<Self, String> {
         let (socket, response) = timeout(Duration::from_secs(5), connect_async(request))
             .await
@@ -366,6 +377,11 @@ impl GatewayClient {
         let (ready_sender, ready_receiver) = oneshot::channel();
         let events_enabled = Arc::new(AtomicBool::new(emit_events));
         let task_events_enabled = Arc::clone(&events_enabled);
+        let activity_id = uuid::Uuid::new_v4().to_string();
+        let activity = activity_home
+            .as_ref()
+            .map(|_| (app.clone(), activity_id.clone()));
+        let activity_sender = sender.clone();
         let task = tokio::spawn(async move {
             let mut next_id = 1u64;
             let mut pending = PendingRpc::new();
@@ -579,6 +595,11 @@ impl GatewayClient {
                             }
                             continue;
                         }
+                        if let Some(home) = activity_home.as_ref() {
+                            let profile = params["session_id"].as_str()
+                                .and_then(|session| session_owners.get(session)).and_then(Option::as_deref);
+                            computer_activity::observe(&app, &activity_id, &activity_sender, home, profile, params);
+                        }
                         if kind == "approval.request" {
                             let session_id = params.get("session_id").and_then(Value::as_str);
                             let profile = session_id
@@ -641,6 +662,9 @@ impl GatewayClient {
             if task_events_enabled.load(Ordering::Acquire) {
                 let _ = app.emit("hermes-disconnected", ());
             }
+            if activity_home.is_some() {
+                crate::computer_activity::disconnected(&app, &activity_id);
+            }
         });
         let replay_epoch = match timeout(Duration::from_secs(5), ready_receiver).await {
             Ok(Ok(epoch)) => epoch,
@@ -658,6 +682,7 @@ impl GatewayClient {
             task,
             events_enabled,
             replay_epoch,
+            activity,
         };
         if let Err(error) = client
             .request(
@@ -755,7 +780,28 @@ impl GatewayClient {
     }
 
     pub fn close(&self) {
+        if let Some((app, connection)) = &self.activity {
+            crate::computer_activity::disconnected(app, connection);
+        }
         self.task.abort();
+    }
+
+    pub(crate) fn confirm_process_stopped(&self) {
+        if let Some((app, connection)) = &self.activity {
+            // macOS CuaDriver.app is launched by LaunchServices outside our process group.
+            // A group exit alone cannot confirm that outstanding desktop input has stopped.
+            crate::computer_activity::process_finished(app, connection, !cfg!(target_os = "macos"));
+        }
+    }
+
+    pub(crate) fn inherit_activity(&self, previous: &Self) {
+        if let (Some((app, new)), Some((_, old))) = (&self.activity, &previous.activity) {
+            crate::computer_activity::reconnected(app, old, new, |stop| {
+                if let crate::computer_activity::Stop::Gateway(control) = stop {
+                    control.rebind(&self.sender);
+                }
+            });
+        }
     }
 
     pub fn is_closed(&self) -> bool {

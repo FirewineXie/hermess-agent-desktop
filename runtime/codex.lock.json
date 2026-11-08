@@ -1,0 +1,11 @@
+{
+  "repository": "openai/codex",
+  "tag": "rust-v0.167.0",
+  "version": "0.167.0",
+  "assets": {
+    "x86_64-pc-windows-msvc": { "name": "codex-package-x86_64-pc-windows-msvc.tar.gz", "size": 201675464, "sha256": "60567ca940bbaf6c10501805d9909d1328179231e2d47a0deec7a1368bb21641" },
+    "aarch64-apple-darwin": { "name": "codex-package-aarch64-apple-darwin.tar.gz", "size": 166340155, "sha256": "af45ed45d940d7998809622c1c0296d3098ed7d7fad695284422c228bd454517" },
+    "x86_64-apple-darwin": { "name": "codex-package-x86_64-apple-darwin.tar.gz", "size": 180585939, "sha256": "3d7c4c83296db63b5108e13612c77f3e5020b6c5f2fc004bee413a5cc92de899" },
+    "x86_64-unknown-linux-musl": { "name": "codex-package-x86_64-unknown-linux-musl.tar.gz", "size": 200178910, "sha256": "3bbf75e83de6b58aed28f2cf6e33ad423ec31fd4700a1457b94be557ea5a7c6e" }
+  }
+}

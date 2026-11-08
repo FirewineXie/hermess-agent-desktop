@@ -443,7 +443,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
   }
 
   React.useEffect(() => {
-    if (!backend) return
+    if (!backend || !chatVisible) { setDraggingFiles(false); return }
     let active = true
     let unlisten: (() => void) | undefined
     void nativeFiles.onDrop(event => {
@@ -457,7 +457,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
     }).then(fn => { if (active) unlisten = fn; else fn() })
       .catch(cause => setChatStatus(t("ui.file.drag.in.monitoring.failed.arg", describeError(cause, language))))
     return () => { active = false; unlisten?.() }
-  }, [backend, turnBusy, attachmentBusy])
+  }, [backend, chatVisible, turnBusy, attachmentBusy])
 
   async function removeAttachment(index: number) {
     const attachment = attachments[index]

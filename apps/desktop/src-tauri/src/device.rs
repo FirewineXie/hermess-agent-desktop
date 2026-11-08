@@ -271,6 +271,14 @@ fn validate_preferences(preferences: &Preferences) -> Result<Shortcut, DesktopFa
     if shortcut.mods.is_empty() {
         return Err(DesktopFailure::invalid_input());
     }
+    if preferences.quick_enabled
+        && shortcut
+            == "CommandOrControl+Shift+F12"
+                .parse::<Shortcut>()
+                .map_err(|_| DesktopFailure::invalid_input())?
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
     Ok(shortcut)
 }
 

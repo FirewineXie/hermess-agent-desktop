@@ -89,6 +89,36 @@ const checkProcessSpawns = directory => {
   }
 }
 checkProcessSpawns(rustSource)
+const firstRunInstall = readFileSync(resolve(rustSource, 'runtime/first_run_install.rs'), 'utf8')
+if (!firstRunInstall.includes('process_manager::status(&mut command, "first_run_install")')
+  || !firstRunInstall.includes('"first_run_verify"')
+  || !firstRunInstall.includes('command.creation_flags(0x0800_0000)')
+  || !firstRunInstall.includes('verify.creation_flags(0x0800_0000)')) {
+  failures.push('first_run_install.rs: first install and verification must use registered background processes')
+}
+// The Python programming adapter runs inside a registered native process tree.
+// It may reuse the locked transport, but must not introduce additional launch sites.
+const programmingAdapter = ['programming_worker.py', 'programming_session_commands.py']
+  .map(name => readFileSync(resolve(root, 'apps/desktop/runtime', name), 'utf8')).join('\n')
+const programmingGit = readFileSync(resolve(rustSource, 'runtime/coding_context.rs'), 'utf8')
+if (!programmingGit.includes('process_manager::spawn(&mut command, "coding_git")')
+  || !programmingGit.includes('command.creation_flags(0x0800_0000)')
+  || !programmingGit.includes('registration.terminate_tree().await')) {
+  failures.push('coding_context.rs: Git operations must use registered background processes and clean up their trees')
+}
+if (/\b(?:import subprocess|from subprocess|os\.system|os\.popen)\b/.test(programmingAdapter)) {
+  failures.push('programming_worker.py: reuse the locked transport under the registered worker tree')
+}
+
+const serviceBridge = readFileSync(resolve(root, 'apps/desktop/runtime/plugin_services.py'), 'utf8')
+if (/\b(?:import subprocess|from subprocess|os\.system|os\.popen)\b/.test(serviceBridge)) {
+  failures.push('plugin_services.py: service controls must run inside the registered cleanup process')
+}
+const serviceCleanup = readFileSync(resolve(rustSource, 'runtime/plugin_services.rs'), 'utf8')
+if (!serviceCleanup.includes('process_manager::spawn_shutdown(') || !serviceCleanup.includes('registration.terminate_tree().await')) {
+  failures.push('plugin_services.rs: shutdown commands and timeout cleanup must use process_manager')
+}
+
 const panelTerminalSource = readFileSync(resolve(rustSource, 'panel_terminal.rs'), 'utf8')
 if ([...panelTerminalSource.matchAll(/\.spawn_command\s*\(/g)].length !== 1 || !panelTerminalSource.includes('manager.launch(')) {
   failures.push('panel_terminal.rs: PTY process must be launched inside ProcessManager::launch')
@@ -99,7 +129,7 @@ if ([...profileDataSource.matchAll(/\.spawn\s*\(/g)].length !== 1 || !profileDat
 }
 
 const main = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8')
-const adapter = [readFileSync(resolve(root, 'apps/desktop/src/adapter/tauriDesktopApi.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/adapter/errorLogging.ts'), 'utf8'), readFileSync(resolve(root, 'apps/desktop/src/quick-input.tsx'), 'utf8')].join('\n')
+const adapter = ['src/adapter/tauriDesktopApi.ts', 'src/adapter/errorLogging.ts', 'src/quick-input.tsx', 'src/computer-activity.tsx'].map(file => readFileSync(resolve(root, 'apps/desktop', file), 'utf8')).join('\n')
 const gateway = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/gateway.rs'), 'utf8')
 const registeredBlock = main.match(/generate_handler!\[([\s\S]*?)\]/)?.[1]
 if (!registeredBlock) failures.push('apps/desktop/src-tauri/src/main.rs: command registration not found')
@@ -131,6 +161,7 @@ const nativeCommandFiles = [
   'apps/desktop/src-tauri/src/diagnostics.rs',
   'apps/desktop/src-tauri/src/device.rs',
   'apps/desktop/src-tauri/src/quick_input.rs',
+  'apps/desktop/src-tauri/src/computer_activity.rs',
   'apps/desktop/src-tauri/src/chat_windows.rs',
   'apps/desktop/src-tauri/src/notifications.rs',
   'apps/desktop/src-tauri/src/webview_cache.rs',
@@ -211,8 +242,8 @@ for (const entry of frontendSources) {
 }
 
 const updates = readFileSync(resolve(root, 'apps/desktop/src-tauri/src/updates.rs'), 'utf8')
-const nativeEventSources = [gateway, updates, ...nativeCommandFiles.map(file => readFileSync(resolve(root, file), 'utf8'))].join('\n')
-const emitted = new Set([...nativeEventSources.matchAll(/app\s*\.emit(?:_to)?\(\s*(?:"(?:main|quick-input)",\s*)?"([^"]+)"/g)].map(match => match[1]))
+const nativeEventSources = [gateway, updates, readFileSync(resolve(root, 'apps/desktop/src-tauri/src/computer_activity/window.rs'), 'utf8'), ...nativeCommandFiles.map(file => readFileSync(resolve(root, file), 'utf8'))].join('\n')
+const emitted = new Set([...nativeEventSources.matchAll(/app\s*\.emit(?:_to)?\(\s*(?:"(?:main|quick-input|computer-activity)",\s*)?"([^"]+)"/g)].map(match => match[1]))
 const listened = new Set([...adapter.matchAll(/(?:listenPayload|listen)(?:<[^>]+>)?\(\s*['"]([^'"]+)/g)].map(match => match[1]))
 if (!emitted.size || !listened.size) failures.push('desktop event inventory is empty')
 for (const name of listened) if (!emitted.has(name)) failures.push(`adapter listens to event without native emitter: ${name}`)

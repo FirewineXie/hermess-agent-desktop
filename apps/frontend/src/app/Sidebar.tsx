@@ -8,6 +8,7 @@ import { describeError } from './desktopErrors'
 import { DashboardPluginSlot, type DashboardPluginManifest } from '../features/dashboard-plugins/DashboardPluginHost'
 import { achievementsPluginName, secondaryDashboardPluginTabs } from '../features/dashboard-plugins/dashboardRouteModel'
 import './sidebar-session-actions.css'
+import './sidebar-mode-switch.css'
 
 type Props = {
   view: View
@@ -25,6 +26,9 @@ type Props = {
   activityKey: (profile: string, id: string) => string
   sessionsState: 'loading' | 'ready' | 'error'
   activeSessionId: string
+  programmingSessions: React.ReactNode
+  programmingActive: boolean
+  onSwitchMode: (mode: 'chat' | 'code') => boolean
   onClose: () => void
   onOpenView: (view: View) => void
   onNewChat: () => void
@@ -45,7 +49,7 @@ type Props = {
   onOpenDashboardPlugin: (name: string) => void
 }
 
-export default function Sidebar({ view, open, connected, connectionLabel, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
+export default function Sidebar({ view, open, connected, connectionLabel, remoteMode = false, busy, sessions, otherProfileSessions, groups, groupsError, activeGroupId, sessionActivity, activityKey, sessionsState, activeSessionId, programmingSessions, programmingActive, onSwitchMode, onClose, onOpenView, onNewChat, onNewGroup, onOpenGroup, onRefreshGroups, onResumeSession, onArchiveSession, onDeleteSession, profiles, profileBusy, profileError, profilePendingRestart, onRetryProfile, onOpenProfile, dashboardPlugins, activeDashboardPlugin, onOpenDashboardPlugin }: Props) {
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
   const [pendingSession, setPendingSession] = React.useState<{ profile: string; id: string } | null>(null)
@@ -58,6 +62,11 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
   const [archiveError, setArchiveError] = React.useState('')
   const [newMenuOpen, setNewMenuOpen] = React.useState(false)
   const [featuresOpen, setFeaturesOpen] = React.useState(false)
+  const [mode, setMode] = React.useState<'chat' | 'code'>(programmingActive && !remoteMode ? 'code' : 'chat')
+  const chatMode = remoteMode || mode === 'chat'
+  React.useEffect(() => {
+    if (remoteMode || view === 'chat') setMode(programmingActive && !remoteMode ? 'code' : 'chat')
+  }, [remoteMode, view, programmingActive, activeSessionId, activeGroupId])
   const featuresRef = React.useRef<HTMLDivElement>(null)
   const featuresButtonRef = React.useRef<HTMLButtonElement>(null)
   const zh = language === 'zh-CN'
@@ -101,6 +110,13 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
   })
   const openFeatureView = (next: View) => { setFeaturesOpen(false); onOpenView(next) }
   const openFeaturePlugin = (name: string) => { setFeaturesOpen(false); onOpenDashboardPlugin(name) }
+  const switchMode = (next: 'chat' | 'code') => {
+    if (!onSwitchMode(next)) return
+    if (next !== mode) console.info('[sidebar] conversation list switched', { from: mode, to: next })
+    setMode(next)
+    setNewMenuOpen(false)
+    setFeaturesOpen(false)
+  }
   const toggleMoreSessions = (name: string, total: number) => setVisibleSessionCounts(current => ({
     ...current,
     [name]: (current[name] || 5) >= total ? 5 : (current[name] || 5) + 5,
@@ -131,6 +147,11 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
     {open && <button className="sidebar-scrim" aria-label={t('ui.close.navigation')} onClick={onClose} />}
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`} aria-label={t('ui.main.navigation')}>
       <div className="brand"><span className="brand-mark">H</span><span>Hermess <small>Desktop</small></span></div>
+      {!remoteMode && <div className={`sidebar-mode-switch ${chatMode ? '' : 'is-code'}`} role="group" aria-label={zh ? '会话类型' : 'Conversation type'}>
+        <span className="sidebar-mode-slider" aria-hidden="true" />
+        {(['chat', 'code'] as const).map(item => <button key={item} type="button" aria-pressed={mode === item} aria-controls={`sidebar-${item}-sessions`} onClick={() => switchMode(item)}>{item === 'chat' ? 'Chat' : 'Code'}</button>)}
+      </div>}
+      {chatMode && <>
       <nav className="primary-nav" aria-label={zh ? '新建会话' : 'New conversation'}>
         <button aria-expanded={newMenuOpen} onClick={() => setNewMenuOpen(current => !current)}><span>{t('ui.new.session')}</span></button>
         {newMenuOpen && <div className="sidebar-new-menu"><button type="button" onClick={() => { setNewMenuOpen(false); onNewChat() }}>{zh ? '单独聊天' : 'One-to-one chat'}</button><button type="button" onClick={() => { setNewMenuOpen(false); onNewGroup() }}>{zh ? '多人群聊' : 'Group chat'}</button></div>}
@@ -145,10 +166,11 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
         <button className={view === 'extensions' ? 'active' : ''} onClick={() => openFeatureView('extensions')}>✦ <span>{zh ? '扩展中心' : 'Extension Center'}</span></button>
         </>}
       </nav>
+      </>}
       {profilePendingRestart && <div className="sidebar-profile-notice" role="status">{zh ? '新专家等待 Gateway 启用。' : 'New expert is waiting for Gateway.'} <button type="button" disabled={profileBusy} onClick={onRetryProfile}>{zh ? '重试' : 'Retry'}</button></div>}
       {profileError && <div className="sidebar-profile-notice" role="alert">{profileError}</div>}
       {archiveError && <div className="sidebar-profile-notice" role="alert">{archiveError}</div>}
-      <div className="sidebar-sessions">
+      <div id="sidebar-chat-sessions" className="sidebar-sessions" hidden={!chatMode}>
         {connected && (groups.length > 0 || groupsError) && <div className="sidebar-group-history"><div className="sidebar-section-heading"><strong>{zh ? '群聊' : 'GROUP CHATS'}</strong></div>
           {groupsError && <p role="alert">{groupsError} <button type="button" onClick={onRefreshGroups}>{zh ? '重试' : 'Retry'}</button></p>}
           {groups.map(group => <button type="button" key={group.room_id} className={`sidebar-profile-session ${view === 'chat' && activeGroupId === group.room_id ? 'active' : ''}`} title={group.name} onClick={() => onOpenGroup(group.room_id)}><span aria-hidden="true">◉</span><span className="session-title">{group.name}</span><span className="session-source">{group.members.length} Bot</span></button>)}
@@ -176,6 +198,7 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
         {connected && sessionsState === 'error' && sessions.length === 0 && <p>{t('ui.sessions.failed')}</p>}
         {connected && sessionsState === 'ready' && !hasAnySession && <p>{t('ui.no.previous.sessions')}</p>}
       </div>
+      {!remoteMode && <div id="sidebar-code-sessions" className="sidebar-sessions sidebar-code-sessions" hidden={chatMode}>{programmingSessions}</div>}
       {!remoteMode && <div className="sidebar-feature-nav" ref={featuresRef}>
         <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>{zh ? '更多' : 'More'} <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span></button>
         <nav id="sidebar-feature-menu" className="sidebar-feature-menu" aria-label={zh ? '功能导航' : 'Feature navigation'} hidden={!featuresOpen}>

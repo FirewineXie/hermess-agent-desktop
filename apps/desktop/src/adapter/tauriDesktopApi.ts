@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke as nativeInvoke } from '@tauri-apps/api/core'
+import { Channel, convertFileSrc, invoke as nativeInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -110,6 +110,45 @@ function supportedRequests(value: unknown, profile: string): GatewayRequest[] {
 }
 
 export const tauriDesktopApi: DesktopApi = {
+  coding: {
+    command: (id, command, permissions, effort) => invoke('coding_session_request', { request: { action: 'command', id, command, permissions, effort } }),
+    answer: (id, requestId, answers) => invoke('coding_session_request', { request: { action: 'answer', id, request_id: requestId, answers } }),
+    openSkillDirectory: () => invoke('coding_session_request', { request: { action: 'open_skill_directory' } }),
+    settings: () => invoke('coding_session_request', { request: { action: 'settings' } }),
+    configFile: () => invoke('coding_session_request', { request: { action: 'config_file' } }),
+    saveConfigFile: (revision, content) => invoke('coding_session_request', { request: { action: 'save_config_file', revision, content } }),
+    saveSettings: draft => invoke('coding_session_request', { request: { action: 'save_settings', draft } }),
+    settingsProbe: (cwd, server, login = false) => invoke('coding_session_request', { request: { action: 'settings_probe', cwd, server: server || null, login } }),
+    projectInstruction: cwd => invoke('coding_session_request', { request: { action: 'project_instruction', cwd, revision: null, content: null } }),
+    saveProjectInstruction: (cwd, revision, content) => invoke('coding_session_request', { request: { action: 'project_instruction', cwd, revision, content } }),
+    permissionSettings: () => invoke('coding_session_request', { request: { action: 'permission_settings' } }),
+    savePermissionSettings: draft => invoke('coding_session_request', { request: { action: 'save_permission_settings', draft } }),
+    openPermissionConfig: () => invoke('coding_session_request', { request: { action: 'open_permission_config' } }),
+    permissionProfiles: cwd => invoke('coding_session_request', { request: { action: 'permissions', cwd } }),
+    skills: cwd => invoke('coding_session_request', { request: { action: 'skills', cwd } }),
+    catalog: () => invoke<import('@hermess/contracts').CodingProviderResult>('coding_provider_request', { request: { action: 'list' } }).then((result: import('@hermess/contracts').CodingProviderResult) => { if (!result.catalog) throw new Error('Programming catalog unavailable'); return result.catalog }),
+    saveProvider: draft => invoke('coding_provider_request', { request: { action: 'save', draft } }),
+    profileProviders: profile => invoke<import('@hermess/contracts').CodingProviderResult>('coding_provider_request', { request: { action: 'profile_providers', profile } }).then(result => { if (!result.profile_providers) throw new Error('Profile providers unavailable'); return result.profile_providers }),
+    syncProfile: (profile, provider) => invoke('coding_provider_request', { request: { action: 'sync_profile', profile, provider } }),
+    removeProvider: id => invoke('coding_provider_request', { request: { action: 'remove', id } }),
+    preferences: (enabled, effort) => invoke('coding_provider_request', { request: { action: 'preferences', enabled, effort } }),
+    runtime: () => invoke('get_coding_runtime'),
+    installRuntime: () => invoke('install_coding_runtime'),
+    config: () => invoke('get_coding_config'),
+    saveConfig: draft => invoke('save_coding_config', { draft }),
+    sessions: () => invoke('coding_session_request', { request: { action: 'list' } }),
+    projects: () => invoke('coding_session_request', { request: { action: 'projects' } }),
+    branch: cwd => invoke('coding_session_request', { request: { action: 'branch', cwd } }),
+    switchBranch: (cwd, branch) => invoke('coding_session_request', { request: { action: 'switch_branch', cwd, branch } }),
+    saveProject: (id, name, cwd) => invoke('coding_session_request', { request: { action: 'save_project', id, name, cwd } }),
+    create: (cwd, projectId, modelId) => invoke('coding_session_request', { request: { action: 'create', cwd, project_id: projectId, model_id: modelId } }),
+    read: id => invoke('coding_session_request', { request: { action: 'read', id } }),
+    archive: (id, archived) => invoke('coding_session_request', { request: { action: 'archive', id, archived } }),
+    send: (id, text, images = [], permissions, effort) => invoke('coding_session_request', { request: { action: 'send', id, text, images, permissions, effort } }),
+    stop: id => invoke('coding_session_request', { request: { action: 'stop', id } }),
+    approve: (id, requestId, optionId) => invoke('coding_session_request', { request: { action: 'approve', id, request_id: requestId, option_id: optionId } }),
+    remove: id => invoke('coding_session_request', { request: { action: 'remove', id } }),
+  },
   hermesConsole: {
     socket: async (scope, handler) => {
       const subscription = crypto.randomUUID()
@@ -314,7 +353,11 @@ export const tauriDesktopApi: DesktopApi = {
     whatsappApply: (scope, id, options) => invoke('channel_whatsapp_apply', { profile: scope.profile, id, ...options }),
     whatsappCancel: (scope, id) => invoke('channel_whatsapp_cancel', { profile: scope.profile, id }),
     start: (scope, platform) => invoke('channel_qr_start', { profile: scope.profile, platform }),
-    poll: (scope, id, access) => invoke('channel_qr_poll', { profile: scope.profile, id, access }),
+    poll: (scope, id, access, onAuthorized) => {
+      const progress = new Channel<null>()
+      progress.onmessage = () => onAuthorized?.()
+      return invoke('channel_qr_poll', { profile: scope.profile, id, access, onAuthorized: progress })
+    },
     approvePairing: (scope, platform, code) => invoke('channel_pairing_approve', { profile: scope.profile, platform, code }),
     cancel: (scope, id) => invoke('channel_qr_cancel', { profile: scope.profile, id }),
   },

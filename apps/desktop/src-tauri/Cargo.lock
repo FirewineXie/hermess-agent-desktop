@@ -1673,6 +1673,7 @@ dependencies = [
  "base64 0.22.1",
  "block2",
  "chrono",
+ "flate2",
  "futures-util",
  "keyring",
  "libc",
@@ -1693,8 +1694,11 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tauri-winrt-notification",
+ "tempfile",
  "tokio",
  "tokio-tungstenite",
+ "toml 1.1.8+spec-1.1.0",
+ "toml_edit 0.25.17+spec-1.1.0",
  "uuid",
  "webview2-com",
  "windows",
@@ -4855,6 +4859,7 @@ dependencies = [
  "indexmap 2.14.2",
  "toml_datetime 1.1.2+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.4",
 ]
 

@@ -1,0 +1,46 @@
+.programming-directories {
+  --directory-text: #20242d;
+  --directory-muted: #66758c;
+  --directory-line: #e7ebf0;
+  --directory-hover: #f5f7fa;
+  --directory-surface: #fff;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  color: var(--directory-text);
+  background: var(--directory-surface);
+}
+.programming-directories-content { width: min(100%, 800px); margin: 0 auto; padding: clamp(32px, 8vh, 80px) 32px 40px; }
+.programming-directories-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.programming-directories-heading > div { min-width: 0; }
+.programming-directories h1 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.4; letter-spacing: -.025em; }
+.programming-directories-heading p { margin: 10px 0 0; color: var(--directory-muted); font-size: 14px; line-height: 1.7; }
+.programming-directories .programming-directory-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; min-height: 36px; padding: 7px 12px; border: 1px solid var(--directory-line); border-radius: 8px; color: var(--directory-text); background: var(--directory-surface); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.programming-directory-add > span { font-size: 18px; line-height: 1; }
+.programming-directories-list { display: grid; }
+.programming-directories-list .programming-directory-row { display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 84px; margin: 0; padding: 16px 12px; border: 0; border-bottom: 1px solid var(--directory-line); border-radius: 0; text-align: left; color: var(--directory-text); background: transparent; font: inherit; cursor: pointer; }
+.programming-directory-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; color: var(--directory-muted); }
+.programming-directory-icon svg { width: 24px; height: 24px; }
+.programming-directory-copy { display: grid; flex: 1; min-width: 0; gap: 6px; }
+.programming-directory-copy strong, .programming-directory-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.programming-directory-copy strong { font-size: 15px; font-weight: 550; line-height: 1.4; }
+.programming-directory-copy small { color: var(--directory-muted); font-size: 13px; line-height: 1.5; }
+.programming-directory-arrow { flex: none; width: 18px; height: 18px; margin: 0 4px 0 8px; color: var(--directory-muted); }
+.programming-directories button:hover:not(:disabled) { background: var(--directory-hover); }
+.programming-directories button:focus-visible { outline: 2px solid #1b6ffd; outline-offset: 3px; }
+.programming-directories button:disabled { opacity: .5; cursor: not-allowed; }
+.programming-directories-empty { padding: 48px 24px; border-radius: 12px; background: var(--directory-hover); text-align: center; }
+.programming-directories-empty > svg { width: 32px; height: 32px; color: var(--directory-muted); }
+.programming-directories-empty h2 { margin: 16px 0 8px; font-size: 16px; font-weight: 550; }
+.programming-directories-empty p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--directory-muted); }
+.programming-directories-error { margin: 20px 0 0; padding: 12px 14px; border-radius: 8px; background: #fff3f2; color: #a82c25; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+:root[data-color-theme='dark'] .programming-directories { --directory-text: var(--dark-text, #e7edf6); --directory-muted: var(--dark-muted, #9aa8bb); --directory-line: var(--dark-border, #2a394b); --directory-hover: var(--dark-hover, #223249); --directory-surface: var(--dark-bg, #0f1723); }
+:root[data-color-theme='dark'] .programming-directories-error { background: #382329; color: #ffb5b1; }
+@media (max-width: 600px) {
+  .programming-directories-content { padding: 32px 20px; }
+  .programming-directories-heading { flex-direction: column; gap: 18px; margin-bottom: 20px; }
+  .programming-directories h1 { font-size: 22px; }
+  .programming-directories-list .programming-directory-row { gap: 10px; padding-inline: 4px; }
+  .programming-directory-arrow { margin-left: 0; }
+}

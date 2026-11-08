@@ -12,6 +12,7 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/paths.rs`：产品 Windows 路径统一为普通盘符或 UNC 写法；深路径只在内部文件系统调用时临时使用扩展写法，不向进程、前端或持久化配置传出。macOS 与 Linux 保持原样。
 - `src-tauri/src/runtime/mod.rs`：自有后端实例、进程、凭据和 Gateway 生命周期的统一所有者。
 - `src-tauri/src/process_manager.rs`：桌面创建的产品进程统一登记、封闭新启动与按用途退出；`process_manager/windows.rs` 用 Job Object 管理进程树，`process_manager/macos.rs` 用独立进程组和随主程序退出的守护进程回收组内成员，尚不能约束主动脱组的后代。
+- `src-tauri/src/runtime/plugin_services.rs` 与 `runtime/plugin_services.py`：托盘退出时枚举全部本地 Profile，通过统一服务命令注册表查询、停止并复查插件服务，首批接入 OpenViking Quick Local；失败项保留供下次正常退出重试。范围和验收限制见 [插件服务生命周期](../../docs/plugin-service-lifecycle.md)。
 - `src-tauri/src/runtime/channels.rs`：飞书、微信扫码接入、私聊放行或配对审批模式、配对码批准与渠道状态；扫码凭据只保留在 Rust 宿主，授权后写入自有 Hermes 配置。
 - `src-tauri/src/runtime/channel_manage.rs`：按当前 Profile 代理锁定 Gateway 的渠道配置与测试接口，启用前检查必填字段，返回给前端的渠道目录只含字段元数据。
 - `src-tauri/src/runtime/channel_telegram.rs`、`channel_vendor_qr.rs`：Telegram、钉钉、企微群机器人及 QQ Bot 的扫码状态与临时凭据；QQ 返回的密钥在 Rust 中解密。成功后经产品自有 Gateway 配置接口保存，不调用上游自带的自动重启。
@@ -20,13 +21,14 @@ Tauri 2 客户端负责原生窗口、宿主能力、Hermes 运行时及安装�
 - `src-tauri/src/runtime/modelscope_mcp.rs`：ModelScope MCP 广场的公开搜索与详情适配；仅在公开详情提供静态 HTTPS 地址时经当前自有 Hermes 安装，不代管 ModelScope 账号部署。
 - `src-tauri/src/tray.rs`：窗口关闭时收起到系统托盘，托盘菜单可恢复窗口或退出。
 - `src-tauri/src/runtime/about.rs`：读取编译时产品版本、固定上游锁与随程序内嵌的产品及上游许可证。
-- `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁。
+- `src-tauri/src/runtime/location.rs`：产品存储定位文件和所有者锁；编程数据位于选定存储位置的 `HermessAgentDesktop/programming`，与 Gateway 的 `hermes-home` 并排。发行版默认采用应用本地数据目录（Windows 为 `%LOCALAPPDATA%/com.hermess.agentdesktop`），已有存储选择优先；开发态采用 `.build/desktop-dev-data` 或 `HERMESS_DEV_STORAGE`。编程目录解析不要求启动 Gateway，不读取、迁移或清理旧应用配置目录下的 `programming`。
 - `src-tauri/src/runtime/payload.rs`：固定上游资源校验与离线安装。
 - `src-tauri/src/runtime/retired_payload.rs`：Windows 发行版在新 Gateway 就绪后后台清理安装目录中带相邻 `.owner` 标记的旧运行时；占用或中断时保留标记，后续启动重试。
 - `agent-tools/powershell/`：本产品的 Windows PowerShell Tool。Windows 桌面程序内嵌工具代码，在自有 Hermes 根目录及各命名 Profile 中部署并启用 `powershell_execute`；各 Profile 首次部署后仍可自行禁用。工具注册到仅桌面会话启用的 `desktop_ui` 工具集，使其在延迟工具搜索开启时仍直接出现在模型工具列表中。执行时使用用户机器上的 PowerShell 7 或 Windows PowerShell 5.1，不随包安装解释器。工具启动的脚本让常用文本读写命令默认使用 UTF-8；PowerShell 5.1 写入 UTF-8 时会带 BOM，显式 `-Encoding` 仍优先。
 - `src-tauri/src/runtime/chat.rs`、`models.rs`、`config.rs`、`tools.rs`：按产品能力整理的原生命令，显式声明对运行时所有者的依赖。
 - 新建聊天会话可接收工作区目录；Rust 在调用网关前要求该目录是本机已存在的绝对目录，并向 `session.create` 传递明确的 `cwd`。
 - `src-tauri/src/gateway.rs`：固定上游 Gateway 的 WebSocket/RPC 适配。
+- `src-tauri/src/computer_activity.rs` 与 `computer_activity/window.rs`：Gateway 与 Codex 共用的电脑操作状态、原生提示窗和停止接管；界面仅显示固定提示及操作按钮。Codex 通过产品动态工具复用锁定电脑工具，Windows 接入，macOS 的独立驱动回收尚待适配，详见[范围与验证](../../docs/computer-activity.md)。
 - `src-tauri/src/tests/`、`src-tauri/src/runtime/tests/`：Rust 单元测试；生产模块只保留 `#[cfg(test)]` 下的模块声明。
 
 运行时所有者独占子进程、存储锁和当前 Gateway；功能命令在所有权锁内复制当前连接句柄或本地端点信息，释放锁后才等待 Gateway/HTTP。启动时声明 `--external-supervisor`，让锁定 Gateway 的终端工具保护阻止 AI 停止或重启自己的宿主；支持的重启请求由客户端接续启动。主窗口收到断线后只请求一次 Rust 恢复：自有进程存活时最多用 5 秒重新核验身份和连接，健康连接直接复用；持续不可连时停止该进程管理登记对应的整棵树，再按保存的启动参数重新拉起，原进程已退出则直接重新拉起。目录相同或占用同一端口不构成进程归属依据，不接管其他 Hermes 安装。
@@ -38,6 +40,14 @@ Rust 恢复总预算为 60 秒，包含等待生命周期锁；60 秒窗口内�
 桌面启动一个自有 `hermes gateway run` 进程，承载聊天会话和消息渠道。HTTP 配置接口使用 Rust 保管的随机会话令牌；聊天 WebSocket 使用网关私有控制端签发的一次性票据。Rust 直接连接私有控制端完成自有进程发现和取票请求，不再为这两步启动 Python 辅助进程；票据仍由 Gateway 签发。令牌不在根路径公布，带浏览器 `Origin` 的 WebSocket 握手被拒绝。安全逻辑和三个接入点由 [Hermes fork 的桌面分支](https://github.com/FirewineXie/hermes-agent/tree/hermess-desktop)直接跟踪；`pnpm fetch:upstream` 检出锁定 SHA，`pnpm verify:upstream` 校验来源、分支历史和干净工作区。Rust 启动时检查私有入口和浏览器握手；拥有桌面 WebView 执行权的代码仍可调用已开放的 Tauri 命令，命令权限须由 Rust 校验。扫码成功后由桌面重启这一自有网关，加载新渠道配置。
 
 渠道扫码保存配置后，桌面通过 Hermes 现有 drain 接口暂停新任务，等待当前任务结束，再停止并重启自有网关。等待超过 60 秒或 Hermes 拒绝停止时保留旧网关，用户可继续等待或确认强制重启；单实例重启仍会短暂断线。
+
+### 新用户首次准备工具
+
+Windows 打包客户端首次使用全新的产品数据目录时，先在产品独立 `HERMES_HOME` 下运行自带的 `hermes pm install`，完成后再启动网关。该命令按锁定 PM 的默认集合安装工具和 `all` Python 依赖，包含平台支持的默认浏览器与电脑操作工具，不安装所有 GPU 推理后端。首次准备可能联网下载，安装等待上限为 30 分钟；客户端还检查默认工具记录与 `all` 依赖选择，避免 PM 忽略可选下载失败后误记完成。
+
+状态写入产品数据目录的 `control/first-run-install.json`：安装前记录待完成，成功核实后记录完成；失败、中断和退出保留待完成状态，下次启动重试，未完成时不启动网关。已存在 `hermes-home` 且没有首次安装记录的数据目录按已有用户处理，不补装默认集合；macOS/Linux、开发态和远程连接不执行此准备。安装与校验均在后台经产品进程管理器运行，详细结果见 `logs/first-run-install.log`，关键阶段见客户端日志。本次沿用现有产品数据目录的 PM 存储行为，不包含 `dev/windows-managed-tools-plan.md` 中独立安装目录或用户任务工具优先级的改造。
+
+后续安装入口复用「设置 → 桌面 → 工具与能力」：展开缺失工具，点击「下载并安装」，完成后重启运行时。当前锁定 PM 没有工具卸载命令，页面也未提供卸载按钮；系统已有工具和安装包内置运行时不由此页面删除。
 
 ## 聊天媒体读取
 

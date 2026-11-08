@@ -95,7 +95,7 @@ pub async fn save(
 }
 
 #[cfg(windows)]
-fn replace_file(source: &Path, target: &Path) -> Result<(), DesktopFailure> {
+pub(super) fn replace_file(source: &Path, target: &Path) -> Result<(), DesktopFailure> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
@@ -122,7 +122,7 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), DesktopFailure> {
 }
 
 #[cfg(not(windows))]
-fn replace_file(source: &Path, target: &Path) -> Result<(), DesktopFailure> {
+pub(super) fn replace_file(source: &Path, target: &Path) -> Result<(), DesktopFailure> {
     fs::rename(filesystem_path(source), filesystem_path(target))
         .map_err(|_| DesktopFailure::operation_failed())
 }
