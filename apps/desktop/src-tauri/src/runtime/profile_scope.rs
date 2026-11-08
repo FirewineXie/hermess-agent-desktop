@@ -59,6 +59,17 @@ pub(super) struct ChatProfileScope {
 }
 
 impl ChatProfileScope {
+    pub(super) async fn client_environment(
+        &self,
+    ) -> Result<Option<(Value, usize)>, DesktopFailure> {
+        let Some(local) = &self.local else {
+            return Ok(None);
+        };
+        super::chat_environment::prepare(&local.hermes, &local.storage)
+            .await
+            .map(Some)
+    }
+
     pub(super) async fn ensure_current(&self, state: &BackendState) -> Result<(), DesktopFailure> {
         if let Some(local) = &self.local {
             return local.ensure_current(state).await;

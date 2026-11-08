@@ -51,6 +51,12 @@ Windows 打包客户端首次使用全新的产品数据目录时，先在产品
 
 编程模式每次启动 Worker 时读取当前产品数据目录及安装包的 PM 工具记录，将已安装工具的目录加入 Codex 命令环境 PATH，产品数据目录优先；uv/uvx 通过 PM 的已安装启动器接口显式加入。权限/技能发现和 MCP 设置探测共用这条启动路径。发现过程不下载安装，不激活 Hermes 自身依赖虚拟环境，不传递 PM 存储重定向变量，保留会话独立目录、凭据过滤及原有权限策略。用户项目依赖仍由项目自行管理。
 
+## 本地聊天会话工具环境
+
+本地普通聊天在创建新会话时，将本产品 PM 已安装工具路径以 `session.create.client_env.PATH` 发送给锁定 Gateway；只传 PATH，不发送 Hermes 的 Python 依赖环境或凭据。路径发现经受进程管理器登记的后台辅助进程进行，不下载工具，不修改 Gateway 启动环境。内置终端沿用上游的会话工具链及依赖清理，产品 PowerShell 工具也读取当前会话的工具链并清理 Hermes 依赖和凭据。项目可以显式激活自己的 `.venv`；恢复会话沿用原会话环境，之后安装的工具在新建会话时重新读取。渠道消息会话不经过此创建入口，不在本次注入范围；远程聊天不注入本机工具路径，编程模式保留既有实现。
+
+Windows 真实接收方验证使用 `.build/hermes-venv-i1/Scripts/python.exe scripts/verify-chat-environment.py`；加 `--hermes .build/hermes-venv-i1/Scripts/hermes.exe` 验证开发态。测试通过生产 Tauri 创建/提交/恢复命令连接锁定 Gateway，使用本地合成模型执行 PowerShell 和内置终端，核对 PM Python、依赖隔离、项目虚拟环境、两个会话的 PATH 区分及非法 `client_env` 拒绝。本机内置终端测试通过上游支持的 `HERMES_GIT_BASH_PATH` 指定非标准安装位置的 Git Bash；测试资料保留在忽略的 `.build/chat-environment-*`。macOS 原生执行、真实在线模型与安装包尚未在本轮验收。
+
 ## 聊天媒体读取
 
 聊天媒体通过 `DesktopApi.media` 和 `runtime/media*.rs` 适配锁定 fork Desktop 的行为，不修改 fork。前端只持有资源 ID 和 `hermess-media` URL；Rust 按调用窗口、Profile、会话和 Gateway 连接身份登记资源，在释放、窗口销毁或连接替换后拒绝继续读取。凭据和原始 HTTP 鉴权留在 Rust。

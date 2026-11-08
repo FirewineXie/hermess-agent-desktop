@@ -96,6 +96,16 @@ if (!firstRunInstall.includes('process_manager::status(&mut command, "first_run_
   || !firstRunInstall.includes('verify.creation_flags(0x0800_0000)')) {
   failures.push('first_run_install.rs: first install and verification must use registered background processes')
 }
+const chatEnvironment = readFileSync(resolve(rustSource, 'runtime/chat_environment.rs'), 'utf8')
+if (!chatEnvironment.includes('process_manager::spawn(&mut command, "chat_tool_environment")')
+  || !chatEnvironment.includes('command.creation_flags(0x0800_0000)')
+  || !chatEnvironment.includes('registration\n        .terminate_tree()')) {
+  failures.push('chat_environment.rs: session tool discovery must be registered, windowless and cleaned up')
+}
+const chatEnvironmentPython = readFileSync(resolve(root, 'apps/desktop/runtime/chat_environment.py'), 'utf8')
+if (/\b(?:import subprocess|from subprocess|os\.system|os\.popen)\b/.test(chatEnvironmentPython)) {
+  failures.push('chat_environment.py: read installed PM facts without starting tool or install processes')
+}
 // The Python programming adapter runs inside a registered native process tree.
 // It may reuse the locked transport, but must not introduce additional launch sites.
 const programmingAdapter = ['programming_worker.py', 'programming_session_commands.py']

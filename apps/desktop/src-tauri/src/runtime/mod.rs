@@ -9,6 +9,7 @@ pub mod channel_whatsapp;
 pub mod channels;
 pub mod chat;
 mod chat_create;
+mod chat_environment;
 pub mod chat_rollback;
 pub mod chat_subagents;
 pub mod coding;

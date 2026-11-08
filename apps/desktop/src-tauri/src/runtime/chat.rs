@@ -1,3 +1,4 @@
+#[cfg(test)]
 use super::chat_create::{session_create_params, validate_workspace_path};
 use super::BackendState;
 use crate::errors::DesktopFailure;
@@ -42,60 +43,7 @@ pub async fn create_chat_session(
     model: Option<String>,
     reasoning: Option<String>,
 ) -> Result<Value, DesktopFailure> {
-    let cwd = validate_workspace_path(cwd)?;
-    if provider.as_deref().is_some_and(|value| {
-        value.is_empty() || value.len() > 128 || value.chars().any(char::is_whitespace)
-    }) || model.as_deref().is_some_and(|value| {
-        value.is_empty() || value.len() > 256 || value.chars().any(char::is_whitespace)
-    }) || provider.is_some() != model.is_some()
-        || reasoning.as_deref().is_some_and(|value| {
-            !matches!(
-                value,
-                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
-            )
-        })
-    {
-        return Err(DesktopFailure::invalid_input());
-    }
-    let scope = state.resolve_chat_profile(&profile).await?;
-    let params = session_create_params(cwd, provider, model, reasoning);
-    let operation = params["request_id"].as_str().unwrap_or("").to_owned();
-    let _ = crate::diagnostics::append_client_event(
-        &scope.storage,
-        &format!("chat_session_create_start operation={operation} profile={profile}"),
-    );
-    let result = scope
-        .gateway
-        .request_detailed("session.create", params)
-        .await;
-    let outcome = match &result {
-        Ok(value)
-            if value.get("session_id").and_then(Value::as_str).is_some()
-                && value
-                    .get("stored_session_id")
-                    .and_then(Value::as_str)
-                    .is_some() =>
-        {
-            "completed=true".to_owned()
-        }
-        Ok(_) => "failed=true kind=incomplete_result".to_owned(),
-        Err(GatewayRequestError::Rpc { code, .. }) => format!("failed=true kind=rpc code={code}"),
-        Err(GatewayRequestError::Transport(_)) => "failed=true kind=transport".to_owned(),
-    };
-    let _ = crate::diagnostics::append_client_event(
-        &scope.storage,
-        &format!("chat_session_create_result operation={operation} profile={profile} {outcome}"),
-    );
-    let result = result.map_err(|error| DesktopFailure::from(error.to_string()))?;
-    if result.get("session_id").and_then(Value::as_str).is_none()
-        || result
-            .get("stored_session_id")
-            .and_then(Value::as_str)
-            .is_none()
-    {
-        return Err("网关未返回完整会话标识".into());
-    }
-    Ok(result)
+    super::chat_create::create(state, profile, cwd, provider, model, reasoning).await
 }
 
 #[tauri::command]
