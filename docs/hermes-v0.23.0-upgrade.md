@@ -8,7 +8,7 @@
 - 当前产品锁：官方 `v0.22.5` / `bf0203a794a07aac3ff764972ab9087baa4e4f4e`，fork `882037eb8745b505db438217513c4c94f95c93c1`，本轮尚未修改。
 - 官方最新非预发布、非草稿 Release：[v0.23.0](https://github.com/NousResearch/hermes-agent/releases/tag/v0.23.0)，发布于 2026-11-05，解引用提交 `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`。
 - fork 升级分支：`codex/upgrade-hermes-v0.23.0`；合并提交 `f41d994729eac52cfec8137b436d792c5ec35435` 的两个父提交分别为当前桌面维护提交和官方稳定版提交。
-- [fork PR #4](https://github.com/FirewineXie/hermes-agent/pull/4) 面向 `hermess-desktop`，等待门禁及维护者手动合并。未修改 fork `main`，未创建、改写或删除 fork tag。
+- [fork PR #4](https://github.com/FirewineXie/hermes-agent/pull/4) 面向 `hermess-desktop`，该提交的必需检查 [Hermess desktop gate](https://github.com/FirewineXie/hermes-agent/actions/runs/42495887729/job/128778036118) 已成功，等待维护者手动合并；此结果不代表其他上游工作流全部通过。未修改 fork `main`，未创建、改写或删除 fork tag。
 
 ## 同步和冲突处理
 
