@@ -14,6 +14,7 @@ async fn save_fixture() -> (super::BackendState, super::MediaEntry) {
             id: "save-test".into(),
             label: "save-test".into(),
             url: "http://127.0.0.1".into(),
+            ssh_target: None,
         },
         gateway: std::sync::Arc::clone(&client),
         selected_profile: "default".into(),

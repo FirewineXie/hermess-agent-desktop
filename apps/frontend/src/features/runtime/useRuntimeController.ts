@@ -162,31 +162,40 @@ export function useRuntimeController({ t, onReset, gateway, onRestore, onCancelR
 
   async function stopBackendStrict() { return stopBackendOperation(true) }
 
-  async function restartBackend() {
+  async function restartOperation<T>(operation: () => Promise<T>, infoOf: (result: T) => BackendInfo | null, deferred: (result: T) => boolean, recoverOnFailure = false) {
     const current = beginLifecycle()
     setBusy(true)
     setBackendStatus(t('ui.channels.waiting.for.restart'))
     try {
-      const result = await runtime.restartGracefully()
+      const result = await operation()
       if (!current()) return null
-      if (result.status === 'deferred') {
-        recovery.connectedNow()
-        setBackendStatus(t('ui.channels.restart.deferred'))
-        return null
-      }
-      const info = result.info
-      setBackend(info)
+      const info = infoOf(result)
+      if (info) setBackend(info)
       recovery.connectedNow()
-      setBackendStatus(t('ui.ready.websocket.ping.succeeded'))
-      return info
+      setBackendStatus(t(deferred(result) ? 'ui.channels.restart.deferred' : 'ui.ready.websocket.ping.succeeded'))
+      return result
     } catch (cause) {
       if (!current()) return null
       try { await runtime.ping(); if (current()) recovery.connectedNow() }
-      catch { if (current()) recovery.disconnected() }
+      catch {
+        if (current()) {
+          if (recoverOnFailure) await recovery.recover()
+          else recovery.disconnected()
+        }
+      }
       if (!current()) return null
       setBackendStatus(t('ui.startup.failed.arg', describeError(cause, language)))
       throw cause
     } finally { if (current()) setBusy(false) }
+  }
+
+  async function restartBackend() {
+    const result = await restartOperation(runtime.restartGracefully, result => result.status === 'restarted' ? result.info : null, result => result.status === 'deferred')
+    return result?.status === 'restarted' ? result.info : null
+  }
+
+  async function enableWebAccess() {
+    return restartOperation(() => runtime.webAccess({ action: 'enable' }), result => result.restarted, () => false, true)
   }
 
   async function forceRestartBackend() {
@@ -220,7 +229,7 @@ export function useRuntimeController({ t, onReset, gateway, onRestore, onCancelR
     pythonPath, setPythonPath, storagePath, setStoragePath, storageLocked, freshInstallation,
     backend, setBackend, workspaceGeneration, backendStatus, setBackendStatus, busy, setBusy,
     startBackend, startBackendStrict, chooseStoragePath, pingBackend, stopBackend, stopBackendStrict,
-    restartBackend, forceRestartBackend,
+    restartBackend, forceRestartBackend, enableWebAccess,
     connected: recovery.connected, connectionState: recovery.state,
     reconnectBackend: recovery.retry, suspendRecovery,
   }

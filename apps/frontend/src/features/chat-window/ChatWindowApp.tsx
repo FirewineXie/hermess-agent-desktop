@@ -113,6 +113,6 @@ export default function ChatWindowApp() {
         pickerConfirmation: picker.pickerConfirmation, pickerProviders: picker.pickerProviders,
         pickerProvider: picker.pickerProvider, setPickerProvider: picker.setPickerProvider, pickerModels: picker.pickerModels,
         pickerModelInput: picker.pickerModelInput, setPickerModelInput: picker.setPickerModelInput,
-        openModelPicker: picker.openModelPicker, pickModel: picker.pickModel }} />
+        openModelPicker: picker.openModelPicker, pickModel: picker.pickModel, restoreDefaultModel: picker.restoreDefaultModel }} />
   </div>
 }

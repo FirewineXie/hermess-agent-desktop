@@ -64,7 +64,7 @@
 .moa-options { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; }
 @media (max-width: 900px) { .moa-slot, .moa-options { grid-template-columns: 1fr 1fr; } }
 
-.settings-category-nav { display: flex; flex-direction: column; gap: 4px; padding: 27px 16px; border-right: 1px solid var(--settings-line); background: #f5f6f8; }
+.settings-category-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; padding: 27px 16px; border-right: 1px solid var(--settings-line); background: #f5f6f8; }
 .settings-nav-heading { display: grid; gap: 17px; padding: 0 11px 25px; }
 .settings-nav-heading strong { font-size: 24px; line-height: 1.25; }
 .settings-nav-heading button { justify-self: start; padding: 2px 0; border: 0; background: transparent; color: var(--settings-muted); font-size: 13px; }

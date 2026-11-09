@@ -154,27 +154,80 @@ pub async fn select_chat_model(
     state: State<'_, BackendState>,
     profile: String,
     session_id: String,
-    provider: String,
+    provider: Option<String>,
     model: String,
     confirm: Option<String>,
 ) -> Result<Value, DesktopFailure> {
-    let provider = provider.trim();
-    let model = model.trim();
-    if session_id.is_empty()
-        || session_id.len() > 256
-        || provider.is_empty()
-        || provider.len() > 128
-        || provider.chars().any(char::is_whitespace)
-        || model.is_empty()
-        || model.len() > 256
-        || model.chars().any(char::is_whitespace)
-    {
+    if session_id.is_empty() || session_id.len() > 256 {
         return Err(DesktopFailure::invalid_input());
     }
-    let gateway = state.resolve_profile(&profile).await?.gateway;
-    let snapshot = gateway
-        .request("session.resume", json!({"session_id": session_id}))
-        .await?;
+    let payload = chat_model_payload(provider.as_deref(), &model, confirm.as_deref())?;
+    let scope = state.resolve_profile(&profile).await?;
+    let request_id = Uuid::new_v4().to_string();
+    let reset = provider.is_none();
+    let log = |phase| {
+        if reset {
+            let _ = crate::diagnostics::append_client_event(
+                &scope.storage,
+                &format!(
+                    "session_model_reset operation={request_id} profile={profile} phase={phase}"
+                ),
+            );
+        }
+    };
+    log("start");
+    let result = async {
+        let snapshot = scope
+            .gateway
+            .request("session.resume", json!({"session_id": session_id}))
+            .await?;
+        let params = chat_model_mutation(&session_id, &request_id, &snapshot, payload)?;
+        scope
+            .gateway
+            .request("session.mutate", params)
+            .await
+            .map_err(DesktopFailure::from)
+    }
+    .await;
+    log(if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    });
+    result
+}
+
+fn chat_model_payload(
+    provider: Option<&str>,
+    model: &str,
+    confirm: Option<&str>,
+) -> Result<Value, DesktopFailure> {
+    let model = model.trim();
+    if model.is_empty() || model.len() > 256 || model.chars().any(char::is_whitespace) {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut payload = json!({"model": model});
+    if let Some(provider) = provider.map(str::trim) {
+        if provider.is_empty() || provider.len() > 128 || provider.chars().any(char::is_whitespace)
+        {
+            return Err(DesktopFailure::invalid_input());
+        }
+        payload["provider"] = json!(provider);
+    } else if model != "reset" {
+        return Err(DesktopFailure::invalid_input());
+    }
+    if let Some(token) = confirm.filter(|value| !value.is_empty() && value.len() <= 256) {
+        payload["confirm"] = json!(token);
+    }
+    Ok(payload)
+}
+
+fn chat_model_mutation(
+    session_id: &str,
+    request_id: &str,
+    snapshot: &Value,
+    payload: Value,
+) -> Result<Value, DesktopFailure> {
     let revision = snapshot
         .get("revision")
         .and_then(Value::as_u64)
@@ -183,24 +236,14 @@ pub async fn select_chat_model(
         .get("execution_generation")
         .and_then(Value::as_u64)
         .ok_or("会话缺少运行代次")?;
-    let mut payload = json!({"provider": provider, "model": model});
-    if let Some(token) = confirm.filter(|value| !value.is_empty() && value.len() <= 256) {
-        payload["confirm"] = json!(token);
-    }
-    gateway
-        .request(
-            "session.mutate",
-            json!({
-                "session_id": session_id,
-                "request_id": Uuid::new_v4().to_string(),
-                "expected_revision": revision,
-                "expected_generation": generation,
-                "operation": "model",
-                "payload": payload,
-            }),
-        )
-        .await
-        .map_err(Into::into)
+    Ok(json!({
+        "session_id": session_id,
+        "request_id": request_id,
+        "expected_revision": revision,
+        "expected_generation": generation,
+        "operation": "model",
+        "payload": payload,
+    }))
 }
 
 #[derive(Debug, PartialEq, Serialize)]

@@ -63,11 +63,12 @@ export function useSessionActivity(storagePath: string, connectionId: string | n
     void events.onGatewayEvent(event => {
       if (!active || !event.profile || !event.session_id) return
       const key = resolveKeyRef.current(event.profile, event.session_id)
-      if (event.kind === 'message.complete' || event.kind === 'error') {
+      if (event.kind === 'message.complete' || event.kind === 'error' || event.kind === 'session.reclaimed') {
         delete idleSnapshotsRef.current[key]
         const visible = visibleSessionRef.current
         const viewed = visible.chatVisible && visible.selectedProfile === event.profile && key === keyFor(event.profile, visible.activeSessionId)
-        const status = terminalActivity(viewed, event.kind === 'error' || event.payload?.status === 'error')
+        const status = event.kind === 'session.reclaimed' ? undefined
+          : terminalActivity(viewed, event.kind === 'error' || event.payload?.status === 'error')
         setActivity(current => {
           if (!status) {
             if (!(key in current)) return current

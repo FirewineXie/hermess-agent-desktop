@@ -8,9 +8,10 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     io::{Read, Write},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 struct TerminalSession {
@@ -19,7 +20,7 @@ struct TerminalSession {
     reader: Mutex<Option<Box<dyn Read + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
-    _process: ProcessRegistration,
+    process: ProcessRegistration,
 }
 
 impl Drop for TerminalSession {
@@ -68,17 +69,73 @@ fn default_shell() -> OsString {
     }
 }
 
+fn ssh_command(target: &str) -> Result<CommandBuilder, DesktopFailure> {
+    #[cfg(windows)]
+    let executable =
+        PathBuf::from(std::env::var_os("SystemRoot").ok_or_else(DesktopFailure::operation_failed)?)
+            .join("System32")
+            .join("OpenSSH")
+            .join("ssh.exe");
+    #[cfg(not(windows))]
+    let executable = PathBuf::from("/usr/bin/ssh");
+    if !executable.is_absolute() || !executable.is_file() {
+        return Err(DesktopFailure::runtime_unavailable());
+    }
+    let mut command = CommandBuilder::new(executable);
+    #[cfg(test)]
+    if let Some(config) = std::env::var_os("HERMESS_TEST_SSH_CONFIG") {
+        command.arg("-F");
+        command.arg(config);
+    }
+    command.args(["-tt", "-o", "ConnectTimeout=10", "--", target]);
+    Ok(command)
+}
+
 #[tauri::command]
 pub fn start_panel_terminal(
+    app: AppHandle,
     state: State<'_, TerminalState>,
     scope: WorkspaceScope,
+    gateway_id: Option<String>,
+) -> Result<StartedTerminal, DesktopFailure> {
+    let id = Uuid::new_v4().to_string();
+    let log = |phase| {
+        crate::diagnostics::log_client_event(&format!(
+            "panel_terminal terminal={id} remote={} phase={phase}",
+            gateway_id.is_some()
+        ))
+    };
+    log("start");
+    let result = (|| {
+        let command = match gateway_id.as_deref() {
+            Some(id) => ssh_command(&crate::runtime::remote_gateway::terminal_target(&app, id)?)?,
+            None => CommandBuilder::new(default_shell()),
+        };
+        spawn_terminal(&state, scope, id.clone(), command)
+    })();
+    log(if result.is_ok() { "started" } else { "failed" });
+    result
+}
+
+fn spawn_terminal(
+    state: &TerminalState,
+    scope: WorkspaceScope,
+    id: String,
+    mut command: CommandBuilder,
 ) -> Result<StartedTerminal, DesktopFailure> {
     let directory = scope.root()?;
     let pair = native_pty_system()
         .openpty(terminal_size(80, 24))
         .map_err(|_| DesktopFailure::operation_failed())?;
-    let mut command = CommandBuilder::new(default_shell());
     command.cwd(&directory);
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|_| DesktopFailure::operation_failed())?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|_| DesktopFailure::operation_failed())?;
     let (child, registration) = ProcessManager::current()
         .and_then(|manager| {
             manager.launch(
@@ -102,22 +159,13 @@ pub fn start_panel_terminal(
         })
         .map_err(|_| DesktopFailure::operation_failed())?;
     drop(pair.slave);
-    let reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    let id = Uuid::new_v4().to_string();
     let session = Arc::new(TerminalSession {
         scope,
         master: Mutex::new(pair.master),
         reader: Mutex::new(Some(reader)),
         writer: Mutex::new(writer),
         child: Mutex::new(child),
-        _process: registration,
+        process: registration,
     });
     state
         .0
@@ -164,15 +212,27 @@ pub fn activate_panel_terminal(
                 }
             }
         }
+        let state = app.state::<TerminalState>();
+        if let Ok(mut sessions) = state.0.lock() {
+            sessions.remove(&id);
+        }
+        crate::diagnostics::log_client_event(&format!("panel_terminal terminal={id} phase=ended"));
         let _ = app.emit(
             "panel-terminal-output",
             TerminalOutput {
-                id,
+                id: id.clone(),
                 scope: session.scope.clone(),
                 data: String::new(),
                 closed: true,
             },
         );
+        tauri::async_runtime::spawn(async move {
+            if session.process.terminate_tree().await.is_err() {
+                crate::diagnostics::log_client_event(&format!(
+                    "panel_terminal terminal={id} phase=cleanup_failed"
+                ));
+            }
+        });
     });
     Ok(())
 }
@@ -234,22 +294,36 @@ pub fn resize_panel_terminal(
 }
 
 #[tauri::command]
-pub fn close_panel_terminal(
+pub async fn close_panel_terminal(
     state: State<'_, TerminalState>,
     scope: WorkspaceScope,
     id: String,
 ) -> Result<(), DesktopFailure> {
-    let mut sessions = state
-        .0
-        .lock()
-        .map_err(|_| DesktopFailure::operation_failed())?;
-    if sessions
-        .get(&id)
-        .is_some_and(|session| session.scope != scope)
-    {
-        return Err(DesktopFailure::conflict());
+    let session = {
+        let mut sessions = state
+            .0
+            .lock()
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        if sessions
+            .get(&id)
+            .is_some_and(|session| session.scope != scope)
+        {
+            return Err(DesktopFailure::conflict());
+        }
+        sessions.remove(&id)
+    };
+    if let Some(session) = session {
+        let closed = session.process.terminate_tree().await;
+        let phase = if closed.is_ok() {
+            "closed"
+        } else {
+            "cleanup_failed"
+        };
+        crate::diagnostics::log_client_event(&format!(
+            "panel_terminal terminal={id} phase={phase}"
+        ));
+        closed.map_err(|_| DesktopFailure::operation_failed())?;
     }
-    sessions.remove(&id);
     Ok(())
 }
 

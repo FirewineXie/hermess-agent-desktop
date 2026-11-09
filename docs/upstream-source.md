@@ -29,8 +29,8 @@ fork 的 `main` 保持只读，tags 不允许创建、改写或删除。`hermess
 
 1. 确认 [官方 Releases](https://github.com/NousResearch/hermes-agent/releases/latest) 中要采用的正式 tag，核对 tag 解引用后的完整提交 SHA；不要把 `main`、预发布或 canary 当作正式 Release。
 2. 从 fork 的 `hermess-desktop` 创建升级分支，在升级分支合入该官方 tag 指向的提交，解决与桌面私有 API 的冲突；不改 fork 的 `main`，也不需要在 fork 创建 tag。
-3. 在 fork 的升级分支运行私有监听、令牌及 WebSocket 边界检查，通过 PR 合入 `hermess-desktop`，保留合并历史。
+3. 在 fork 的升级分支运行私有监听、令牌及 WebSocket 边界检查。PR 通过后，由维护者用 Create a merge commit 合入 `hermess-desktop`。更新产品锁前，用 `git merge-base --is-ancestor <官方tag提交> origin/hermess-desktop` 确认官方提交在维护分支历史中。Squash Merge 会丢失升级分支带入的官方祖先，即使文件一致也无法通过产品锁定校验。
 4. 在产品版本分支审查新的官方基线和 fork 提交，将完整 `baseCommit` 与 `commit` 写入锁文件。用干净目录运行 `pnpm fetch:upstream`、`pnpm verify:upstream`，重新验证前端、Rust、协议、payload 和目标平台安装包。
 5. 更新能力矩阵和运行时决策记录。只有产品 PR 检查通过、合入 `main` 且发布资源核对完成后，才能创建新的产品发布 tag。
 
-当前官方基线是 `v0.22.5`（`bf0203a794a07aac3ff764972ab9087baa4e4f4e`）。fork 桌面提交及产品版本的验收范围以当前锁文件和验证记录为准。
+当前官方基线是 `v0.23.0`（`2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`），fork 提交及产品验收范围见锁文件与 [升级记录](hermes-v0.23.0-upgrade.md)。

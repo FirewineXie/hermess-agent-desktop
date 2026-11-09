@@ -113,7 +113,7 @@ pub(super) fn allowed(catalog: &Value, command: &str) -> bool {
         if name == "/browser" {
             return matches!(
                 arg.to_ascii_lowercase().as_str(),
-                "" | "connect" | "status" | "disconnect" | "use" | "use on" | "use off"
+                "" | "connect" | "status" | "disconnect"
             );
         }
         return name != "/approvals" || !arg.eq_ignore_ascii_case("off");

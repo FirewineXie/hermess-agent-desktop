@@ -192,3 +192,22 @@ fn print_production_plugin_management_shapes() {
         json!({"method":method.as_str(), "path":path, "body":body})
     );
 }
+#[test]
+#[ignore = "run by the isolated locked Gateway receiver probe"]
+fn print_production_gateway_feature_plugins() {
+    println!(
+        "FEATURE_SHAPE={}",
+        serde_json::json!({"id": "plugin-batch", "method": "POST", "path": super::batch::UPDATE_ALL})
+    );
+    println!(
+        "FEATURE_SHAPE={}",
+        json!({"id":"plugin-auto-read", "method":"GET", "path":super::batch::AUTO_UPDATE})
+    );
+    for (id, enabled) in [("plugin-auto-enable", true), ("plugin-auto-disable", false)] {
+        let body = super::batch::auto_update_body(&json!({"enabled":enabled})).unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            json!({"id":id, "method":"PUT", "path":super::batch::AUTO_UPDATE, "body":body})
+        );
+    }
+}

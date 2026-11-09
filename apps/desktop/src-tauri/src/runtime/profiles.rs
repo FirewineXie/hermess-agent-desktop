@@ -26,6 +26,10 @@ pub(super) struct ProfiledGateway {
 }
 
 impl ProfiledGateway {
+    pub(super) fn replay_epoch(&self) -> &str {
+        &self.client.replay_epoch
+    }
+
     pub(super) fn new(
         client: Arc<GatewayClient>,
         profile: String,
@@ -53,8 +57,12 @@ impl ProfiledGateway {
         method: &'static str,
         params: Value,
     ) -> Result<Value, GatewayRequestError> {
-        let requested_session = params
-            .get("session_id")
+        let session_id = if is_session_connector_method(method) {
+            params.pointer("/owner/session_id")
+        } else {
+            params.get("session_id")
+        };
+        let requested_session = session_id
             .and_then(Value::as_str)
             .filter(|id| !id.is_empty())
             .map(str::to_owned);
@@ -166,6 +174,9 @@ pub(super) fn scoped_params(
 }
 
 fn accepts_profile(method: &str) -> bool {
+    if is_session_connector_method(method) {
+        return true;
+    }
     matches!(
         method,
         "session.create"
@@ -202,6 +213,7 @@ fn accepts_profile(method: &str) -> bool {
             | "model.options"
             | "browser.manage"
             | "reload.mcp"
+            | "mcp.servers.status"
             | "skills.reload"
             | "cron.manage"
             | "setup.runtime_check"
@@ -214,6 +226,16 @@ fn accepts_profile(method: &str) -> bool {
             | "groups.stop"
             | "groups.disband"
             | "groups.approve"
+    )
+}
+
+fn is_session_connector_method(method: &str) -> bool {
+    matches!(
+        method,
+        "connection.respond"
+            | "connectors.operation.status"
+            | "connectors.operation.wake"
+            | "connectors.connect"
     )
 }
 

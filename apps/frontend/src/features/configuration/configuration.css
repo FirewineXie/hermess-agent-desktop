@@ -25,8 +25,6 @@
 .configuration-settings .config-field-preview:hover { background: #f5f8fc; }
 .configuration-settings .config-field-actions button:first-child, .configuration-settings .configuration-mode button[aria-pressed=true] { background: #1b6ffd; color: #fff; }
 .configuration-subsection { margin: 22px 0; padding: 18px 0; border-top: 1px solid #e3e8ef; }
-.configuration-settings .configuration-toggle { display: flex; align-items: center; gap: 10px; }
-.configuration-toggle input { width: 18px; height: 18px; flex: none; }
 .configuration-list-row { display: flex; gap: 10px; margin: 10px 0; }
 .configuration-list-row button { flex: none; }
 .configuration-mode, .configuration-settings .actions { display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap; }

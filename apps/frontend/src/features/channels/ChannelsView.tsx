@@ -2,6 +2,7 @@ import React from 'react'
 import QRCode from 'qrcode'
 import type { ChannelAccess, ChannelQrStart, ChannelStatus } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import { useGatewayRefresh } from '../../app/useGatewayRefresh'
 import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
@@ -72,6 +73,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
   }, [channels, connected, profile, epoch])
 
   React.useEffect(() => { void refresh().catch(() => setStatus(t('ui.channels.status.failed'))) }, [refresh])
+  useGatewayRefresh(connected, 'platforms.changed', () => refresh().catch(() => setStatus(t('ui.channels.status.failed'))))
   React.useEffect(() => {
     if (active) {
       dialogWasOpen.current = true

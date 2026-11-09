@@ -147,7 +147,7 @@ pub(super) async fn start(
             let _ = append_client_event(&storage, "gateway_start_cancelled");
             return Err(DesktopFailure::runtime_unavailable());
         },
-        result = launch_owned(app, state, hermes, selected, disable_lazy_installs) => result,
+        result = launch_owned(app, state, hermes, selected, disable_lazy_installs, None) => result,
     };
     if let Err(error) = &result {
         let _ = append_client_event(
@@ -326,6 +326,7 @@ async fn recover(
         config.hermes,
         config.selected,
         config.disable_lazy_installs,
+        None,
     )
     .await
 }
@@ -379,6 +380,7 @@ pub(super) async fn launch_owned(
     hermes: PathBuf,
     selected: PathBuf,
     disable_lazy_installs: bool,
+    webapp: Option<super::web_access::ManagedWebapp>,
 ) -> Result<BackendInfo, DesktopFailure> {
     if !selected.is_absolute() {
         return Err(DesktopFailure::invalid_input());
@@ -433,7 +435,7 @@ pub(super) async fn launch_owned(
         port,
         token,
         endpoint,
-    } = spawn_owned_gateway(&hermes, &storage, disable_lazy_installs).await?;
+    } = spawn_owned_gateway(&hermes, &storage, disable_lazy_installs, webapp.as_ref()).await?;
     let pid = child.id().ok_or("无法获取后端 PID")?;
     let gateway_home = storage.join("hermes-home");
     let ticket = mint_gateway_ticket(&gateway_home, &endpoint, pid).await?;
@@ -443,6 +445,8 @@ pub(super) async fn launch_owned(
     let replay_epoch = gateway.replay_epoch.clone();
     let _ = append_client_event(&storage, "backend_ready");
     *owned = Some(OwnedBackend {
+        web_access: None,
+        webapp,
         _storage_lock: storage_lock,
         storage,
         child,
@@ -504,6 +508,7 @@ async fn spawn_owned_gateway(
     hermes: &Path,
     storage: &Path,
     disable_lazy_installs: bool,
+    webapp: Option<&super::web_access::ManagedWebapp>,
 ) -> Result<SpawnedGateway, DesktopFailure> {
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let hermes_home = storage.join("hermes-home");
@@ -527,6 +532,9 @@ async fn spawn_owned_gateway(
         .kill_on_drop(true);
     if disable_lazy_installs {
         command.env("HERMES_DISABLE_LAZY_INSTALLS", "1");
+    }
+    if let Some(webapp) = webapp {
+        command.env("HERMES_MANAGED_DIR", webapp.path());
     }
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
@@ -569,8 +577,16 @@ async fn spawn_owned_gateway(
         }
         sleep(Duration::from_millis(200)).await;
     };
+    let token = if let Some(webapp) = webapp {
+        if webapp.port != port {
+            return Err("Gateway 未在指定的本机端口启用 Webapp".into());
+        }
+        super::web_access::desktop_credential(&gateway_home, pid, port).await?
+    } else {
+        token
+    };
     ping(port, &token).await?;
-    verify_private_api(port, &token).await?;
+    verify_private_api(port, &token, webapp.is_some()).await?;
     if let Some(status) = child
         .try_wait()
         .map_err(|_| "后端进程状态读取失败".to_string())?

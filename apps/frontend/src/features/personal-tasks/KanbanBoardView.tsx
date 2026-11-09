@@ -4,6 +4,7 @@ import { kanbanRequest, kanbanTaskMutation, withBoard } from './kanbanApi'
 import type { BoardMeta, KanbanBoard, KanbanDetail, KanbanEstimate, KanbanModelOptions, KanbanOrchestration, KanbanStats, KanbanTask, KanbanWorkflow } from './kanbanApi'
 import KanbanTaskDrawer from './KanbanTaskDrawer'
 import KanbanSettings from './KanbanSettings'
+import KanbanPinnedBoards from './KanbanPinnedBoards'
 import KanbanModelOverrideField from './KanbanModelOverrideField'
 import { EMPTY_TASK_MODEL, bulkStatusPatch, failedBulkTaskIds, taskModelCreateFields } from './kanbanTaskModel'
 import type { TaskModelOverride } from './kanbanTaskModel'
@@ -42,7 +43,7 @@ function byAssignee(tasks: KanbanTask[]) {
   return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right))
 }
 
-export default function KanbanBoardView({ initialTaskId, connectionId = null }: { initialTaskId?: string | null; connectionId?: string | null } = {}) {
+export default function KanbanBoardView({ initialTaskId, connectionId = null, storagePath = '' }: { initialTaskId?: string | null; connectionId?: string | null; storagePath?: string } = {}) {
   const { kanbanDashboard: bridge, extensions } = useDesktop()
   const [boards, setBoards] = React.useState<BoardMeta[]>([])
   const [board, setBoard] = React.useState('default')
@@ -439,12 +440,17 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null }: 
       <button type="button" className="kanban-native-primary" onClick={() => openCreate()}>＋ 新建任务</button>
     </header>
     <div className="kanban-native-toolbar">
+      <div className="kanban-native-board-picker">
       <label>看板 <select value={board} onChange={event => selectBoard(event.target.value)}>{boards.map(item => <option key={item.slug} value={item.slug}>{item.name || item.slug}</option>)}</select></label>
+      <KanbanPinnedBoards key={storagePath} storagePath={storagePath} boards={boards} current={board} onSelect={selectBoard} onError={setError} />
       <span className="kanban-native-count">{activeCount} 项任务</span>
+      </div>
+      <div className="kanban-native-toolbar-actions">
       <span className={`kanban-native-live ${liveConnected ? 'connected' : ''}`}><span />{liveConnected ? '实时同步' : '轮询同步'}</span>
       <button type="button" onClick={() => setSettings(true)}>看板与编排设置</button>
       <button type="button" disabled={busy} onClick={() => void dispatchReadyTasks()}>{busy ? '调度中…' : '立即调度'}</button>
       <button type="button" onClick={() => void refresh()}>刷新</button>
+      </div>
     </div>
     {stats && <><p className="kanban-native-overview-label">当前看板概览 · 统计不受下方筛选影响</p><section className="kanban-native-stats" aria-label="看板运行概览">
       <button type="button" className="is-attention" onClick={() => jumpToStatus((stats.by_status.blocked || 0) ? 'blocked' : 'review')}><span>需要处理</span><strong>{(stats.by_status.blocked || 0) + (stats.by_status.review || 0)}</strong><small>遇阻 {stats.by_status.blocked || 0} · 待审核 {stats.by_status.review || 0} →</small></button>

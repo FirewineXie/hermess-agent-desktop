@@ -18,6 +18,8 @@ EXCLUDED = ("tests", "tests-js", "website", "evals", ".github", "nix", "docker",
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--payload", required=True, type=Path)
+    parser.add_argument("--require-webapp", action="store_true")
+    parser.add_argument("--require-install-stamp", action="store_true")
     args = parser.parse_args()
     product = Path(__file__).resolve().parents[1]
     payload = args.payload.resolve(strict=True)
@@ -32,6 +34,17 @@ def main() -> None:
         parser.error(f"upstream HEAD differs from lock: {current}")
     subprocess.run(["node", str(product / "scripts" / "verify-upstream.mjs")], check=True)
     source = payload / manifest["repo"]
+    stamp_file = source / "install-stamp.json"
+    if args.require_install_stamp or stamp_file.is_file():
+        stamp = json.loads(stamp_file.read_text(encoding="utf-8"))
+        if (stamp["commit"], stamp["tag"], stamp["baseVersion"], stamp["updateMechanism"]) != (
+            commit, lock["tag"], lock["tag"].removeprefix("v"), "external"
+        ):
+            raise RuntimeError("payload runtime stamp differs from the product lock")
+    if args.require_webapp:
+        webapp = source / "apps" / "desktop" / "dist-webapp"
+        if not (webapp / "index.html").is_file() or not any((webapp / "assets").glob("*.js")):
+            raise RuntimeError("payload Webapp renderer is incomplete")
     checked = 0
     with tempfile.TemporaryDirectory(prefix="payload-archive-", dir=product / ".build") as temp:
         archive = Path(temp) / "source.tar"

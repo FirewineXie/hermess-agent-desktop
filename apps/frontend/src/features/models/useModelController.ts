@@ -446,6 +446,24 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     finally { setPickerBusy(false) }
   }
 
+  async function restoreDefaultModel() {
+    const id = sessionRef.current
+    if (!id || pickerBusy || turnBusy) return
+    const scope = sessionScope(id)
+    setPickerBusy(true)
+    setPickerError('')
+    setPickerConfirmation(null)
+    try {
+      const result = await models.selectChat(scope, { model: 'reset' })
+      const { model, provider } = result
+      if (!model || result.status === 'refused') throw new Error(t('ui.model.switch.not.applied'))
+      if (sessionRef.current !== id || sessionProfileRef.current !== scope.profile) return
+      setActiveModel(current => ({ model, provider: provider || (current?.model === model ? current.provider : '') }))
+      setChatStatus(t('ui.model.restored.for.session.arg', model))
+      setModelPickerOpen(false)
+    } catch (cause) { setPickerError(describeError(cause, language)) }
+    finally { setPickerBusy(false) }
+  }
 
   function resetModel() {
     setSavedModel(null)
@@ -467,6 +485,6 @@ export function useModelController({ backend, profile, storagePath, t, sessionRe
     pickerBusy, pickerError, pickerConfirmation, addedModels, modelLists, modelListBusy,
     modelListLoading, discoveryBusy, pickerModels, providerCards, visibleModels,
     loadModelOptions, saveProviderModels, saveProviderDefault, setProviderDiscovery, syncProviderModels, addProvider, updateProvider, openProviderEditor, chooseProviderPreset,
-    deleteProvider, discardSettingsDraft, openModelPicker, pickModel, resetModel,
+    deleteProvider, discardSettingsDraft, openModelPicker, pickModel, restoreDefaultModel, resetModel,
   }
 }

@@ -10,7 +10,6 @@ export function argumentOptions(catalog: CommandCatalog, name: string): string[]
   if (name === '/save') return ['json', 'md', 'html']
   if (name === '/queue') return ['list', 'add', 'edit', 'rm', 'clear']
   if (name === '/reload-mcp' || name === '/reload-skills') return []
-  if (name === '/browser') return ['connect', 'status', 'disconnect', 'use']
   if (name === '/journey') return []
   if (['/new', '/sessions', '/model', '/history', '/resume', '/retry', '/agents', '/branch', '/undo', '/stop', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(name)) return []
   const options = catalog.commands[name]?.desktop_subcommands || catalog.sub?.[name] || catalog.sub?.[name.slice(1)] || []
@@ -28,7 +27,7 @@ export function argumentAllowed(catalog: CommandCatalog, name: string, arg: stri
   if (name === '/bg') return !!arg.trim()
   if (name === '/queue') return !arg.trim() || /^(list|clear|move(?:\s+.*)?|add\s+\S[\s\S]*|edit\s+[1-9]\d*\s+\S[\s\S]*|rm\s+[1-9]\d*)$/.test(arg.trim())
   if (name === '/reload-mcp' || name === '/reload-skills') return !arg.trim()
-  if (name === '/browser') return /^(|connect|status|disconnect|use(?:\s+(?:on|off))?)$/.test(arg.trim().toLowerCase())
+  if (name === '/browser') return /^(|connect|status|disconnect)$/.test(arg.trim().toLowerCase())
   if (name === '/journey') return !arg.trim()
   const subcommands = catalog.commands[name]?.desktop_subcommands
   if (subcommands && !subcommands.includes(arg.trim().split(/\s+/)[0])) return false
@@ -50,7 +49,7 @@ export function argumentHint(catalog: CommandCatalog | null, name: string, langu
   if (name === '/queue') return language === 'zh-CN' ? '/queue list|add 内容|edit 序号 内容|rm 序号|clear；队列按提交顺序执行' : '/queue list|add text|edit index text|rm index|clear; FIFO order is fixed'
   if (name === '/reload-mcp') return language === 'zh-CN' ? '/reload-mcp 重新连接当前 Profile 的 MCP；运行中的会话可能延后生效' : '/reload-mcp reconnects MCP servers for this profile; busy sessions may defer changes'
   if (name === '/reload-skills') return language === 'zh-CN' ? '/reload-skills 重新扫描当前会话可用的 Skill，不接受参数' : '/reload-skills rescans skills available to this session; no arguments'
-  if (name === '/browser') return language === 'zh-CN' ? '/browser connect|status|disconnect|use on|off；连接本产品管理的浏览器' : '/browser connect|status|disconnect|use on|off; connects the product-managed browser'
+  if (name === '/browser') return language === 'zh-CN' ? '/browser connect|status|disconnect，管理产品自有浏览器' : '/browser connect|status|disconnect manages the product browser'
   if (name === '/journey') return language === 'zh-CN' ? '/journey 打开当前 Profile 的学习时间线' : '/journey opens the learning timeline for this profile'
   if (['/new', '/sessions', '/model', '/history', '/stop', '/config', '/tools', '/toolsets', '/cron', '/plugins'].includes(name)) return language === 'zh-CN' ? name + ' 不接受参数，请在对应界面操作' : name + ' takes no arguments; use its desktop view'
   return catalog?.pairs.find(([key]) => key === name)?.[1] || ''

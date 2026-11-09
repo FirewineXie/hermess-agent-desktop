@@ -4,6 +4,7 @@ import { assistantCopyLabel, copyAssistantText, type AssistantCopyState } from '
 import MarkdownMessage from './MarkdownMessage'
 import SentAttachmentList from './SentAttachmentList'
 import MediaAttachment from './MediaAttachment'
+import type { HistorySelection } from './HistoryActionDialog'
 
 type Language = 'zh-CN' | 'en-US'
 
@@ -49,18 +50,26 @@ function toolDetail(step: ToolStep, language: Language): { title: string; text: 
 
 function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
   const detail = toolDetail(step, language)
-  const hasDetail = Boolean(detail || step.summary || step.error)
+  const hasDetail = Boolean(detail || step.summary || step.error || step.imagePath || step.riskFindings)
+  const progress = step.state === 'running' ? step.progress : undefined
+  const progressText = progress?.percent != null ? `${progress.percent}%`
+    : progress?.value != null ? [progress.value, progress.total].filter(value => value != null).join('/') : ''
   const heading = <>
           <span className="tool-step-icon" aria-hidden="true">{step.name === 'terminal' || step.name === 'execute_code' ? '›' : step.name === 'read_file' || step.name === 'search_files' ? '▤' : '◇'}</span>
           <span className="tool-step-name">{toolName(step.name, language)}</span>
-          <small>{toolState(step, language)}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small>
+          <small>{toolState(step, language)}{progressText && ` · ${progressText}`}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small>
+          {step.riskFindings && <strong>{language === 'zh-CN' ? '工具输出存在风险' : 'Risk detected in tool output'}</strong>}
           {hasDetail && <span className="tool-step-chevron" aria-hidden="true">⌄</span>}
   </>
-  if (!hasDetail) return <div className="tool-step"><div className="tool-step-heading">{heading}</div></div>
-  return <details className="tool-step">
+  if (!hasDetail) return <div className="tool-step"><div className="tool-step-heading">{heading}</div>
+    {progress?.message && <div className="tool-step-summary">{progress.message}</div>}</div>
+  return <details className="tool-step" open={step.imagePath ? true : undefined}>
     <summary>{heading}</summary>
+    {progress?.message && <div className="tool-step-summary">{progress.message}</div>}
+    {!!step.riskFindings?.length && <div className="tool-step-summary">{step.riskFindings.join(' · ')}</div>}
     {step.summary && <div className="tool-step-summary">{step.summary}</div>}
     {step.error && <div className="tool-step-error">{step.error}</div>}
+    {step.imagePath && <MediaAttachment source={step.imagePath} language={language} />}
     {detail && <div className="tool-step-detail"><div>{detail.title}</div><pre>{detail.text.length > 4000 ? `${detail.text.slice(0, 4000)}…` : detail.text}</pre></div>}
   </details>
 }
@@ -69,7 +78,7 @@ function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Langua
   return <div className="tool-activity">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
 }
 
-function AssistantMessage({ text, language, streaming = false, media, showCopy = false }: { text: string; language: Language; streaming?: boolean; media?: string[]; showCopy?: boolean }) {
+function AssistantMessage({ text, language, streaming = false, media, showCopy = false, actions }: { text: string; language: Language; streaming?: boolean; media?: string[]; showCopy?: boolean; actions?: React.ReactNode }) {
   const [copyState, setCopyState] = React.useState<AssistantCopyState>('idle')
   const resetTimer = React.useRef<number | null>(null)
   React.useEffect(() => () => {
@@ -84,7 +93,9 @@ function AssistantMessage({ text, language, streaming = false, media, showCopy =
   return <div className="message message-assistant">
     <MarkdownMessage text={text} language={language} streaming={streaming} />
     <HistoryMedia sources={media} language={language} />
-    {showCopy && !streaming && text.trim() && <div className="assistant-message-actions"><button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button></div>}
+    {((showCopy && !streaming && text.trim()) || actions) && <div className="assistant-message-actions">
+      {showCopy && !streaming && text.trim() && <button type="button" onClick={() => void copy()}>{assistantCopyLabel(language, copyState)}</button>}{actions}
+    </div>}
   </div>
 }
 
@@ -103,7 +114,7 @@ function ReasoningBlock({ text, streaming, expanded, language }: { text: string;
   </details>
 }
 
-export default function MessageList({ messages, assistant, turnBusy, language, t }: { messages: TimelineItem[]; assistant: string; turnBusy: boolean; language: Language; t: (key: string) => string }) {
+export default function MessageList({ messages, assistant, turnBusy, language, t, onHistoryAction, editBlocked }: { messages: TimelineItem[]; assistant: string; turnBusy: boolean; language: Language; t: (key: string) => string; onHistoryAction?: (selection: HistorySelection) => void; editBlocked?: boolean }) {
   const [now, setNow] = React.useState(Date.now)
   React.useEffect(() => {
     if (!turnBusy) return
@@ -122,6 +133,15 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
     }
   }
   if (!messages.length && !assistant) return <div className="welcome"><span className="hero-mark">H</span><h2>{t('ui.hello.what.do.you.want.to.do.today')}</h2><p>{t('ui.describe.a.task.to.hermess.or.add.files.to.work.on.together')}</p></div>
+  const historyActions = ({ role, text, rowId }: Extract<TimelineItem, { kind: 'message' }>) => {
+    if (!rowId || !onHistoryAction || turnBusy) return null
+    return <>
+      {role === 'user' && text.trim() && <button type="button" disabled={editBlocked}
+        title={editBlocked ? label(language, '请先处理输入框中的草稿或附件', 'Finish the current draft or attachments first') : undefined}
+        onClick={() => onHistoryAction({ operation: 'rewind', rowId, text, role })}>{label(language, '编辑重发', 'Edit and resend')}</button>}
+      <button type="button" onClick={() => onHistoryAction({ operation: 'branch', rowId, text, role })}>{label(language, '从这里分叉', 'Branch from here')}</button>
+    </>
+  }
   const blocks: React.ReactNode[] = []
   for (let index = 0; index < messages.length;) {
     const message = messages[index]
@@ -146,12 +166,13 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         : message.text
       blocks.push(<React.Fragment key={`turn-${index}`}>
         <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}<HistoryMedia sources={message.media} language={language} /></div>
+        {message.rowId && onHistoryAction && !turnBusy && <div className="assistant-message-actions user-history-actions">{historyActions(message)}</div>}
         {hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
         {following.map((item, position) => item.kind === 'tools'
           ? <ToolActivity key={position} steps={item.steps} language={language} />
           : item.kind === 'reasoning'
             ? <ReasoningBlock key={position} text={item.text} streaming={item.streaming} expanded={item.expanded} language={language} />
-            : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} />)}
+            : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} actions={historyActions(item)} />)}
       </React.Fragment>)
       index = end
     } else {
@@ -159,7 +180,7 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
         : message.kind === 'reasoning'
           ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
-          : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} />)
+          : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} actions={historyActions(message)} />)
       index++
     }
   }

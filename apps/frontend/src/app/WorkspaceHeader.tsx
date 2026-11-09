@@ -7,7 +7,7 @@ import { DashboardPluginSlot } from '../features/dashboard-plugins/DashboardPlug
 import GatewaySwitcher from './GatewaySwitcher'
 import type { ActiveGateway } from '@hermess/contracts'
 
-export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, connectionLabel, gateway, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette, onSwitchRemote, onSwitchLocal }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; connectionLabel?: string; gateway: ActiveGateway; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void; onSwitchRemote: () => void; onSwitchLocal: () => void }) {
+export default function WorkspaceHeader({ view, sessionTitle, sessionSource, pluginTitle, connected, connectionLabel, gateway, updateVersion, onOpenNavigation, onOpenView, onOpenUpdate, onOpenCommandPalette, onSwitchGateway, onConfigureRemote, onOpenHostTerminals }: { view: View; sessionTitle?: string; sessionSource?: string; pluginTitle?: string; connected: boolean; connectionLabel?: string; gateway: ActiveGateway; updateVersion: string | null; onOpenNavigation: () => void; onOpenView: (view: View) => void; onOpenUpdate: () => void; onOpenCommandPalette: () => void; onSwitchGateway: (id: string | null) => void; onConfigureRemote: () => void; onOpenHostTerminals?: () => void }) {
   const { links, windowChrome } = useDesktop()
   const language = useLanguage()
   const t = (key: string) => translateApp(language, key)
@@ -37,13 +37,13 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
       <DashboardPluginSlot name="header-left" />
       <img className="window-title-icon" src={windowIcon} alt="" draggable={false} data-tauri-drag-region />
       <span className="window-title-text" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()}>Hermess Agent Desktop</span>
-      <GatewaySwitcher mode={gateway.mode} label={gateway.mode === 'remote' ? gateway.config.label : undefined} connected={connected} onLocal={onSwitchLocal} onRemote={onSwitchRemote} />
+      <GatewaySwitcher gateway={gateway} connected={connected} onSwitch={onSwitchGateway} onConfigure={onConfigureRemote} />
       <span className="window-title-connection" data-tauri-drag-region>{connectionLabel || (connected ? t('ui.connected') : t('ui.not.started'))}</span>
       <div className="window-title-drag" data-tauri-drag-region onDoubleClick={() => void windowChrome.toggleMaximize()} />
     </> : <>
       <DashboardPluginSlot name="header-left" />
       <div className="header-brand"><span className="header-brand-mark">H</span><strong>Hermess <span>Desktop</span></strong></div>
-      <GatewaySwitcher mode={gateway.mode} label={gateway.mode === 'remote' ? gateway.config.label : undefined} connected={connected} onLocal={onSwitchLocal} onRemote={onSwitchRemote} />
+      <GatewaySwitcher gateway={gateway} connected={connected} onSwitch={onSwitchGateway} onConfigure={onConfigureRemote} />
       {view === 'chat' && sessionTitle && <span className="header-session-title">{title}{sessionSourceLabel(sessionSource, language) && <span className="session-source header-source">{sessionSourceLabel(sessionSource, language)}</span>}</span>}
     </>}
     <button className="header-command-palette" type="button" aria-label={language === 'zh-CN' ? '搜索会话、页面、设置和操作' : 'Search sessions, pages, settings and actions'} title={language === 'zh-CN' ? '打开命令面板 (Ctrl/⌘ K)' : 'Open command palette (Ctrl/⌘ K)'} onClick={onOpenCommandPalette}>⌕ <span>{language === 'zh-CN' ? '搜索' : 'Search'}</span><kbd>Ctrl/⌘ K</kbd></button>
@@ -55,6 +55,7 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
       <span className="header-update-dot" aria-hidden="true" />
     </button>}
     <DashboardPluginSlot name="header-right" />
+    {onOpenHostTerminals && <button className="header-link" type="button" aria-label={language === 'zh-CN' ? '打开主机终端' : 'Open host terminals'} title={language === 'zh-CN' ? '主机终端' : 'Host terminals'} onClick={onOpenHostTerminals}> &gt;_ </button>}
     {gateway.mode === 'local' && <button type="button" className="header-settings" aria-label={language === 'zh-CN' ? '系统设置' : 'System settings'} title={language === 'zh-CN' ? '系统设置' : 'System settings'} onClick={() => onOpenView('settings')}>⚙</button>}
     {windowChrome.customTitlebar && <div className="window-controls" role="group" aria-label={language === 'zh-CN' ? '窗口控制' : 'Window controls'}>
       <button type="button" aria-label={language === 'zh-CN' ? '最小化窗口' : 'Minimize window'} title={language === 'zh-CN' ? '最小化' : 'Minimize'} onClick={() => void windowChrome.minimize()}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12h10" /></svg></button>

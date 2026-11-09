@@ -8,10 +8,9 @@ import { settingsPages } from '../settings/model'
 import ConfigTree from '../agent-settings/components/ConfigTree'
 import YamlEditor from '../agent-settings/components/YamlEditor'
 import { fieldText,getField } from '../agent-settings/model'
-import { fieldOwner,pageFields,consentOwnedField,editableField,type ConfigurationPage } from './model'
+import { fieldOwner,pageFields,editableField,visibleSchemaFields,type ConfigurationPage } from './model'
 import { useConfigEditor } from './useConfigEditor'
 import AllowlistEditor from './AllowlistEditor'
-import PrivacyConsent from './PrivacyConsent'
 import CheckpointInventory from './CheckpointInventory'
 import './configuration.css'
 
@@ -19,29 +18,24 @@ type Props={connected:boolean;profile:string|null;page:ConfigurationPage;languag
 export default function ConfigurationSettings({connected,profile,page,language,onDirtyChange,onBusyChange,onNavigate}:Props){
   const {agentSettings,nativeFiles}=useDesktop()
   const zh=language==='zh-CN'
-  const [formDirty,setFormDirty]=React.useState(false)
-  const [consentDirty,setConsentDirty]=React.useState(false)
   const [formBusy,setFormBusy]=React.useState(false)
-  const [consentBusy,setConsentBusy]=React.useState(false)
   const [fileBusy,setFileBusy]=React.useState(false)
   const [fileStatus,setFileStatus]=React.useState('')
   const [resetConfirm,setResetConfirm]=React.useState(false)
-  const editor=useConfigEditor({connected,profile,page,language,onDirtyChange:setFormDirty,onBusyChange:setFormBusy})
-  const busy=formBusy||consentBusy||fileBusy
-  React.useEffect(()=>{onDirtyChange(formDirty||consentDirty);return()=>onDirtyChange(false)},[formDirty,consentDirty,onDirtyChange])
+  const editor=useConfigEditor({connected,profile,page,language,onDirtyChange,onBusyChange:setFormBusy})
+  const busy=formBusy||fileBusy
   React.useEffect(()=>{onBusyChange(busy);return()=>onBusyChange(false)},[busy,onBusyChange])
   const t=React.useCallback((key:string,...values:unknown[])=>translateAgentUi(language,key,...values),[language])
   if(!connected||!profile)return <p>{zh?'请先连接运行时并选择 Profile。':'Connect the runtime and select a Profile.'}</p>
   const query=editor.query.trim().toLowerCase()
   const match=([key,field]:[string,{description?:string}])=>`${key} ${field.description||''} ${agentFieldTranslation(language,key)?.label||''} ${agentFieldTranslation(language,key)?.description||''}`.toLowerCase().includes(query)
-  const all=Object.entries(editor.schema?.fields||{})
   const fields=pageFields(editor.schema,page).filter(entry=>entry[0]!=='command_allowlist'&&(!query||match(entry)))
   const resetKeys=pageFields(editor.schema,page).filter(entry=>!query||match(entry)).map(([key])=>key)
   const browserField=page==='browser'?editor.schema?.fields['browser.use_real_profile']:undefined
   const browserCurrent=Boolean(getField(editor.config,'browser.use_real_profile'))
   const browserDraft=editor.drafts['browser.use_real_profile']??String(browserCurrent)
   const chooseBrowser=(useRealProfile:boolean)=>editor.setDrafts(useRealProfile===browserCurrent?{}:{'browser.use_real_profile':String(useRealProfile)})
-  const links=page==='advanced-config'?all.filter(([key,field])=>fieldOwner(key)!==page||!editableField(key,field)).filter(entry=>!query||match(entry)):[]
+  const links=page==='advanced-config'?visibleSchemaFields(editor.schema).filter(([key,field])=>fieldOwner(key)!==page||!editableField(key,field)).filter(entry=>!query||match(entry)):[]
   const definition=settingsPages.find(item=>item.id===page)
   const exportJson=async()=>{
     if(!profile||fileBusy)return
@@ -75,7 +69,7 @@ export default function ConfigurationSettings({connected,profile,page,language,o
     <header className="row"><h2>{zh?definition?.zh:definition?.en}</h2><div className="configuration-header-actions">
       {page==='advanced-config'&&<><button disabled={busy} onClick={()=>void exportJson()}>{zh?'导出 JSON':'Export JSON'}</button><button disabled={busy} onClick={()=>void importJson()}>{zh?'导入 JSON':'Import JSON'}</button></>}
       {editor.mode==='schema'&&resetKeys.length>0&&<button disabled={busy||editor.documentDirty} onClick={()=>setResetConfirm(true)}>{query?(zh?'恢复搜索结果默认值':'Reset search results'):(zh?'恢复本页默认值':'Reset this page')}</button>}
-      <button disabled={busy||consentDirty} onClick={editor.reload}>{zh?'重新读取':'Reload'}</button>
+      <button disabled={busy} onClick={editor.reload}>{zh?'重新读取':'Reload'}</button>
     </div></header>
     <p>{zh?'配置来自当前 Profile 的运行时 Schema。保存后读取实际值核实；部分配置需要新会话或重启运行时。':'Configuration comes from this Profile’s runtime Schema. Values are verified after saving; some changes require a new session or runtime restart.'}</p>
     {page==='session-auto-archive'&&<section>
@@ -106,12 +100,11 @@ export default function ConfigurationSettings({connected,profile,page,language,o
           const owner=fieldOwner(key)
           const target=settingsPages.find(item=>item.id===owner)
           const navigable=owner!==page
-          const reason=consentOwnedField(key)?(zh?'由共享指标同意流程管理':'Managed by the consent flow'):!editableField(key,field)?(zh?'敏感或暂不支持的字段，请使用专用入口或完整 YAML':'Sensitive or unsupported field. Use a dedicated editor or full YAML.'):(zh?'在专用页面编辑':'Edit in its dedicated page')
+          const reason=!editableField(key,field)?(zh?'敏感或暂不支持的字段，请使用专用入口或完整 YAML':'Sensitive or unsupported field. Use a dedicated editor or full YAML.'):(zh?'在专用页面编辑':'Edit in its dedicated page')
           return <div key={key}><code>{key}</code><small>{reason}</small>{navigable&&<button disabled={busy} onClick={()=>onNavigate(owner)}>{zh?target?.zh:target?.en} →</button>}</div>
         })}</section>}
         {page!=='browser'&&!fields.length&&!links.length&&<p>{zh?'此页没有可编辑的匹配字段。':'No matching editable fields on this page.'}</p>}
       </>}
-      {page==='security-privacy'&&<PrivacyConsent profile={profile} language={language} onDirtyChange={setConsentDirty} onBusyChange={setConsentBusy}/>}
       {page==='security-checkpoints'&&<CheckpointInventory profile={profile} language={language}/>}
     </>}
     {resetConfirm&&<section className="configuration-document-confirm" role="alertdialog" aria-label={zh?'确认恢复默认值':'Confirm reset to defaults'}><h3>{query?(zh?'恢复当前搜索结果？':'Reset current search results?'):(zh?'恢复当前配置页？':'Reset this configuration page?')}</h3><p>{zh?`这会把 ${resetKeys.length} 个字段载入为默认值草稿，不会立即写入。检查后仍需点击“保存全部修改”。`:`This loads defaults for ${resetKeys.length} fields into a draft. It is not written until you select “Save all changes”.`}</p><div className="actions"><button disabled={busy} onClick={applyReset}>{zh?'载入默认值':'Load defaults'}</button><button disabled={busy} onClick={()=>setResetConfirm(false)}>{zh?'取消':'Cancel'}</button></div></section>}

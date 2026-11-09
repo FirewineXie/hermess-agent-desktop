@@ -48,11 +48,29 @@ impl IsolatedRemoteConfig {
     }
 
     pub(in crate::runtime) async fn save(&mut self, label: &str) -> RemoteGatewayConfig {
+        self.save_at(label, "http://127.0.0.1:19120").await
+    }
+
+    pub(in crate::runtime) async fn save_at(
+        &mut self,
+        label: &str,
+        url: &str,
+    ) -> RemoteGatewayConfig {
+        self.save_with_ssh(label, url, None).await
+    }
+
+    pub(in crate::runtime) async fn save_with_ssh(
+        &mut self,
+        label: &str,
+        url: &str,
+        ssh_target: Option<String>,
+    ) -> RemoteGatewayConfig {
         let config = save(
             self.app.handle(),
             label.to_owned(),
-            "http://127.0.0.1:19120".to_owned(),
+            url.to_owned(),
             "isolated-delete-test-token".to_owned(),
+            ssh_target,
         )
         .await
         .expect("save isolated remote config using production storage");
@@ -95,7 +113,7 @@ async fn remote_config_delete_storage_live() {
     delete(fixture.app.handle(), &missing_credential.id, Uuid::new_v4())
         .await
         .expect("missing credential is already cleaned up");
-    assert!(read(fixture.app.handle()).unwrap().is_none());
+    assert!(read(fixture.app.handle()).unwrap().is_empty());
 
     let locked = fixture.save("retry file cleanup").await;
     let path = config_path(fixture.app.handle()).unwrap();
@@ -113,7 +131,7 @@ async fn remote_config_delete_storage_live() {
         serde_json::to_value(failure).unwrap()["code"],
         "operation_failed"
     );
-    assert_eq!(read(fixture.app.handle()).unwrap().unwrap().id, locked.id);
+    assert_eq!(read(fixture.app.handle()).unwrap()[0].id, locked.id);
     assert!(matches!(
         fixture.entry(&locked.id).get_password(),
         Err(keyring::Error::NoEntry)
@@ -122,5 +140,29 @@ async fn remote_config_delete_storage_live() {
     delete(fixture.app.handle(), &locked.id, Uuid::new_v4())
         .await
         .expect("retry completes after file lock is released");
-    assert!(read(fixture.app.handle()).unwrap().is_none());
+    assert!(read(fixture.app.handle()).unwrap().is_empty());
+}
+
+#[tokio::test]
+#[ignore = "uses isolated Windows Tauri directories and random native credential entries"]
+async fn remote_config_multiple_and_legacy_live() {
+    let mut fixture = IsolatedRemoteConfig::new();
+    let first = fixture.save("first").await;
+    let path = config_path(fixture.app.handle()).unwrap();
+    fs::write(&path, serde_json::to_vec(&first).unwrap()).unwrap();
+    let second = fixture.save_at("second", "http://127.0.0.1:19121").await;
+    let rows = read(fixture.app.handle()).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].id, first.id);
+    assert_eq!(rows[1].id, second.id);
+    assert!(fixture.entry(&first.id).get_password().is_ok());
+    delete(fixture.app.handle(), &second.id, Uuid::new_v4())
+        .await
+        .unwrap();
+    assert_eq!(read(fixture.app.handle()).unwrap()[0].id, first.id);
+    assert!(fixture.entry(&first.id).get_password().is_ok());
+    assert!(matches!(
+        fixture.entry(&second.id).get_password(),
+        Err(keyring::Error::NoEntry)
+    ));
 }

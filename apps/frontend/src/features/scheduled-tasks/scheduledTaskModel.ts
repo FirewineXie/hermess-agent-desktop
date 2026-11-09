@@ -5,6 +5,8 @@ export type Job = {
   state?: string; enabled?: boolean; deliver?: string | null; skills?: string[] | null
   provider?: string | null; model?: string | null; base_url?: string | null
   script?: string | null; no_agent?: boolean; context_from?: string[] | string | null
+  catch_up?: boolean | null
+  timezone?: string | null; grace_minutes?: number | null
   enabled_toolsets?: string[] | null; workdir?: string | null
   repeat?: { times: number | null; completed?: number | null } | null
   scheduler_heartbeat_age_s?: number | null; last_error?: string | null; last_delivery_error?: string | null
@@ -16,6 +18,8 @@ export type Editor = {
   prompt: string; deliver: string; skills: string[]; provider: string; model: string
   base_url: string; script: string; no_agent: boolean; context_from: string
   continuity: boolean; enabled_toolsets: string[]; workdir: string; repeat: string; paused: boolean
+  catch_up: boolean | null
+  timezone: string; grace_minutes: string
 }
 
 const split = (value: unknown): string[] => Array.isArray(value) ? value.map(String).filter(Boolean)
@@ -24,7 +28,8 @@ const split = (value: unknown): string[] => Array.isArray(value) ? value.map(Str
 export function newEditor(profile: string): Editor {
   return { mode: 'create', profile, id: '', name: '', schedule: 'every 30m', prompt: '', deliver: 'local',
     skills: [], provider: '', model: '', base_url: '', script: '', no_agent: false,
-    context_from: '', continuity: false, enabled_toolsets: [], workdir: '', repeat: '', paused: false }
+    context_from: '', continuity: false, enabled_toolsets: [], workdir: '', repeat: '', paused: false,
+    catch_up: null, timezone: '', grace_minutes: '' }
 }
 
 export function editJob(job: ScopedJob): Editor {
@@ -34,6 +39,8 @@ export function editJob(job: ScopedJob): Editor {
     prompt: job.prompt || '', deliver: job.deliver || 'local', skills: split(job.skills),
     provider: job.provider || '', model: job.model || '', base_url: job.base_url || '',
     script: job.script || '', no_agent: Boolean(job.no_agent),
+    catch_up: job.catch_up ?? null,
+    timezone: job.timezone ?? '', grace_minutes: String(job.grace_minutes ?? ''),
     context_from: references.filter(item => item.toLowerCase() !== 'self').join('\n'),
     continuity: references.some(item => item.toLowerCase() === 'self'),
     enabled_toolsets: split(job.enabled_toolsets), workdir: job.workdir || '',
@@ -49,6 +56,9 @@ export function editorPayload(editor: Editor) {
     deliver: editor.deliver, skills: editor.skills, provider: editor.provider || null,
     model: editor.model || null, base_url: editor.base_url.trim() || null,
     script: editor.script.trim() || null, no_agent: editor.no_agent,
+    catch_up: editor.catch_up,
+    timezone: editor.timezone.trim() || null,
+    grace_minutes: editor.grace_minutes === '' ? null : Number(editor.grace_minutes),
     context_from: context.length ? context : null,
     enabled_toolsets: editor.enabled_toolsets.length ? editor.enabled_toolsets : null,
     workdir: editor.workdir.trim() || null,

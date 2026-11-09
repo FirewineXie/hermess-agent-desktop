@@ -243,6 +243,11 @@ fn dashboard_api_allowed(method: &Method, path: &str) -> bool {
         || exact("/api/dashboard/plugins/rescan", &[Method::GET])
         || exact("/api/dashboard/plugins/hub", &[Method::GET])
         || exact("/api/dashboard/plugins/catalog", &[Method::GET])
+        || exact(
+            "/api/dashboard/plugins/auto-update",
+            &[Method::GET, Method::PUT],
+        )
+        || exact("/api/dashboard/agent-plugins/update-all", &[Method::POST])
         || exact("/api/dashboard/agent-plugins/install", &[Method::POST])
         || exact("/api/dashboard/plugin-providers", &[Method::PUT])
         || exact("/api/dashboard/themes", &[Method::GET])

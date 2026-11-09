@@ -59,14 +59,15 @@ fn forwards_only_bounded_subagent_state() {
         "subagent.spawn_requested",
         "subagent.start",
         "subagent.progress",
+        "subagent.tool",
+        "subagent.thinking",
         "subagent.complete",
     ] {
         assert!(is_forwarded_event(kind));
     }
-    assert!(!is_forwarded_event("subagent.thinking"));
     assert!(!is_forwarded_event("subagent.text"));
     let mut payload = json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file", "text":"private output", "tool_preview":"private path"});
-    project_subagent_event("subagent.complete", &mut payload);
+    project_subagent_event("subagent.thinking", &mut payload);
     assert_eq!(
         payload,
         json!({"subagent_id":"child-1", "status":"completed", "tool_name":"read_file"})

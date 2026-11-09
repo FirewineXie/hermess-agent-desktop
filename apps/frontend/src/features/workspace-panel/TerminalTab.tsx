@@ -18,11 +18,12 @@ export default function TerminalTab({ scope, id, active }: { scope: WorkspaceSco
     screen.loadAddon(fit)
     screen.open(host)
     terminal.current = screen
-    const input = screen.onData(data => { void api.writeTerminal(scope, id, data) })
+    let ended = false
+    const input = screen.onData(data => { if (!ended) void api.writeTerminal(scope, id, data).catch(() => {}) })
     const resize = new ResizeObserver(() => {
       if (!host.offsetWidth || !host.offsetHeight) return
       fit.fit()
-      void api.resizeTerminal(scope, id, screen.cols, screen.rows)
+      if (!ended) void api.resizeTerminal(scope, id, screen.cols, screen.rows).catch(() => {})
     })
     resize.observe(host)
     let disposed = false
@@ -30,7 +31,7 @@ export default function TerminalTab({ scope, id, active }: { scope: WorkspaceSco
     void api.onTerminalOutput(event => {
       if (event.id !== id || event.scope.path !== scope.path || event.scope.owner?.profile !== scope.owner?.profile || event.scope.owner?.sessionId !== scope.owner?.sessionId || disposed) return
       if (event.data) screen.write(Uint8Array.from(atob(event.data), char => char.charCodeAt(0)))
-      if (event.closed) screen.write('\r\n[终端已结束]')
+      if (event.closed) { ended = true; screen.write('\r\n[终端已结束]') }
     }).then(stop => {
       if (disposed) stop()
       else { unlisten = stop; void api.activateTerminal(scope, id).catch(() => screen.write('\r\n[终端启动失败]')) }

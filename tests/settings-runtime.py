@@ -24,6 +24,7 @@ def main():
 
         from starlette.testclient import TestClient
         from hermes_cli import profiles
+        from hermes_cli.observability import relay_shared_metrics
         from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
         import hermes_yaml as yaml
 
@@ -71,6 +72,13 @@ def main():
             assert saved["agent"]["reasoning_overrides"] == {"keep": 2}
             assert "unknown_section" not in saved
             assert Path(raw["path"]) == worker / "config.yaml"
+
+            # No saved answer leaves collection and transmission off in the default Profile.
+            consent = request("get", "/api/shared-metrics/consent")
+            assert not consent["decided"] and not consent["enabled"] and not consent["send"]
+            assert not relay_shared_metrics.enabled()
+            assert not relay_shared_metrics._resolved_send_config().send
+            assert yaml.safe_load((home / "config.yaml").read_text(encoding="utf-8")) == {}
 
             # An explicit rejection records a decision without enabling transmission.
             request("put", "/api/shared-metrics/consent?profile=worker", json={"enabled": False, "send": False})

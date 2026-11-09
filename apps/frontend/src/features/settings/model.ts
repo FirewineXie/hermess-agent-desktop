@@ -1,5 +1,5 @@
 export type SettingsCategory = 'sessions' | 'programming' | 'security' | 'advanced' | 'models' | 'management' | 'memory' | 'notifications' | 'browser' | 'runtime' | 'diagnostics' | 'update' | 'about' | 'desktop'
-export type SettingsPage = 'programming-config-file' | 'programming-mcp' | 'programming-skills' | 'programming-instructions' | 'programming-context' | 'programming-permissions' | 'programming-archives' | 'session-auto-archive' | 'archived-sessions' | 'programming' | 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'local-tools' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'sessions' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'diagnostics' | 'update' | 'documentation' | 'about'
+export type SettingsPage = 'programming-config-file' | 'programming-mcp' | 'programming-skills' | 'programming-instructions' | 'programming-context' | 'programming-permissions' | 'programming-archives' | 'session-auto-archive' | 'archived-sessions' | 'programming' | 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'shell-hooks' | 'curator' | 'system-operations' | 'delegation' | 'device' | 'quick-input' | 'local-tools' | 'providers' | 'credential-pool' | 'main' | 'fallbacks' | 'auxiliary' | 'moa' | 'sessions' | 'pairing' | 'logs' | 'env-keys' | 'memory-persistent' | 'memory-context' | 'notification-alerts' | 'notification-sounds' | 'browser' | 'runtime' | 'runtime-status' | 'runtime-backup' | 'web-access' | 'diagnostics' | 'update' | 'documentation' | 'about'
 
 export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory; zh: string; en: string }> = [
   { id: 'programming', category: 'programming', zh: '编程配置', en: 'Programming settings' },
@@ -43,6 +43,7 @@ export const settingsPages: Array<{ id: SettingsPage; category: SettingsCategory
   { id: 'notification-sounds', category: 'notifications', zh: '提示音', en: 'Sounds' },
   { id: 'browser', category: 'browser', zh: '浏览器控制', en: 'Browser control' },
   { id: 'runtime', category: 'runtime', zh: '存储设置', en: 'Storage settings' },
+  { id: 'web-access', category: 'runtime', zh: 'Web Access', en: 'Web Access' },
   { id: 'runtime-status', category: 'runtime', zh: '主机状态', en: 'Host status' },
   { id: 'runtime-backup', category: 'runtime', zh: '完整备份', en: 'Full backup' },
   { id: 'diagnostics', category: 'diagnostics', zh: '开发者诊断', en: 'Developer diagnostics' },

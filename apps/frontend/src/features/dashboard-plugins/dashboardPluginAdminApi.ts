@@ -53,6 +53,21 @@ export function createDashboardPluginAdminApi(runtime: any) {
       },
     ),
 
+  updateAllAgentPlugins: () =>
+    fetchJSON<AgentPluginsUpdateAllResponse>("/api/dashboard/agent-plugins/update-all", {
+      method: "POST",
+    }),
+
+  getPluginAutoUpdate: () =>
+    fetchJSON<PluginAutoUpdateState>("/api/dashboard/plugins/auto-update"),
+
+  setPluginAutoUpdate: (enabled: boolean) =>
+    fetchJSON<PluginAutoUpdateState>("/api/dashboard/plugins/auto-update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+
   removeAgentPlugin: (name: string) =>
     fetchJSON<{ ok: boolean; name: string }>(
       `/api/dashboard/agent-plugins/${pluginPath(name)}`,

@@ -60,7 +60,7 @@
 :root[data-color-theme='dark'] .profile-card,
 :root[data-color-theme='dark'] .profile-preset-card,
 :root[data-color-theme='dark'] .session-delete-dialog { color: #e7edf6; background: #182231; border-color: #2a394b; }
-:root[data-color-theme='dark'] .settings-panel button:not(.design-primary-button):not(.profile-new-chat),
+:root[data-color-theme='dark'] .settings-panel button:not(.design-primary-button):not(.profile-new-chat):where(:not(.dialog-primary-action, .dialog-secondary-action, .profile-tabs button)),
 :root[data-color-theme='dark'] .session-delete-actions button:not(.confirm) { color: #d5deea; background: #182231; border-color: #34465b; }
 :root[data-color-theme='dark'] code { color: #c6d5e8; }
 :root[data-color-theme='dark'] .quick-composer { color: #e7edf6; background: #0f1723; }

@@ -7,6 +7,8 @@ export function useSubagents(profile: string, sessionId: string, active: boolean
   const { chat, events } = useDesktop()
   const [roster, setRoster] = React.useState<SubagentRoster | null>(null)
   const [finished, setFinished] = React.useState<SubagentRow[]>([])
+  const [liveActivity, setLiveActivity] = React.useState<Record<string, string>>({})
+  const refreshRoster = React.useRef<(() => Promise<void>) | null>(null)
   const rosterRef = React.useRef(roster)
   rosterRef.current = roster
   const [tail, setTail] = React.useState<SubagentTail | null>(null)
@@ -26,6 +28,7 @@ export function useSubagents(profile: string, sessionId: string, active: boolean
   React.useEffect(() => {
     setRoster(null)
     setFinished([])
+    setLiveActivity({})
     setTail(null)
     setSelectedId('')
     setExpanded(false)
@@ -41,16 +44,33 @@ export function useSubagents(profile: string, sessionId: string, active: boolean
     let unlisten: (() => void) | undefined
     void events.onGatewayEvent(event => {
       if (!listening || event.profile !== profile || event.session_id !== sessionId) return
-      if (event.kind !== 'subagent.complete') return
+      if (event.kind === 'subagent.start' || event.kind === 'subagent.spawn_requested') {
+        void refreshRoster.current?.()
+        return
+      }
       const id = event.payload.subagent_id
       if (typeof id !== 'string' || !id) return
+      if (event.kind === 'subagent.progress' || event.kind === 'subagent.tool' || event.kind === 'subagent.thinking') {
+        const tool = event.payload.tool_name
+        const activity = event.kind === 'subagent.thinking' ? (language === 'zh-CN' ? '思考中' : 'Thinking')
+          : typeof tool === 'string' ? tool : ''
+        if (activity) setLiveActivity(current => current[id] === activity ? current : { ...current, [id]: activity })
+        return
+      }
+      if (event.kind !== 'subagent.complete') return
+      setLiveActivity(current => {
+        if (!(id in current)) return current
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
       const previous = rosterRef.current?.subagents.find(row => row.subagent_id === id)
       const status = typeof event.payload.status === 'string' ? event.payload.status : 'finished'
       setFinished(rows => [{ ...previous, subagent_id: id, status },
         ...rows.filter(row => row.subagent_id !== id)].slice(0, 10))
     }).then(stop => { if (listening) unlisten = stop; else stop() }).catch(() => {})
     return () => { listening = false; unlisten?.() }
-  }, [events, profile, sessionId, scope])
+  }, [events, profile, sessionId, scope, language])
 
   React.useEffect(() => {
     if (!scope || !active) return
@@ -70,9 +90,10 @@ export function useSubagents(profile: string, sessionId: string, active: boolean
         if (!cancelled) setLoading(false)
       }
     }
+    refreshRoster.current = refresh
     void refresh()
     const timer = window.setInterval(() => { void refresh() }, 2000)
-    return () => { cancelled = true; window.clearInterval(timer) }
+    return () => { cancelled = true; refreshRoster.current = null; window.clearInterval(timer) }
   }, [chat, scope, active, language])
 
   React.useEffect(() => {
@@ -125,6 +146,6 @@ export function useSubagents(profile: string, sessionId: string, active: boolean
     finally { if (currentScopeKey.current === startedFor) setBusy(false) }
   }
 
-  return { roster, finished, tail, selectedId, expanded, loading, busy, error, notice, guidance,
+  return { roster, finished, liveActivity, tail, selectedId, expanded, loading, busy, error, notice, guidance,
     setExpanded, setGuidance, select, steer, stop }
 }

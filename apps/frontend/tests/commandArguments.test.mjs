@@ -39,8 +39,9 @@ test('text arguments are preserved, restricted subcommands reject before submiss
   assert.equal(argumentAllowed(catalog, '/queue', 'add next task'), true)
   assert.equal(argumentAllowed(catalog, '/queue', 'edit 2 revised task'), true)
   assert.equal(argumentAllowed(catalog, '/queue', 'rm 0'), false)
-  assert.deepEqual(argumentOptions(catalog, '/browser'), ['connect', 'status', 'disconnect', 'use'])
-  assert.equal(argumentAllowed(catalog, '/browser', 'use off'), true)
+  const browserCatalog = { ...catalog, sub: { '/browser': ['connect', 'disconnect', 'status'] } }
+  assert.deepEqual(argumentOptions(browserCatalog, '/browser'), ['connect', 'disconnect', 'status'])
+  assert.equal(argumentAllowed(browserCatalog, '/browser', 'use off'), false)
   assert.equal(argumentAllowed(catalog, '/browser', 'connect http://127.0.0.1:9222'), false)
   assert.equal(argumentAllowed(catalog, '/reload-mcp', ''), true)
   assert.equal(argumentAllowed(catalog, '/reload-mcp', 'extra'), false)

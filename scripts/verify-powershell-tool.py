@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,40 @@ import sys
 import tempfile
 
 
+def verify_skill_lock(home: Path, handler, reproduce: bool) -> None:
+    from tools.file_tools import write_file_tool
+    from tools.skill_usage import set_locked
+
+    skill = home / "skills" / "desktop-lock-probe"
+    skill.mkdir(parents=True)
+    target = skill / "SKILL.md"
+    original = "---\nname: desktop-lock-probe\ndescription: probe\n---\nlock-probe-original\n"
+    target.write_text(original, encoding="utf-8")
+    assert set_locked("desktop-lock-probe", True)
+    refused = json.loads(write_file_tool(str(target), "unexpected"))
+    assert "locked" in refused.get("error", "")
+
+    literal = str(target).replace("'", "''")
+    read = json.loads(handler({"command": f"Get-Content -LiteralPath '{literal}'", "workdir": str(home)}))
+    assert read.get("exit_code") == 0 and "lock-probe-original" in read.get("output", "")
+    write = json.loads(handler({
+        "command": f"Set-Content -LiteralPath '{literal}' -Value 'lock-probe-modified'",
+        "workdir": str(home),
+    }))
+    contents = target.read_text(encoding="utf-8-sig")
+    if reproduce:
+        assert write.get("exit_code") == 0 and contents.strip() == "lock-probe-modified"
+        print("Confirmed the locked receiver blocks the file tool but permits PowerShell Set-Content.")
+    else:
+        assert write.get("exit_code") != 0 and contents == original
+        print("Verified a locked skill can be read by PowerShell and cannot be overwritten.")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--skill-lock", choices=("verify", "reproduce"),
+                        help="check the Windows skill lock or reproduce the currently locked receiver's gap")
+    args = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("This verification runs on Windows only")
     product = Path(__file__).resolve().parents[1]
@@ -59,6 +93,9 @@ def main() -> None:
         description = powershell_definition.get("description", "")
         if "use this instead of `terminal`" not in description or "requires bash" not in description:
             raise RuntimeError("PowerShell Tool schema does not explain Windows terminal routing")
+
+        if args.skill_lock:
+            verify_skill_lock(home, entry.handler, args.skill_lock == "reproduce")
 
         for engine in ("winps51", "ps7"):
             (home / "utf8-input.txt").write_text("读取中文", encoding="utf-8")

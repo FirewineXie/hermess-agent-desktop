@@ -10,7 +10,7 @@ export function fieldOwner(key: string): SettingsPage {
   if (['sessions.auto_archive', 'sessions.auto_archive_days'].includes(key)) return 'session-auto-archive'
   if (key === 'browser.use_real_profile') return 'browser'
   if (key === 'command_allowlist' || key.startsWith('approvals.') || key.startsWith('security.approval.')) return 'security-approvals'
-  if (key.startsWith('security.') || key.startsWith('telemetry.shared_metrics.')) return 'security-privacy'
+  if (key.startsWith('security.')) return 'security-privacy'
   if (key.startsWith('checkpoints.')) return 'security-checkpoints'
   if (key.startsWith('delegation.')) return 'delegation'
   if (key.startsWith('moa.')) return 'moa'
@@ -26,16 +26,16 @@ export function fieldOwner(key: string): SettingsPage {
   return 'advanced-config'
 }
 
-export function consentOwnedField(key: string): boolean {
-  return ['telemetry.shared_metrics.enabled','telemetry.shared_metrics.send','telemetry.shared_metrics.offer_version'].includes(key)
+export function editableField(key: string, field: AgentConfigField): boolean {
+  return !isSensitiveConfigField(key) && isSupportedConfigField(field)
 }
 
-export function editableField(key: string, field: AgentConfigField): boolean {
-  return !consentOwnedField(key) && !isSensitiveConfigField(key) && isSupportedConfigField(field)
+export function visibleSchemaFields(schema: AgentConfigSchema | null): Array<[string, AgentConfigField]> {
+  return Object.entries(schema?.fields || {}).filter(([key]) => key !== 'telemetry.shared_metrics' && !key.startsWith('telemetry.shared_metrics.'))
 }
 
 export function pageFields(schema: AgentConfigSchema | null, page: ConfigurationPage): Array<[string, AgentConfigField]> {
-  return Object.entries(schema?.fields || {}).filter(([key,field]) => fieldOwner(key) === page && editableField(key,field))
+  return visibleSchemaFields(schema).filter(([key,field]) => fieldOwner(key) === page && editableField(key,field))
 }
 
 export function parseField(text: string, field: AgentConfigField): unknown {

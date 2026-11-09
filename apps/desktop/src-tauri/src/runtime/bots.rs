@@ -226,7 +226,7 @@ pub async fn bot_groups_request(
     let operation_id = Uuid::new_v4();
     let traced = matches!(
         operation.as_str(),
-        "create" | "send" | "stop" | "disband" | "approve"
+        "create" | "send" | "stop" | "disband" | "approve" | "context" | "continue"
     );
     if traced {
         let _ = append_client_event(&scope.storage, &format!("bot_group operation={operation_id} profile={profile} action={operation} result=started"));
@@ -261,6 +261,8 @@ fn bot_group_request_shape(
         "capabilities" => "groups.capabilities",
         "list" => "groups.list",
         "state" => "groups.state",
+        "context" => "groups.context",
+        "continue" => "groups.continue",
         "log" => "groups.log",
         "create" => "groups.create",
         "send" => "groups.send",

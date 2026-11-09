@@ -23,7 +23,7 @@ export default function SubagentPanel({ controller, language }: { controller: Co
       {controller.error && <p role="alert" className="subagent-error">{controller.error}</p>}
       {!rows.length && !controller.error && <p>{zh ? '当前会话没有子代理任务。' : 'No subagent tasks in this session.'}</p>}
       {!!rows.length && <div className="subagent-roster">{rows.map(row => <button type="button" key={row.subagent_id} className={controller.selectedId === row.subagent_id ? 'selected' : ''} onClick={() => controller.select(row.subagent_id)}>
-        <strong>{row.goal || row.subagent_id}</strong><span>{row.status || (zh ? '状态未知' : 'Unknown')} · {row.last_tool || (zh ? '暂无活动' : 'No activity yet')}</span>
+        <strong>{row.goal || row.subagent_id}</strong><span>{row.status || (zh ? '状态未知' : 'Unknown')} · {controller.liveActivity[row.subagent_id] || row.last_tool || (zh ? '暂无活动' : 'No activity yet')}</span>
       </button>)}</div>}
       {selected && <div className="subagent-detail">
         <div><strong>{selected.goal || selected.subagent_id}</strong><small>{selected.model || ''}</small></div>

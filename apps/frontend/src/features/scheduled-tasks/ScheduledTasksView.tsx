@@ -2,6 +2,7 @@ import React from 'react'
 import type { ProfilesSnapshot } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
+import { useGatewayRefresh } from '../../app/useGatewayRefresh'
 import { useLanguage } from '../../i18n'
 import ScheduledJobDetails, { type JobHistory } from './ScheduledJobDetails'
 import ScheduledBlueprints from './ScheduledBlueprints'
@@ -73,6 +74,7 @@ export default function ScheduledTasksView({ connected, epoch, profiles }: { con
   }, [connected, epoch, extensions, profileKey, language])
 
   React.useEffect(() => { void refresh(); return () => { ++refreshVersion.current } }, [refresh])
+  useGatewayRefresh(connected, 'cron.changed', refresh)
   const profileName = (name: string) => profiles?.profiles.find(profile => profile.name === name)?.display_name || name
   React.useEffect(() => {
     if (profileFilter !== 'all' && !available.some(profile => profile.name === profileFilter)) setProfileFilter('all')
@@ -93,12 +95,19 @@ export default function ScheduledTasksView({ connected, epoch, profiles }: { con
     setEditor(editJob(job))
   }
 
-  async function run(operation: string, job: ScopedJob) {
+  async function run(operation: 'jobs.pause' | 'jobs.resume' | 'jobs.cancel', job: ScopedJob) {
     if (busy) return
     setBusy(true); setError(''); setNotice('')
     try {
-      await extensions.request({ kind: 'profile', profile: job.profile }, operation, { profile: job.profile, id: job.id })
-      setNotice(zh ? '状态已更新。' : 'Status updated.')
+      const result = await extensions.request<{ cancelled?: boolean }>({ kind: 'profile', profile: job.profile }, operation, { profile: job.profile, id: job.id })
+      if (operation === 'jobs.cancel') {
+        setNotice(result.cancelled
+          ? (zh ? '已请求停止本次运行。' : 'Stop requested for this run.')
+          : (zh ? '当前没有进行中的运行。' : 'There is no run in progress.'))
+        if (detailsKeyRef.current === `${job.profile}:${job.id}`) await loadDetails(job)
+      } else {
+        setNotice(zh ? '状态已更新。' : 'Status updated.')
+      }
       await refresh()
     } catch (cause) { setError(describeError(cause, language)) }
     finally { setBusy(false) }
@@ -117,6 +126,7 @@ export default function ScheduledTasksView({ connected, epoch, profiles }: { con
       if (result.job.last_status === 'error') setError(zh ? '任务执行失败。请展开详情查看错误。' : 'The task failed. Open details to see the error.')
       else if (result.job.last_status === 'delivery_failed') setError(zh ? '任务已执行，但结果投递失败。请展开详情查看错误。' : 'The task ran, but delivery failed. Open details to see the error.')
       else if (result.job.last_status === 'ok') setNotice(zh ? '立即运行完成。' : 'Run completed.')
+      else if (result.job.last_status === 'cancelled') setNotice(zh ? '本次运行已停止。' : 'The run stopped.')
       else setNotice(zh ? '运行请求已结束，请查看任务状态与记录。' : 'Run request finished. Check the task status and history.')
     } catch (cause) { setError(describeError(cause, language)) }
     finally {
@@ -225,6 +235,7 @@ export default function ScheduledTasksView({ connected, epoch, profiles }: { con
           <button type="button" disabled={busy || loading} aria-label={`${zh ? '详情' : 'Details'} ${job.name}`} aria-expanded={detailsKey === `${job.profile}:${job.id}`} onClick={() => void showDetails(job)}>{zh ? '详情' : 'Details'}</button>
           <button type="button" disabled={busy || loading || triggering.has(`${job.profile}:${job.id}`)} aria-label={`${zh ? '编辑' : 'Edit'} ${job.name}`} onClick={event => openEditor(job, event.currentTarget)}>{zh ? '编辑' : 'Edit'}</button>
           <button type="button" disabled={busy || loading || triggering.has(`${job.profile}:${job.id}`)} aria-label={`${zh ? '立即运行' : 'Run now'} ${job.name}`} onClick={() => void trigger(job)}>{triggering.has(`${job.profile}:${job.id}`) ? (zh ? '运行中…' : 'Running…') : (zh ? '立即运行' : 'Run now')}</button>
+          <button type="button" disabled={busy || loading} aria-label={`${zh ? '停止本次运行' : 'Stop current run'} ${job.name}`} onClick={() => void run('jobs.cancel', job)}>{zh ? '停止本次运行' : 'Stop current run'}</button>
           <button type="button" disabled={busy || loading || triggering.has(`${job.profile}:${job.id}`)} aria-label={`${state === 'paused' ? (zh ? '恢复' : 'Resume') : (zh ? '暂停' : 'Pause')} ${job.name}`} onClick={() => void run(state === 'paused' ? 'jobs.resume' : 'jobs.pause', job)}>{state === 'paused' ? (zh ? '恢复' : 'Resume') : (zh ? '暂停' : 'Pause')}</button>
           <button type="button" className="scheduled-delete" disabled={busy || loading || triggering.has(`${job.profile}:${job.id}`)} aria-label={`${zh ? '删除' : 'Delete'} ${job.name}`} onClick={() => void deleteJob(job)}>{zh ? '删除' : 'Delete'}</button>
         </div>

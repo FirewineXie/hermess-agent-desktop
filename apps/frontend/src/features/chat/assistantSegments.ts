@@ -1,4 +1,4 @@
-import { appendMessage, finishReasoning, type TimelineItem } from './timeline.ts'
+import { appendMessage, finishReasoning, historyRowId, type TimelineItem } from './timeline.ts'
 
 /** Canonical Gateway closes streamed segments with null and publishes unstreamed interims separately. */
 export function consumeAssistantSegment(
@@ -32,4 +32,24 @@ export function appendCompletedAssistant(rows: TimelineItem[], text: string, pay
     }
   }
   return appendMessage(rows, 'assistant', text)
+}
+
+export function bindPersistedTurn(rows: TimelineItem[], startedAt: number | null, text: string, payload?: Record<string, unknown>): TimelineItem[] {
+  const receipt = payload?.persisted_turn as { complete?: unknown; user_row_id?: unknown; final_assistant_row_id?: unknown } | undefined
+  if (startedAt == null || receipt?.complete !== true) return rows
+  const userId = historyRowId(receipt.user_row_id)
+  const assistantId = historyRowId(receipt.final_assistant_row_id)
+  let user = -1
+  let assistant = -1
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]
+    if (row.kind !== 'message') continue
+    if (row.role === 'user') { user = index; break }
+    if (assistant < 0 && row.text === text) assistant = index
+  }
+  const anchor = rows[user]
+  if (anchor?.kind !== 'message' || anchor.startedAt !== startedAt || !userId) return rows
+  return rows.map((row, index) => row.kind !== 'message' ? row
+    : index === user ? { ...row, rowId: userId }
+      : index === assistant && assistantId ? { ...row, rowId: assistantId } : row)
 }

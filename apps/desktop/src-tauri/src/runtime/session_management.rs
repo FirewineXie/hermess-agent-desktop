@@ -2,7 +2,9 @@ use super::{config::config_request_for_scope, profile_scope::ResolvedProfileScop
 use crate::errors::DesktopFailure;
 use reqwest::{Method, Url};
 use serde_json::{json, Map, Value};
+use std::{process::Stdio, time::Duration};
 use tauri::State;
+use tokio::process::Command;
 use uuid::Uuid;
 
 const AUTOMATION_SOURCES: &str =
@@ -375,12 +377,84 @@ fn write_log(scope: &ResolvedProfileScope, action: &str, id: &str, phase: &str) 
     );
 }
 
+fn prompt_refresh_args(profile: &str, id: &str) -> [String; 6] {
+    [
+        "-p".into(),
+        profile.into(),
+        "sessions".into(),
+        "refresh-prompts".into(),
+        format!("--session={id}"),
+        "--json".into(),
+    ]
+}
+
+async fn refresh_prompt(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    id: &str,
+) -> Result<Value, DesktopFailure> {
+    let operation = Uuid::new_v4().to_string();
+    write_log(scope, "refresh_prompts", &operation, "phase=start");
+    let result = async {
+        scope.ensure_current(state).await?;
+        let mut command = Command::new(&scope.hermes);
+        command
+            .args(prompt_refresh_args(&scope.profile, id))
+            .env(
+                "HERMES_HOME",
+                super::hermes_process_path(&scope.storage.join("hermes-home")),
+            )
+            .env("HERMES_DESKTOP", "1")
+            .env("HERMES_DISABLE_LAZY_INSTALLS", "1")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+        let output = tokio::time::timeout(
+            Duration::from_secs(20),
+            crate::process_manager::output(&mut command, "session_prompt_refresh"),
+        )
+        .await
+        .map_err(|_| DesktopFailure::timeout())?
+        .map_err(|_| DesktopFailure::operation_failed())?;
+        if !output.status.success() {
+            return Err(DesktopFailure::operation_failed());
+        }
+        let value: Value = serde_json::from_slice(&output.stdout)
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        if value["epoch"].as_u64().is_none()
+            || value["session_id"].as_str().is_none_or(str::is_empty)
+        {
+            return Err(DesktopFailure::operation_failed());
+        }
+        scope.ensure_current(state).await?;
+        Ok(json!({"requested": true}))
+    }
+    .await;
+    write_log(
+        scope,
+        "refresh_prompts",
+        &operation,
+        if result.is_ok() {
+            "phase=completed"
+        } else {
+            "phase=failed"
+        },
+    );
+    result
+}
+
 pub(super) async fn request(
     state: &State<'_, BackendState>,
     scope: &ResolvedProfileScope,
     operation: &str,
     payload: &Value,
 ) -> Result<Value, DesktopFailure> {
+    if operation == "sessionManagement.refreshPrompt" {
+        return refresh_prompt(state, scope, session_id(payload)?).await;
+    }
     if matches!(
         operation,
         "sessionManagement.rename" | "sessionManagement.archive"

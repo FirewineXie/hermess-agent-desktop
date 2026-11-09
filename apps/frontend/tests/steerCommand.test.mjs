@@ -35,3 +35,16 @@ test('refused steer and session switch preserve input', async () => {
   assert.equal(await runSteerCommand(switched.options), true)
   assert.equal(switched.state().draft, '/steer adjust the answer')
 })
+
+test('the steer command sends the entire multiline instruction', async () => {
+  const text = 'adjust the answer\ninclude both cases'
+  const draft = '/steer ' + text
+  const session = setup(async (scope, received) => {
+    assert.deepEqual(scope, { kind: 'session', profile: 'default', sessionId: 's1' })
+    assert.equal(received, text)
+    return { status: 'queued' }
+  })
+  session.edit(draft)
+  assert.equal(await runSteerCommand({ ...session.options, draft }), true)
+  assert.equal(session.state().draft, '')
+})

@@ -43,6 +43,10 @@ impl DesktopFailure {
         Self::new("invalid_input", "validation")
     }
 
+    pub(crate) fn web_access(code: &'static str) -> Self {
+        Self::new(code, "operation")
+    }
+
     pub fn pairing_not_found() -> Self {
         Self::new("pairing_not_found", "validation")
     }

@@ -6,6 +6,9 @@ use serde_json::{json, Value};
 use std::{collections::HashSet, fs, time::Duration};
 use tauri::State;
 
+#[path = "hermes_plugin_batch.rs"]
+mod batch;
+
 fn log_plugin_action(
     scope: &ResolvedProfileScope,
     operation: &str,
@@ -103,6 +106,11 @@ pub(super) async fn request(
     match operation {
         "hermesPlugins.catalog" => live_catalog(state, scope).await,
         "hermesPlugins.list" => list(state, scope).await,
+        "hermesPlugins.updateAll" => batch::update_all(state, scope).await,
+        "hermesPlugins.autoUpdate" => batch::auto_update(state, scope, None).await,
+        "hermesPlugins.autoUpdate.set" => {
+            batch::auto_update(state, scope, Some(batch::auto_update_body(payload)?)).await
+        }
         "hermesPlugins.contextEngines" => context_engines(state, scope).await,
         "hermesPlugins.contextEngine.save" => save_context_engine(state, scope, payload).await,
         "hermesPlugins.rescan" => {
@@ -934,6 +942,9 @@ async fn write_request(
     let raw: Value =
         serde_json::from_slice(&bytes).map_err(|_| DesktopFailure::operation_failed())?;
     scope.ensure_current(state).await?;
+    if route == batch::UPDATE_ALL {
+        return batch::project(&raw);
+    }
     if let Some(name) = install_name {
         let outcome = if raw["ok"] == true {
             "ok"
@@ -947,6 +958,11 @@ async fn write_request(
         log_install(scope, name, "agent_response", outcome);
     }
     // Never expose upstream paths, command output or credential-bearing text to the WebView.
+    let next_session = ["tools", "prompt"].into_iter().any(|field| {
+        raw["activation"]["deferred"][field]
+            .as_array()
+            .is_some_and(|items| !items.is_empty())
+    });
     Ok(json!({
         "ok": raw.get("ok").and_then(Value::as_bool).unwrap_or(false),
         "unchanged": raw.get("unchanged").and_then(Value::as_bool).unwrap_or(false),
@@ -960,6 +976,8 @@ async fn write_request(
         },
         "scan_findings": safe_scan_findings(raw.get("scan_findings")),
         "restart_required": raw.get("restart_required").and_then(Value::as_bool).unwrap_or(false),
+        "missing_dependencies": raw.pointer("/activation/missing_dependencies").and_then(Value::as_array).is_some_and(|items| !items.is_empty()),
+        "next_session": next_session,
         "gateway_reloaded": raw.get("gateway_reloaded").and_then(Value::as_bool).unwrap_or(false),
         "delta_lines": raw.get("delta_lines").and_then(Value::as_array).map(|lines| lines.iter()
             .filter_map(Value::as_str).filter(|line| line.len() <= 240 && !line.chars().any(char::is_control))

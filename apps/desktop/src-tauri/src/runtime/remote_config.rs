@@ -2,6 +2,7 @@ use crate::errors::DesktopFailure;
 use crate::paths::{filesystem_path, plain_path};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -15,6 +16,23 @@ pub struct RemoteGatewayConfig {
     pub id: String,
     pub label: String,
     pub url: String,
+    #[serde(default, rename = "sshTarget", skip_serializing_if = "Option::is_none")]
+    pub ssh_target: Option<String>,
+}
+
+pub(super) fn valid_ssh_target(value: &str) -> bool {
+    let mut pieces = value.split('@');
+    let valid = |part: &str| {
+        !part.starts_with('-')
+            && !part.is_empty()
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    };
+    value.len() <= 253
+        && pieces.next().is_some_and(valid)
+        && pieces.next().is_none_or(valid)
+        && pieces.next().is_none()
 }
 
 fn config_path(app: &AppHandle) -> Result<PathBuf, DesktopFailure> {
@@ -24,22 +42,48 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, DesktopFailure> {
         .map_err(|_| DesktopFailure::operation_failed())
 }
 
-pub fn read(app: &AppHandle) -> Result<Option<RemoteGatewayConfig>, DesktopFailure> {
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SavedGateways {
+    List(Vec<RemoteGatewayConfig>),
+    Legacy(RemoteGatewayConfig),
+}
+
+pub fn read(app: &AppHandle) -> Result<Vec<RemoteGatewayConfig>, DesktopFailure> {
     let path = config_path(app)?;
     let bytes = match fs::read(filesystem_path(&path)) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(_) => return Err(DesktopFailure::operation_failed()),
     };
-    let config: RemoteGatewayConfig =
+    let saved: SavedGateways =
         serde_json::from_slice(&bytes).map_err(|_| DesktopFailure::operation_failed())?;
-    if Uuid::parse_str(&config.id).is_err()
-        || config.label.trim().is_empty()
-        || config.url.trim().is_empty()
-    {
+    let configs = match saved {
+        SavedGateways::List(configs) => configs,
+        SavedGateways::Legacy(config) => vec![config],
+    };
+    let mut ids = HashSet::new();
+    if configs.iter().any(|config| {
+        Uuid::parse_str(&config.id).is_err()
+            || !ids.insert(config.id.as_str())
+            || config.label.trim().is_empty()
+            || config.url.trim().is_empty()
+    }) {
         return Err(DesktopFailure::operation_failed());
     }
-    Ok(Some(config))
+    Ok(configs)
+}
+
+fn prepare_write(path: &Path, configs: &[RemoteGatewayConfig]) -> Result<PathBuf, DesktopFailure> {
+    let parent = path.parent().ok_or_else(DesktopFailure::operation_failed)?;
+    fs::create_dir_all(filesystem_path(parent)).map_err(|_| DesktopFailure::operation_failed())?;
+    let temporary = parent.join(format!("remote-gateway-{}.tmp", Uuid::new_v4()));
+    let bytes = serde_json::to_vec(configs).map_err(|_| DesktopFailure::operation_failed())?;
+    if fs::write(filesystem_path(&temporary), bytes).is_err() {
+        let _ = fs::remove_file(filesystem_path(&temporary));
+        return Err(DesktopFailure::operation_failed());
+    }
+    Ok(temporary)
 }
 
 pub async fn save(
@@ -47,25 +91,37 @@ pub async fn save(
     label: String,
     url: String,
     token: String,
+    ssh_target: Option<String>,
 ) -> Result<RemoteGatewayConfig, DesktopFailure> {
     if label.trim().is_empty() || label.len() > 64 || token.is_empty() || token.len() > 16 * 1024 {
         return Err(DesktopFailure::invalid_input());
     }
     crate::gateway::validate_remote_gateway_url(&url)
         .map_err(|_| DesktopFailure::invalid_input())?;
-    let previous = read(app)?;
+    let ssh_target = ssh_target
+        .map(|target| target.trim().to_owned())
+        .filter(|target| !target.is_empty());
+    if ssh_target
+        .as_deref()
+        .is_some_and(|target| !valid_ssh_target(target))
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    let mut configs = read(app)?;
+    let url = url.trim_end_matches('/').to_owned();
+    let previous = configs
+        .iter()
+        .position(|entry| entry.url.trim_end_matches('/') == url)
+        .map(|index| configs.remove(index));
     let config = RemoteGatewayConfig {
         id: Uuid::new_v4().to_string(),
         label: label.trim().to_owned(),
         url,
+        ssh_target,
     };
     let path = config_path(app)?;
-    let parent = path.parent().ok_or_else(DesktopFailure::operation_failed)?;
-    fs::create_dir_all(filesystem_path(parent)).map_err(|_| DesktopFailure::operation_failed())?;
-    let temporary = parent.join(format!("remote-gateway-{}.tmp", Uuid::new_v4()));
-    let bytes = serde_json::to_vec(&config).map_err(|_| DesktopFailure::operation_failed())?;
-    fs::write(filesystem_path(&temporary), bytes)
-        .map_err(|_| DesktopFailure::operation_failed())?;
+    configs.push(config.clone());
+    let temporary = prepare_write(&path, &configs)?;
     let id = config.id.clone();
     let saved = tokio::task::spawn_blocking(move || {
         keyring::Entry::new(KEYRING_SERVICE, &id).and_then(|entry| entry.set_password(&token))
@@ -138,26 +194,31 @@ pub async fn token(id: String) -> Result<String, DesktopFailure> {
 
 pub async fn delete(app: &AppHandle, id: &str, operation: Uuid) -> Result<(), DesktopFailure> {
     Uuid::parse_str(id).map_err(|_| DesktopFailure::invalid_input())?;
-    let Some(config) = read(app)? else {
+    let mut configs = read(app)?;
+    if configs.is_empty() {
         return Ok(());
-    };
-    if config.id != id {
-        return Err(DesktopFailure::conflict());
     }
+    let Some(index) = configs.iter().position(|config| config.id == id) else {
+        return Err(DesktopFailure::conflict());
+    };
+    let config = configs.remove(index);
+    let path = config_path(app)?;
+    let temporary = prepare_write(&path, &configs)?;
     let credential = tokio::task::spawn_blocking(move || {
         keyring::Entry::new(KEYRING_SERVICE, &config.id).and_then(|entry| entry.delete_credential())
     })
     .await;
     if !matches!(credential, Ok(Ok(())) | Ok(Err(keyring::Error::NoEntry))) {
+        let _ = fs::remove_file(filesystem_path(&temporary));
         return Err(delete_failure(app, operation, "credential"));
     }
     // Keep the configuration until credential cleanup succeeds so a failed
     // deletion can still be retried using the same credential identifier.
-    match fs::remove_file(filesystem_path(&config_path(app)?)) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(_) => Err(delete_failure(app, operation, "config")),
+    if replace_file(&temporary, &path).is_err() {
+        let _ = fs::remove_file(filesystem_path(&temporary));
+        return Err(delete_failure(app, operation, "config"));
     }
+    Ok(())
 }
 
 fn delete_failure(app: &AppHandle, operation: Uuid, step: &str) -> DesktopFailure {

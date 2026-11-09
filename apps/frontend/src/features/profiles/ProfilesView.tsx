@@ -4,12 +4,14 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import PersonalFilesView from '../personal-files/PersonalFilesView'
+import type { McpSetupDraft } from '../extensions/model'
 import ProfileOverview from './ProfileOverview'
 import type { ProfileTab } from './ProfileOverview'
 import ProfileCreateDialog from './ProfileCreateDialog'
 import ProfileImportDialog from './ProfileImportDialog'
 import { keepFocusInside } from '../extensions/dialogFocus'
 import WorkBuddyImportDialog from './WorkBuddyImportDialog'
+import AgentMigrationDialog from './AgentMigrationDialog'
 import './ProfilesView.css'
 
 type Props = {
@@ -18,6 +20,8 @@ type Props = {
   profiles: ProfilesSnapshot | null
   activeProfile: string | null
   tabRequest: { id: number; tab: ProfileTab }
+  mcpSetup?: McpSetupDraft
+  onMcpSetupApplied?: () => void
   onTabChange: (tab: ProfileTab) => void
   onCreateOpenChange: (open: boolean) => void
   profileBusy: boolean
@@ -173,7 +177,7 @@ export default function ProfilesView(props: Props) {
         {!props.profiles && <p className="profile-directory-empty">{props.connected ? (zh ? '正在读取专家…' : 'Loading experts…') : (zh ? '连接 Gateway 后显示专家。' : 'Connect to Gateway to view experts.')}</p>}
         {props.profiles && matchingProfiles.length === 0 && <p className="profile-directory-empty">{zh ? '没有匹配的专家。' : 'No matching experts.'}</p>}
       </div>
-      <div className="profile-directory-actions"><button type="button" className="profile-directory-create" disabled={!props.connected || props.profileBusy} onClick={() => { setCreateNotice(''); setCreateOpen(true) }}>＋ {zh ? '新建 Profile' : 'Create profile'}</button><button type="button" className="profile-directory-import" disabled={!props.connected || props.profileBusy} onClick={() => { setArchiveNotice(''); setArchiveError(''); setImportOpen(true) }}>{zh ? '导入 Hermes 归档' : 'Import Hermes archive'}</button><WorkBuddyImportDialog profiles={props.profiles} busy={!props.connected || props.profileBusy} onImport={props.onImportPackage} onNotice={message => { setCreateNotice(message); setArchiveNotice(''); setArchiveError('') }} /></div>
+      <div className="profile-directory-actions"><button type="button" className="profile-directory-create" disabled={!props.connected || props.profileBusy} onClick={() => { setCreateNotice(''); setCreateOpen(true) }}>＋ {zh ? '新建 Profile' : 'Create profile'}</button><button type="button" className="profile-directory-import" disabled={!props.connected || props.profileBusy} onClick={() => { setArchiveNotice(''); setArchiveError(''); setImportOpen(true) }}>{zh ? '导入 Hermes 归档' : 'Import Hermes archive'}</button><WorkBuddyImportDialog profiles={props.profiles} busy={!props.connected || props.profileBusy} onImport={props.onImportPackage} onNotice={message => { setCreateNotice(message); setArchiveNotice(''); setArchiveError('') }} /><AgentMigrationDialog profiles={props.profiles} disabled={!props.connected || props.profileBusy} /></div>
     </aside>
     <div className="profile-detail-scroll">{props.memoryOpen ? <PersonalFilesView
       connected={props.connected} profile={props.profiles?.selected || null} epoch={props.epoch}
@@ -183,6 +187,8 @@ export default function ProfilesView(props: Props) {
       profiles={props.profiles}
       activeProfile={props.activeProfile}
       tabRequest={props.tabRequest}
+      mcpSetup={props.mcpSetup}
+      onMcpSetupApplied={props.onMcpSetupApplied}
       onTabChange={props.onTabChange}
       profileBusy={props.profileBusy}
       onActivateProfile={props.onActivateProfile}

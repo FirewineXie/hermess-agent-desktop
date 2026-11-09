@@ -1,4 +1,4 @@
-use super::{detail_url, entry, server_id};
+use super::{detail_url, entry, server_id, setup_options};
 use serde_json::json;
 
 #[test]
@@ -74,9 +74,53 @@ async fn live_public_modelscope_mcp_search_and_preview() {
         .find(|item| item["identifier"] == "modelscope-mcp:@amap/amap-maps")
         .unwrap();
     assert_eq!(item["source"], "modelscope");
+    assert!(item.get("setup_options").is_none());
     let detail = super::preview("modelscope-mcp:@amap/amap-maps")
         .await
         .unwrap();
     assert_eq!(detail["identifier"], item["identifier"]);
     assert_eq!(detail["installable"], false);
+    assert!(detail["setup_options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|option| {
+            option["transport"] == "stdio"
+                && option["command"] == "npx"
+                && option["env_keys"] == json!(["AMAP_MAPS_API_KEY"])
+        }));
+    let bing = super::preview("modelscope-mcp:slcatwujian/bing-cn-mcp-server")
+        .await
+        .unwrap();
+    assert!(bing["setup_options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|option| {
+            option["command"] == "cmd"
+                && option["args"] == json!(["/c", "npx", "-y", "bing-cn-mcp"])
+        }));
+    let xsct = super::preview("modelscope-mcp:itshen/xsct-bench")
+        .await
+        .unwrap();
+    assert_eq!(xsct["setup_options"], json!([]));
+}
+
+#[test]
+fn setup_options_only_project_settings_the_manual_form_can_represent() {
+    let detail = json!({"server_config": [
+        {"mcpServers": {"local": {"command": "cmd", "args": ["/c", "value with spaces"], "env": {"API_KEY": "example-value"}}}},
+        {"mcpServers": {"remote": {"url": "https://example.org/mcp"}}},
+        {"mcpServers": {"invalid-args": {"command": "node", "args": [""]}}},
+        {"mcpServers": {"mixed": {"command": "node", "url": "https://example.org/mcp"}}},
+        {"mcpServers": {"with-token": {"url": "https://example.org/mcp?token=example-value"}}},
+        {"mcpServers": {"with-headers": {"url": "https://example.org/mcp", "headers": {"Authorization": "example-value"}}}}
+    ]});
+    assert_eq!(
+        setup_options(&detail),
+        vec![
+            json!({"transport": "stdio", "command": "cmd", "args": ["/c", "value with spaces"], "env_keys": ["API_KEY"]}),
+            json!({"transport": "http", "url": "https://example.org/mcp"}),
+        ]
+    );
 }

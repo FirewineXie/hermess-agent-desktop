@@ -112,6 +112,21 @@ fn cron_mutation(payload: &Value, create: bool) -> Result<Value, DesktopFailure>
         "repeat": repeat,
         "paused": paused,
     });
+    if let Some(catch_up) = payload.get("catch_up") {
+        if !catch_up.is_null() && !catch_up.is_boolean() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        body["catch_up"] = catch_up.clone();
+    }
+    if payload.get("timezone").is_some() {
+        body["timezone"] = json!(optional_text(payload, "timezone", 128)?);
+    }
+    if let Some(grace) = payload.get("grace_minutes") {
+        if !grace.is_null() && grace.as_u64().is_none() {
+            return Err(DesktopFailure::invalid_input());
+        }
+        body["grace_minutes"] = grace.clone();
+    }
     if !create {
         body.as_object_mut().unwrap().remove("repeat");
         body.as_object_mut().unwrap().remove("paused");
@@ -410,18 +425,39 @@ pub(super) async fn request(
             }
             Ok(json!({"jobs": jobs}))
         }
-        "jobs.run" => {
+        "jobs.run" | "jobs.cancel" => {
             let id = job_id(payload)?;
             let operation_id = Uuid::new_v4();
             let _ = crate::diagnostics::append_client_event(
                 &scope.storage,
                 &format!(
-                    "cron_trigger operation={operation_id} profile={} phase=start",
+                    "cron_action action={operation} operation={operation_id} profile={} phase=start",
                     scope.profile
                 ),
             );
             let result = async {
                 owned_job(state, scope, id).await?;
+                if operation == "jobs.cancel" {
+                    let value = dashboard_request(
+                        state,
+                        scope,
+                        Method::POST,
+                        Some(id),
+                        Some("cancel"),
+                        None,
+                    )
+                    .await?;
+                    if value.get("job_id").and_then(Value::as_str) != Some(id)
+                        || value.get("success").and_then(Value::as_bool) != Some(true)
+                    {
+                        return Err(DesktopFailure::operation_failed());
+                    }
+                    let cancelled = value
+                        .get("cancelled")
+                        .and_then(Value::as_bool)
+                        .ok_or_else(DesktopFailure::operation_failed)?;
+                    return Ok(json!({"cancelled": cancelled}));
+                }
                 trigger_request(state, scope, id)
                     .await
                     .map(|job| json!({"job":job}))
@@ -430,7 +466,7 @@ pub(super) async fn request(
             let _ = crate::diagnostics::append_client_event(
                 &scope.storage,
                 &format!(
-                    "cron_trigger operation={operation_id} profile={} status={}",
+                    "cron_action action={operation} operation={operation_id} profile={} status={}",
                     scope.profile,
                     if result.is_ok() { "ok" } else { "failed" }
                 ),

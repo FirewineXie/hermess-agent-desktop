@@ -1,5 +1,22 @@
 .runtime-topology{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px solid var(--border-color,#d8e0eb);border-radius:12px;background:var(--panel-bg,#fff)}
 .runtime-topology>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}.runtime-topology h3{margin:0;font-size:15px}.runtime-topology>div:first-child>span{padding:3px 8px;border-radius:999px;background:#e9f1ff;color:#2b61b3;font-size:12px}
 .runtime-topology-row{display:grid;grid-template-columns:minmax(130px,.35fr) 1fr;gap:12px;padding-top:10px;border-top:1px solid var(--border-color,#e5eaf1);font-size:13px}.runtime-topology-row p,.runtime-topology-reason{margin:0;overflow-wrap:anywhere}.runtime-topology-reason{color:#a05a20}
-.runtime-remote-settings{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px solid var(--border-color,#d8e0eb);border-radius:12px}.runtime-remote-settings h3,.runtime-remote-settings p{margin:0}.runtime-remote-settings label{display:grid;gap:5px}.runtime-remote-settings input{width:100%;box-sizing:border-box}.runtime-remote-actions{display:flex;gap:8px;flex-wrap:wrap}.runtime-remote-settings small{overflow-wrap:anywhere}
+.runtime-remote-settings{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px solid var(--border-color,#d8e0eb);border-radius:12px}.runtime-remote-settings h3,.runtime-remote-settings p{margin:0}.runtime-remote-actions{display:flex;gap:8px;flex-wrap:wrap}.runtime-remote-settings small{overflow-wrap:anywhere}
 .runtime-remote-saved{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.runtime-remote-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.runtime-remote-dialog {
+  box-sizing: border-box;
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--dark-border, #d9e1eb);
+  border-radius: 12px;
+  background: var(--dark-surface, #fff);
+  color: var(--dark-text, #172236);
+}
+.runtime-remote-dialog::backdrop { background: rgb(15 23 42 / 35%); }
+.runtime-remote-dialog form { display: grid; gap: 12px; }
+.settings-panel .runtime-remote-dialog label { display: grid; gap: 5px; margin: 0; }
+.settings-panel .runtime-remote-dialog input { box-sizing: border-box; margin: 0; }
+.runtime-remote-dialog .runtime-remote-actions { justify-content: flex-end; }

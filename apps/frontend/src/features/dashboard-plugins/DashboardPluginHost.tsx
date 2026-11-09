@@ -357,7 +357,7 @@ function installFetchShim() {
   fetchShimInstalled = true
 }
 
-function exposeRuntime(runtime: DashboardPluginRuntime, lifecycle: { start(): Promise<unknown>; stop(): Promise<unknown>; restart(): Promise<unknown> }) {
+function exposeRuntime(runtime: DashboardPluginRuntime, lifecycle: { start(): Promise<unknown>; stop(): Promise<unknown>; restart(): Promise<unknown> }, readHermesVersion: () => Promise<string>) {
   if (activeRuntime && activeRuntime !== runtime) invalidateRuntime(activeRuntime)
   activeRuntime = runtime
   pluginRuntimes.set(runtime.id, runtime)
@@ -393,7 +393,10 @@ function exposeRuntime(runtime: DashboardPluginRuntime, lifecycle: { start(): Pr
       useToast: useHostToast, useConfirmDelete: useHostConfirmDelete,
     },
     api: createDashboardPluginApi(fetchJSON, runtime.request.bind(runtime), buildWsUrl, profile, guardedLifecycle,
-      path => runtimeHttpUrl(runtime, dashboardPluginApiPath(path, profile))), fetchJSON, authedFetch: runtime.request.bind(runtime),
+      path => runtimeHttpUrl(runtime, dashboardPluginApiPath(path, profile)), async () => {
+        runtime.assertActive()
+        return readHermesVersion()
+      }), fetchJSON, authedFetch: runtime.request.bind(runtime),
     buildWsUrl,
     buildWsAuthParam: async () => { runtime.assertActive(); return ['hermess_proxy', runtime.id] as [string, string] },
     components: {
@@ -434,7 +437,7 @@ function assetUrl(origin: string, profile: string, plugin: string, file: string)
 }
 
 export function useDashboardPlugins(connected: boolean, profile: string | null, epoch: string | null, language: 'zh-CN' | 'en-US', lifecycle: { start(): Promise<unknown>; stop(): Promise<unknown>; restart(): Promise<unknown> }) {
-  const { dashboardPlugins, extensions } = useDesktop()
+  const { about, dashboardPlugins, extensions } = useDesktop()
   const lifecycleRef = React.useRef(lifecycle)
   lifecycleRef.current = lifecycle
   const stableLifecycle = React.useMemo(() => ({
@@ -467,7 +470,7 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
     }
     runtime = new DashboardPluginRuntime(profile, language, request,
       (path, handler) => dashboardPlugins.socket(scope, pluginSocketPath(path), handler))
-    exposeRuntime(runtime, stableLifecycle)
+    exposeRuntime(runtime, stableLifecycle, async () => (await about.productInfo()).hermesVersion)
     void extensions.request<{ plugins: DashboardPluginManifest[]; asset_origin: string }>(scope, 'dashboard.plugins.list').then(result => {
       if (!active) return
       const loadable = result.plugins.filter(manifest => manifest.name !== 'kanban').map(manifest => ({
@@ -499,7 +502,7 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
       }
       invalidateRuntime(runtime)
     }
-  }, [connected, dashboardPlugins, epoch, extensions, language, profile, stableLifecycle])
+  }, [about, connected, dashboardPlugins, epoch, extensions, language, profile, stableLifecycle])
   const components = React.useMemo(() => new Map(registered), [version])
   return { manifests, components, error }
 }

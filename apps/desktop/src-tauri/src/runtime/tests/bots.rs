@@ -4,6 +4,39 @@ use std::fs;
 use uuid::Uuid;
 
 #[test]
+#[ignore = "run by the isolated locked Gateway receiver probe"]
+fn print_production_gateway_feature_room() {
+    for (id, operation, payload) in [
+        (
+            "room-lead",
+            "context",
+            json!({"room_id":"fixture", "event_id":Uuid::new_v4(), "purpose":"Review scheduled reports", "notes":"ROOM_SHARED_PROBE", "routing":"lead", "lead_member_id":"reviewer"}),
+        ),
+        (
+            "room-auto",
+            "context",
+            json!({"room_id":"fixture", "event_id":Uuid::new_v4(), "purpose":"Review scheduled reports", "notes":"ROOM_SHARED_PROBE", "routing":"auto", "lead_member_id":""}),
+        ),
+        (
+            "room-everyone",
+            "context",
+            json!({"room_id":"fixture", "event_id":Uuid::new_v4(), "purpose":"Review scheduled reports", "notes":"ROOM_SHARED_PROBE", "routing":"everyone", "lead_member_id":""}),
+        ),
+        (
+            "room-continue",
+            "continue",
+            json!({"room_id":"fixture", "discussion_event_id":"fixture-discussion"}),
+        ),
+    ] {
+        let (method, params) = bot_group_request_shape(operation, payload).unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            json!({"id":id, "method":method, "params":params})
+        );
+    }
+}
+
+#[test]
 fn bot_marker_preserves_other_profile_metadata_and_is_idempotent() {
     let home = std::env::temp_dir().join(format!("hermess-bot-marker-{}", Uuid::new_v4()));
     fs::create_dir(&home).expect("temporary home");

@@ -1,5 +1,7 @@
 use futures_util::{SinkExt, StreamExt};
 pub(crate) mod computer_activity;
+mod notices;
+use notices::NoticeSource;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -180,20 +182,46 @@ fn is_forwarded_event(kind: &str) -> bool {
             | "message.complete"
             | "reasoning.delta"
             | "reasoning.available"
+            | "thinking.delta"
             | "error"
             | "tool.start"
             | "tool.progress"
+            | "tool.generating"
+            | "tool.output_risk"
             | "tool.complete"
+            | "connection.request"
+            | "connection.update"
             | "status.update"
+            | "notice"
+            | "browser.progress"
+            | "session.title"
+            | "session.usage"
+            | "session.info"
+            | "session.reclaimed"
+            | "session.resume_progress"
+            | "session.control.update"
+            | "session.replay_gap"
+            | "review.summary"
+            | "agent.print"
+            | "todo.updated"
+            | "moa.reference"
+            | "moa.progress"
+            | "moa.phase"
+            | "moa.aggregating"
             | "request.cancel"
             | "background.complete"
             | "btw.complete"
             | "notification.show"
             | "notification.clear"
             | "sessions.changed"
+            | "cron.changed"
+            | "platforms.changed"
+            | "skills.changed"
             | "subagent.spawn_requested"
             | "subagent.start"
             | "subagent.progress"
+            | "subagent.tool"
+            | "subagent.thinking"
             | "subagent.complete"
     )
 }
@@ -213,6 +241,37 @@ fn project_subagent_event(kind: &str, payload: &mut Value) {
         }
     }
     *payload = Value::Object(projected);
+}
+
+fn log_connection_card(kind: &str, payload: &Value, routed: bool) {
+    let stage = match kind {
+        "connection.request" if routed => "opened",
+        "connection.request" => "owner_unavailable",
+        "connection.update" if payload["settled"] == true => match payload["settled_by"].as_str() {
+            Some("deadline") => "timed_out",
+            Some("interrupt") => "interrupted",
+            Some("continue") => "continued",
+            _ if payload["targets"].as_array().is_some_and(|targets| {
+                targets.iter().any(|target| target["state"] == "failed")
+            }) =>
+            {
+                "failed"
+            }
+            _ => "settled",
+        },
+        _ => return,
+    };
+    if let Some(id) = payload["op_id"].as_str().filter(|id| {
+        !id.is_empty()
+            && id.len() <= 128
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    }) {
+        crate::diagnostics::log_client_event(&format!(
+            "chat_connection card op={id} stage={stage}"
+        ));
+    }
 }
 
 fn bound_notification_text(kind: &str, payload: &mut Value) {
@@ -334,21 +393,31 @@ impl GatewayClient {
             "Sec-WebSocket-Protocol",
             HeaderValue::from_str(&protocol).map_err(|_| "无效的网关票据".to_string())?,
         );
-        Self::connect_request(request, app, true, true, true, Some(home.to_path_buf())).await
+        Self::connect_request(
+            request,
+            app,
+            true,
+            true,
+            true,
+            Some(home.to_path_buf()),
+            Some(NoticeSource::Local),
+        )
+        .await
     }
 
     pub async fn connect_remote(
         base_url: &str,
         session_token: &str,
         app: AppHandle,
-        emit_events: bool,
+        saved_id: Option<&str>,
     ) -> Result<Self, String> {
         let url = remote_ws_url(base_url, session_token)?;
         let request = url
             .as_str()
             .into_client_request()
             .map_err(|_| "无法构造远程网关连接".to_string())?;
-        Self::connect_request(request, app, false, false, emit_events, None).await
+        let notice_source = saved_id.map(|id| NoticeSource::Remote(id.to_owned()));
+        Self::connect_request(request, app, false, false, false, None, notice_source).await
     }
 
     async fn connect_request(
@@ -358,6 +427,7 @@ impl GatewayClient {
         desktop_local: bool,
         emit_events: bool,
         activity_home: Option<std::path::PathBuf>,
+        notice_source: Option<NoticeSource>,
     ) -> Result<Self, String> {
         let (socket, response) = timeout(Duration::from_secs(5), connect_async(request))
             .await
@@ -622,6 +692,33 @@ impl GatewayClient {
                             }
                             continue;
                         }
+                        if kind == "approval.cancelled" {
+                            let payload = &params["payload"];
+                            let sessions = [payload["session_id"].as_str(), payload["stored_session_id"].as_str()];
+                            let ids = payload["request_ids"].as_array();
+                            if let Some(ids) = ids.filter(|ids| !ids.is_empty()) {
+                                server_requests.retain(|id, (method, request)| {
+                                    let session = request["session_id"].as_str().filter(|session| !session.is_empty());
+                                    let matches = method == "approval" && session.is_some() && sessions.contains(&session)
+                                        && ids.iter().filter_map(Value::as_str).any(|cancelled| {
+                                            cancelled == id || request["request_id"].as_str() == Some(cancelled)
+                                        });
+                                    if matches {
+                                        if let Some(Some(profile)) = request_owners.remove(id) {
+                                            if task_events_enabled.load(Ordering::Acquire) {
+                                                let _ = app.emit("hermes-event", GatewayEvent {
+                                                    kind: "request.cancel".into(), profile: Some(profile),
+                                                    session_id: session.map(str::to_owned), seq: None,
+                                                    payload: json!({"id":id,"reason":"approval_cancelled"}),
+                                                });
+                                            }
+                                        }
+                                    }
+                                    !matches
+                                });
+                            }
+                            continue;
+                        }
                         let settled_request_id = if kind == "request.cancel" || kind == "approval.settled" {
                             params.pointer("/payload/id").or_else(|| params.pointer("/payload/prompt_id")).and_then(Value::as_str).map(str::to_owned)
                         } else {
@@ -633,6 +730,7 @@ impl GatewayClient {
                         }
                         let forwarded_kind = if kind == "approval.settled" { "request.cancel" } else { kind };
                         if !is_forwarded_event(forwarded_kind) { continue; }
+                        if kind == "connection.update" && params.pointer("/payload/owner/type").and_then(Value::as_str) != Some("session") { continue; }
                         let mut payload = params.get("payload").filter(|value| value.is_object()).cloned().unwrap_or_else(|| json!({}));
                         if let (Some(id), Some(object)) = (settled_request_id, payload.as_object_mut()) {
                             object.insert("id".into(), Value::String(id));
@@ -640,15 +738,21 @@ impl GatewayClient {
                         bound_notification_text(forwarded_kind, &mut payload);
                         project_subagent_event(forwarded_kind, &mut payload);
                         if payload.to_string().len() > 32 * 1024 { continue; }
+                        let session_id = params["session_id"].as_str().filter(|id| !id.is_empty())
+                            .or_else(|| (kind == "session.reclaimed").then(|| payload["session_id"].as_str()).flatten());
+                        let profile = session_id.and_then(|session| session_owners.get(session))
+                            .and_then(Option::as_ref).cloned();
+                        log_connection_card(kind, &payload, profile.is_some());
                         let event = GatewayEvent {
                             kind: forwarded_kind.into(),
-                            profile: params.get("session_id").and_then(Value::as_str)
-                                .and_then(|session| session_owners.get(session))
-                                .and_then(Option::as_ref).cloned(),
-                            session_id: params.get("session_id").and_then(Value::as_str).map(str::to_owned),
+                            profile,
+                            session_id: session_id.map(str::to_owned),
                             seq: params.get("seq").and_then(Value::as_u64),
                             payload,
                         };
+                        if let Some(notice) = notice_source.as_ref().and_then(|source| source.project(&event)) {
+                            let _ = app.emit_to("main", "hermes-gateway-notice", notice);
+                        }
                         if task_events_enabled.load(Ordering::Acquire) { let _ = app.emit("hermes-event", event); }
                     }
                 }
@@ -719,6 +823,10 @@ impl GatewayClient {
 
     pub fn disable_events(&self) {
         self.events_enabled.store(false, Ordering::Release);
+    }
+
+    pub fn is_connected(&self) -> bool {
+        !self.task.is_finished() && !self.sender.is_closed()
     }
 
     pub async fn request(&self, method: &'static str, params: Value) -> Result<Value, String> {

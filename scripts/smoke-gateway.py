@@ -142,8 +142,8 @@ def main() -> None:
                     groups = {row["name"]: row for row in catalog.get("toolsets", [])}
                     if "terminal" not in groups or "terminal" not in groups["terminal"].get("tools", []):
                         raise RuntimeError("tools.list omitted the terminal tool")
-                    if "browser" not in groups or "browser_navigate" not in groups["browser"].get("tools", []):
-                        raise RuntimeError("tools.list omitted browser navigation")
+                    if "browser" not in groups or "browser_exec" not in groups["browser"].get("tools", []):
+                        raise RuntimeError("tools.list omitted browser_exec")
                     active_tools = asyncio.run(tool_catalog("tools.show"))
                     if not isinstance(active_tools.get("sections"), list):
                         raise RuntimeError("tools.show did not return active tool sections")
