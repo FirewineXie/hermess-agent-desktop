@@ -3,6 +3,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import type { HermesPluginRuntime, InstalledHermesPlugin } from '../extensions/HermesPlugins'
+import { refreshDashboardPlugins, useDashboardPluginDefinitions } from '../dashboard-plugins/DashboardPluginHost'
 import snapshot from '../extensions/hermesPluginCatalog.generated.json'
 
 type PluginScanFinding = { severity: string; category: string; file: string; line: number | null; description: string }
@@ -24,6 +25,10 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
   const { extensions, memory } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
+  const dashboard = useDashboardPluginDefinitions(profile)
+  const dashboardStatus = zh
+    ? { loading: '正在加载入口', registered: '已有界面注册', unregistered: '入口已加载，尚未注册', 'asset-failed': '入口脚本加载失败' }
+    : { loading: 'Loading entry', registered: 'Interface registered', unregistered: 'Entry loaded; nothing registered yet', 'asset-failed': 'Entry script failed to load' }
   const [data, setData] = React.useState<HermesPluginRuntime | null>(null)
   const [memoryState, setMemoryState] = React.useState<MemoryState | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -88,6 +93,7 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
     try {
       const result = await extensions.request<BatchUpdate>({ kind: 'profile', profile }, 'hermesPlugins.updateAll')
       setBatch(result)
+      if (result.results.some(item => item.status === 'updated')) refreshDashboardPlugins(profile, true)
       await refresh()
     } catch (error) { setMessage(describeError(error, language)) }
     finally { setBusy('') }
@@ -100,6 +106,7 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
     try {
       const result = await extensions.request<{ ok: boolean; count: number }>(
         { kind: 'profile', profile }, 'hermesPlugins.rescan')
+      if (result.ok) refreshDashboardPlugins(profile, true)
       await refresh()
       setMessage(result.ok
         ? (zh ? `重新扫描完成，发现 ${result.count} 个 Dashboard 扩展。` : `Rescan complete; found ${result.count} Dashboard extensions.`)
@@ -123,6 +130,7 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
           identifier, force: installForce, enable: installEnable,
         })
       if (!result.ok) throw new Error(result.error || (zh ? '插件安装未完成。' : 'Plugin installation did not complete.'))
+      if (result.enabled || installForce) refreshDashboardPlugins(profile, installForce)
       await refresh()
       setInstallId('')
       setInstallForce(false)
@@ -167,6 +175,7 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
         }
         return
       }
+      if (result.ok) refreshDashboardPlugins(profile, operation === 'update')
       await refresh()
       setMessage(result.ok ? activationNotice(result) || (zh ? '操作完成，已重新读取插件状态。' : 'Action completed and plugin status refreshed.')
         : (zh ? 'Agent 要求额外确认或阻止了操作，本页未继续。' : 'The Agent requires confirmation or blocked this action.'))
@@ -224,6 +233,20 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
       <button type="submit" disabled={!served || !!busy || !data?.can_manage || !installId.trim()}>{busy === '__install__' ? (zh ? '安装中…' : 'Installing…') : (zh ? '安装插件' : 'Install plugin')}</button>
       </div>
     </form>
+    {(dashboard.definitions.length > 0 || dashboard.error) && <section className="profile-plugin-orphans" aria-label={zh ? 'Dashboard 界面状态' : 'Dashboard interface status'}>
+      <h4>{zh ? 'Dashboard 界面状态' : 'Dashboard interface status'}</h4>
+      {dashboard.error && <p role="alert">{dashboard.error}</p>}
+      <ul>{dashboard.definitions.map(({ manifest, status, pageRegistered, registeredSlots, styleFailed }) => <li key={manifest.name}>
+        <strong>{manifest.label}</strong> · {manifest.name} · {dashboardStatus[status]}
+        {manifest.version && <p>{zh ? '版本' : 'Version'} {manifest.version}</p>}
+        <p>{zh ? '声明页面' : 'Declared page'} {manifest.tab.path}{manifest.tab.hidden ? (zh ? '（隐藏）' : ' (hidden)') : ''}
+          {manifest.tab.override && ` · ${zh ? '覆盖' : 'Overrides'} ${manifest.tab.override}`}</p>
+        {manifest.slots.length > 0 && <p>{zh ? '声明插槽' : 'Declared slots'} {manifest.slots.join(', ')}</p>}
+        {pageRegistered && <p>{zh ? '页面组件已注册' : 'Page component registered'}</p>}
+        {registeredSlots.length > 0 && <p>{zh ? '实际注册插槽' : 'Registered slots'} {registeredSlots.join(', ')}</p>}
+        {styleFailed && <p>{zh ? '样式表加载失败' : 'Stylesheet failed to load'}</p>}
+      </li>)}</ul>
+    </section>}
     <label className="profile-skill-search"><span className="sr-only">{zh ? '搜索已安装插件' : 'Search installed plugins'}</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={zh ? '搜索已安装插件' : 'Search installed plugins'} /></label>
     {data && (visible.length ? <div className="extension-list">{visible.map(item => {
       const catalog = snapshot.entries.find(entry => entry.name === item.catalog_name)

@@ -1,7 +1,7 @@
 import React from 'react'
 import { assertDashboardPluginBodyProfile, createDashboardPluginApi, dashboardPluginApiPath } from './dashboardPluginApi'
 import { useDesktop } from '../../app/DesktopContext'
-import { changeLanguage } from '../../i18n'
+import { changeLanguage, useLanguage } from '../../i18n'
 import type { DashboardPluginSocket, DashboardPluginSocketEvent, ProfileScope } from '@hermess/contracts'
 import { localizeAchievementPayload, localizeDashboardPluginLabel } from './achievementLocalization'
 import { syncDashboardPluginLanguage, useDashboardPluginI18n } from './dashboardI18n'
@@ -10,28 +10,21 @@ import { dashboardPluginResponse } from './dashboardPluginResponse'
 import type { DashboardPluginResponsePayload } from './dashboardPluginResponse'
 import { DashboardPluginToast as Toast } from './dashboardPluginSdkComponents'
 import { dashboardIsoTimeAgo, dashboardTimeAgo } from './dashboardPluginSdkUtils'
+import { dashboardPluginDefinition, dashboardPluginEntryKey } from './dashboardPluginDefinition'
+import type { DashboardPluginAssets, DashboardPluginManifest } from './dashboardPluginDefinition'
 import './dashboard-plugin-host.css'
 
-export type DashboardPluginManifest = {
-  name: string
-  label: string
-  description: string
-  icon: string
-  version: string
-  tab: { path: string; position?: string | null; override?: string | null; hidden: boolean }
-  slots: string[]
-  entry: string
-  css?: string | null
-  integrity?: string | null
-  has_api: boolean
-  source: string
-}
+export type { DashboardPluginManifest } from './dashboardPluginDefinition'
 
 type PluginComponent = React.ComponentType<Record<string, never>>
 type RegistryListener = () => void
 const registered = new Map<string, PluginComponent>()
 const registeredSlots = new Map<string, Map<string, React.ComponentType>>()
 const listeners = new Set<RegistryListener>()
+const refreshListeners = new Set<(profile: string, reload: boolean) => void>()
+const pluginAssets = new Map<string, DashboardPluginAssets>()
+let pluginManifests: DashboardPluginManifest[] = []
+let pluginDiscoveryError = ''
 let registryProfile = ''
 let activeRuntime: DashboardPluginRuntime | null = null
 const pluginRuntimes = new Map<string, DashboardPluginRuntime>()
@@ -44,6 +37,31 @@ let fetchShimInstalled = false
 const bridgedSockets = new Set<BridgedWebSocket>()
 
 function notify() { for (const listener of listeners) listener() }
+
+export function refreshDashboardPlugins(profile: string, reload = false) {
+  for (const listener of refreshListeners) listener(profile, reload)
+}
+
+function useDashboardPluginChanges() {
+  const [, update] = React.useReducer(value => value + 1, 0)
+  React.useLayoutEffect(() => {
+    const listener = () => update()
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  }, [])
+}
+
+export function useDashboardPluginDefinitions(profile: string | null) {
+  useDashboardPluginChanges()
+  if (!profile || registryProfile !== profile || !activeRuntime?.active) return { definitions: [], error: '' }
+  return {
+    definitions: pluginManifests.map(manifest => dashboardPluginDefinition(
+      manifest, pluginAssets.get(manifest.name), registered.has(manifest.name),
+      [...registeredSlots].filter(([, entries]) => entries.has(manifest.name)).map(([slot]) => slot),
+    )),
+    error: pluginDiscoveryError,
+  }
+}
 
 function bytesFromBase64(value: string) {
   const binary = atob(value)
@@ -416,18 +434,23 @@ function exposeRuntime(runtime: DashboardPluginRuntime, lifecycle: { start(): Pr
     __HERMES_PLUGIN_SDK__: sdk,
     __HERMES_PLUGINS__: {
       register(name: string, component: PluginComponent) {
-        const owner = document.currentScript instanceof HTMLScriptElement ? document.currentScript.dataset.hermessDashboardProfile : undefined
-        if (!runtime.active || (owner && owner !== registryProfile) || registryProfile !== profile || typeof component !== 'function') return
+        if (!acceptRegistration(runtime, name) || typeof component !== 'function') return
         registered.set(name, component); notify()
       },
       registerSlot(plugin: string, slot: string, component: React.ComponentType) {
-        const owner = document.currentScript instanceof HTMLScriptElement ? document.currentScript.dataset.hermessDashboardProfile : undefined
-        if (!runtime.active || (owner && owner !== registryProfile) || registryProfile !== profile || !plugin || plugin.length > 200 || !slot || slot.length > 80 || typeof component !== 'function') return
+        if (!acceptRegistration(runtime, plugin) || !slot || slot.length > 80 || typeof component !== 'function') return
         const entries = registeredSlots.get(slot) || new Map<string, React.ComponentType>()
         entries.set(plugin, component); registeredSlots.set(slot, entries); notify()
       },
     },
   })
+}
+
+function acceptRegistration(runtime: DashboardPluginRuntime, name: string) {
+  if (!runtime.active || activeRuntime !== runtime || !pluginAssets.has(name)) return false
+  const script = document.currentScript
+  if (!(script instanceof HTMLScriptElement) || !script.dataset.hermessDashboardRuntime) return true
+  return script.dataset.hermessDashboardRuntime === runtime.id && script.isConnected && script.dataset.hermessDashboardPlugin === name
 }
 
 function assetUrl(origin: string, profile: string, plugin: string, file: string) {
@@ -445,17 +468,13 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
     stop: () => lifecycleRef.current.stop(),
     restart: () => lifecycleRef.current.restart(),
   }), [])
-  const [manifests, setManifests] = React.useState<DashboardPluginManifest[]>([])
-  const [version, setVersion] = React.useState(0)
-  const [error, setError] = React.useState('')
-  React.useEffect(() => {
-    const listener = () => setVersion(value => value + 1)
-    listeners.add(listener)
-    return () => { listeners.delete(listener) }
-  }, [])
-  React.useEffect(() => {
-    if (!connected || !profile || !epoch) { setManifests([]); setError(''); return }
+  useDashboardPluginChanges()
+  React.useLayoutEffect(() => {
+    if (!connected || !profile || !epoch) return
     let active = true
+    let generation = 0
+    let reloadPending = false
+    const entries = new Map<string, { key: string; script: HTMLScriptElement; style?: HTMLLinkElement }>()
     const scope: ProfileScope = { kind: 'profile', profile }
     installSocketShim()
     installFetchShim()
@@ -471,56 +490,141 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
     runtime = new DashboardPluginRuntime(profile, language, request,
       (path, handler) => dashboardPlugins.socket(scope, pluginSocketPath(path), handler))
     exposeRuntime(runtime, stableLifecycle, async () => (await about.productInfo()).hermesVersion)
-    void extensions.request<{ plugins: DashboardPluginManifest[]; asset_origin: string }>(scope, 'dashboard.plugins.list').then(result => {
-      if (!active) return
-      const loadable = result.plugins.filter(manifest => manifest.name !== 'kanban').map(manifest => ({
-        ...manifest,
-        label: localizeDashboardPluginLabel(manifest.name, manifest.label, language),
-      }))
-      setManifests(loadable)
-      setError('')
-      for (const manifest of loadable) {
-        if (manifest.css) {
-          const link = document.createElement('link')
-          link.rel = 'stylesheet'; link.href = assetUrl(result.asset_origin, profile, manifest.name, manifest.css)
-          link.dataset.hermessDashboardPlugin = manifest.name; link.dataset.hermessDashboardProfile = profile
-          document.head.appendChild(link)
-        }
-        const script = document.createElement('script')
-        script.src = assetUrl(result.asset_origin, profile, manifest.name, manifest.entry)
-        script.async = true; script.dataset.hermessDashboardPlugin = manifest.name; script.dataset.hermessDashboardProfile = profile
-        if (manifest.integrity) { script.integrity = manifest.integrity; script.crossOrigin = 'anonymous' }
-        script.onerror = () => { if (active) setError(language === 'zh-CN' ? `无法加载插件 ${manifest.label}` : `Failed to load ${manifest.label}`) }
-        document.body.appendChild(script)
+    const removeEntry = (name: string) => {
+      const entry = entries.get(name)
+      entry?.script.remove()
+      entry?.style?.remove()
+      entries.delete(name)
+      pluginAssets.delete(name)
+      registered.delete(name)
+      for (const [slot, components] of registeredSlots) {
+        components.delete(name)
+        if (!components.size) registeredSlots.delete(slot)
       }
-    }).catch(cause => { if (active) { setManifests([]); setError(String(cause)) } })
+    }
+    const loadEntry = (manifest: DashboardPluginManifest, origin: string, operation: number, replace: boolean) => {
+      const { name, entry, css, integrity } = manifest
+      const script = document.createElement('script')
+      const style = css ? document.createElement('link') : undefined
+      const assets: DashboardPluginAssets = { script: 'loading', styleFailed: false }
+      pluginAssets.set(name, assets)
+      entries.set(name, { key: dashboardPluginEntryKey(manifest), script, style })
+      const current = () => active && entries.get(name)?.script === script
+      const log = { runtime: runtime.id, operation, profile, plugin: name }
+      const asset = (file: string) => {
+        const url = assetUrl(origin, profile, name, file)
+        return replace ? `${url}?hermess-reload=${runtime.id}-${operation}` : url
+      }
+      script.src = asset(entry)
+      script.async = true
+      script.dataset.hermessDashboardRuntime = runtime.id
+      script.dataset.hermessDashboardPlugin = name
+      if (integrity) { script.integrity = integrity; script.crossOrigin = 'anonymous' }
+      script.onload = () => {
+        if (!current()) return
+        assets.script = 'loaded'
+        const hasContribution = registered.has(name) || [...registeredSlots.values()].some(slot => slot.has(name))
+        console.info('[dashboard-plugin] entry loaded', { ...log, registered: hasContribution })
+        notify()
+      }
+      script.onerror = () => {
+        if (!current()) return
+        assets.script = 'failed'
+        console.error('[dashboard-plugin] entry failed', log)
+        notify()
+      }
+      if (style && css) {
+        style.rel = 'stylesheet'
+        style.href = asset(css)
+        style.onerror = () => {
+          if (!current()) return
+          assets.styleFailed = true
+          console.error('[dashboard-plugin] stylesheet failed', log)
+          notify()
+        }
+        document.head.appendChild(style)
+      }
+      document.body.appendChild(script)
+    }
+    const refresh = async (reload = false) => {
+      reloadPending ||= reload
+      const operation = ++generation
+      const log = { runtime: runtime.id, operation, profile }
+      console.info('[dashboard-plugin] discovery started', log)
+      try {
+        const result = await extensions.request<{ plugins: DashboardPluginManifest[]; asset_origin: string }>(scope, 'dashboard.plugins.list')
+        if (!active || operation !== generation) return
+        const loadable = result.plugins.filter(manifest => manifest.name !== 'kanban').map(manifest => ({
+          ...manifest,
+          label: localizeDashboardPluginLabel(manifest.name, manifest.label, language),
+        }))
+        const next = new Map(loadable.map(manifest => [manifest.name, manifest]))
+        const replaced = new Set<string>()
+        for (const [name, previous] of entries) {
+          const manifest = next.get(name)
+          if (manifest && !reloadPending && previous.key === dashboardPluginEntryKey(manifest)) continue
+          if (manifest) replaced.add(name)
+          removeEntry(name)
+        }
+        pluginManifests = loadable
+        pluginDiscoveryError = ''
+        for (const manifest of loadable) {
+          if (!entries.has(manifest.name)) loadEntry(manifest, result.asset_origin, operation, reloadPending || replaced.has(manifest.name))
+        }
+        reloadPending = false
+        console.info('[dashboard-plugin] discovery finished', { ...log, count: loadable.length })
+      } catch {
+        if (!active || operation !== generation) return
+        for (const name of entries.keys()) removeEntry(name)
+        pluginManifests = []
+        pluginDiscoveryError = language === 'zh-CN' ? '无法读取 Dashboard 界面插件。请重新扫描。' : 'Could not read Dashboard extensions. Rescan to retry.'
+        console.error('[dashboard-plugin] discovery failed', log)
+      }
+      notify()
+    }
+    const refreshCurrent = (owner: string, reload: boolean) => { if (owner === profile) void refresh(reload) }
+    refreshListeners.add(refreshCurrent)
+    void refresh()
     return () => {
       active = false
-      for (const element of document.querySelectorAll(`[data-hermess-dashboard-profile="${CSS.escape(profile)}"]`)) element.remove()
-      if (registryProfile === profile) {
-        registered.clear(); registeredSlots.clear(); notify()
+      refreshListeners.delete(refreshCurrent)
+      for (const name of entries.keys()) removeEntry(name)
+      if (activeRuntime === runtime) {
+        pluginManifests = []
+        pluginDiscoveryError = ''
+        registered.clear()
+        registeredSlots.clear()
       }
       invalidateRuntime(runtime)
+      notify()
     }
   }, [about, connected, dashboardPlugins, epoch, extensions, language, profile, stableLifecycle])
-  const components = React.useMemo(() => new Map(registered), [version])
-  return { manifests, components, error }
+  const current = connected && registryProfile === profile && activeRuntime?.active
+  return { manifests: current ? pluginManifests : [], components: current ? registered : new Map<string, PluginComponent>(), error: current ? pluginDiscoveryError : '' }
 }
 
-export function DashboardPluginPage({ manifest, component, error }: { manifest: DashboardPluginManifest | null; component?: PluginComponent; error?: string }) {
-  if (!manifest) return <section className="dashboard-plugin-state"><h1>Dashboard Plugin</h1><p>插件不存在或已被当前 Profile 隐藏。</p></section>
-  if (!component) return <section className="dashboard-plugin-state"><h1>{manifest.label}</h1><p>{error || '正在加载插件界面…'}</p></section>
-  const Component = component
-  return <section className="dashboard-plugin-page" data-plugin={manifest.name}><Component /></section>
+export function DashboardPluginPage({ manifest, component: Component, error, onBack }: { manifest: DashboardPluginManifest | null; component?: PluginComponent; error?: string; onBack?: () => void }) {
+  const zh = useLanguage() === 'zh-CN'
+  const script = manifest ? pluginAssets.get(manifest.name)?.script : undefined
+  const status = !manifest ? (zh ? '插件不存在或已被当前 Profile 隐藏。' : 'The plugin is unavailable or hidden for this Profile.')
+    : script === 'failed' ? (zh ? '插件入口脚本加载失败。' : 'The plugin entry script could not load.')
+      : script === 'loaded' ? (zh ? '入口脚本已加载，页面组件尚未注册。' : 'Entry script loaded. No page component is registered yet.')
+        : (zh ? '正在加载插件界面…' : 'Loading plugin interface…')
+  const content = manifest && Component ? <section className="dashboard-plugin-page" data-plugin={manifest.name}><Component /></section>
+    : <section className="dashboard-plugin-state"><h1>{manifest?.label || 'Dashboard Plugin'}</h1><p>{error || status}</p></section>
+  if (!onBack) return content
+  return <div className="dashboard-plugin-view">
+    <header className="dashboard-plugin-navigation">
+      <button type="button" onClick={onBack}><span aria-hidden="true">← </span>{zh ? '返回' : 'Back'}</button>
+      <span>{zh ? 'Dashboard 插件' : 'Dashboard plugin'}</span>
+      {manifest && <strong title={manifest.label}>{manifest.label}</strong>}
+    </header>
+    {content}
+  </div>
 }
 
 export function DashboardPluginSlot({ name, fallback }: { name: string; fallback?: React.ReactNode }) {
-  const [, update] = React.useReducer(value => value + 1, 0)
-  React.useEffect(() => {
-    const listener = () => update()
-    listeners.add(listener)
-    return () => { listeners.delete(listener) }
-  }, [])
+  useDashboardPluginChanges()
   const entries = [...(registeredSlots.get(name)?.entries() || [])]
   if (!entries.length) return <>{fallback ?? null}</>
   return <>{entries.map(([plugin, Component]) => <Component key={plugin} />)}</>

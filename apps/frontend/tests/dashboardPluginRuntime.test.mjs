@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { dashboardPluginDefinition, dashboardPluginEntryKey } from '../src/features/dashboard-plugins/dashboardPluginDefinition.ts'
 import { DashboardPluginRuntime } from '../src/features/dashboard-plugins/dashboardPluginRuntime.ts'
 import { DashboardPluginToast } from '../src/features/dashboard-plugins/dashboardPluginSdkComponents.ts'
+
+test('Dashboard status separates manifest declarations, actual registrations and asset errors', () => {
+  const manifest = { name: 'starter', entry: 'index.js', slots: ['chat:top'], tab: { path: '/starter', hidden: true } }
+  const loaded = { script: 'loaded', styleFailed: true }
+  assert.equal(dashboardPluginDefinition(manifest, undefined, false, []).status, 'loading')
+  assert.deepEqual(dashboardPluginDefinition(manifest, loaded, false, []), {
+    manifest, status: 'unregistered', pageRegistered: false, registeredSlots: [], styleFailed: true,
+  })
+  assert.equal(dashboardPluginDefinition(manifest, loaded, false, ['chat:top']).status, 'registered')
+  assert.equal(dashboardPluginDefinition(manifest, { script: 'failed', styleFailed: false }, false, []).status, 'asset-failed')
+})
+
+test('Dashboard metadata changes keep the loaded entry and asset changes replace it', () => {
+  const manifest = { entry: 'index.js', css: 'style.css', version: '1', source: 'user', label: 'Starter' }
+  assert.equal(dashboardPluginEntryKey(manifest), dashboardPluginEntryKey({ ...manifest, label: 'Updated label' }))
+  assert.notEqual(dashboardPluginEntryKey(manifest), dashboardPluginEntryKey({ ...manifest, version: '2' }))
+  assert.notEqual(dashboardPluginEntryKey(manifest), dashboardPluginEntryKey({ ...manifest, css: null }))
+})
 
 test('stale dashboard plugin runtime cannot fall through to a new Profile', async () => {
   const calls = []

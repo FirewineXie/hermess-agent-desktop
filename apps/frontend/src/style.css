@@ -90,6 +90,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .sidebar-feature-nav { position: relative; flex: none; margin-top: 8px; }
 .sidebar-feature-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 38px; padding: 7px 12px; border: 0; border-radius: 9px; color: #273348; background: transparent; text-align: left; font-size: 14px; }
 .sidebar-feature-trigger:hover, .sidebar-feature-trigger[aria-expanded="true"] { background: #e4eefd; color: #1b6ffd; }
+.sidebar-feature-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-feature-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 7px); left: 0; display: grid; gap: 2px; max-height: min(65vh, 560px); overflow-y: auto; padding: 8px; border: 1px solid #d9e1ec; border-radius: 11px; background: #fff; box-shadow: 0 12px 28px rgb(23 34 54 / 16%); }
 .sidebar-feature-menu[hidden] { display: none; }
 .sidebar-feature-heading { padding: 9px 9px 3px; color: #66758c; font-size: 11px; font-weight: 700; }

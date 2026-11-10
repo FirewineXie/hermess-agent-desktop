@@ -1,0 +1,5 @@
+{
+  "name": "hermess-dashboard-starter",
+  "private": true,
+  "scripts": { "check": "node check.mjs" }
+}

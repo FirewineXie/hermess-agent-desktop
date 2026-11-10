@@ -965,6 +965,8 @@ async fn write_request(
     });
     Ok(json!({
         "ok": raw.get("ok").and_then(Value::as_bool).unwrap_or(false),
+        "plugin_name": raw.get("plugin_name").and_then(Value::as_str).filter(|name| valid_plugin_name(name)),
+        "enabled": raw.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         "unchanged": raw.get("unchanged").and_then(Value::as_bool).unwrap_or(false),
         "consent_required": raw.get("consent_required").and_then(Value::as_bool).unwrap_or(false),
         "scan_blocked": raw.get("scan_blocked").and_then(Value::as_bool).unwrap_or(false),

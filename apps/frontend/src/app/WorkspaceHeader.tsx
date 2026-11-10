@@ -26,7 +26,6 @@ export default function WorkspaceHeader({ view, sessionTitle, sessionSource, plu
     memory: t('ui.persona.and.memory'),
     journey: language === 'zh-CN' ? '学习时间线' : 'Learning timeline',
     runtime: t('ui.runtime.and.storage'),
-    tools: t('ui.tools.and.capabilities'),
     extensions: t('ui.extensions'),
     channels: t('ui.channels'),
     about: t('ui.about'),

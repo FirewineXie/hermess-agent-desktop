@@ -1,4 +1,9 @@
+.dashboard-plugin-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.dashboard-plugin-navigation { flex: none; display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; }
+.dashboard-plugin-navigation button { flex: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; }
+.dashboard-plugin-navigation strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-plugin-page { min-height: 100%; width: 100%; overflow: auto; padding: 24px; }
+.dashboard-plugin-view > .dashboard-plugin-page { flex: 1; min-height: 0; }
 .dashboard-plugin-state { margin: 24px; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .dashboard-plugin-state h1 { margin: 0 0 8px; }
 .dashboard-plugin-state p { margin: 0; color: var(--muted); }

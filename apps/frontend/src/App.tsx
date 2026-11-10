@@ -106,6 +106,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   const [view, setView] = React.useState<View>('chat')
   const [personalTaskTarget, setPersonalTaskTarget] = React.useState<{ profile: string; id: string } | null>(null)
   const [activeDashboardPlugin, setActiveDashboardPlugin] = React.useState<string | null>(null)
+  const [dashboardReturnView, setDashboardReturnView] = React.useState<Exclude<View, 'dashboard-plugin'>>('chat')
   const [dashboardRouteRequest, setDashboardRouteRequest] = React.useState<string | null>(() => normalizeDashboardRoute(window.location.pathname))
   const [settingsPage, setSettingsPage] = React.useState<SettingsPage>('providers')
   const [programming, setProgramming] = React.useState(false)
@@ -257,6 +258,20 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
     await newChat(true)
     return !storedSessionRef.current
   }
+  const openDashboardPlugin = (name: string): boolean => {
+    if (!openView('dashboard-plugin')) return false
+    if (view !== 'dashboard-plugin' && !(view === 'settings' && settingsReturnView === 'dashboard-plugin')) {
+      setDashboardReturnView(view)
+    }
+    setActiveDashboardPlugin(name)
+    console.info('[dashboard-plugin] page opened', { plugin: name, from: view })
+    return true
+  }
+  const returnFromDashboardPlugin = () => {
+    if (!openView(dashboardReturnView)) return
+    if (dashboardReturnView === 'profiles') setProfileTabRequest(current => ({ id: current.id + 1, tab: profileTab }))
+    console.info('[dashboard-plugin] page returned', { plugin: activeDashboardPlugin, to: dashboardReturnView })
+  }
   React.useEffect(() => {
     const activateLocation = () => setDashboardRouteRequest(normalizeDashboardRoute(window.location.pathname))
     window.addEventListener('popstate', activateLocation)
@@ -265,8 +280,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   React.useEffect(() => {
     if (!dashboardRouteRequest) return
     const plugin = dashboardPluginForRoute(dashboardPlugins.manifests, dashboardRouteRequest)
-    if (!plugin || !openView('dashboard-plugin')) return
-    setActiveDashboardPlugin(plugin.name)
+    if (plugin) openDashboardPlugin(plugin.name)
   }, [dashboardRouteRequest, dashboardPlugins.manifests])
   const openSettings = (page: SettingsPage = 'providers') => {
     if (view === 'settings' && page === settingsPage) return true
@@ -470,11 +484,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
       return openView(target.view)
     }
     if (target.kind === 'setting') return openSettings(target.page)
-    if (target.kind === 'plugin') {
-      if (!openView('dashboard-plugin')) return false
-      setActiveDashboardPlugin(target.name)
-      return true
-    }
+    if (target.kind === 'plugin') return openDashboardPlugin(target.name)
     if (target.kind === 'session') return openProfileSession(target.profile, target.id)
     if (target.id === 'new-chat') return openNewChat()
     if (!backend) return false
@@ -510,7 +520,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
         setProfileCreateOpen(false)
         setProfileTabRequest(current => ({ id: current.id + 1, tab: 'overview' }))
         if (openView('profiles') && profileController.snapshot?.selected !== name) void profileController.select(name).catch(() => {})
-      }} dashboardPlugins={dashboardPlugins.manifests} activeDashboardPlugin={activeDashboardPlugin} onOpenDashboardPlugin={name => { setActiveDashboardPlugin(name); openView('dashboard-plugin') }} />}
+      }} dashboardPlugins={dashboardPlugins.manifests} activeDashboardPlugin={activeDashboardPlugin} onOpenDashboardPlugin={openDashboardPlugin} />}
     <main className="workspace">
     <GatewayRecoveryNotice state={connectionState} message={backendStatus} onRetry={reconnectBackend} />
     <DashboardPluginSlot name="pre-main" />
@@ -523,7 +533,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
       onNewChat={path => { if (openView('chat')) { workspaces.select(path); void openNewChat() } }} />}
     {view === 'scheduled' && <ScheduledTasksView key={workspaceGeneration} connected={connected} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} />}
     {view === 'personal-tasks' && <KanbanBoardView initialTaskId={personalTaskTarget?.id} connectionId={backend?.replay_epoch || null} storagePath={storagePath} />}
-    {view === 'dashboard-plugin' && <DashboardPluginPage manifest={dashboardManifest} component={activeDashboardPlugin ? dashboardPlugins.components.get(activeDashboardPlugin) : undefined} error={dashboardPlugins.error} />}
+    {view === 'dashboard-plugin' && <DashboardPluginPage manifest={dashboardManifest} component={activeDashboardPlugin ? dashboardPlugins.components.get(activeDashboardPlugin) : undefined} error={dashboardPlugins.error} onBack={returnFromDashboardPlugin} />}
     {view === 'webhooks' && <WebhooksView connected={connected} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onRestart={() => restartBackend().then(Boolean)} />}
     {view === 'usage' && <UsageView connected={connected} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onOpenConfiguration={() => openSettings('advanced-config')} onOpenModelSettings={page => openSettings(page)} />}
     {view === 'journey' && <JourneyView key={`${profileController.snapshot?.selected || ''}:${backend?.replay_epoch || ''}`} connected={connected} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}

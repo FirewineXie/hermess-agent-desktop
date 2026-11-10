@@ -1,4 +1,4 @@
-use super::{install, install_new_profile, CONTENT, SKILL_NAME};
+use super::{install, install_new_profile, SKILLS};
 use std::fs;
 use uuid::Uuid;
 
@@ -9,32 +9,35 @@ fn installs_for_default_and_named_profiles_without_overwriting_user_edits() {
     let named = home.join("profiles").join("writer");
     fs::create_dir_all(&named).unwrap();
     install(&storage).unwrap();
-    let default_skill = home.join("skills").join(SKILL_NAME).join("SKILL.md");
-    let named_skill = named.join("skills").join(SKILL_NAME).join("SKILL.md");
-    assert_eq!(fs::read(&default_skill).unwrap(), CONTENT);
-    assert_eq!(fs::read(&named_skill).unwrap(), CONTENT);
+    for (name, content) in SKILLS {
+        let default_skill = home.join("skills").join(name).join("SKILL.md");
+        let named_skill = named.join("skills").join(name).join("SKILL.md");
+        assert_eq!(fs::read(&default_skill).unwrap(), content);
+        assert_eq!(fs::read(&named_skill).unwrap(), content);
 
-    fs::write(&named_skill, b"user customization\n").unwrap();
-    fs::write(&default_skill, b"previous bundled version\n").unwrap();
-    fs::write(
-        storage.join("control/hermess-desktop-guide.SKILL.md"),
-        b"previous bundled version\n",
-    )
-    .unwrap();
-    install(&storage).unwrap();
-    assert_eq!(fs::read(&default_skill).unwrap(), CONTENT);
-    assert_eq!(fs::read(&named_skill).unwrap(), b"user customization\n");
-
-    install_new_profile(&home, "new-agent").unwrap();
-    assert_eq!(
-        fs::read(
-            home.join("profiles/new-agent/skills")
-                .join(SKILL_NAME)
-                .join("SKILL.md")
+        let previous = format!("previous bundled {name}\n");
+        fs::write(&named_skill, b"user customization\n").unwrap();
+        fs::write(&default_skill, &previous).unwrap();
+        fs::write(
+            storage.join("control").join(format!("{name}.SKILL.md")),
+            previous,
         )
-        .unwrap(),
-        CONTENT
-    );
+        .unwrap();
+    }
+    install(&storage).unwrap();
+    install_new_profile(&home, "new-agent").unwrap();
+    for (name, content) in SKILLS {
+        let skill_path = std::path::Path::new("skills").join(name).join("SKILL.md");
+        assert_eq!(fs::read(home.join(&skill_path)).unwrap(), content);
+        assert_eq!(
+            fs::read(named.join(&skill_path)).unwrap(),
+            b"user customization\n"
+        );
+        assert_eq!(
+            fs::read(home.join("profiles/new-agent").join(skill_path)).unwrap(),
+            content
+        );
+    }
     assert!(install_new_profile(&home, "../outside").is_err());
     fs::remove_dir_all(storage).unwrap();
 }
