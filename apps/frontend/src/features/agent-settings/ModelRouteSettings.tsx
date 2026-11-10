@@ -3,6 +3,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateAgentUi } from '../../i18n'
 import AuxiliaryTaskCard from './components/AuxiliaryTaskCard'
+import { configValuesEqual } from './memoryContextModel'
 import { getField, type Provider, type Schema } from './model'
 import type { AuxiliaryModels, AuxiliaryTaskAssignment } from '@hermess/contracts'
 
@@ -83,21 +84,31 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
   const currentAssignment = editingTask ? auxiliary?.tasks.find(item => item.task === editingTask) : undefined
   const currentAuxConfig = editingTask ? getField(config, `auxiliary.${editingTask}`) as Record<string, unknown> | undefined : undefined
   const dirtyAux = Boolean(editingTask && (auxProvider !== String(currentAssignment?.provider || 'auto') || auxModel !== String(currentAssignment?.model || '') || auxEffort !== String(currentAssignment?.reasoning_effort || '') || auxTimeout !== String(currentAuxConfig?.timeout ?? '')))
-  const dirty = JSON.stringify(rows) !== JSON.stringify(originalRows) || dirtyAux
+  const dirty = !configValuesEqual(rows, originalRows) || dirtyAux
   React.useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) }, [dirty, onDirtyChange])
   React.useEffect(() => { onBusyChange(busy); return () => onBusyChange(false) }, [busy, onBusyChange])
   const saveFallbacks = async () => {
     if (!profile || busy || rows.some(row => !row.provider.trim() || !row.model.trim())) return
     if (new Set(rows.map(row => `${row.provider}\0${row.model}`)).size !== rows.length) { setStatus(zh ? '回退模型不能重复' : 'Duplicate fallback models'); return }
+    const operation = crypto.randomUUID()
+    let stage = 'write'
     setBusy(true); setStatus('')
+    console.info('[fallback-models] save started', { operation, count: rows.length })
     try {
       const scope = { kind: 'profile' as const, profile }
       await agentSettings.saveField(scope, 'fallback_providers', rows)
+      console.info('[fallback-models] write accepted', { operation })
+      stage = 'readback'
       const saved = normalizeFallbacks(getField(await agentSettings.config(scope), 'fallback_providers'))
-      if (JSON.stringify(saved) !== JSON.stringify(rows)) throw new Error(zh ? '回退链回读不一致' : 'Fallback chain did not match after saving')
+      stage = 'compare'
+      if (!configValuesEqual(saved, rows)) throw new Error(zh ? '回退链回读不一致' : 'Fallback chain did not match after saving')
       setRows(saved); setOriginalRows(saved)
       setStatus(zh ? '回退链已保存并回读确认' : 'Fallback chain saved and verified')
-    } catch (cause) { setStatus(describeError(cause, language)) }
+      console.info('[fallback-models] save verified', { operation })
+    } catch (cause) {
+      console.error('[fallback-models] save failed', { operation, stage })
+      setStatus(describeError(cause, language))
+    }
     finally { setBusy(false) }
   }
   const editAuxiliary = (task: string) => {
