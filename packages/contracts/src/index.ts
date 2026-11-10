@@ -670,6 +670,7 @@ export interface DesktopApi {
   delegation: {
     read(scope: ProfileScope): Promise<DelegationRouting>
     save(scope: ProfileScope, draft: DelegationRouting): Promise<{ routing: DelegationRouting; activated: boolean }>
+    saveModel(scope: ProfileScope, route: { provider: string; model: string }): Promise<{ provider: string; model: string }>
   }
   device: {
     status(): Promise<DeviceStatus>

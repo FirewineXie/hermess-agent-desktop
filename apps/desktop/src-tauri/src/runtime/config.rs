@@ -10,6 +10,11 @@ use std::{
 };
 use tauri::State;
 
+#[path = "config_auxiliary.rs"]
+mod auxiliary_config;
+
+const AUXILIARY_CONFIG_PATH: &str = "/api/config";
+
 pub(super) static CONFIG_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 fn profile_http_client() -> Result<&'static reqwest::Client, DesktopFailure> {
     super::local_http::client()
@@ -178,8 +183,62 @@ pub async fn get_auxiliary_models(
     state: State<'_, BackendState>,
     profile: String,
 ) -> Result<Value, DesktopFailure> {
-    let path = auxiliary_read_path(&profile)?;
-    config_request_to_profile(&state, &profile, reqwest::Method::GET, &path, None).await
+    let scope = state.resolve_profile(&profile).await?;
+    let path = auxiliary_read_path(&scope.profile)?;
+    let (mut routes, schema, config) = tokio::try_join!(
+        config_request_for_scope(&state, &scope, reqwest::Method::GET, &path, None),
+        read_auxiliary_schema(&state, &scope),
+        read_auxiliary_config(&state, &scope),
+    )?;
+    auxiliary_config::append_supplemental_tasks(&mut routes, &schema, &config);
+    Ok(routes)
+}
+
+async fn read_auxiliary_schema(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+) -> Result<Value, DesktopFailure> {
+    config_request_for_scope(
+        state,
+        scope,
+        reqwest::Method::GET,
+        "/api/config/schema",
+        None,
+    )
+    .await
+}
+
+async fn read_auxiliary_config(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+) -> Result<Value, DesktopFailure> {
+    config_request_for_scope(
+        state,
+        scope,
+        reqwest::Method::GET,
+        AUXILIARY_CONFIG_PATH,
+        None,
+    )
+    .await
+}
+
+async fn write_auxiliary_patch(
+    state: &State<'_, BackendState>,
+    scope: &ResolvedProfileScope,
+    patch: &serde_json::Map<String, Value>,
+) -> Result<(), DesktopFailure> {
+    let response = config_request_for_scope(
+        state,
+        scope,
+        reqwest::Method::PUT,
+        AUXILIARY_CONFIG_PATH,
+        Some(auxiliary_config::patch_request(patch)),
+    )
+    .await?;
+    if response["ok"] != true {
+        return Err(DesktopFailure::operation_failed());
+    }
+    Ok(())
 }
 
 fn auxiliary_read_path(profile: &str) -> Result<String, DesktopFailure> {
@@ -282,78 +341,82 @@ pub async fn save_auxiliary_route(
             scope.profile
         ),
     );
+    let mut stage = "read_routes";
     let result = async {
-        let before =
+        let mut routes =
             config_request_for_scope(&state, &scope, reqwest::Method::GET, &read_path, None)
                 .await?;
-        if auxiliary_task(&before, &task).is_none() {
+        stage = "read_schema";
+        let schema = read_auxiliary_schema(&state, &scope).await?;
+        if timeout.is_some() && !auxiliary_config::has_field(&schema, &task, "timeout") {
             return Err(DesktopFailure::invalid_input());
         }
-        let response = config_request_for_scope(
-            &state,
-            &scope,
-            reqwest::Method::POST,
-            "/api/model/set",
-            Some(body),
-        )
-        .await?;
-        if response.get("confirm_required") == Some(&json!(true)) {
-            return Ok(json!({
-                "saved": false,
-                "confirm_required": true,
-                "confirm_message": response.get("confirm_message").and_then(Value::as_str),
-            }));
-        }
-        if response.get("ok") != Some(&json!(true)) {
-            return Err(DesktopFailure::operation_failed());
-        }
-        if let Some(value) = timeout {
-            let schema = config_request_for_scope(
+        let mut patch = serde_json::Map::new();
+        if auxiliary_task(&routes, &task).is_some() {
+            stage = "save_gateway_slot";
+            let response = config_request_for_scope(
                 &state,
                 &scope,
-                reqwest::Method::GET,
-                "/api/config/schema",
-                None,
+                reqwest::Method::POST,
+                "/api/model/set",
+                Some(body),
             )
             .await?;
-            if schema
-                .pointer(&format!("/fields/auxiliary.{task}.timeout"))
-                .is_none()
+            if response["confirm_required"] == true {
+                return Ok(json!({
+                    "saved": false,
+                    "confirm_required": true,
+                    "confirm_message": response.get("confirm_message").and_then(Value::as_str),
+                }));
+            }
+            if response["ok"] != true {
+                return Err(DesktopFailure::operation_failed());
+            }
+            if let Some(timeout) = timeout {
+                patch.insert(task.clone(), json!({"timeout": timeout}));
+            }
+        } else {
+            if !auxiliary_config::supplemental_tasks(&routes, &schema).contains(&task.as_str())
+                || (provider == "auto" && !model.is_empty())
+                || (!effort.is_empty()
+                    && !auxiliary_config::has_field(&schema, &task, "reasoning_effort"))
             {
                 return Err(DesktopFailure::invalid_input());
             }
-            let mut route = serde_json::Map::new();
-            route.insert("timeout".into(), json!(value));
-            let mut auxiliary = serde_json::Map::new();
-            auxiliary.insert(task.clone(), Value::Object(route));
-            config_request_for_scope(
-                &state,
-                &scope,
-                reqwest::Method::PUT,
-                "/api/config",
-                Some(json!({"config": {"auxiliary": auxiliary}})),
-            )
-            .await?;
+            stage = "read_current_config";
+            let config = read_auxiliary_config(&state, &scope).await?;
+            let effort = auxiliary_config::has_field(&schema, &task, "reasoning_effort")
+                .then_some(effort.as_str());
+            patch.insert(
+                task.clone(),
+                auxiliary_config::route_patch(
+                    &config["auxiliary"][&task],
+                    provider,
+                    model,
+                    effort,
+                    timeout,
+                    false,
+                ),
+            );
         }
-        let readback =
-            config_request_for_scope(&state, &scope, reqwest::Method::GET, &read_path, None)
-                .await?;
-        if !auxiliary_assignment_matches(&readback, &task, provider, model, &effort) {
+        if !patch.is_empty() {
+            stage = "save_config_patch";
+            write_auxiliary_patch(&state, &scope, &patch).await?;
+        }
+        stage = "verify";
+        if auxiliary_task(&routes, &task).is_some() {
+            routes =
+                config_request_for_scope(&state, &scope, reqwest::Method::GET, &read_path, None)
+                    .await?;
+        }
+        let config = read_auxiliary_config(&state, &scope).await?;
+        auxiliary_config::append_supplemental_tasks(&mut routes, &schema, &config);
+        if !auxiliary_assignment_matches(&routes, &task, provider, model, &effort)
+            || !auxiliary_config::patch_matches(&patch, &config)
+        {
             return Err(DesktopFailure::operation_failed());
         }
-        if let Some(value) = timeout {
-            let config =
-                config_request_for_scope(&state, &scope, reqwest::Method::GET, "/api/config", None)
-                    .await?;
-            if config
-                .pointer(&format!("/auxiliary/{task}/timeout"))
-                .and_then(Value::as_f64)
-                != Some(value)
-            {
-                return Err(DesktopFailure::operation_failed());
-            }
-        }
-        Ok(json!({"saved": true, "state": readback}))
+        Ok(json!({"saved": true, "state": routes}))
     }
     .await;
     let outcome = match &result {
@@ -364,7 +427,7 @@ pub async fn save_auxiliary_route(
     let _ = append_client_event(
         &scope.storage,
         &format!(
-            "auxiliary_model_save_finish operation={operation} profile={} task={task} outcome={outcome}",
+            "auxiliary_model_save_finish operation={operation} profile={} task={task} stage={stage} outcome={outcome}",
             scope.profile
         ),
     );
@@ -391,7 +454,15 @@ pub async fn reset_auxiliary_models(
         &scope.storage,
         &format!("auxiliary_models_reset_start operation={operation} profile={profile}"),
     );
+    let mut stage = "read_routes";
     let result = async {
+        let (before, schema, config) = tokio::try_join!(
+            config_request_for_scope(&state, &scope, reqwest::Method::GET, &read_path, None),
+            read_auxiliary_schema(&state, &scope),
+            read_auxiliary_config(&state, &scope),
+        )?;
+        let patch = auxiliary_config::reset_patch(&before, &schema, &config);
+        stage = "reset_gateway_slots";
         let response = config_request_for_scope(
             &state,
             &scope,
@@ -403,6 +474,11 @@ pub async fn reset_auxiliary_models(
         if response.get("ok") != Some(&json!(true)) || response.get("reset") != Some(&json!(true)) {
             return Err(DesktopFailure::operation_failed());
         }
+        if !patch.is_empty() {
+            stage = "reset_config_slots";
+            write_auxiliary_patch(&state, &scope, &patch).await?;
+        }
+        stage = "verify";
         let readback =
             config_request_for_scope(&state, &scope, reqwest::Method::GET, &read_path, None)
                 .await?;
@@ -417,6 +493,12 @@ pub async fn reset_auxiliary_models(
         }) {
             return Err(DesktopFailure::operation_failed());
         }
+        if !patch.is_empty() {
+            let config = read_auxiliary_config(&state, &scope).await?;
+            if !auxiliary_config::patch_matches(&patch, &config) {
+                return Err(DesktopFailure::operation_failed());
+            }
+        }
         Ok(())
     }
     .await;
@@ -427,7 +509,7 @@ pub async fn reset_auxiliary_models(
     };
     let _ = crate::diagnostics::append_client_event(
         &scope.storage,
-        &format!("auxiliary_models_reset_{outcome} operation={operation} profile={profile}"),
+        &format!("auxiliary_models_reset_{outcome} operation={operation} profile={profile} stage={stage}"),
     );
     result
 }

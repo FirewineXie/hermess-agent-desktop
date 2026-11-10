@@ -29,7 +29,7 @@ let device:DeviceStatus={preferences:{keepAwake:false,f12Devtools:false,quickEna
 let copied=false
 const api:DesktopApi={...previewDesktopApi,
   profiles:{...previewDesktopApi.profiles,async list(){return {profiles:[{name:'default',is_default:true},{name:'writer',is_default:false}],selected:'default',gateway_mode:'single',gateways:[],reason:null}}},
-  delegation:{async read(){return structuredClone(routing)},async save(_scope,draft){routing=structuredClone(draft);routing.model_map.options=routing.model_map.options.map(({credential,original_name,...row})=>({...row,has_api_key:credential?.action==='clear'?false:credential?.action==='replace'?true:row.has_api_key}));return {routing:structuredClone(routing),activated:true}}},
+  delegation:{...previewDesktopApi.delegation,async read(){return structuredClone(routing)},async save(_scope,draft){routing=structuredClone(draft);routing.model_map.options=routing.model_map.options.map(({credential,original_name,...row})=>({...row,has_api_key:credential?.action==='clear'?false:credential?.action==='replace'?true:row.has_api_key}));return {routing:structuredClone(routing),activated:true}}},
   device:{...previewDesktopApi.device,async status(){return structuredClone(device)},async save(preferences){if(preferences.shortcut==='taken')throw new Error('PREVIEW_ONLY: 快捷键已占用');device={...device,preferences,registered:preferences.quickEnabled,awake:preferences.keepAwake};return structuredClone(device)}},
   agentSettings:{...previewDesktopApi.agentSettings,
     async schema(){return structuredClone(schema)},

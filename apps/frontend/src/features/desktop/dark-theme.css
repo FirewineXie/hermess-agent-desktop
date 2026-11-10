@@ -217,15 +217,15 @@
 ) { color: #fff; background: #1b6ffd; border-color: #1b6ffd; }
 :root[data-color-theme='dark'] .unified-settings :is(
   .provider-model-preview-row span.current, .provider-model-row .provider-model-id.current,
-  .provider-card-actions button, .provider-add-model, .config-field-edit
+  .provider-card-actions button, .provider-add-model, .config-field-edit, .compression-model-link
 ) { color: #a8c9ff; }
 :root[data-color-theme='dark'] .unified-settings :is(
   .profile-info-panel-heading, .config-field.editing, .model-oauth-card-meta span
 ) { background: var(--dark-hover); }
 :root[data-color-theme='dark'] .unified-settings :is(
-  .profile-tabs, .memory-settings-fields .config-field,
-  .memory-settings-fields .compression-route-picker
+  .profile-tabs, .memory-settings-fields .config-field
 ) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .compression-model-link:hover:not(:disabled) { background: var(--dark-hover); }
 
 /* Session management keeps its own cards and controls outside the legacy settings panel. */
 :root[data-color-theme='dark'] .unified-settings .sessions-page { color: var(--dark-text); }

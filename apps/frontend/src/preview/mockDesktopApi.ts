@@ -196,7 +196,7 @@ export const previewDesktopApi: DesktopApi = {
     async save() { throw previewOnly() },
     async reset() { throw previewOnly() },
   },
-  delegation: { async read() { throw previewOnly() }, async save() { throw previewOnly() } },
+  delegation: { async read() { throw previewOnly() }, async save() { throw previewOnly() }, async saveModel() { throw previewOnly() } },
   device: {
     async status() { return { preferences: {keepAwake:false, f12Devtools:false, quickEnabled:false, shortcut:'CommandOrControl+Shift+Space'}, registered:false, awake:false, f12Supported:false, error:'PREVIEW_ONLY' } },
     async save() { throw previewOnly() }, async setQuickTarget() {}, async onQuickSubmit() { return () => {} },

@@ -799,7 +799,7 @@
     "label": "auxiliary / memory query rewrite / timeout"
   },
   "auxiliary.tts_audio_tags.provider": {
-    "label": "auxiliary / tts audio tags / provider"
+    "label": "Auxiliary models / Gemini TTS audio tags / Provider"
   },
   "auxiliary.tts_audio_tags.model": {
     "label": "auxiliary / tts audio tags / model"
@@ -925,7 +925,7 @@
     "label": "auxiliary / curator / reasoning effort"
   },
   "auxiliary.monitor.provider": {
-    "label": "auxiliary / monitor / provider"
+    "label": "Auxiliary models / Email monitoring score / Provider"
   },
   "auxiliary.monitor.model": {
     "label": "auxiliary / monitor / model"
@@ -946,7 +946,10 @@
     "label": "auxiliary / background review / enabled"
   },
   "auxiliary.background_review.provider": {
-    "label": "auxiliary / background review / provider"
+    "label": "Auxiliary models / Background self-improvement / Provider"
+  },
+  "auxiliary.group_router.provider": {
+    "label": "Auxiliary models / Automatic group routing / Provider"
   },
   "auxiliary.background_review.model": {
     "label": "auxiliary / background review / model"

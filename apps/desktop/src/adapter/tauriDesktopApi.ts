@@ -444,6 +444,7 @@ export const tauriDesktopApi: DesktopApi = {
   delegation: {
     read: scope => invoke('get_delegation_routing', { profile: scope.profile }),
     save: (scope, draft) => invoke('save_delegation_routing', { profile: scope.profile, draft }),
+    saveModel: (scope, route) => invoke('save_delegation_model', { profile: scope.profile, ...route }),
   },
   device: {
     status: () => invoke('get_device_status'),

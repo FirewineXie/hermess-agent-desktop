@@ -1,9 +1,9 @@
 use super::{
-    auxiliary_assignment_matches, auxiliary_assignment_request, auxiliary_read_path,
-    auxiliary_reset_request, checked_json_path, full_config_request, profile_http_client,
-    read_config_json, write_config_json,
+    auxiliary_assignment_matches, auxiliary_assignment_request, auxiliary_config,
+    auxiliary_read_path, auxiliary_reset_request, checked_json_path, full_config_request,
+    profile_http_client, read_config_json, write_config_json, AUXILIARY_CONFIG_PATH,
 };
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use std::fs;
 
 #[test]
@@ -79,6 +79,117 @@ fn auxiliary_assignment_readback_accepts_plugin_metadata() {
         "wrong",
         "low"
     ));
+}
+
+#[test]
+fn supplemental_routes_require_schema_fields_and_keep_gateway_plugin_rows() {
+    let mut routes = json!({"tasks": [{"task": "goal_judge", "plugin": "plugin-probe"}]});
+    let schema = json!({"fields": {
+        "auxiliary.goal_judge.provider": {}, "auxiliary.goal_judge.model": {},
+        "auxiliary.background_review.provider": {}, "auxiliary.background_review.model": {},
+        "auxiliary.monitor.provider": {},
+        "auxiliary.moa_reference.provider": {}, "auxiliary.moa_reference.model": {},
+    }});
+    let config = json!({"auxiliary": {
+        "background_review": {
+            "provider": "openrouter", "model": "probe/model",
+            "api_key": "fixture-only", "reasoning_effort": "low"
+        },
+    }});
+    let expected = ["background_review"];
+    assert_eq!(
+        auxiliary_config::supplemental_tasks(&routes, &schema),
+        expected
+    );
+    let patch = auxiliary_config::reset_patch(&routes, &schema, &config);
+    assert_eq!(patch.len(), 1);
+    assert_eq!(patch["background_review"]["reasoning_effort"], "");
+    auxiliary_config::append_supplemental_tasks(&mut routes, &schema, &config);
+    assert_eq!(routes["tasks"].as_array().unwrap().len(), 2);
+    assert_eq!(routes["tasks"][0]["plugin"], "plugin-probe");
+    assert!(auxiliary_assignment_matches(
+        &routes,
+        "background_review",
+        "openrouter",
+        "probe/model",
+        ""
+    ));
+    assert!(routes["tasks"][1].get("api_key").is_none());
+}
+
+#[test]
+#[ignore = "Print production requests for the isolated locked Gateway receiver test"]
+fn print_production_supplemental_auxiliary_requests() {
+    let profile = "auxiliary_probe";
+    let initial = json!({
+        "vision": {"provider": "openrouter", "model": "probe/vision"},
+        "memory_query_rewrite": {"reasoning_effort": "low"},
+        "background_review": {
+            "provider": "openai", "model": "probe/old", "enabled": false, "timeout": 77,
+            "base_url": "http://127.0.0.1:9/v1", "api_key": "fixture-only",
+            "api": "fixture-only", "key_env": "AUX_TEST_KEY", "api_key_env": "AUX_TEST_KEY",
+            "api_mode": "chat_completions",
+        },
+    });
+    let names = [
+        "background_review",
+        "memory_query_rewrite",
+        "tts_audio_tags",
+        "goal_judge",
+        "group_router",
+        "monitor",
+    ];
+    let schema_fields = names
+        .iter()
+        .flat_map(|task| {
+            ["provider", "model", "reasoning_effort"]
+                .into_iter()
+                .filter(move |field| {
+                    *task != "memory_query_rewrite" || *field != "reasoning_effort"
+                })
+                .map(move |field| (format!("auxiliary.{task}.{field}"), json!({})))
+        })
+        .collect::<Map<String, Value>>();
+    let schema = json!({"fields": schema_fields});
+    let routes = json!({"tasks": [{"task": "vision"}]});
+    let initial_config = json!({"auxiliary": initial});
+    let mut saved_config = initial_config.clone();
+    let requests: Vec<_> = names
+        .into_iter()
+        .map(|task| {
+            let effort =
+                auxiliary_config::has_field(&schema, task, "reasoning_effort").then_some("low");
+            let route = auxiliary_config::route_patch(
+                &initial_config["auxiliary"][task],
+                "openrouter",
+                &format!("probe/{task}"),
+                effort,
+                (task == "background_review").then_some(91.5),
+                false,
+            );
+            let current = saved_config["auxiliary"]
+                .as_object_mut()
+                .unwrap()
+                .entry(task.to_owned())
+                .or_insert_with(|| json!({}));
+            current
+                .as_object_mut()
+                .unwrap()
+                .extend(route.as_object().unwrap().clone());
+            auxiliary_config::patch_request(&Map::from_iter([(task.to_owned(), route)]))
+        })
+        .collect();
+    let reset_patch = auxiliary_config::reset_patch(&routes, &schema, &saved_config);
+    let (reset, read_path) = auxiliary_reset_request(profile).unwrap();
+    println!(
+        "SUPPLEMENTAL_AUXILIARY_REQUESTS={}",
+        json!({
+            "profile": profile, "initial_config": initial_config,
+            "path": AUXILIARY_CONFIG_PATH, "requests": requests,
+            "reset_model_set": reset, "reset_patch": auxiliary_config::patch_request(&reset_patch),
+            "read_path": read_path,
+        })
+    );
 }
 
 #[test]

@@ -126,6 +126,7 @@ fn main() {
             chat_windows::get_chat_window_context,
             runtime::delegation::get_delegation_routing,
             runtime::delegation::save_delegation_routing,
+            runtime::delegation::save_delegation_model,
             runtime::provider_copy::preview_provider_copy,
             runtime::provider_copy::copy_provider,
             diagnostics::probe_local_tools,

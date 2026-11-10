@@ -1,6 +1,6 @@
 import type { AgentConfigField, AgentConfigSchema } from '@hermess/contracts'
 import type { SettingsPage } from '../settings/model'
-import { isSensitiveConfigField, isSupportedConfigField, parseConfigFieldDraft } from '../agent-settings/memoryContextModel.ts'
+import { isMemoryContextField, isSensitiveConfigField, isSupportedConfigField, parseConfigFieldDraft } from '../agent-settings/memoryContextModel.ts'
 
 export type ConfigurationPage = 'session-auto-archive' | 'security-approvals' | 'security-privacy' | 'security-checkpoints' | 'advanced-runtime' | 'advanced-tools' | 'advanced-terminal' | 'advanced-output' | 'advanced-config' | 'browser'
 export const configurationPages: ConfigurationPage[] = ['session-auto-archive','security-approvals','security-privacy','security-checkpoints','advanced-runtime','advanced-tools','advanced-terminal','advanced-output','advanced-config','browser']
@@ -12,10 +12,11 @@ export function fieldOwner(key: string): SettingsPage {
   if (key === 'command_allowlist' || key.startsWith('approvals.') || key.startsWith('security.approval.')) return 'security-approvals'
   if (key.startsWith('security.')) return 'security-privacy'
   if (key.startsWith('checkpoints.')) return 'security-checkpoints'
+  if (key === 'delegation.provider' || key === 'delegation.model') return 'auxiliary'
   if (key.startsWith('delegation.')) return 'delegation'
   if (key.startsWith('moa.')) return 'moa'
   if (key.startsWith('memory.')) return 'memory-persistent'
-  if (key.startsWith('context.') || key.startsWith('compression.') || key.startsWith('auxiliary.compression.')) return 'memory-context'
+  if (isMemoryContextField(key)) return 'memory-context'
   if (key.startsWith('auxiliary.')) return 'auxiliary'
   if (key === 'fallback_providers') return 'fallbacks'
   if (key === 'model_context_length' || key.startsWith('model.') || ['agent.reasoning_effort','agent.service_tier'].includes(key)) return 'main'

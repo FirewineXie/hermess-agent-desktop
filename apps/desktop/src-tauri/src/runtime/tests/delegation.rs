@@ -1,4 +1,4 @@
-use super::{prepare_model_map, public_routing};
+use super::{delegation_model_request, prepare_model_map, public_routing, CONFIG_PATH};
 use serde_json::json;
 
 #[test]
@@ -40,5 +40,32 @@ fn a_new_route_does_not_inherit_a_deleted_same_name_routes_credential() {
     assert_eq!(
         prepare_model_map(&draft, &current).unwrap()["options"][0]["api_key"],
         ""
+    );
+}
+
+#[test]
+fn delegation_model_inheritance_uses_an_empty_provider() {
+    assert_eq!(
+        delegation_model_request("", " probe/model ").unwrap(),
+        json!({"config":{"delegation":{"provider":"","model":"probe/model"}}})
+    );
+    assert!(delegation_model_request("auto", "").is_err());
+}
+
+#[test]
+#[ignore = "Print production default delegation model requests for the locked Gateway test"]
+fn print_production_delegation_model_requests() {
+    let requests: Vec<_> = [
+        ("openrouter", "probe/model"),
+        ("openrouter", ""),
+        ("", "probe/model"),
+        ("", ""),
+    ]
+    .into_iter()
+    .map(|(provider, model)| delegation_model_request(provider, model).unwrap())
+    .collect();
+    println!(
+        "DELEGATION_MODEL_REQUESTS={}",
+        json!({"path": CONFIG_PATH, "requests": requests})
     );
 }

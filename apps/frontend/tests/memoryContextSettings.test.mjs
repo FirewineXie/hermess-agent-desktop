@@ -22,6 +22,7 @@ const schema = {
     'compression.enabled': { type: 'boolean' },
     'compression.rule': { type: 'object' },
     'auxiliary.compression.provider': { type: 'string' },
+    'auxiliary.compression.no_progress_timeout': { type: 'number' },
     'auxiliary.compression.api_key': { type: 'string' },
     'compression.future_type': { type: 'duration' },
     'approvals.mode': { type: 'select' },
@@ -32,7 +33,8 @@ test('memory and context ownership is limited to the four runtime prefixes', () 
   assert.equal(isMemoryContextField('memory.memory_enabled'), true)
   assert.equal(isMemoryContextField('context.engine'), true)
   assert.equal(isMemoryContextField('compression.enabled'), true)
-  assert.equal(isMemoryContextField('auxiliary.compression.timeout'), true)
+  assert.equal(isMemoryContextField('auxiliary.compression.timeout'), false)
+  assert.equal(isMemoryContextField('auxiliary.compression.no_progress_timeout'), true)
   assert.equal(isMemoryContextField('auxiliary.title_generation.timeout'), false)
   assert.equal(isMemoryContextField('approvals.mode'), false)
 })
@@ -48,12 +50,12 @@ test('persistent memory keeps priority fields first and includes new schema fiel
   ])
 })
 
-test('context groups own context, compression, and compression auxiliary fields', () => {
+test('context groups keep compression policies and omit the model route fields', () => {
   const groups = memoryFieldGroups(schema, 'memory-context')
   assert.deepEqual(groups.map(group => [group.id, group.fields.map(([key]) => key)]), [
     ['context', ['context.engine']],
     ['compression', ['compression.enabled', 'compression.rule']],
-    ['compression-model', ['auxiliary.compression.provider']],
+    ['compression-model', ['auxiliary.compression.no_progress_timeout']],
   ])
 })
 

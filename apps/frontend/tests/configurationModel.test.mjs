@@ -3,7 +3,7 @@ import test from 'node:test'
 import {fieldOwner,pageFields,editableField,visibleSchemaFields,parseField,allowlistFromText} from '../src/features/configuration/model.ts'
 
 test('visible runtime fields have one owner and unknown fields remain discoverable',()=>{
-  const mapping={'command_allowlist':'security-approvals','security.approval.transport':'security-approvals','approvals.mode':'security-approvals','security.redact_secrets':'security-privacy','checkpoints.enabled':'security-checkpoints','terminal.timeout':'advanced-terminal','tool_output.limit':'advanced-output','agent.max_turns':'advanced-runtime','toolsets':'advanced-tools','agent.tool_use_enforcement':'advanced-tools','future.new_field':'advanced-config','delegation.backend':'delegation','auxiliary.compression.model':'memory-context','memory.provider':'memory-persistent','agent.reasoning_effort':'main','fallback_providers':'fallbacks'}
+  const mapping={'command_allowlist':'security-approvals','security.approval.transport':'security-approvals','approvals.mode':'security-approvals','security.redact_secrets':'security-privacy','checkpoints.enabled':'security-checkpoints','terminal.timeout':'advanced-terminal','tool_output.limit':'advanced-output','agent.max_turns':'advanced-runtime','toolsets':'advanced-tools','agent.tool_use_enforcement':'advanced-tools','future.new_field':'advanced-config','delegation.backend':'delegation','delegation.model':'auxiliary','delegation.provider':'auxiliary','auxiliary.compression.model':'auxiliary','auxiliary.compression.no_progress_timeout':'memory-context','memory.provider':'memory-persistent','agent.reasoning_effort':'main','fallback_providers':'fallbacks'}
   for(const [key,owner] of Object.entries(mapping)) assert.equal(fieldOwner(key),owner,key)
 })
 

@@ -136,9 +136,8 @@
 .memory-settings-fields { min-width: 0; padding: 4px 16px; border-radius: 14px; background: #f7f8fa; }
 .memory-settings-fields .config-field { padding: 12px 0; border-bottom: 1px solid #e7ebf0; }
 .memory-settings-fields .config-field:last-child { border-bottom: 0; }
-.memory-settings-fields .compression-route-picker { padding: 0 0 12px; border-bottom: 1px solid #e7ebf0; }
-.memory-settings-fields .compression-route-picker .auxiliary-card { padding: 12px 0; border: 0; border-radius: 0; }
-.memory-settings-fields .compression-route-picker .auxiliary-card .row button {
+.memory-settings-fields .compression-model-link {
+  margin: 8px 0;
   min-height: 36px;
   padding: 6px 10px;
   border: 1px solid transparent;
@@ -149,27 +148,7 @@
   font-weight: 550;
   cursor: pointer;
 }
-.memory-settings-fields .compression-route-picker .auxiliary-card .row button:hover:not(:disabled) { background: #e8f0fa; }
-.memory-settings-fields .compression-route-picker .config-field-actions button {
-  min-height: 36px;
-  padding: 7px 12px;
-  border: 1px solid var(--settings-blue);
-  border-radius: 8px;
-  background: var(--settings-blue);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 550;
-  cursor: pointer;
-}
-.memory-settings-fields .compression-route-picker .config-field-actions button:hover:not(:disabled) { background: #155ed9; }
-.memory-settings-fields .compression-route-picker .config-field-actions .config-field-cancel {
-  border-color: #d5deea;
-  background: #fff;
-  color: #34445b;
-}
-.memory-settings-fields .compression-route-picker .config-field-actions .config-field-cancel:hover:not(:disabled) { border-color: #adc4e7; background: #f5f9ff; }
-.memory-settings-fields .compression-route-picker > small,
-.memory-settings-fields .compression-route-picker > p { display: block; margin: 0 0 4px; color: var(--settings-muted); font-size: 13px; line-height: 1.5; }
+.memory-settings-fields .compression-model-link:hover:not(:disabled) { background: #e8f0fa; }
 .memory-settings-fields .config-field-preview { width: 100%; min-height: 42px; padding: 0; border: 0; background: transparent; text-align: left; }
 .memory-settings-fields .config-field-name { color: #273348; font-size: 14px; font-weight: 550; }
 .memory-settings-fields .config-field-value { color: var(--settings-muted); font-size: 13px; }

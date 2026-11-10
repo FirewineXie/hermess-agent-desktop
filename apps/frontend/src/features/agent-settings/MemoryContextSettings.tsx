@@ -1,7 +1,6 @@
 import React from 'react'
 import type { Language } from '../../i18n'
 import ConfigFieldEditor from './components/ConfigFieldEditor'
-import CompressionRoutePicker from './CompressionRoutePicker'
 import MemoryProviderSettings from './MemoryProviderSettings'
 import ContextEngineSettings from './ContextEngineSettings'
 import type { MemorySettingsPage } from './memoryContextModel'
@@ -10,25 +9,23 @@ import { useMemoryContextSettings } from './useMemoryContextSettings'
 type Props = {
   connected: boolean
   profile: string | null
-  storagePath: string
   page: MemorySettingsPage
   language: Language
+  onOpenAuxiliary: () => void
   onDirtyChange: (dirty: boolean) => void
   onBusyChange: (busy: boolean) => void
 }
 
-export default function MemoryContextSettings({ connected, profile, storagePath, page, language, onDirtyChange, onBusyChange }: Props) {
+export default function MemoryContextSettings({ connected, profile, page, language, onOpenAuxiliary, onDirtyChange, onBusyChange }: Props) {
   const zh = language === 'zh-CN'
   const [fieldDirty, setFieldDirty] = React.useState(false)
   const [providerDirty, setProviderDirty] = React.useState(false)
-  const [routeDirty, setRouteDirty] = React.useState(false)
   const [engineDirty, setEngineDirty] = React.useState(false)
   const [fieldBusy, setFieldBusy] = React.useState(false)
   const [providerBusy, setProviderBusy] = React.useState(false)
-  const [routeBusy, setRouteBusy] = React.useState(false)
   const [engineBusy, setEngineBusy] = React.useState(false)
-  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty || routeDirty || engineDirty) }, [fieldDirty, providerDirty, routeDirty, engineDirty, onDirtyChange])
-  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy || routeBusy || engineBusy) }, [fieldBusy, providerBusy, routeBusy, engineBusy, onBusyChange])
+  React.useEffect(() => { onDirtyChange(fieldDirty || providerDirty || engineDirty) }, [fieldDirty, providerDirty, engineDirty, onDirtyChange])
+  React.useEffect(() => { onBusyChange(fieldBusy || providerBusy || engineBusy) }, [fieldBusy, providerBusy, engineBusy, onBusyChange])
   const controller = useMemoryContextSettings({ connected, profile, page, language, onDirtyChange: setFieldDirty, onBusyChange: setFieldBusy })
   const {
     schema, config, drafts, setDrafts, editingKey, loading, saving, loaded, status, groups, sensitiveCount, unsupportedCount,
@@ -37,7 +34,7 @@ export default function MemoryContextSettings({ connected, profile, storagePath,
   const title = page === 'memory-persistent' ? (zh ? '持久记忆' : 'Persistent memory') : (zh ? '上下文与压缩' : 'Context & compression')
   const description = page === 'memory-persistent'
     ? (zh ? '配置当前 Profile 的长期记忆、用户画像和记忆提供方。' : 'Configure long-term memory, the user profile, and the memory provider for this Profile.')
-    : (zh ? '配置当前 Profile 的上下文引擎、压缩策略和压缩模型。' : 'Configure the context engine, compression policy, and compression model for this Profile.')
+    : (zh ? '配置当前 Profile 的上下文引擎和压缩策略。' : 'Configure the context engine and compression policy for this Profile.')
   const t = (key: string) => ({
     'ui.edit': zh ? '编辑' : 'Edit',
     'ui.on': zh ? '开启' : 'On',
@@ -60,15 +57,14 @@ export default function MemoryContextSettings({ connected, profile, storagePath,
       <p>{status || (zh ? '无法读取运行时配置。' : 'Runtime configuration could not be loaded.')}</p>
       <button type="button" disabled={loading} onClick={() => void reload()}>{zh ? '重试' : 'Retry'}</button>
     </div> : <>
-      {groups.map(group => (group.id === 'context' || group.fields.length > 0) && <section className="memory-settings-group" key={group.id}>
+      {groups.map(group => (group.id === 'context' || group.id === 'compression-model' || group.fields.length > 0) && <section className="memory-settings-group" key={group.id}>
         <div className="memory-settings-group-copy"><h3>{zh ? group.zh : group.en}</h3><p>{zh ? group.descriptionZh : group.descriptionEn}</p></div>
         <div className="memory-settings-fields">
           {group.id === 'context' && profile && <ContextEngineSettings profile={profile} language={language} onDirtyChange={setEngineDirty} onBusyChange={setEngineBusy} />}
-          {group.id === 'compression-model' && profile && schema?.fields['auxiliary.compression.provider'] && schema.fields['auxiliary.compression.model'] && <CompressionRoutePicker
-            profile={profile} storagePath={storagePath} config={config} schema={schema} language={language} disabled={fieldDirty || saving}
-            onSaved={reload} onDirtyChange={setRouteDirty} onBusyChange={setRouteBusy} />}
-          {group.fields.filter(([key]) => key !== 'context.engine' && (group.id !== 'compression-model' || !schema?.fields['auxiliary.compression.model']
-            || !['auxiliary.compression.provider', 'auxiliary.compression.model', 'auxiliary.compression.base_url', 'auxiliary.compression.reasoning_effort', 'auxiliary.compression.timeout'].includes(key))).map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
+          {group.id === 'compression-model' && <button className="compression-model-link" type="button" disabled={loading || saving} onClick={onOpenAuxiliary}>
+            {zh ? '前往辅助模型设置' : 'Open auxiliary model settings'}
+          </button>}
+          {group.fields.filter(([key]) => key !== 'context.engine').map(entry => <ConfigFieldEditor key={entry[0]} entry={entry} config={config} draft={drafts[entry[0]]}
             editing={editingKey === entry[0]} busy={saving} language={language} t={t}
             onEdit={editField} onChange={(key, value) => setDrafts({ [key]: value })}
             onSave={([key, field]) => void saveField(key, field)} onCancel={cancelEdit} />)}
