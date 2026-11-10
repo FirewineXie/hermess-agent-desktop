@@ -55,7 +55,7 @@ Windows 打包客户端首次使用全新的产品数据目录时，先在产品
 
 本地普通聊天在创建新会话时，将本产品 PM 已安装工具路径以 `session.create.client_env.PATH` 发送给锁定 Gateway；只传 PATH，不发送 Hermes 的 Python 依赖环境或凭据。路径发现经受进程管理器登记的后台辅助进程进行，不下载工具，不修改 Gateway 启动环境。内置终端沿用上游的会话工具链及依赖清理，产品 PowerShell 工具也读取当前会话的工具链并清理 Hermes 依赖和凭据。项目可以显式激活自己的 `.venv`；恢复会话沿用原会话环境，之后安装的工具在新建会话时重新读取。渠道消息会话不经过此创建入口，不在本次注入范围；远程聊天不注入本机工具路径，编程模式保留既有实现。
 
-Windows 真实接收方验证使用 `.build/hermes-venv-i1/Scripts/python.exe scripts/verify-chat-environment.py`；加 `--hermes .build/hermes-venv-i1/Scripts/hermes.exe` 验证开发态。测试通过生产 Tauri 创建/提交/恢复命令连接锁定 Gateway，使用本地合成模型执行 PowerShell 和内置终端，核对 PM Python、依赖隔离、项目虚拟环境、两个会话的 PATH 区分及非法 `client_env` 拒绝。本机内置终端测试通过上游支持的 `HERMES_GIT_BASH_PATH` 指定非标准安装位置的 Git Bash；测试资料保留在忽略的 `.build/chat-environment-*`。macOS 原生执行、真实在线模型与安装包尚未在本轮验收。
+Windows 真实接收方验证使用 `.build/hermes-venv-i1/Scripts/python.exe scripts/verify-chat-environment.py`；加 `--hermes .build/hermes-venv-i1/Scripts/hermes.exe` 验证开发态。测试通过生产 Tauri 创建/提交/恢复命令连接锁定 Gateway，使用本地合成模型执行 PowerShell 和内置终端，核对 PM Python、依赖隔离、项目虚拟环境、两个会话的 PATH 区分及非法 `client_env` 拒绝。本机内置终端测试通过上游支持的 `HERMES_GIT_BASH_PATH` 指定非标准安装位置的 Git Bash；验证通过并结束测试进程后会清理本轮目录；失败时在 `.build/chat-environment-*` 保留现场，并在终端输出路径。macOS 原生执行、真实在线模型与安装包尚未在本轮验收。
 
 ## 聊天媒体读取
 

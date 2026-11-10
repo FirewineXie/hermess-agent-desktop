@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-import tempfile
+
+from validation_workspace import validation_workspace
 
 PRODUCT = Path(__file__).resolve().parents[1]
 
@@ -61,7 +62,7 @@ def main():
     hermes = parser.parse_args().hermes.resolve(strict=True)
     assert hermes.is_relative_to(PRODUCT / ".build")
     args_by_action = shapes()
-    with tempfile.TemporaryDirectory(prefix="desktop-migration-probe-", dir=PRODUCT / ".build", ignore_cleanup_errors=True) as directory:
+    with validation_workspace(prefix="desktop-migration-probe-", dir=PRODUCT / ".build") as directory:
         root = Path(directory)
         user, home = root / "user", root / "hermes-home"
         profile = home / "profiles" / "reviewer"

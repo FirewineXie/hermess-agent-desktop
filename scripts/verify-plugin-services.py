@@ -14,10 +14,11 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 from urllib.request import urlopen
 
 import psutil
+
+from validation_workspace import validation_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = "9f150ece247ad683494ab172d738023bd6dc6170"
@@ -81,9 +82,7 @@ def main():
     hermes = args.hermes.resolve(strict=True)
     if not hermes.is_relative_to(ROOT / ".build"):
         parser.error("use the product's prepared launcher under .build")
-    scratch = ROOT / ".build/plugin-service-verification"
-    scratch.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=scratch, prefix="退出 空格-", ignore_cleanup_errors=True) as folder:
+    with validation_workspace(dir=ROOT / ".build", prefix="plugin-service-verification-退出 空格-") as folder:
         base = Path(folder)
         source = base / "source"
         source.mkdir()

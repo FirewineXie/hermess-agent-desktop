@@ -5,7 +5,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import tempfile
+
+from validation_workspace import validation_workspace
 
 PRODUCT = Path(__file__).resolve().parents[1]
 HELPER = (PRODUCT / "apps/desktop/src-tauri/src/runtime/vault_keys.py").read_text(encoding="utf-8")
@@ -47,7 +48,7 @@ def main():
     python = payload / runtime["storePython"]
     bootstrap = [str(python), "-I", "-S", "-u", "-X", "utf8", "-c", BOOTSTRAP,
                  str(payload), runtime["sitePackages"], runtime["repoDir"]]
-    with tempfile.TemporaryDirectory(prefix="desktop-vault-probe-", dir=PRODUCT / ".build") as directory:
+    with validation_workspace(prefix="desktop-vault-probe-", dir=PRODUCT / ".build") as directory:
         home = Path(directory) / "hermes-home" / "profiles" / "reviewer"
         home.mkdir(parents=True)
         (home / "config.yaml").write_text("{}\n", encoding="utf-8")

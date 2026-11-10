@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 import subprocess
 import tarfile
-import tempfile
+
+from validation_workspace import validation_workspace
 
 
 EXCLUDED = ("tests", "tests-js", "website", "evals", ".github", "nix", "docker",
@@ -46,7 +47,7 @@ def main() -> None:
         if not (webapp / "index.html").is_file() or not any((webapp / "assets").glob("*.js")):
             raise RuntimeError("payload Webapp renderer is incomplete")
     checked = 0
-    with tempfile.TemporaryDirectory(prefix="payload-archive-", dir=product / ".build") as temp:
+    with validation_workspace(prefix="payload-archive-", dir=product / ".build") as temp:
         archive = Path(temp) / "source.tar"
         subprocess.run(["git", "archive", "--format=tar", "--output", str(archive), commit,
                         "--", *(f":(exclude){name}" for name in EXCLUDED)], cwd=upstream, check=True)

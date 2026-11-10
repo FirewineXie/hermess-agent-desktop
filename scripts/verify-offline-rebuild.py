@@ -8,7 +8,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
+
+from validation_workspace import validation_workspace
 
 
 def main() -> None:
@@ -41,8 +42,7 @@ def main() -> None:
     sys.path.insert(0, str(product / "upstream" / "hermes-agent"))
     import pm
 
-    with tempfile.TemporaryDirectory(prefix="offline-rebuild-", dir=build,
-                                     ignore_cleanup_errors=True) as temporary:
+    with validation_workspace(prefix="offline-rebuild-", dir=build) as temporary:
         root = Path(temporary).resolve()
         if not root.is_relative_to(build):
             raise RuntimeError("temporary rebuild directory escaped the product")

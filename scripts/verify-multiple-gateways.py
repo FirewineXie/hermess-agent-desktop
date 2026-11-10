@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
+
+from validation_workspace import validation_workspace
 
 PRODUCT = Path(__file__).resolve().parents[1]
 UPSTREAM = PRODUCT / "upstream" / "hermes-agent"
@@ -43,7 +44,7 @@ def main():
     lock = json.loads((PRODUCT / "runtime/upstream.lock.json").read_text(encoding="utf-8"))
     assert subprocess.check_output(["git", "-C", str(UPSTREAM), "rev-parse", "HEAD"],
                                    text=True).strip() == lock["commit"]
-    with tempfile.TemporaryDirectory(prefix="multiple-gateway-probe-", dir=PRODUCT / ".build") as directory:
+    with validation_workspace(prefix="multiple-gateway-probe-", dir=PRODUCT / ".build") as directory:
         root = Path(directory)
         local = root / "local"
         seed(local / "HermessAgentDesktop" / "hermes-home", "local-host")

@@ -10,10 +10,11 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
+
+from validation_workspace import validation_workspace
 
 
 def main() -> None:
@@ -40,7 +41,7 @@ def main() -> None:
 
     scratch = product / ".build"
     scratch.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="中文 空格 gateway-smoke-", dir=scratch, ignore_cleanup_errors=True) as temp:
+    with validation_workspace(prefix="中文 空格 gateway-smoke-", dir=scratch) as temp:
         root = Path(temp)
         home = root / "hermes-home"
         fixture = root / "notes.txt"

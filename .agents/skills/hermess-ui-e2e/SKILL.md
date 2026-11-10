@@ -9,7 +9,7 @@ description: 在 HermessAgentDesktop 中验证页面功能、UI 交互和业务�
 
 1. 从用户实际操作的入口开始，核对页面组件、预览路由和宿主能力。为每个场景写清初始状态、操作、可见反馈和业务结果，覆盖本次涉及的主路径和相关失败、取消或重试分支。
 2. 验证 React 页面交互时，参考 [前端说明](../../../apps/frontend/README.md)，在仓库根目录运行 `pnpm --dir apps/frontend dev`，默认地址为 `http://127.0.0.1:1421`。端口被占用时先核对现有服务的项目和入口，或为本轮服务指定空闲端口。全局导航从 `/` 进入，专项场景在 `apps/frontend/*.html` 及 `apps/frontend/src/preview/` 中查找匹配的预览和模拟数据。根命令 `pnpm dev` 启动的是桌面项目的前端。
-3. 优先用当前环境可用的浏览器自动化。需要用脚本驱动本机 Chromium 时，可复用 [仓库的 CDP 工具](../design-taste-frontend/scripts/lib/cdp.mjs)，它使用 Node.js 22+ 和已安装的 Chrome、Edge 或 Chromium。用 `Browser.launch()`、`newPage()` 和 `goto()` 打开隔离会话，用 `page.send()` 发送真实输入，用 `page.eval()` 查询界面，用 `page.screenshot()` 留证，在 `finally` 关闭浏览器。该工具会自动取消 JavaScript 原生确认框，验证确认分支时选用能显式处理弹框的工具。临时脚本和产物可放在 Git 忽略的 `.build/` 下。
+3. 优先用当前环境可用的浏览器自动化。需要用脚本驱动本机 Chromium 时，可复用 [仓库的 CDP 工具](../design-taste-frontend/scripts/lib/cdp.mjs)，它使用 Node.js 22+ 和已安装的 Chrome、Edge 或 Chromium。用 `Browser.launch()`、`newPage()` 和 `goto()` 打开隔离会话，用 `page.send()` 发送真实输入，用 `page.eval()` 查询界面，用 `page.screenshot()` 留证，在 `finally` 关闭浏览器。该工具会自动取消 JavaScript 原生确认框，验证确认分支时选用能显式处理弹框的工具。
 4. 涉及 Tauri 原生窗口、系统对话框、快捷键或拖放时，按 [桌面开发说明](../../../apps/desktop/README.md) 使用对应环境和隔离测试数据。Windows 的 WebView2 和 macOS 的 WKWebView 分别验证。
 
 ## 验证页面交互
@@ -24,6 +24,7 @@ description: 在 HermessAgentDesktop 中验证页面功能、UI 交互和业务�
 
 ## 记录结果
 
+- 临时脚本、测试数据、日志和截图放在本轮独立的测试目录。Python 验证可复用 [验证目录工具](../../../scripts/validation_workspace.py)；其他脚本遵循同样规则：先关闭本轮进程，所有断言通过后删除本轮目录，失败、超时或收尾失败时保留并输出路径。用 CDP 工具时让它自行清理浏览器 Profile，将排查用的截图和日志写到测试目录。不得把开发数据或可复用的运行环境放进一次性测试目录。
 - 按场景报告通过、失败或未验证，注明平台、入口、工具和用例。区分页面模拟、业务逻辑测试、真实 Gateway 请求及原生 UI 到 Gateway 的整链路。
 - 失败时记录入口、测试数据、复现步骤、预期与实际结果，以及相关控制台异常、Gateway 日志或截图。避免记录凭据和用户数据，只关闭本轮启动的进程。需要纳入仓库的前端回归用例放在 `apps/frontend/tests/`，数据由用例构造。
 

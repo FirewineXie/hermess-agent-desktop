@@ -10,8 +10,9 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 import time
+
+from validation_workspace import validation_workspace
 
 
 def main() -> None:
@@ -34,8 +35,7 @@ def main() -> None:
     from websockets.asyncio.client import connect
     from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-    with tempfile.TemporaryDirectory(prefix="coexistence-", dir=build,
-                                     ignore_cleanup_errors=True) as temporary:
+    with validation_workspace(prefix="coexistence-", dir=build) as temporary:
         root = Path(temporary)
         model = FakeLLMServer([Text("source CLI reply"), Text("product payload reply")])
         model.start()

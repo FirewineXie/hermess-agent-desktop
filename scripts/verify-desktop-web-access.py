@@ -9,7 +9,6 @@ from pathlib import Path
 import runpy
 import ssl
 import subprocess
-import tempfile
 from urllib.parse import urlsplit
 
 import httpx
@@ -18,6 +17,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus
+
+from validation_workspace import validation_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -111,7 +112,7 @@ def main():
     assert head == lock["commit"]
     manifest = json.loads((launcher.parent.parent / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["ref"] == head
-    with tempfile.TemporaryDirectory(prefix="desktop-web-access-", dir=ROOT / ".build") as directory:
+    with validation_workspace(prefix="desktop-web-access-", dir=ROOT / ".build") as directory:
         root = Path(directory)
         storage = root / "HermessAgentDesktop"
         home = storage / "hermes-home"

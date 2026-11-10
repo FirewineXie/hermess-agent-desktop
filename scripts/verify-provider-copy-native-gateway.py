@@ -9,10 +9,11 @@ import secrets
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 
 import httpx
+
+from validation_workspace import validation_workspace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,7 @@ def control(home: Path, verb: str, params: dict | None = None) -> dict:
 def main() -> None:
     scratch = ROOT / ".build"
     scratch.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="provider-copy-native-", dir=scratch, ignore_cleanup_errors=True) as temp:
+    with validation_workspace(prefix="provider-copy-native-", dir=scratch) as temp:
         root = Path(temp)
         home = root / "hermes-home"
         home.mkdir()

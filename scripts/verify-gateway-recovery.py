@@ -14,12 +14,12 @@ import json
 import os
 from pathlib import Path
 import socket
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import uuid
+
+from validation_workspace import validation_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = ROOT / "upstream" / "hermes-agent"
@@ -204,17 +204,8 @@ def cleanup_run(root: Path, sync: Path, process: subprocess.Popen | None,
                         f"Rust live test did not finish cleanup; inspect {root.relative_to(ROOT)}"
                     ) from error
     finally:
-        try:
-            if model is not None:
-                model.stop()
-        finally:
-            if process is None or process.poll() is not None:
-                # Delete only this run's direct child of the product build root.
-                target = root.resolve(strict=True)
-                if root.is_symlink() or target.parent != (ROOT / ".build").resolve() or not target.name.startswith("gateway-recovery-"):
-                    raise RuntimeError("Refusing to remove an unexpected Gateway test directory")
-                shutil.rmtree(target)
-                print(f"Gateway test directory removed: {root.relative_to(ROOT)}")
+        if model is not None:
+            model.stop()
 
 
 def main() -> None:
@@ -230,7 +221,12 @@ def main() -> None:
     head = subprocess.check_output(["git", "-C", str(UPSTREAM), "rev-parse", "HEAD"],
                                    text=True, creationflags=subprocess.CREATE_NO_WINDOW).strip()
     assert head == lock["commit"], "Gateway source does not match the product lock"
-    root = Path(tempfile.mkdtemp(prefix="gateway-recovery-", dir=ROOT / ".build"))
+    with validation_workspace(prefix="gateway-recovery-", dir=ROOT / ".build") as directory:
+        report = run(Path(directory), hermes)
+    print(json.dumps({**report, "temporary_directory_removed": True}))
+
+
+def run(root: Path, hermes: Path) -> dict:
     sync = root / "sync"
     process = None
     model = None
@@ -289,11 +285,10 @@ def main() -> None:
             assert texts.count("RESTART_VIA_POWERSHELL") == 1, texts
             report = {"platform": sys.platform, "terminal_restart_blocked": True,
                               "powershell_exit_0_auto_recovered": True, "supervised_exit_75_manual_recovered": True,
-                              "new_tickets_and_history": True, "duplicate_input": False,
-                              "temporary_directory_removed": True}
+                              "new_tickets_and_history": True, "duplicate_input": False}
     finally:
         cleanup_run(root, sync, process, model)
-    print(json.dumps(report))
+    return report
 
 
 if __name__ == "__main__":

@@ -8,10 +8,11 @@ import os
 from pathlib import Path
 import socket
 import subprocess
-import tempfile
 import threading
 
 import paramiko
+
+from validation_workspace import validation_workspace
 
 PRODUCT = Path(__file__).resolve().parents[1]
 
@@ -58,7 +59,7 @@ def serve(listener, key, marker, accepted):
 def main():
     if os.name != "nt":
         raise SystemExit("This probe invokes a windowless Windows Tauri test.")
-    with tempfile.TemporaryDirectory(prefix="host-terminal-probe-", dir=PRODUCT / ".build") as directory, ExitStack() as stack:
+    with validation_workspace(prefix="host-terminal-probe-", dir=PRODUCT / ".build") as directory, ExitStack() as stack:
         path = Path(directory) / "ssh_config"
         known = Path(directory) / "known_hosts"
         config = []

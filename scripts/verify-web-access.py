@@ -11,13 +11,14 @@ import secrets
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.parse import urlsplit
 
 import httpx
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
+
+from validation_workspace import validation_workspace
 
 
 PRODUCT = Path(__file__).resolve().parents[1]
@@ -94,7 +95,7 @@ def main():
     lock = json.loads((PRODUCT / "runtime/upstream.lock.json").read_text(encoding="utf-8"))
     head = subprocess.check_output(["git", "-C", str(UPSTREAM), "rev-parse", "HEAD"], text=True).strip()
     assert head == lock["commit"]
-    with tempfile.TemporaryDirectory(prefix="web-access-probe-", dir=PRODUCT / ".build") as directory:
+    with validation_workspace(prefix="web-access-probe-", dir=PRODUCT / ".build") as directory:
         root = Path(directory)
         home, user = root / "hermes-home", root / "user"
         home.mkdir(mode=0o700)
