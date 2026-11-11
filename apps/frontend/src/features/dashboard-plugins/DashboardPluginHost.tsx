@@ -25,6 +25,7 @@ const refreshListeners = new Set<(profile: string, reload: boolean) => void>()
 const pluginAssets = new Map<string, DashboardPluginAssets>()
 let pluginManifests: DashboardPluginManifest[] = []
 let pluginDiscoveryError = ''
+let pluginDiscoveryLoading = false
 let registryProfile = ''
 let activeRuntime: DashboardPluginRuntime | null = null
 const pluginRuntimes = new Map<string, DashboardPluginRuntime>()
@@ -550,6 +551,8 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
       reloadPending ||= reload
       const operation = ++generation
       const log = { runtime: runtime.id, operation, profile }
+      pluginDiscoveryLoading = true
+      notify()
       console.info('[dashboard-plugin] discovery started', log)
       try {
         const result = await extensions.request<{ plugins: DashboardPluginManifest[]; asset_origin: string }>(scope, 'dashboard.plugins.list')
@@ -580,7 +583,7 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
         pluginDiscoveryError = language === 'zh-CN' ? '无法读取 Dashboard 界面插件。请重新扫描。' : 'Could not read Dashboard extensions. Rescan to retry.'
         console.error('[dashboard-plugin] discovery failed', log)
       }
-      notify()
+      if (active && operation === generation) { pluginDiscoveryLoading = false; notify() }
     }
     const refreshCurrent = (owner: string, reload: boolean) => { if (owner === profile) void refresh(reload) }
     refreshListeners.add(refreshCurrent)
@@ -600,7 +603,8 @@ export function useDashboardPlugins(connected: boolean, profile: string | null, 
     }
   }, [about, connected, dashboardPlugins, epoch, extensions, language, profile, stableLifecycle])
   const current = connected && registryProfile === profile && activeRuntime?.active
-  return { manifests: current ? pluginManifests : [], components: current ? registered : new Map<string, PluginComponent>(), error: current ? pluginDiscoveryError : '' }
+  return { manifests: current ? pluginManifests : [], components: current ? registered : new Map<string, PluginComponent>(), error: current ? pluginDiscoveryError : '',
+    loading: Boolean(connected && profile && (!current || pluginDiscoveryLoading)) }
 }
 
 export function DashboardPluginPage({ manifest, component: Component, error, onBack }: { manifest: DashboardPluginManifest | null; component?: PluginComponent; error?: string; onBack?: () => void }) {

@@ -342,6 +342,7 @@
   "ui.failed.to.read.history.arg": "读取历史失败：{0}",
   "ui.failed.to.read.startup.configuration.arg": "读取启动配置失败：{0}",
   "ui.failed.to.remove.attachment.arg": "移除附件失败：{0}",
+  "ui.attachment.removed": "附件已移除",
   "ui.failed.to.remove.image.before.creating.new.session.arg": "新建会话前移除图片失败：{0}",
   "ui.failed.to.save.model.arg": "保存模型失败：{0}",
   "ui.failed.to.select.attachment.arg": "选择附件失败：{0}",

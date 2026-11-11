@@ -20,6 +20,7 @@ export type TimelineItem =
   | { kind: 'message'; role: 'user' | 'assistant'; text: string; rowId?: number; attachments?: SentAttachment[]; media?: string[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
   | { kind: 'reasoning'; text: string; streaming: boolean; expanded: boolean }
+  | { kind: 'task-notice'; task: 'subagent' | 'process'; title?: string; text: string }
 
 type HistoryRow = ResumeResult['messages'][number]
 
@@ -72,6 +73,18 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
   let pendingUserTimestamp: number | undefined
   for (const row of rows) {
     const text = historyText(row)
+    if (row.role === 'user' && ['hidden', 'internal_notification'].includes(row.display_kind || '')) {
+      pendingUserIndex = -1
+      pendingUserTimestamp = undefined
+      continue
+    }
+    if (row.role === 'user' && ['async_delegation_complete', 'process_complete'].includes(row.display_kind || '')) {
+      items.push({ kind: 'task-notice', task: row.display_kind === 'async_delegation_complete' ? 'subagent' : 'process',
+        title: row.display_metadata?.display_text, text })
+      pendingUserIndex = -1
+      pendingUserTimestamp = undefined
+      continue
+    }
     const media = historyMedia(row.content)
     const mediaFields = media.length ? { media } : {}
     const rowId = actionableHistoryRow(row)

@@ -6,8 +6,7 @@ import { useLanguage } from '../../i18n'
 import TerminalTab from './TerminalTab'
 import DirectoryTree from './DirectoryTree'
 import type { BackgroundTask } from '../chat/backgroundTasks'
-import MarkdownMessage from '../chat/components/MarkdownMessage'
-import { ChatMediaProvider } from '../chat/ChatMediaContext'
+import BackgroundTaskContent from './BackgroundTaskContent'
 
 type PanelFile = Awaited<ReturnType<DesktopApi['workspacePanel']['readFile']>>
 type PanelDirectory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
@@ -155,15 +154,8 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
       {tabs.filter(tab => tab.kind !== 'terminal').map(tab => <div key={tab.id} className="panel-tab-content" style={{ display: tab.id === activeId ? 'flex' : 'none' }}>
         {tab.kind === 'background' && (() => {
           const task = backgroundTasks.find(item => item.taskId === tab.taskId && item.profile === tab.scope.owner?.profile && item.sessionId === tab.scope.owner?.sessionId)
-          return <div className="panel-background-task">
-            <div className="panel-background-task-header"><strong>{zh ? '后台任务' : 'Background task'}</strong><span>{task?.status === 'running' ? zh ? '运行中' : 'Running' : task?.status === 'unknown' ? zh ? '结果待确认' : 'Result uncertain' : task?.status === 'failed' ? zh ? '失败' : 'Failed' : task?.status === 'complete' ? zh ? '已完成' : 'Complete' : zh ? '切换到所属会话查看' : 'Open the owning session'}</span></div>
-            <small>{tab.taskId}</small>
-            <div className="panel-background-task-messages">
-              {task?.prompt && <p className="panel-background-task-user">{task.prompt}</p>}
-              {task?.result && <div className="panel-background-task-assistant"><ChatMediaProvider scope={epoch && tab.scope.owner ? { ...tab.scope.owner, gatewayEpoch: epoch } : null}><MarkdownMessage text={task.result} language={language} /></ChatMediaProvider></div>}
-            </div>
-            {task?.truncated && <small>{zh ? '结果过长，仅显示部分内容。' : 'The result is too long; only part is shown.'}</small>}
-          </div>
+          return <BackgroundTaskContent task={task} taskId={tab.taskId} profile={tab.scope.owner?.profile} zh={zh} language={language}
+            mediaScope={epoch && tab.scope.owner ? { ...tab.scope.owner, gatewayEpoch: epoch } : null} />
         })()}
         {tab.kind === 'directory' && <DirectoryTree key={tab.revision} scope={tab.scope} directory={tab.directory} onFile={path => void openFile(path, tab.scope)} />}
         {tab.kind === 'file' && <div className="panel-file">

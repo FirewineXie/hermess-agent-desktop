@@ -445,17 +445,13 @@ export function useChatController({ backend, connected = Boolean(backend), remot
     return () => { active = false; unlisten?.() }
   }, [backend, chatVisible, turnBusy, attachmentBusy])
 
-  async function removeAttachment(index: number) {
+  function removeAttachment(index: number) {
     const attachment = attachments[index]
     if (!attachment || attachmentBusy) return
-    setAttachmentBusy(true)
-    try {
-      if (attachment.kind === 'image' && attachment.path) {
-        await chat.detachImage(sessionScope(sessionRef.current), attachment.path)
-      }
-      setAttachments(current => current.filter((_, position) => position !== index))
-    } catch (cause) { setChatStatus(t("ui.failed.to.remove.attachment.arg", describeError(cause, language))) }
-    finally { setAttachmentBusy(false) }
+    // The authority stages bytes only; prompt.submit explicitly names the images to send.
+    setAttachments(current => current.filter((_, position) => position !== index))
+    setChatStatus(t('ui.attachment.removed'))
+    void diagnostics.recordEvent(storagePath, `chat_attachment_remove_completed kind=${attachment.kind}`).catch(() => {})
   }
 
   async function sendMessage(overrideText?: string, quickInput = false, queuePlainText = false) {

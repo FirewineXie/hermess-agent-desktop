@@ -207,9 +207,9 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
         snapshot={controller.connection.snapshot} language={language} onAction={controller.connection.run}
         onDismiss={controller.connection.dismiss} /></div>}
       <ChatSessionDetails details={controller.sessionDetails} zh={language === 'zh-CN'} />
-      </div>
       {sessionId && !remoteMode && <SubagentPanelForSession key={`${controller.sessionProfileRef.current}\u0000${sessionId}`}
         profile={controller.sessionProfileRef.current} sessionId={sessionId} active={active && backend} language={language} />}
+      </div>
       <div className="composer-wrap"><div className="composer">
         <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}

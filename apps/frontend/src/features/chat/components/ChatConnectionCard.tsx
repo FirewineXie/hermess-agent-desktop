@@ -64,7 +64,7 @@ function TargetRow({ row, disabled, settled, zh, perform }: {
         onClick={() => void perform('open')}>{zh ? '在浏览器授权' : 'Authorize in browser'}</button>}
       {row.kind === 'connector' && ['failed', 'expired'].includes(row.state) && <button type="button" disabled={disabled}
         onClick={() => void perform('retry')}>{zh ? '重新发起连接' : 'Retry connection'}</button>}
-      {!row.resolved && !['connected', 'skipped', 'not_connected'].includes(row.state) && <button type="button" disabled={disabled}
+      {!row.resolved && !['connected', 'skipped', 'not_connected'].includes(row.state) && <button type="button" className="request-action-secondary" disabled={disabled}
         onClick={() => void perform('skip')}>{zh ? '跳过' : 'Skip'}</button>}
     </div>}
   </section>
@@ -129,7 +129,7 @@ export default function ChatConnectionCard({ snapshot, language, onAction, onDis
         </button>}
         {snapshot.targets.some(row => row.connect_url && row.state === 'initiated') && <button type="button" disabled={busy}
           onClick={() => void perform({ op_id, action: 'wake' })}>{zh ? '检查授权结果' : 'Check authorization'}</button>}
-        <button type="button" disabled={busy} onClick={() => void perform({ op_id, action: 'respond',
+        <button type="button" className="request-action-secondary" disabled={busy} onClick={() => void perform({ op_id, action: 'respond',
           answer: { settled_by: 'continue', ...(snapshot.display && said.trim() ? { said: said.trim() } : {}) } })}>
           {zh ? '继续会话' : 'Continue'}
         </button>

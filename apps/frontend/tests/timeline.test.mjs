@@ -3,6 +3,29 @@ import { test } from 'node:test'
 import { appendReasoning, finishReasoning, historyTimeline, pauseReasoning, updateTool } from '../src/features/chat/timeline.ts'
 import { sessionSourceLabel } from '../src/features/chat/sessionSource.ts'
 
+test('typed task notifications are collapsed notices, never human questions or timed turns', () => {
+  const raw = '[ASYNC DELEGATION BATCH COMPLETE] internal routing and logs'
+  const timeline = historyTimeline([
+    { role: 'user', content: '请检查项目', timestamp: 10 },
+    { role: 'assistant', content: '已启动子任务。', timestamp: 11 },
+    { role: 'user', content: raw, timestamp: 12, display_kind: 'async_delegation_complete', display_metadata: { display_text: 'Subagent Task Completed: 检查项目' } },
+    { role: 'assistant', content: '检查完成，没有发现问题。', timestamp: 14 },
+    { role: 'user', content: 'hidden control', display_kind: 'hidden' },
+    { role: 'user', content: 'internal heartbeat', display_kind: 'internal_notification' },
+  ])
+  assert.equal(timeline.filter(item => item.kind === 'message' && item.role === 'user').length, 1)
+  assert.equal(timeline[0].duration, 1)
+  assert.deepEqual(timeline[2], { kind: 'task-notice', task: 'subagent', title: 'Subagent Task Completed: 检查项目', text: raw })
+  assert.equal(timeline.at(-1).text, '检查完成，没有发现问题。')
+})
+
+test('ordinary user and assistant JSON or notification-looking text is preserved', () => {
+  const text = '[ASYNC DELEGATION BATCH COMPLETE] {"status":"dispatched"}'
+  assert.deepEqual(historyTimeline([{ role: 'user', content: text }, { role: 'assistant', content: text }]).map(item => item.text), [text, text])
+  assert.equal(historyTimeline([{ role: 'user', content: 'process log', display_kind: 'process_complete' }])[0].task, 'process')
+  assert.equal(historyTimeline([{ role: 'user', content: 'future feature', display_kind: 'unknown' }])[0].role, 'user')
+})
+
 test('restored channel history shows user and assistant content alongside reasoning', () => {
   const timeline = historyTimeline([
     { role: 'user', content: [{ type: 'text', text: '渠道提问' }, { type: 'image_url', image_url: { url: 'ignored' } }], timestamp: 10 },

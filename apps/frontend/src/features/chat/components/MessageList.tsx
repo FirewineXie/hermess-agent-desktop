@@ -19,6 +19,14 @@ const toolNames: Record<string, [string, string]> = {
 
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
+function TaskNotice({ item, language }: { item: Extract<TimelineItem, { kind: 'task-notice' }>; language: Language }) {
+  return <details className="chat-task-notice">
+    <summary>{item.task === 'subagent' ? label(language, '子任务返回', 'Subagent returned') : label(language, '后台进程返回', 'Background process returned')}
+      <span>{label(language, '查看详情', 'View details')}</span></summary>
+    {item.title && <p>{item.title}</p>}
+    <pre>{item.text}</pre>
+  </details>
+}
 function formatDuration(value: number, language: Language) {
   const seconds = Math.max(0, Math.round(value))
   if (seconds < 60) return language === 'zh-CN' ? `${seconds} 秒` : `${seconds}s`
@@ -126,6 +134,7 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
   if (turnBusy) {
     for (let index = messages.length - 1; index >= 0; index--) {
       const item = messages[index]
+      if (item.kind === 'task-notice') break
       if (item.kind === 'message' && item.role === 'user' && item.startedAt != null && item.turnState == null) {
         activeUserIndex = index
         break
@@ -149,7 +158,7 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       let end = index + 1
       while (end < messages.length) {
         const next = messages[end]
-        if (next.kind === 'message' && next.role === 'user') break
+        if (next.kind === 'task-notice' || next.kind === 'message' && next.role === 'user') break
         end++
       }
       const following = messages.slice(index + 1, end)
@@ -172,7 +181,8 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
           ? <ToolActivity key={position} steps={item.steps} language={language} />
           : item.kind === 'reasoning'
             ? <ReasoningBlock key={position} text={item.text} streaming={item.streaming} expanded={item.expanded} language={language} />
-            : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} actions={historyActions(item)} />)}
+            : item.kind === 'task-notice' ? <TaskNotice key={position} item={item} language={language} />
+              : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} actions={historyActions(item)} />)}
       </React.Fragment>)
       index = end
     } else {
@@ -180,7 +190,8 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
         ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
         : message.kind === 'reasoning'
           ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
-          : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} actions={historyActions(message)} />)
+          : message.kind === 'task-notice' ? <TaskNotice key={`orphan-${index}`} item={message} language={language} />
+            : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} actions={historyActions(message)} />)
       index++
     }
   }

@@ -1,0 +1,55 @@
+.request-card { width: min(800px, 100%); margin: 12px 0; padding: 10px 12px; border: 1px solid #e5eaf0; border-radius: 8px; background: transparent; box-shadow: none; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.request-card-header { display: flex; align-items: flex-start; gap: 8px; }
+.request-card-header > div { min-width: 0; }
+.request-card-header strong { display: block; color: #66758c; font-size: 13px; line-height: 1.5; }
+.request-card-header p { margin: 5px 0 0; color: #273348; font-size: 14px; line-height: 1.5; }
+.request-question-list { display: grid; gap: 10px; margin-top: 10px; }
+.request-card .request-question { min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.request-question legend { max-width: 100%; padding: 0; color: #273348; font-size: 14px; font-weight: 650; line-height: 1.5; }
+.request-choice-grid { display: grid; grid-template-columns: 1fr; justify-items: start; gap: 6px; margin-top: 5px; }
+.request-card .request-choice { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 34px; margin: 0; padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; color: #354255; background: transparent; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.request-card .request-choice:hover { border-color: transparent; background: #f5f7fa; }
+.request-card .request-choice:focus-within { border-color: #1b6ffd; box-shadow: 0 0 0 3px rgba(27, 111, 253, .12); }
+.request-card .request-choice.is-selected { border-color: transparent; color: #155acb; background: #edf4ff; }
+.request-choice input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: #1b6ffd; }
+.request-choice span { min-width: 0; overflow-wrap: anywhere; }
+.request-choice small { flex: none; padding: 0; color: #66758c; background: transparent; font-size: 11px; font-weight: 650; }
+.request-card .request-freeform { display: block; width: 100%; min-height: 36px; margin-top: 5px; padding: 7px 9px; border: 1px solid #d5dee9; border-radius: 10px; outline: none; color: #20242d; background: #fff; }
+.request-card .request-freeform:focus { border-color: #1b6ffd; box-shadow: 0 0 0 3px rgba(27, 111, 253, .12); }
+.request-supplement { display: block; margin-top: 8px; color: #526176; font-size: 13px; }
+.request-supplement .request-freeform { min-height: 56px; resize: vertical; font: inherit; }
+.request-command { max-height: 128px; margin: 10px 0 0; padding: 8px 10px; overflow: auto; border: 0; border-radius: 6px; color: #354255; background: #f5f7fa; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.request-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; margin-top: 10px; padding-top: 0; border-top: 0; }
+.chat-panel .request-card-actions button { min-height: 36px; padding: 6px 10px; border: 1px solid #d7e4f5; border-radius: 6px; color: #235ca6; background: #edf4ff; font-size: 13px; font-weight: 650; }
+.chat-panel .request-card-actions button:hover:not(:disabled) { background: #e1edfc; }
+.chat-panel .request-card-actions .request-action-deny { border: 1px solid transparent; color: #526176; background: transparent; }
+.chat-panel .request-card-actions .request-action-deny:hover:not(:disabled) { border-color: #e3a8aa; color: #b4232c; background: #fff7f7; }
+.chat-panel .request-card-actions .request-action-secondary { border: 1px solid transparent; color: #526176; background: transparent; font-weight: 500; }
+.chat-panel .request-card-actions .request-action-secondary:hover:not(:disabled) { color: #155acb; background: #edf4ff; }
+@media (prefers-reduced-motion: reduce) { .request-card .request-choice { transition: none; } }
+
+.request-card .request-question > p { margin: 4px 0; }
+.request-supplement-toggle { margin-top: 7px; color: #526176; }
+.request-supplement-toggle summary { width: fit-content; cursor: pointer; }
+.request-supplement-toggle textarea { min-height: 56px; resize: vertical; }
+.request-card > summary { cursor: pointer; font-weight: 600; }
+.request-card > p { margin: 4px 0; }
+.request-card :is(summary, button):focus-visible { outline: 2px solid #1b6ffd; outline-offset: 2px; }
+.chat-task-notice { margin: 12px 4px; color: #66758c; font-size: 13px; }
+.chat-task-notice summary { width: fit-content; cursor: pointer; }
+.chat-task-notice summary span { margin-left: 10px; font-size: 12px; }
+.chat-task-notice pre { max-height: 220px; overflow: auto; padding: 10px; background: #f5f7fa; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-task-notice summary:focus-visible { outline: 2px solid #1b6ffd; outline-offset: 3px; }
+:root[data-color-theme='dark'] .chat-task-notice { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .chat-task-notice pre { background: var(--dark-surface); }
+:root[data-color-theme='dark'] .request-card { background: transparent; color: var(--dark-text); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .request-card :is(strong, legend) { color: var(--dark-text); }
+:root[data-color-theme='dark'] .request-card :is(.request-freeform, .request-command) { background: var(--dark-bg); border-color: var(--dark-border); color: var(--dark-text); }
+:root[data-color-theme='dark'] .request-card .request-command { background: var(--dark-surface); }
+:root[data-color-theme='dark'] .request-card .request-choice.is-selected { background: var(--dark-selected); color: var(--dark-accent); }
+:root[data-color-theme='dark'] :is(.request-card-header p, .request-supplement-toggle) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] .chat-panel .request-card-actions :is(.request-action-secondary, .request-action-deny) { color: var(--dark-text); background: transparent; border-color: var(--dark-border); }
+
+:root[data-color-theme='dark'] .request-card .request-choice { color: var(--dark-text); }
+:root[data-color-theme='dark'] .request-card .request-choice:hover { background: var(--dark-hover); }
+:root[data-color-theme='dark'] .chat-panel .request-card-actions button { background: var(--dark-selected); color: var(--dark-accent); border-color: var(--dark-border); }

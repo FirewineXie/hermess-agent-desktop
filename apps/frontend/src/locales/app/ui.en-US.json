@@ -342,6 +342,7 @@
   "ui.failed.to.read.history.arg": "Failed to read history: {0}",
   "ui.failed.to.read.startup.configuration.arg": "Failed to read startup configuration: {0}",
   "ui.failed.to.remove.attachment.arg": "Failed to remove attachment: {0}",
+  "ui.attachment.removed": "Attachment removed",
   "ui.failed.to.remove.image.before.creating.new.session.arg": "Failed to remove image before creating new session: {0}",
   "ui.failed.to.save.model.arg": "Failed to save model: {0}",
   "ui.failed.to.select.attachment.arg": "Failed to select attachment: {0}",

@@ -82,6 +82,7 @@ import NotificationsSettings from './features/notifications/NotificationsSetting
 import { useNativeNotifications } from './features/notifications/useNativeNotifications'
 import GatewayNoticesProvider from './features/notifications/GatewayNoticesProvider'
 import { DashboardPluginPage, DashboardPluginSlot, useDashboardPlugins } from './features/dashboard-plugins/DashboardPluginHost'
+import DashboardPluginView from './features/dashboard-plugins/DashboardPluginView'
 import { dashboardBuiltinRoute, dashboardPageSlot, dashboardPluginForRoute, normalizeDashboardRoute } from './features/dashboard-plugins/dashboardRouteModel'
 import type { ProfileTab } from './features/profiles/ProfileOverview'
 import { describeError } from './app/desktopErrors'
@@ -533,7 +534,14 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
       onNewChat={path => { if (openView('chat')) { workspaces.select(path); void openNewChat() } }} />}
     {view === 'scheduled' && <ScheduledTasksView key={workspaceGeneration} connected={connected} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} />}
     {view === 'personal-tasks' && <KanbanBoardView initialTaskId={personalTaskTarget?.id} connectionId={backend?.replay_epoch || null} storagePath={storagePath} />}
-    {view === 'dashboard-plugin' && <DashboardPluginPage manifest={dashboardManifest} component={activeDashboardPlugin ? dashboardPlugins.components.get(activeDashboardPlugin) : undefined} error={dashboardPlugins.error} onBack={returnFromDashboardPlugin} />}
+    {view === 'dashboard-plugin' && <DashboardPluginView plugin={activeDashboardPlugin} plugins={dashboardPlugins} profiles={profileController.snapshot}
+      connected={connected && !remoteMode} busy={profileController.busy || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy}
+      onSelectProfile={profileController.select} onBack={returnFromDashboardPlugin} onManage={() => {
+        if (!openView('profiles')) return
+        setProfileTab('plugins')
+        setProfileCreateOpen(false)
+        setProfileTabRequest(current => ({ id: current.id + 1, tab: 'plugins' }))
+      }} />}
     {view === 'webhooks' && <WebhooksView connected={connected} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} onSelectProfile={name => profileController.select(name)} onRestart={() => restartBackend().then(Boolean)} />}
     {view === 'usage' && <UsageView connected={connected} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} onOpenConfiguration={() => openSettings('advanced-config')} onOpenModelSettings={page => openSettings(page)} />}
     {view === 'journey' && <JourneyView key={`${profileController.snapshot?.selected || ''}:${backend?.replay_epoch || ''}`} connected={connected} profile={profileController.snapshot?.selected || null} epoch={backend?.replay_epoch || null} />}

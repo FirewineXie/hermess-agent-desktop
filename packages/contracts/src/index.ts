@@ -256,7 +256,7 @@ export type ResumeResult = {
   info?: { provider?: string; model?: string; cwd?: string; launch_request?: { cwd?: string; cwd_explicit?: boolean } }
   stored_session_id?: string
   session_key?: string
-  messages: Array<{ role: string; row_id?: number; archived?: boolean; display_kind?: string; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
+  messages: Array<{ role: string; row_id?: number; archived?: boolean; display_kind?: string; display_metadata?: { display_text?: string }; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
   revision?: number
   execution_generation?: number
   running?: boolean

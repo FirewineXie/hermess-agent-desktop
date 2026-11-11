@@ -2,6 +2,11 @@
 .dashboard-plugin-navigation { flex: none; display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; }
 .dashboard-plugin-navigation button { flex: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; }
 .dashboard-plugin-navigation strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-plugin-navigation { flex-wrap: wrap; }
+.dashboard-plugin-profile { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; max-width: 100%; }
+.dashboard-plugin-profile select { min-width: 0; max-width: min(280px, 100%); padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+.dashboard-plugin-switch-error { margin: 12px 24px; color: var(--danger, #b42318); }
+.dashboard-plugin-state > button { margin-top: 12px; }
 .dashboard-plugin-page { min-height: 100%; width: 100%; overflow: auto; padding: 24px; }
 .dashboard-plugin-view > .dashboard-plugin-page { flex: 1; min-height: 0; }
 .dashboard-plugin-state { margin: 24px; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
