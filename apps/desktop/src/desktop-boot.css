@@ -1,0 +1,26 @@
+/* Keep boot styles external: Tauri's inline-style hashes would block xterm's dynamic styles. */
+body { margin: 0; }
+
+.desktop-boot {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  background: #f7f9fc;
+  color: #25324a;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: center;
+}
+
+.desktop-boot-mark {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e7eeff;
+  color: #3867d6;
+  font-size: 22px;
+  font-weight: 700;
+}
