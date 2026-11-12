@@ -32,6 +32,7 @@ import { useChatConnection } from './useChatConnection'
 import { consumeChatLiveEvent, useInitialChatUsage } from './chatLiveEvents'
 import { useCommandCatalog } from './useCommandCatalog'
 import { useChatSessionDetails } from './useChatSessionDetails'
+import { useExternalChannelTurns } from './useExternalChannelTurns'
 
 export function useChatController({ backend, connected = Boolean(backend), remoteMode = false, profile, chatVisible, activeModel, language, storagePath, workspacePath, t, openChat, openModelSettings, openCommandPage, onBackgroundStarted, onCommandFinished, setSidebarOpen, setActiveModel, setModelPickerOpen, setBackend }: ChatControllerOptions) {
   const { events, nativeFiles, chat, models, diagnostics } = useDesktop()
@@ -92,6 +93,8 @@ export function useChatController({ backend, connected = Boolean(backend), remot
   const pendingBySessionRef = useRef<Record<string, { draft: string; attachments: PendingAttachment[] }>>({})
   const interruptedSessionsRef = useRef(new Set<string>())
   const turnStartedAtRef = useRef<number | null>(null)
+  const externalChannelTurns = useExternalChannelTurns({ workspace, sessionRef, sessionProfileRef, assistantRef,
+    setConversation, setAssistant, setChatStatus, language, t })
   const [serverRequests, setServerRequests] = useState<GatewayRequest[]>([])
   const serverRequest = serverRequests[0] || null
   const [clarifyDraft, setClarifyDraft] = useState<{ requestId: string; answers: Record<string, string> }>({ requestId: '', answers: {} })
@@ -153,6 +156,9 @@ export function useChatController({ backend, connected = Boolean(backend), remot
       setTurnBusy(false)
       setChatStatus(language === 'zh-CN' ? '正在重新同步会话…' : 'Resynchronizing conversation…')
     } else if (data.kind === 'message.start' && turnStartedAtRef.current == null) {
+      const startedAt = externalChannelTurns.begin(id, data.profile)
+      turnStartedAtRef.current = startedAt
+      setConversation(rows => appendMessage(rows, 'user', t('ui.channel.message.processing'), startedAt))
       retryPendingRef.current = id
       setTurnBusy(true)
     } else if ((data.kind === 'reasoning.delta' || data.kind === 'reasoning.available') && typeof data.payload?.text === 'string') {
@@ -162,6 +168,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
       assistantRef.current += data.payload.text
       setAssistant(assistantRef.current)
     } else if (data.kind === 'message.complete') {
+      const externalVersion = externalChannelTurns.complete(id, data.profile)
       const usage = data.payload?.usage
       if (usage && typeof usage === 'object' && ('context_used' in usage || 'context_max' in usage)) {
         setChatUsage(usage as ChatUsage)
@@ -186,6 +193,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
       setChatStatus(interrupted ? t("ui.requested.to.stop.current.task")
         : data.payload?.status === 'error' ? t("ui.response.failed") : t("ui.response.complete"))
       void loadSessions(true)
+      if (externalVersion != null) externalChannelTurns.sync(id, data.profile, externalVersion)
     } else if (data.kind === 'error') {
       setChatStatus(t("ui.backend.error"))
       finishCurrentTurn('failed')
@@ -214,6 +222,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
     setChatStatus(t("ui.connection.interrupted.please.check.the.connection.before.resuming.the.sess"))
     connection.dismiss()
     setConversation(finishReasoning)
+    externalChannelTurns.invalidate()
     setTurnBusy(false)
     setServerRequests([])
     setClarifyDraft({ requestId: '', answers: {} })
@@ -221,6 +230,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
 
   function finishCurrentTurn(state: 'failed' | 'interrupted') {
     setConversation(finishReasoning)
+    externalChannelTurns.invalidate()
     const startedAt = turnStartedAtRef.current
     if (startedAt == null) return
     turnStartedAtRef.current = null
@@ -544,6 +554,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
       return
     }
     if (isCommand && attachments.length && !isSkill) { setChatStatus(t("ui.please.remove.the.attachment.first.when.executing.the.command")); return }
+    externalChannelTurns.invalidate()
     assistantRef.current = ''
     setAssistant('')
     let idForSubmission = sessionRef.current
@@ -733,6 +744,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
     sessionRef.current = ''
     sessionProfileRef.current = ''
     turnStartedAtRef.current = null
+    externalChannelTurns.invalidate()
     storedSessionRef.current = ''
     setSessionId('')
     setSessionWorkspacePath('')
@@ -770,6 +782,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
       if (!current()) return false
       pendingBySessionRef.current[storedSessionRef.current] = { draft: commandResume ? '' : draft, attachments }
       turnStartedAtRef.current = null
+      externalChannelTurns.invalidate()
       sessionRef.current = result.session_id
       sessionProfileRef.current = ownerProfile
       storedSessionRef.current = result.stored_session_id || result.session_key || id
@@ -909,6 +922,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
         setCanContinue(!snapshot.running && interruptedSessionsRef.current.has(storedSessionRef.current))
         if (useSnapshot) {
           turnStartedAtRef.current = null
+          externalChannelTurns.invalidate()
           setConversation(historyTimeline(snapshot.messages, Boolean(snapshot.running)))
           assistantRef.current = snapshot.inflight?.assistant || ''
           setAssistant(assistantRef.current)
@@ -949,6 +963,7 @@ export function useChatController({ backend, connected = Boolean(backend), remot
     sessionRef.current = ''
     sessionProfileRef.current = ''
     turnStartedAtRef.current = null
+    externalChannelTurns.invalidate()
     storedSessionRef.current = ''
     setSessionId('')
     setSessionWorkspacePath('')

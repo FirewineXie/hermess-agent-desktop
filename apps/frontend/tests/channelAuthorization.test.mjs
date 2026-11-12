@@ -24,8 +24,7 @@ test('channel authorization hides the QR during saving and failure, and isolates
     const render = (profile = 'default', epoch = 'qr-test') => renderToStaticMarkup(React.createElement(DesktopProvider, { api },
       React.createElement(View, { connected: true, profile, epoch, onRestart: async () => true, onForceRestart: async () => true })))
     for (const platform of ['feishu', 'weixin']) {
-      write('active-qr', { profile: 'default', platform, qr: { id: 'fixture', poll_interval: 5 }, image: 'data:image/png;base64,fixture', access: 'open' })
-      write('access-confirmed', true)
+      write('active-qr', { profile: 'default', platform, qr: { id: 'fixture', poll_interval: 5 }, image: 'data:image/png;base64,fixture' })
       write('authorized', false)
       write('status', '等待扫码…')
       assert.match(render(), /<img[^>]*data:image\/png/)

@@ -1,6 +1,6 @@
 import React from 'react'
 import QRCode from 'qrcode'
-import type { ChannelAccess, ChannelQrStart, ChannelStatus } from '@hermess/contracts'
+import type { ChannelQrStart, ChannelStatus } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useGatewayRefresh } from '../../app/useGatewayRefresh'
 import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
@@ -43,13 +43,11 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
   const workspace = workspaceKey(epoch, profile)
   const [rows, setRows] = useProfileState<ChannelStatus[]>(workspace, [], 'channels:rows')
   const [rowsState, setRowsState] = useProfileState<RowsState>(workspace, 'loading', 'channels:rows-state')
-  const [active, setActive] = useProfileState<{ profile: string; platform: Platform; qr: ChannelQrStart; image: string; access: ChannelAccess } | null>(workspace, null, 'channels:active-qr')
+  const [active, setActive] = useProfileState<{ profile: string; platform: Platform; qr: ChannelQrStart; image: string } | null>(workspace, null, 'channels:active-qr')
   const [status, setStatus] = useProfileState(workspace, '', 'channels:status')
   const [busy, setBusy] = useProfileState(workspace, false, 'channels:busy')
   const [pendingRestart, setPendingRestart] = useProfileState(workspace, false, 'channels:pending-restart')
-  const [tick, setTick] = useProfileState(workspace, 0, 'channels:poll-tick')
   const [polling, setPolling] = useProfileState(workspace, false, 'channels:polling')
-  const [accessConfirmed, setAccessConfirmed] = useProfileState(workspace, false, 'channels:access-confirmed')
   const [pollError, setPollError] = useProfileState(workspace, false, 'channels:poll-error')
   const [authorized, setAuthorized] = useProfileState(workspace, false, 'channels:authorized')
   const restartRef = React.useRef(onRestart)
@@ -93,60 +91,67 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [active?.qr.id, polling])
   React.useEffect(() => {
-    if (!active || !accessConfirmed || pollError) return
+    if (!active || pollError) return
     let cancelled = false
-    let completing = false
-    let restartPending = false
-    const timer = window.setTimeout(async () => {
+    let timer: number | undefined
+    const poll = async () => {
       setPolling(true)
       try {
-        const result = await channels.poll(scope(active.profile), active.qr.id, active.access, () => {
+        const result = await channels.poll(scope(active.profile), active.qr.id, 'open', () => {
           if (cancelled) return
           setAuthorized(true)
           setStatus(t('ui.channels.saving'))
         })
         if (cancelled) return
         if (result.status === 'connected') {
-          completing = true
-          setActive(null)
+          setAuthorized(true)
           if (result.restart_required) {
             setBusy(true)
             setStatus(t('ui.channels.waiting.for.restart'))
-            restartPending = true
             const restarted = await restartRef.current()
+            if (cancelled) return
             if (!restarted) {
               setPendingRestart(true)
               setStatus(t('ui.channels.restart.deferred'))
               await refresh().catch(() => {})
+              if (!cancelled) setActive(null)
               return
             }
-            restartPending = false
           }
           await refresh()
-          setStatus(t(active.access === 'open' ? 'ui.channels.connected.open' : 'ui.channels.connected.pairing'))
+          if (cancelled) return
+          setStatus(t('ui.channels.connected.open'))
+          setActive(null)
         } else if (result.status === 'expired') {
           setActive(null)
           setStatus(t('ui.channels.expired'))
         } else {
           setStatus(t(result.status === 'scanned' ? 'ui.channels.scanned' : 'ui.channels.waiting'))
-          setTick(v => v + 1)
+          timer = window.setTimeout(() => { void poll() }, active.qr.poll_interval * 1000)
         }
       } catch (cause) {
-        if (!cancelled || completing) {
-          if (restartPending) setPendingRestart(true)
-          else setPollError(true)
+        if (!cancelled) {
+          setPollError(true)
           setStatus(t('ui.channels.failed.arg', describeError(cause, language)))
         }
-      } finally { if (!cancelled || completing) { if (completing) setBusy(false); setPolling(false) } }
-    }, active.qr.poll_interval * 1000)
-    return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [active, accessConfirmed, channels, language, pollError, refresh, tick])
+      } finally {
+        if (!cancelled) {
+          setBusy(false)
+          setPolling(false)
+        }
+      }
+    }
+    void poll()
+    return () => {
+      cancelled = true
+      if (timer != null) window.clearTimeout(timer)
+    }
+  }, [active?.qr.id, channels, language, pollError, refresh])
 
   async function begin(platform: Platform) {
     dialogOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setBusy(true)
     setPolling(false)
-    setAccessConfirmed(false)
     setPollError(false)
     setAuthorized(false)
     setStatus('')
@@ -155,8 +160,8 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
       if (!profile) throw new Error('No active Profile')
       const qr = await channels.start(scope(profile), platform)
       const image = await QRCode.toDataURL(qr.url, { width: 260, margin: 2 })
-      setActive({ profile, platform, qr, image, access: 'open' })
-      setStatus(t('ui.channels.access.choose'))
+      setActive({ profile, platform, qr, image })
+      setStatus(t('ui.channels.waiting'))
     } catch (cause) { setStatus(t('ui.channels.failed.arg', describeError(cause, language))) }
     finally { setBusy(false) }
   }
@@ -164,7 +169,6 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
   async function cancel() {
     setActive(null)
     setPolling(false)
-    setAccessConfirmed(false)
     setPollError(false)
     setAuthorized(false)
     setStatus('')
@@ -243,18 +247,11 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
       <div className="channel-qr" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="channel-qr-title" onKeyDown={keepFocusInside}>
         <h3 id="channel-qr-title">{active.platform === 'feishu' ? t('ui.channels.feishu.scan') : t('ui.channels.weixin.scan')}</h3>
         {!authorized && <img src={active.image} width="260" height="260" alt={t('ui.channels.qr.alt')} />}
-        <p className="channel-qr-hint">{t(authorized ? 'ui.channels.authorized' : 'ui.channels.pairing.once')}</p>
-        {!accessConfirmed ? <fieldset className="channel-access">
-          <legend>{t('ui.channels.access.title')}</legend>
-          <label data-selected={active.access === 'open'}><input type="radio" name="channel-access" checked={active.access === 'open'} onChange={() => setActive(current => current && { ...current, access: 'open' })} /><span>{t('ui.channels.access.open')}</span></label>
-          <label data-selected={active.access === 'pairing'}><input type="radio" name="channel-access" checked={active.access === 'pairing'} onChange={() => setActive(current => current && { ...current, access: 'pairing' })} /><span>{t('ui.channels.access.pairing')}</span></label>
-          <small>{t('ui.channels.access.replace')}</small>
-        </fieldset> : !authorized && <p className="channel-access-locked">{t(active.access === 'open' ? 'ui.channels.access.selected.open' : 'ui.channels.access.selected.pairing')}</p>}
+        <p className="channel-qr-hint">{t(authorized ? 'ui.channels.authorized' : 'ui.channels.scan.once')}</p>
         <p className="channel-qr-status" role="status">{status}</p>
         <div className="channel-qr-actions">
-          {!accessConfirmed && <button className="channel-qr-primary" onClick={() => { setAccessConfirmed(true); setStatus(t('ui.channels.waiting')) }}>{t('ui.channels.access.confirm')}</button>}
-          {pollError && <button className="channel-qr-primary" onClick={() => { setPollError(false); setTick(value => value + 1) }}>{t('ui.channels.retry.poll')}</button>}
-          <button disabled={polling} onClick={() => void cancel()}>{t('ui.channels.cancel')}</button>
+          {pollError && <button className="channel-qr-primary" onClick={() => setPollError(false)}>{t('ui.channels.retry.poll')}</button>}
+          <button onClick={() => void cancel()}>{t('ui.channels.cancel')}</button>
         </div>
       </div>
     </div>}
