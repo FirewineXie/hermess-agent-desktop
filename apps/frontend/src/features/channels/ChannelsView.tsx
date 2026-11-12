@@ -1,6 +1,6 @@
 import React from 'react'
 import QRCode from 'qrcode'
-import type { ChannelQrStart, ChannelStatus } from '@hermess/contracts'
+import type { ChannelAccess, ChannelQrStart, ChannelStatus } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useGatewayRefresh } from '../../app/useGatewayRefresh'
 import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
@@ -43,7 +43,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
   const workspace = workspaceKey(epoch, profile)
   const [rows, setRows] = useProfileState<ChannelStatus[]>(workspace, [], 'channels:rows')
   const [rowsState, setRowsState] = useProfileState<RowsState>(workspace, 'loading', 'channels:rows-state')
-  const [active, setActive] = useProfileState<{ profile: string; platform: Platform; qr: ChannelQrStart; image: string } | null>(workspace, null, 'channels:active-qr')
+  const [active, setActive] = useProfileState<{ profile: string; platform: Platform; qr: ChannelQrStart; image: string; access: ChannelAccess | null } | null>(workspace, null, 'channels:active-qr')
   const [status, setStatus] = useProfileState(workspace, '', 'channels:status')
   const [busy, setBusy] = useProfileState(workspace, false, 'channels:busy')
   const [pendingRestart, setPendingRestart] = useProfileState(workspace, false, 'channels:pending-restart')
@@ -91,13 +91,14 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [active?.qr.id, polling])
   React.useEffect(() => {
-    if (!active || pollError) return
+    if (!active?.access || pollError) return
+    const access = active.access
     let cancelled = false
     let timer: number | undefined
     const poll = async () => {
       setPolling(true)
       try {
-        const result = await channels.poll(scope(active.profile), active.qr.id, 'open', () => {
+        const result = await channels.poll(scope(active.profile), active.qr.id, access, () => {
           if (cancelled) return
           setAuthorized(true)
           setStatus(t('ui.channels.saving'))
@@ -120,7 +121,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
           }
           await refresh()
           if (cancelled) return
-          setStatus(t('ui.channels.connected.open'))
+          setStatus(t(access === 'open' ? 'ui.channels.connected.open' : 'ui.channels.connected.pairing'))
           setActive(null)
         } else if (result.status === 'expired') {
           setActive(null)
@@ -146,7 +147,7 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
       cancelled = true
       if (timer != null) window.clearTimeout(timer)
     }
-  }, [active?.qr.id, channels, language, pollError, refresh])
+  }, [active?.qr.id, active?.access, channels, language, pollError, refresh])
 
   async function begin(platform: Platform) {
     dialogOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -160,8 +161,8 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
       if (!profile) throw new Error('No active Profile')
       const qr = await channels.start(scope(profile), platform)
       const image = await QRCode.toDataURL(qr.url, { width: 260, margin: 2 })
-      setActive({ profile, platform, qr, image })
-      setStatus(t('ui.channels.waiting'))
+      setActive({ profile, platform, qr, image, access: null })
+      setStatus(t('ui.channels.access.choose'))
     } catch (cause) { setStatus(t('ui.channels.failed.arg', describeError(cause, language))) }
     finally { setBusy(false) }
   }
@@ -248,6 +249,11 @@ export default function ChannelsView({ connected, profile, epoch, onRestart, onF
         <h3 id="channel-qr-title">{active.platform === 'feishu' ? t('ui.channels.feishu.scan') : t('ui.channels.weixin.scan')}</h3>
         {!authorized && <img src={active.image} width="260" height="260" alt={t('ui.channels.qr.alt')} />}
         <p className="channel-qr-hint">{t(authorized ? 'ui.channels.authorized' : 'ui.channels.scan.once')}</p>
+        {active.access == null ? <fieldset className="channel-access">
+          <legend>{t('ui.channels.access.title')}</legend>
+          <label><input type="radio" name="channel-access" onChange={() => { setActive(current => current && { ...current, access: 'pairing' }); setStatus(t('ui.channels.waiting')) }} /><span>{t('ui.channels.access.pairing')}</span></label>
+          <label><input type="radio" name="channel-access" onChange={() => { setActive(current => current && { ...current, access: 'open' }); setStatus(t('ui.channels.waiting')) }} /><span>{t('ui.channels.access.open')}</span></label>
+        </fieldset> : !authorized && <p className="channel-access-locked">{t(active.access === 'open' ? 'ui.channels.access.selected.open' : 'ui.channels.access.selected.pairing')}</p>}
         <p className="channel-qr-status" role="status">{status}</p>
         <div className="channel-qr-actions">
           {pollError && <button className="channel-qr-primary" onClick={() => setPollError(false)}>{t('ui.channels.retry.poll')}</button>}

@@ -22,7 +22,7 @@ test('every channel dialog traps focus, supports escape, and restores its opener
   assert.equal([...other.matchAll(/role="dialog"/g)].length, [...other.matchAll(/onKeyDown=\{handleDialogKeyDown\}/g)].length)
 })
 
-test('featured channel QR starts polling immediately without a second confirmation step', async () => {
+test('featured channel QR chooses access once and starts polling without a second confirmation step', async () => {
   const [channels, css, localeText] = await Promise.all([
     readFile(channelsViewUrl, 'utf8'),
     readFile(channelsCssUrl, 'utf8'),
@@ -31,8 +31,10 @@ test('featured channel QR starts polling immediately without a second confirmati
   const locale = JSON.parse(localeText)
 
   assert.match(css, /\.channel-qr \{[^}]*overflow-x: hidden;/)
-  assert.doesNotMatch(channels, /accessConfirmed|channels\.access\.confirm|type="radio"/)
-  assert.match(channels, /channels\.poll\(scope\(active\.profile\), active\.qr\.id, 'open'/)
+  assert.doesNotMatch(channels, /accessConfirmed|channels\.access\.confirm/)
+  assert.match(channels, /type="radio"/)
+  assert.match(channels, /channels\.poll\(scope\(active\.profile\), active\.qr\.id, access/)
+  assert.match(channels, /if \(!active\?\.access \|\| pollError\) return/)
   assert.match(channels, /void poll\(\)/)
   assert.equal(locale['ui.channels.scan.once'], '只需扫描这一个二维码；页面会自动检查登录结果。')
 })
