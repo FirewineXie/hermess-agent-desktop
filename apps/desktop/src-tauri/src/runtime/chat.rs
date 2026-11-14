@@ -483,9 +483,6 @@ pub async fn list_chat_sessions(
 ) -> Result<Value, DesktopFailure> {
     let gateway = state.resolve_chat_profile(&profile).await?.gateway;
     let live = gateway.request("session.list", json!({"limit":50})).await?;
-    if state.5.lock().await.is_some() {
-        return Ok(live);
-    }
     let stored = gateway
         .request("session.list", json!({"limit":50,"scope":"stored"}))
         .await?;
@@ -763,7 +760,7 @@ async fn settle_delete_mutation<G: SessionDeleteGateway>(
     Ok(deleted)
 }
 
-fn merge_session_lists(live: &Value, stored: &Value) -> Value {
+pub(super) fn merge_session_lists(live: &Value, stored: &Value) -> Value {
     let mut sessions = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for row in live

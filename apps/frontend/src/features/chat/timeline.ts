@@ -8,17 +8,29 @@ export type ToolStep = {
   context?: string
   args?: Record<string, unknown>
   summary?: string
+  imagePath?: string
   error?: string
   duration?: number
+  progress?: { percent?: number; value?: number; total?: number; message?: string }
+  riskFindings?: string[]
   state: 'running' | 'finished' | 'failed' | 'recorded'
 }
 
 export type TimelineItem =
-  | { kind: 'message'; role: 'user' | 'assistant'; text: string; attachments?: SentAttachment[]; media?: string[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
+  | { kind: 'message'; role: 'user' | 'assistant'; text: string; rowId?: number; attachments?: SentAttachment[]; media?: string[]; startedAt?: number; duration?: number; estimated?: boolean; turnState?: 'completed' | 'failed' | 'interrupted' }
   | { kind: 'tools'; steps: ToolStep[] }
   | { kind: 'reasoning'; text: string; streaming: boolean; expanded: boolean }
+  | { kind: 'task-notice'; task: 'subagent' | 'process'; title?: string; text: string }
 
 type HistoryRow = ResumeResult['messages'][number]
+
+export function historyRowId(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
+}
+
+export function actionableHistoryRow(row: HistoryRow): number | undefined {
+  return !row.archived && ['', 'steer'].includes(row.display_kind ?? '') ? historyRowId(row.row_id) : undefined
+}
 
 function contentText(content: unknown): string {
   if (typeof content === 'string') return content
@@ -61,8 +73,21 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
   let pendingUserTimestamp: number | undefined
   for (const row of rows) {
     const text = historyText(row)
+    if (row.role === 'user' && ['hidden', 'internal_notification'].includes(row.display_kind || '')) {
+      pendingUserIndex = -1
+      pendingUserTimestamp = undefined
+      continue
+    }
+    if (row.role === 'user' && ['async_delegation_complete', 'process_complete'].includes(row.display_kind || '')) {
+      items.push({ kind: 'task-notice', task: row.display_kind === 'async_delegation_complete' ? 'subagent' : 'process',
+        title: row.display_metadata?.display_text, text })
+      pendingUserIndex = -1
+      pendingUserTimestamp = undefined
+      continue
+    }
     const media = historyMedia(row.content)
     const mediaFields = media.length ? { media } : {}
+    const rowId = actionableHistoryRow(row)
     if (row.role === 'tool') {
       items = appendTool(items, {
         id: row.tool_call_id || `history-${items.length}-${row.tool_name || row.name || 'tool'}`,
@@ -74,7 +99,7 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
         ? row.timestamp : undefined
       pendingUserIndex = items.length
       pendingUserTimestamp = timestamp
-      items = [...items, { kind: 'message', role: 'user', text, ...mediaFields, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
+      items = [...items, { kind: 'message', role: 'user', text, rowId, ...mediaFields, startedAt: timestamp == null ? undefined : timestamp * 1000, estimated: true }]
     } else if (row.role === 'assistant') {
       const thinking = reasoningText(row)
       if (!text.trim() && !thinking && !media.length) continue
@@ -87,7 +112,7 @@ export function historyTimeline(rows: HistoryRow[], running = false): TimelineIt
         }
       }
       if (thinking) items = [...items, { kind: 'reasoning', text: thinking, streaming: false, expanded: false }]
-      if (text.trim() || media.length) items = [...items, { kind: 'message', role: 'assistant', text, ...mediaFields }]
+      if (text.trim() || media.length) items = [...items, { kind: 'message', role: 'assistant', text, rowId, ...mediaFields }]
     }
   }
   return items
@@ -151,25 +176,55 @@ export function updateTool(items: TimelineItem[], kind: 'tool.start' | 'tool.com
   const args = payload.args && typeof payload.args === 'object' && !Array.isArray(payload.args)
     ? payload.args as Record<string, unknown> : undefined
   const error = kind === 'tool.complete' ? toolError(payload.result, payload.summary) : undefined
+  const image = payload.image_path
   const step: ToolStep = {
     id: id || `${name}-${items.length}`, name,
     context: typeof payload.context === 'string' ? payload.context : undefined,
     args,
     summary: typeof payload.summary === 'string' ? payload.summary : undefined,
+    imagePath: kind === 'tool.complete' && !error && typeof image === 'string' && image.trim()
+      && !image.includes('://') && !/^data:/i.test(image) ? image : undefined,
     error,
     duration: typeof payload.duration_s === 'number' ? payload.duration_s : undefined,
     state: kind === 'tool.start' ? 'running' : error ? 'failed' : 'finished',
   }
-  if (id) {
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i]
-      if (item.kind !== 'tools') continue
-      const at = item.steps.findIndex(existing => existing.id === id)
-      if (at === -1) continue
-      const steps = [...item.steps]
-      steps[at] = { ...steps[at], ...step, context: step.context || steps[at].context, args: step.args || steps[at].args }
-      return items.map((current, index) => index === i ? { kind: 'tools', steps } : current)
-    }
+  const updated = changeToolStep(items, id, previous => ({
+    ...previous, ...step, context: step.context || previous.context, args: step.args || previous.args,
+  }))
+  return updated === items ? appendTool(items, step) : updated
+}
+
+function changeToolStep(items: TimelineItem[], id: string, change: (step: ToolStep) => ToolStep): TimelineItem[] {
+  if (!id) return items
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.kind !== 'tools') continue
+    const at = item.steps.findIndex(step => step.id === id)
+    if (at < 0) continue
+    const next = change(item.steps[at])
+    if (next === item.steps[at]) return items
+    const steps = item.steps.map((step, position) => position === at ? next : step)
+    return items.map((current, position) => position === index ? { kind: 'tools', steps } : current)
   }
-  return appendTool(items, step)
+  return items
+}
+
+function finite(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+export function updateToolActivity(items: TimelineItem[], kind: 'tool.progress' | 'tool.output_risk', payload: Record<string, unknown>): TimelineItem[] {
+  if (typeof payload.tool_id !== 'string') return items
+  if (kind === 'tool.output_risk') {
+    if (payload.risk !== 'high') return items
+    const findings = Array.isArray(payload.findings)
+      ? payload.findings.filter((value): value is string => typeof value === 'string').slice(0, 20)
+      : []
+    return changeToolStep(items, payload.tool_id, step => ({ ...step, riskFindings: findings }))
+  }
+  const progress = {
+    value: finite(payload.progress), total: finite(payload.total), percent: finite(payload.percent),
+    message: typeof payload.message === 'string' ? payload.message.slice(0, 400) : undefined,
+  }
+  return changeToolStep(items, payload.tool_id, step => step.state === 'running' ? { ...step, progress } : step)
 }

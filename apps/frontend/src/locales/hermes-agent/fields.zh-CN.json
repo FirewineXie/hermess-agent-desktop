@@ -664,7 +664,7 @@
     "label": "辅助模型 / 视觉 / 下载超时"
   },
   "auxiliary.compression.provider": {
-    "label": "辅助模型 / 压缩 / 提供方"
+    "label": "辅助模型 / 压缩模型 / 提供方"
   },
   "auxiliary.compression.model": {
     "label": "辅助模型 / 压缩 / 模型"
@@ -784,7 +784,7 @@
     "label": "辅助模型 / 标题生成 / 语言"
   },
   "auxiliary.memory_query_rewrite.provider": {
-    "label": "辅助模型 / 内存查询重写 / 提供方"
+    "label": "辅助模型 / 记忆检索改写 / 提供方"
   },
   "auxiliary.memory_query_rewrite.model": {
     "label": "辅助模型 / 内存查询重写 / 模型"
@@ -799,7 +799,7 @@
     "label": "辅助模型 / 内存查询重写 / 超时"
   },
   "auxiliary.tts_audio_tags.provider": {
-    "label": "辅助模型 / 语音合成 音频标签 / 提供商"
+    "label": "辅助模型 / Gemini TTS 音频标签 / 提供方"
   },
   "auxiliary.tts_audio_tags.model": {
     "label": "辅助模型 / 语音合成音频标签 / 模型"
@@ -889,7 +889,7 @@
     "label": "辅助模型 / 概要描述 / 推理工作"
   },
   "auxiliary.goal_judge.provider": {
-    "label": "辅助模型 / 进球裁判 / 提供方"
+    "label": "辅助模型 / 目标判定 / 提供方"
   },
   "auxiliary.goal_judge.model": {
     "label": "辅助模型 / 进球裁判 / 模型"
@@ -925,7 +925,7 @@
     "label": "辅助模型 / 记忆整理器 / 推理强度"
   },
   "auxiliary.monitor.provider": {
-    "label": "辅助模型 / 监控 / 提供方"
+    "label": "辅助模型 / 邮件监控评分 / 提供方"
   },
   "auxiliary.monitor.model": {
     "label": "辅助模型 / 监控 / 模型"
@@ -946,7 +946,10 @@
     "label": "辅助模型 / 后台审核 / 已启用"
   },
   "auxiliary.background_review.provider": {
-    "label": "辅助模型 / 背景审查 / 提供方"
+    "label": "辅助模型 / 后台自我改进 / 提供方"
+  },
+  "auxiliary.group_router.provider": {
+    "label": "辅助模型 / 群聊自动路由 / 提供方"
   },
   "auxiliary.background_review.model": {
     "label": "辅助模型 / 背景审查 / 模型"

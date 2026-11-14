@@ -1,4 +1,8 @@
-use super::{config::config_request_for_scope, BackendState};
+use super::{
+    config::{config_request_for_scope, CONFIG_WRITE_LOCK},
+    BackendState,
+};
+use crate::diagnostics::append_client_event;
 use crate::errors::DesktopFailure;
 use serde_json::{json, Value};
 use tauri::State;
@@ -195,6 +199,76 @@ pub async fn save_delegation_routing(
     )
     .await?;
     Ok(json!({"routing":public_routing(routing),"activated":activated}))
+}
+
+const CONFIG_PATH: &str = "/api/config";
+
+fn delegation_model_request(provider: &str, model: &str) -> Result<Value, DesktopFailure> {
+    let provider = provider.trim();
+    let model = model.trim();
+    // An empty provider inherits the parent credentials; "auto" would resolve a provider.
+    if provider.eq_ignore_ascii_case("auto")
+        || provider.len() > 128
+        || model.len() > 256
+        || provider.chars().chain(model.chars()).any(char::is_control)
+    {
+        return Err(DesktopFailure::invalid_input());
+    }
+    Ok(json!({"config": {"delegation": {"provider": provider, "model": model}}}))
+}
+
+#[tauri::command]
+pub async fn save_delegation_model(
+    state: State<'_, BackendState>,
+    profile: String,
+    provider: String,
+    model: String,
+) -> Result<Value, DesktopFailure> {
+    let body = delegation_model_request(&provider, &model)?;
+    let scope = state.resolve_profile(&profile).await?;
+    let _guard = CONFIG_WRITE_LOCK.lock().await;
+    let operation = uuid::Uuid::new_v4();
+    let log = |stage: &str, outcome: &str| {
+        let _ = append_client_event(
+            &scope.storage,
+            &format!("delegation_model_save operation={operation} profile={profile} stage={stage} outcome={outcome}"),
+        );
+    };
+    log("write", "started");
+    let expected = body["config"]["delegation"].clone();
+    let mut stage = "write";
+    let result = async {
+        let response = config_request_for_scope(
+            &state,
+            &scope,
+            reqwest::Method::PUT,
+            CONFIG_PATH,
+            Some(body),
+        )
+        .await?;
+        if response["ok"] != true {
+            return Err(DesktopFailure::operation_failed());
+        }
+        stage = "verify";
+        let saved =
+            config_request_for_scope(&state, &scope, reqwest::Method::GET, CONFIG_PATH, None)
+                .await?;
+        let route = &saved["delegation"];
+        if route["provider"] != expected["provider"] || route["model"] != expected["model"] {
+            return Err(DesktopFailure::operation_failed());
+        }
+        Ok(expected)
+    }
+    .await;
+    log(
+        stage,
+        if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        },
+    );
+    result
 }
 
 #[cfg(test)]

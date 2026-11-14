@@ -49,6 +49,7 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert any(name == "/agents" for name, _ in catalog["pairs"]), catalog
         assert any(name == "/queue" for name, _ in catalog["pairs"]), catalog
         assert "pending" in catalog["commands"]["/skills"]["desktop_subcommands"], catalog
+        assert set(catalog["sub"]["/browser"]) == {"connect", "disconnect", "status"}
         assert catalog["sub"].get("/reasoning") or catalog["sub"].get("reasoning"), catalog.keys()
         # /agents uses this read-only, session-owned roster instead of CLI process output.
         roster = await call("subagent.list", session_id=session_id)
@@ -64,9 +65,9 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
         assert "error" in missing_skill_session, missing_skill_session
         browser_status = await call("browser.manage", session_id=session_id, action="status")
         assert isinstance(browser_status["connected"], bool), browser_status
-        browser_use = await call("browser.manage", session_id=session_id, action="use", enabled=False)
-        assert browser_use["browser_use"] is False, browser_use
-        await call("browser.manage", session_id=session_id, action="use", enabled=True)
+        assert "browser_use" not in browser_status, browser_status
+        retired_browser_action = await rpc(ws, "browser.manage", session_id=session_id, action="use", enabled=False)
+        assert "error" in retired_browser_action, retired_browser_action
         cdp = ThreadingHTTPServer(("127.0.0.1", 0), CdpProbe)
         cdp_thread = threading.Thread(target=cdp.serve_forever, daemon=True)
         cdp_thread.start()
@@ -99,6 +100,8 @@ async def verify(home: Path, desc: dict, peer: ThreadingHTTPServer) -> None:
             named = await named_call("session.create", source="gui",
                                      request_id="desktop-named-composer-test", cwd=str(home), toolsets=[])
             named_id = named["session_id"]
+            named_browser = await named_call("browser.manage", session_id=named_id, action="status")
+            assert named_browser["connected"] is False and "browser_use" not in named_browser, named_browser
             named_roster = await named_call("subagent.list", session_id=named_id)
             assert named_roster["subagents"] == [] and named_roster["delegations"] == [], named_roster
             named_mcp = await named_call("reload.mcp", session_id=named_id, confirm=True)

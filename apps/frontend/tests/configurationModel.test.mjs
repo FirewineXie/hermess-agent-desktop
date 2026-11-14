@@ -1,15 +1,30 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {fieldOwner,pageFields,editableField,parseField,allowlistFromText} from '../src/features/configuration/model.ts'
+import {fieldOwner,pageFields,editableField,visibleSchemaFields,parseField,allowlistFromText} from '../src/features/configuration/model.ts'
 
-test('every runtime field has one owner and unknown fields remain discoverable',()=>{
-  const mapping={'command_allowlist':'security-approvals','security.approval.transport':'security-approvals','approvals.mode':'security-approvals','security.redact_secrets':'security-privacy','telemetry.shared_metrics.enabled':'security-privacy','checkpoints.enabled':'security-checkpoints','terminal.timeout':'advanced-terminal','tool_output.limit':'advanced-output','agent.max_turns':'advanced-runtime','toolsets':'advanced-tools','agent.tool_use_enforcement':'advanced-tools','future.new_field':'advanced-config','delegation.backend':'delegation','auxiliary.compression.model':'memory-context','memory.provider':'memory-persistent','agent.reasoning_effort':'main','fallback_providers':'fallbacks'}
+test('visible runtime fields have one owner and unknown fields remain discoverable',()=>{
+  const mapping={'command_allowlist':'security-approvals','security.approval.transport':'security-approvals','approvals.mode':'security-approvals','security.redact_secrets':'security-privacy','checkpoints.enabled':'security-checkpoints','terminal.timeout':'advanced-terminal','tool_output.limit':'advanced-output','agent.max_turns':'advanced-runtime','toolsets':'advanced-tools','agent.tool_use_enforcement':'advanced-tools','future.new_field':'advanced-config','delegation.backend':'delegation','delegation.model':'auxiliary','delegation.provider':'auxiliary','auxiliary.compression.model':'auxiliary','auxiliary.compression.no_progress_timeout':'memory-context','memory.provider':'memory-persistent','agent.reasoning_effort':'main','fallback_providers':'fallbacks'}
   for(const [key,owner] of Object.entries(mapping)) assert.equal(fieldOwner(key),owner,key)
 })
 
-test('specialized consent, sensitive and unsupported fields cannot use the generic editor',()=>{
-  const fields={'security.redact_secrets':{type:'boolean'},'telemetry.shared_metrics.enabled':{type:'boolean'},'telemetry.shared_metrics.send':{type:'boolean'},'telemetry.shared_metrics.offer_version':{type:'number'},'security.token':{type:'string'},'security.future':{type:'unknown'}}
-  assert.deepEqual(pageFields({fields,category_order:[]},'security-privacy').map(([key])=>key),['security.redact_secrets'])
+test('Hermes shared metrics are hidden while other settings retain their existing visibility',()=>{
+  const fields={
+    'security.redact_secrets':{type:'boolean'},
+    'security.token':{type:'string'},
+    'security.future':{type:'unknown'},
+    'telemetry.shared_metrics':{type:'object'},
+    'telemetry.shared_metrics.enabled':{type:'boolean'},
+    'telemetry.shared_metrics.send':{type:'boolean'},
+    'telemetry.shared_metrics.endpoint':{type:'string'},
+    'telemetry.shared_metrics.offer_version':{type:'number'},
+    'telemetry.other_metrics.enabled':{type:'boolean'},
+  }
+  const schema={fields,category_order:[]}
+  assert.deepEqual(visibleSchemaFields(schema).map(([key])=>key),[
+    'security.redact_secrets','security.token','security.future','telemetry.other_metrics.enabled',
+  ])
+  assert.deepEqual(pageFields(schema,'security-privacy').map(([key])=>key),['security.redact_secrets'])
+  assert.deepEqual(pageFields(schema,'advanced-config').map(([key])=>key),['telemetry.other_metrics.enabled'])
   assert.equal(editableField('new.secret',{type:'string'}),false)
 })
 

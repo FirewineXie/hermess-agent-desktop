@@ -24,6 +24,7 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/reload-mcp extra",
         "/reload-skills extra",
         "/browser connect http://127.0.0.1:9222",
+        "/browser use off",
     ] {
         assert!(!allowed(&catalog, command), "{command}");
     }
@@ -41,7 +42,6 @@ fn desktop_policy_rejects_host_actions_and_alias_bypasses() {
         "/reload-mcp",
         "/reload-skills",
         "/browser status",
-        "/browser use off",
     ] {
         assert!(allowed(&catalog, command), "{command}");
     }

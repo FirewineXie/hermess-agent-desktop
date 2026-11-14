@@ -1,4 +1,4 @@
-use super::{moa_path, valid_moa_config};
+use super::{chat_model_mutation, chat_model_payload, moa_path, valid_moa_config};
 use serde_json::json;
 
 #[cfg(windows)]
@@ -81,4 +81,28 @@ fn rejects_invalid_slots() {
     let mut invalid = config();
     invalid["presets"]["default"]["reference_models"][0]["model"] = json!("");
     assert!(!valid_moa_config(&invalid));
+}
+#[test]
+#[ignore = "run by the isolated locked Gateway receiver probe"]
+fn print_production_gateway_feature_model() {
+    for (id, provider, model) in [
+        ("model-override", Some("custom"), "desktop-model-override"),
+        ("model-reset", None, "reset"),
+        ("model-reset-invalid", Some("custom"), "reset"),
+    ] {
+        let payload = chat_model_payload(provider, model, None).unwrap();
+        let params = chat_model_mutation(
+            "fixture",
+            id,
+            &serde_json::json!({
+                "revision": 0, "execution_generation": 0,
+            }),
+            payload,
+        )
+        .unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            serde_json::json!({"id": id, "method": "session.mutate", "params": params})
+        );
+    }
 }

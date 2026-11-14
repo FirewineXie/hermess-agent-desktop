@@ -4,6 +4,8 @@ import type { ModelPick, SavedModel } from '../models/model'
 import { localizeAppMessage } from '../../i18n'
 import type { useChatController } from './useChatController'
 import GatewayRequestCard from './components/GatewayRequestCard'
+import ChatConnectionCard from './components/ChatConnectionCard'
+import ChatSessionDetails from './components/ChatSessionDetails'
 import MessageList from './components/MessageList'
 import { ChatMediaProvider } from './ChatMediaContext'
 import AttachmentQueue from './components/AttachmentQueue'
@@ -12,6 +14,7 @@ import ContextUsageIndicator from './components/ContextUsageIndicator'
 import ModelPicker from './components/ModelPicker'
 import { clipboardImages } from './clipboardImages'
 import RollbackDialog from './components/RollbackDialog'
+import HistoryActionDialog, { type HistorySelection } from './components/HistoryActionDialog'
 import { SubagentPanelForSession } from './components/SubagentPanel'
 
 type Picker = {
@@ -33,6 +36,7 @@ type Picker = {
   setPickerModelInput: React.Dispatch<React.SetStateAction<string>>
   openModelPicker: (refresh?: boolean) => Promise<void>
   pickModel: (provider: string, model: string, remember?: boolean, confirm?: string) => Promise<void>
+  restoreDefaultModel: () => Promise<void>
 }
 
 type Props = {
@@ -78,23 +82,41 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
     setDraftCaret, draftInputRef, conversation, assistant, chatStatus, turnBusy, canContinue, navigationBusy,
     serverRequest, clarifyAnswers, setClarifyAnswer, attachments, attachmentBusy,
     draggingFiles, trigger, choices, answerRequest, changeReasoning, chooseCommand,
-    chooseAttachments, pasteImages, removeAttachment, sendMessage, interruptSession, sideQuestions, dismissSideQuestion, reasoningEffort,
+    chooseAttachments, pasteImages, removeAttachment, sendMessage, queueDraft, interruptSession, sideQuestions, dismissSideQuestion, reasoningEffort,
     reasoningBusy, reasoningLoadFailed, chatUsage, rollback,
   } = controller
   const {
     modelButtonRef, modelPickerRef, pickerPosition, modelPickerOpen, setModelPickerOpen,
     activeModel, savedModel, pickerBusy, pickerError, pickerConfirmation, pickerProviders,
     pickerProvider, setPickerProvider, pickerModels, pickerModelInput, setPickerModelInput,
-    openModelPicker, pickModel,
+    openModelPicker, pickModel, restoreDefaultModel,
   } = picker
   const contentRef = React.useRef<HTMLDivElement>(null)
   const panelRef = React.useRef<HTMLElement>(null)
+  const [historySelection, setHistorySelection] = React.useState<{ scopeKey: string; selection: HistorySelection } | null>(null)
+  const mediaScope = controller.mediaScope
+  const historyScopeKey = mediaScope && JSON.stringify([mediaScope.gatewayEpoch, mediaScope.profile, mediaScope.sessionId])
+  const historyEnabled = Boolean(active && connected && mediaScope && !turnBusy && !navigationBusy && !attachmentBusy && !reasoningBusy && !pickerBusy)
   const followMessagesRef = React.useRef(true)
   const lastUserCountRef = React.useRef(0)
   const lastScrollKeyRef = React.useRef(scrollKey)
+  const connectionCardRef = React.useRef<HTMLDivElement>(null)
+  const connectionOp = controller.connection.snapshot?.op_id
   const scrollPositionsRef = React.useRef(new Map<string, { top: number; follow: boolean }>())
   const userCount = conversation.filter(item => item.kind === 'message' && item.role === 'user').length
-  const hasSubmission = Boolean(draft.trim() || attachments.length)
+  const message = draft.trim()
+  const hasSubmission = Boolean(message || attachments.length)
+  const busyCommand = /^\/(steer|queue|btw|bg)(?:\s|$)/.exec(message)?.[1]
+  const busyPlainText = Boolean(message && !message.startsWith('/'))
+  const [busyActionPending, setBusyActionPending] = React.useState(false)
+  const busyActionsAvailable = Boolean(sessionId && !navigationBusy)
+  const busyActionDisabled = !connected || !busyActionsAvailable || attachmentBusy || reasoningBusy || !!attachments.length || busyActionPending
+  const submitBusyAction = async (queue = false) => {
+    if (busyActionDisabled) return
+    setBusyActionPending(true)
+    try { await (queue ? queueDraft() : sendMessage()) }
+    finally { setBusyActionPending(false) }
+  }
 
   React.useLayoutEffect(() => {
     const content = contentRef.current
@@ -106,7 +128,13 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
     } else if (userCount !== lastUserCountRef.current) followMessagesRef.current = true
     lastUserCountRef.current = userCount
     if (content && followMessagesRef.current) content.scrollTop = content.scrollHeight
-  }, [conversation, assistant, serverRequest, sideQuestions, scrollKey, userCount])
+  }, [conversation, assistant, serverRequest, sideQuestions, controller.connection.snapshot, scrollKey, userCount])
+
+  React.useLayoutEffect(() => {
+    if (active && connectionOp && !controller.connection.snapshot?.settled) {
+      connectionCardRef.current?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [active, connectionOp])
 
   const empty = conversation.length === 0 && !assistant && !sessionId
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
@@ -151,7 +179,23 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
         followMessagesRef.current = content.scrollHeight - content.scrollTop - content.clientHeight < 48
         scrollPositionsRef.current.set(lastScrollKeyRef.current, { top: content.scrollTop, follow: followMessagesRef.current })
       }}>
-      {!empty && <ChatMediaProvider scope={controller.mediaScope}><MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t} /></ChatMediaProvider>}
+      {!empty && <ChatMediaProvider scope={mediaScope}><MessageList messages={conversation} assistant={assistant} turnBusy={turnBusy} language={language} t={t}
+        editBlocked={Boolean(draft.trim() || attachments.length)} onHistoryAction={historyEnabled && historyScopeKey ? selection => setHistorySelection({ scopeKey: historyScopeKey, selection }) : undefined} /></ChatMediaProvider>}
+      {active && mediaScope && historySelection?.scopeKey === historyScopeKey && <HistoryActionDialog
+        selection={historySelection.selection} scope={mediaScope} language={language} onClose={() => setHistorySelection(null)}
+        onApplied={async (id, edited) => {
+          if (controller.sessionRef.current !== mediaScope.sessionId || controller.sessionProfileRef.current !== mediaScope.profile) return false
+          const opened = await controller.resumeSession(id, edited != null, mediaScope.gatewayEpoch, mediaScope.profile)
+          void controller.loadSessions(true)
+          if (!opened) return false
+          if (edited != null) {
+            setDraft(edited)
+            controller.setChatStatus(language === 'zh-CN' ? '已回退会话。检查编辑内容后发送。' : 'Conversation rewound. Review the edited draft and send it.')
+            requestAnimationFrame(() => draftInputRef.current?.focus())
+          }
+          setHistorySelection(null)
+          return true
+        }} />}
       {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>
         <div className="side-question-header"><strong>{language === 'zh-CN' ? '顺带提问' : 'Side question'}</strong><span>{item.status === 'running' ? language === 'zh-CN' ? '回答中' : 'Answering' : item.status === 'unknown' ? language === 'zh-CN' ? '结果待确认' : 'Result uncertain' : item.status === 'failed' ? language === 'zh-CN' ? '失败' : 'Failed' : language === 'zh-CN' ? '已完成' : 'Complete'}</span><button type="button" onClick={() => dismissSideQuestion(item.taskId, item.profile, item.sessionId)} aria-label={language === 'zh-CN' ? '关闭旁路提问卡片' : 'Dismiss side question'}>×</button></div>
         <p>{item.question}</p>{item.answer && <div className="side-question-answer">{item.answer}</div>}
@@ -159,9 +203,13 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
       {serverRequest && <GatewayRequestCard key={serverRequest.id} request={serverRequest} answers={clarifyAnswers} t={t}
         onAnswerChange={setClarifyAnswer}
         onSubmit={(choice, supplements) => void answerRequest(choice, supplements)} />}
-      </div>
+      {controller.connection.snapshot && <div ref={connectionCardRef}><ChatConnectionCard key={controller.connection.snapshot.op_id}
+        snapshot={controller.connection.snapshot} language={language} onAction={controller.connection.run}
+        onDismiss={controller.connection.dismiss} /></div>}
+      <ChatSessionDetails details={controller.sessionDetails} zh={language === 'zh-CN'} />
       {sessionId && !remoteMode && <SubagentPanelForSession key={`${controller.sessionProfileRef.current}\u0000${sessionId}`}
         profile={controller.sessionProfileRef.current} sessionId={sessionId} active={active && backend} language={language} />}
+      </div>
       <div className="composer-wrap"><div className="composer">
         <textarea ref={draftInputRef} value={draft} disabled={navigationBusy} onChange={event => { setDraft(event.target.value); setDraftCaret(event.target.selectionStart); setActiveChoice(0) }}
          onSelect={event => setDraftCaret(event.currentTarget.selectionStart)}
@@ -183,7 +231,9 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
             event.preventDefault()
             if (event.repeat) return
             if (choices.length) chooseCommand(choices[activeChoice] || choices[0])
-            else if ((!turnBusy || draft.trim() === '/stop' || /^\/(?:steer|queue|btw|bg)(?:\s|$)/.test(draft.trim())) && !attachmentBusy && !reasoningBusy && (draft.trim() || attachments.length)) void sendMessage()
+            else if ((!turnBusy && !busyActionPending || message === '/stop') && !attachmentBusy && !reasoningBusy && hasSubmission) void sendMessage()
+            else if (turnBusy && busyPlainText) void submitBusyAction(true)
+            else if (turnBusy && busyCommand) void submitBusyAction()
           } else if (choices.length && event.key === 'Escape') {
             setDraft(value => `${value} `)
           }
@@ -208,27 +258,27 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
           </select>
         </label>}
         {!remoteMode && <button ref={modelButtonRef} className="secondary-button composer-model-button" disabled={!connected || turnBusy || navigationBusy} aria-haspopup="dialog" aria-expanded={modelPickerOpen} onClick={() => modelPickerOpen ? setModelPickerOpen(false) : void openModelPicker()}>{activeModel?.model || savedModel?.model || t("ui.select.model")}</button>}
-        {turnBusy ? /^\/steer(?:\s|$)/.test(draft.trim())
-          ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/steer\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '插入' : 'Steer'}</button>
-          : /^\/queue(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '队列' : 'Queue'}</button>
-          : /^\/bg(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/bg\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '后台' : 'Background'}</button>
-          : /^\/btw(?:\s|$)/.test(draft.trim())
-            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !!attachments.length || !/^\/btw\s+\S/.test(draft.trim())} onClick={() => void sendMessage()}>{language === 'zh-CN' ? '旁问' : 'Ask'}</button>
-          : <button className="composer-submit" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
+        {turnBusy ? <div className="composer-submit composer-busy-actions" role="group" aria-label={language === 'zh-CN' ? '运行中操作' : 'Running turn actions'}>
+          {busyActionsAvailable && (busyCommand === 'bg' || busyCommand === 'btw') && <button type="button" className="secondary-button" disabled={busyActionDisabled || !/^\/(bg|btw)\s+\S/.test(message)} onClick={() => void submitBusyAction()}>
+            {busyCommand === 'bg' ? language === 'zh-CN' ? '后台' : 'Background' : language === 'zh-CN' ? '旁问' : 'Ask'}
+          </button>}
+          <button type="button" onClick={() => void interruptSession()}>{t("ui.stop")}</button>
+        </div>
           : canContinue && !hasSubmission
-            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
-            : <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
+            ? <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || busyActionPending} onClick={() => void sendMessage(t("ui.continue.stopped.task.prompt"))}>{t("ui.continue")}</button>
+            : <button className="composer-submit" disabled={!connected || navigationBusy || attachmentBusy || reasoningBusy || busyActionPending || !hasSubmission} onClick={() => void sendMessage()}>{t("ui.send")}</button>}
       </div>
       {!remoteMode && modelPickerOpen && <ModelPicker pickerRef={modelPickerRef} position={pickerPosition} busy={pickerBusy} error={pickerError}
         confirmation={pickerConfirmation} providers={pickerProviders} provider={pickerProvider} models={pickerModels} modelInput={pickerModelInput}
         activeModel={activeModel || savedModel} turnBusy={turnBusy} t={t} onClose={() => setModelPickerOpen(false)}
         onProviderChange={setPickerProvider} onModelInputChange={setPickerModelInput} onPick={(provider, model, remember, confirm) => void pickModel(provider, model, remember, confirm)}
+        onRestoreDefault={sessionId ? () => void restoreDefaultModel() : undefined}
+        daybreakProfile={mediaScope?.profile || profiles?.selected}
         onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
       </div>{empty && !standalone && !remoteMode && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
-      <small className="composer-hint">{!remoteMode && <>{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · </>}{choices.length
+      <small className="composer-hint">{!remoteMode && !turnBusy && <>{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · </>}{choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
+        : turnBusy && busyActionsAvailable && (!message || busyPlainText) ? language === 'zh-CN' ? 'Enter 排队 · /steer 插入 · Ctrl+Enter 换行' : 'Enter to queue · /steer to steer · Ctrl+Enter for a new line'
         : language === 'zh-CN' ? 'Enter 发送，Ctrl+Enter 换行' : 'Enter to send, Ctrl+Enter for a new line'}</small><p role="status" className="chat-status">{localizeAppMessage(language, chatStatus)}</p></div>
       </>}
   </section>

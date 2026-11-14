@@ -46,6 +46,8 @@ cargo test
 
 首次安装依赖时运行 `pnpm install --frozen-lockfile`；之后可直接运行其余检查。仓库当前没有 `pnpm typecheck` 或 `pnpm test:unit` 脚本，不要照搬参考项目的命令。仅修改文档时，核对链接、命令和事实即可；修改前端或 Rust 代码时，运行对应的构建和检查。修改网关、运行时或安装包时，还要执行相关的协议冒烟、payload 校验或原生平台手动验证，并在 PR 中写明实际命令与结果。
 
+在 `.build` 下创建临时目录的验证脚本可复用 [验证目录工具](scripts/validation_workspace.py)。将断言和进程收尾都放在目录作用域内：全部完成后自动清理，失败时保留本轮目录并输出路径。
+
 ## Pull Request
 
 PR 描述请包含：

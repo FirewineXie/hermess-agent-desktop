@@ -285,7 +285,7 @@ export const tauriDesktopApi: DesktopApi = {
   workspacePanel: {
     listDirectory: (scope, path) => invoke('list_workspace_panel_directory', { scope, path }),
     readFile: (scope, path) => invoke('read_workspace_panel_file', { scope, path }),
-    startTerminal: scope => invoke('start_panel_terminal', { scope }),
+    startTerminal: (scope, gatewayId) => invoke('start_panel_terminal', { scope, gatewayId: gatewayId ?? null }),
     activateTerminal: (scope, id) => invoke('activate_panel_terminal', { scope, id }),
     writeTerminal: (scope, id, data) => invoke('write_panel_terminal', { scope, id, data }),
     resizeTerminal: (scope, id, cols, rows) => invoke('resize_panel_terminal', { scope, id, cols, rows }),
@@ -380,6 +380,7 @@ export const tauriDesktopApi: DesktopApi = {
     devDefaults: () => invoke('dev_backend_defaults'),
     packedDefaults: () => invoke('packed_backend_defaults'),
     storageLocation: request => invoke('storage_location_request', { request }),
+    webAccess: action => invoke('web_access_request', { action }),
     startDev: (storagePath, pythonPath) => invoke('start_dev_backend', { storagePath, pythonPath }),
     startPacked: storagePath => invoke('start_packed_backend', { storagePath }),
     ping: () => invoke('ping_backend'),
@@ -387,11 +388,12 @@ export const tauriDesktopApi: DesktopApi = {
     restartGracefully: () => invoke('restart_backend_gracefully'),
     stop: () => invoke('stop_backend'),
     savedRemote: () => invoke('saved_remote_gateway'),
+    gatewaySidebarSessions: () => invoke('gateway_sidebar_sessions'),
     testRemote: (url, token) => invoke('test_remote_gateway', { url, token }),
-    saveRemote: (label, url, token) => invoke('save_remote_gateway', { label, url, token }),
+    saveRemote: (label, url, token, sshTarget) => invoke('save_remote_gateway', { label, url, token, sshTarget: sshTarget ?? null }),
     deleteRemote: id => invoke('delete_remote_gateway', { id }),
     activeGateway: () => invoke('active_gateway'),
-    activateSavedRemote: () => invoke('activate_saved_remote_gateway'),
+    activateSavedRemote: id => invoke('activate_saved_remote_gateway', { id: id ?? null }),
     activateLocalGateway: () => invoke('activate_local_gateway'),
     probeLocalTools: () => invoke('probe_local_tools'),
     systemStats: () => invoke('get_system_stats'),
@@ -442,6 +444,7 @@ export const tauriDesktopApi: DesktopApi = {
   delegation: {
     read: scope => invoke('get_delegation_routing', { profile: scope.profile }),
     save: (scope, draft) => invoke('save_delegation_routing', { profile: scope.profile, draft }),
+    saveModel: (scope, route) => invoke('save_delegation_model', { profile: scope.profile, ...route }),
   },
   device: {
     status: () => invoke('get_device_status'),
@@ -484,6 +487,7 @@ export const tauriDesktopApi: DesktopApi = {
     groups: (profile, operation, params) => invoke('bot_groups_request', { profile, operation, params }),
   },
   chat: {
+    connection: (scope, request) => invoke('chat_connection', { profile: scope.profile, sessionId: scope.sessionId, gatewayEpoch: scope.gatewayEpoch, request }),
     createSession: (scope, args) => invoke('create_chat_session', { profile: scope.profile, ...args }),
     resumeSession: async scope => {
       const result = await invoke<ResumeResult>('resume_chat_session', { profile: scope.profile, sessionId: scope.sessionId })
@@ -505,6 +509,7 @@ export const tauriDesktopApi: DesktopApi = {
     setReasoning: (scope, value) => invoke('set_chat_reasoning', { profile: scope.profile, sessionId: scope.sessionId, value }),
     commands: scope => invoke('list_composer_commands', { profile: scope.profile, sessionId: scope.kind === 'session' ? scope.sessionId : '' }),
     executeCommand: (scope, command) => invoke('execute_composer_command', { profile: scope.profile, sessionId: scope.sessionId, command }),
+    mutateHistory: (scope, change) => invoke('mutate_chat_history', { profile: scope.profile, sessionId: scope.sessionId, change }),
     subagents: scope => invoke('list_chat_subagents', { profile: scope.profile, sessionId: scope.sessionId }),
     subagentTail: (scope, subagentId) => invoke('read_chat_subagent_tail', { profile: scope.profile, sessionId: scope.sessionId, subagentId }),
     steerSubagent: (scope, subagentId, text) => invoke('steer_chat_subagent', { profile: scope.profile, sessionId: scope.sessionId, subagentId, text }),
@@ -529,6 +534,7 @@ export const tauriDesktopApi: DesktopApi = {
   },
   events: {
     onGatewayEvent: handler => listenPayload<GatewayEvent>('hermes-event', handler),
+    onGatewayNotice: handler => listenPayload('hermes-gateway-notice', handler),
     onGatewayRequest: handler => listenPayload<unknown>('hermes-request', request => {
       if (isSupportedRequest(request)) handler(request)
     }),

@@ -134,7 +134,7 @@ section.settings-panel.flat-settings-panel.profile-management {
 .profile-import-dialog .profile-delete-actions button[type="submit"] { border-color: #1b6ffd; background: #1b6ffd; }
 .profile-delete-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .profile-management .profile-avatar { width: 58px; height: 58px; font-size: 27px; }
-.settings-panel.profile-management .profile-identity h1 { margin: 0 0 7px; color: #111827; font-size: 29px; line-height: 1.1; font-weight: 750; overflow-wrap: anywhere; }
+.settings-panel.profile-management .profile-identity h1 { margin: 0 0 7px; color: var(--dark-text, #111827); font-size: 29px; line-height: 1.1; font-weight: 750; overflow-wrap: anywhere; }
 .profile-management .profile-tabs { margin-top: 23px; }
 .profile-management .profile-info-panel { margin-top: 23px; }
 .profile-management .profile-info-panel-heading { min-height: 48px; }
@@ -167,13 +167,13 @@ section.settings-panel.flat-settings-panel.profile-management {
 .profile-data-toolbar { display: flex; align-items: center; gap: 12px; margin-top: 24px; padding: 10px 0; border-top: 1px solid #e3e8ef; border-bottom: 1px solid #e3e8ef; }
 .profile-data-toolbar button, .profile-data-note button { flex: none; border: 0; padding: 5px 7px; background: transparent; color: #1b6ffd; font-size: 13px; }
 .profile-data-toolbar button:disabled { color: #8592a5; cursor: not-allowed; }
-.profile-data-current-path { min-width: 0; flex: 1; overflow-wrap: anywhere; color: #526179; font-size: 12px; }
+.profile-data-current-path { min-width: 0; flex: 1; overflow-wrap: anywhere; color: var(--dark-muted, #526179); font-size: 12px; }
 .profile-data-list { display: grid; }
 .profile-data-row, .profile-management button.profile-data-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 8px 6px; border: 0; border-bottom: 1px solid #edf0f4; border-radius: 0; background: transparent; color: #111827; text-align: left; font-size: 13px; }
 .profile-management button.profile-data-row:hover:not(:disabled) { background: #f5f8fc; }
 .profile-data-row-icon { flex: none; width: 18px; color: #1b6ffd; }
 .profile-data-row-name { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.profile-data-row small { flex: none; color: #66758c; font-size: 12px; }
+.profile-data-row small { flex: none; color: var(--dark-muted, #66758c); font-size: 12px; }
 .profile-data-note, .profile-data-error { margin: 18px 0 0; color: #66758c; font-size: 13px; }
 .profile-data-error { color: #b4232d; }
 .profile-plugin-dashboard-meta { margin: 10px 0; padding: 9px 11px; border-left: 3px solid #8fb4ee; background: #f5f8fd; color: #526179; font-size: 12px; }

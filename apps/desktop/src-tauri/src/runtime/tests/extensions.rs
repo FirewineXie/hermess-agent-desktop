@@ -1,8 +1,33 @@
 use super::{
-    memory_provider_request_shape, prepare_mcp_update, review_capability_value,
-    upstream_request_target,
+    memory_provider_request_shape, prepare_mcp_update, review_capability_value, skill_lock_body,
+    upstream_request_target, MCP_STATUS_METHOD,
 };
 use serde_json::json;
+
+#[test]
+#[ignore = "run by the isolated locked Gateway receiver probe"]
+fn print_production_gateway_feature_extensions() {
+    for locked in [true, false] {
+        let body = skill_lock_body(
+            "reviewer",
+            &json!({"name": "desktop-probe", "locked": locked}),
+        )
+        .unwrap();
+        let (method, url) = upstream_request_target(1421, "skills.lock", &body).unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            json!({"id": if locked { "skill-lock" } else { "skill-unlock" }, "method": method.as_str(), "path": url.path(), "body": body})
+        );
+    }
+    for profile in ["default", "reviewer"] {
+        let params =
+            super::super::profiles::scoped_params(profile, MCP_STATUS_METHOD, json!({})).unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            json!({"id": format!("mcp-{profile}"), "method": MCP_STATUS_METHOD, "params": params})
+        );
+    }
+}
 
 #[test]
 fn review_capability_uses_profile_configuration_and_bundle_mode() {

@@ -1,6 +1,7 @@
 import type { ProfileCreateOptions, ProfilesSnapshot } from '@hermess/contracts'
 import { useLanguage } from '../../i18n'
 import { labels } from './labels'
+import type { McpSetupDraft } from './model'
 import { useExtensions } from './useExtensions'
 import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import SkillHub from './SkillHub'
@@ -11,7 +12,14 @@ import './extensions-market.css'
 
 type Category = 'experts' | 'skills' | 'hermesPlugins' | 'mcp'
 
-export default function ExtensionsView({ connected, profiles, epoch, profileBusy, onCreateProfile }: { connected: boolean; profiles: ProfilesSnapshot | null; epoch: string | null; profileBusy: boolean; onCreateProfile: (name: string, options?: ProfileCreateOptions) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined> }) {
+export default function ExtensionsView({ connected, profiles, epoch, profileBusy, onCreateProfile, onConfigureMcp }: {
+  connected: boolean
+  profiles: ProfilesSnapshot | null
+  epoch: string | null
+  profileBusy: boolean
+  onCreateProfile: (name: string, options?: ProfileCreateOptions) => Promise<{ name: string; warnings?: string[]; served: boolean } | undefined>
+  onConfigureMcp: (profile: string, draft: McpSetupDraft) => Promise<boolean>
+}) {
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const t = labels(language)
@@ -30,9 +38,9 @@ export default function ExtensionsView({ connected, profiles, epoch, profileBusy
       {state.message && <p className="extension-message" role="status">{state.message}</p>}
       {category === 'skills' && <SkillHub key={workspace} official={state.official} featured={state.featured} sources={state.sources}
         results={state.results} resultsSource={state.resultsSource} profiles={profiles} busy={state.busy} loading={state.loading} t={t} search={state.searchSkills} loadSources={state.loadSources} request={state.request} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} />}
-      {category === 'mcp' && <McpCatalog entries={state.catalog} results={state.catalogResults}
+      {category === 'mcp' && <McpCatalog key={workspace} entries={state.catalog} results={state.catalogResults}
         resultsSource={state.catalogResultsSource} profiles={profiles} busy={state.busy} loading={state.loading}
-        t={t} search={state.searchCatalog} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} />}
+        t={t} search={state.searchCatalog} request={state.request} installedTargets={state.installedTargets} runForProfiles={state.runForProfiles} onMessage={state.setMessage} onConfigure={onConfigureMcp} />}
     </>}
   </section>
 }

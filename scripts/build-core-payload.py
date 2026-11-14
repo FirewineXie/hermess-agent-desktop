@@ -9,6 +9,48 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
+
+
+def build_webapp(upstream, commit, stage, target, cache_root, require_cache):
+    import pm
+    from pm.lock import Facts
+    from pm.registry import get_package
+    from scripts.bundles.payload import snapshot
+
+    tools = cache_root / "tools" if cache_root else stage / "tools"
+    if not require_cache:
+        pm.prepare_tools(["node"], out=tools, target=target)
+    fact = Facts(tools / "facts.json", strict=True).get("node")
+    node = get_package("node").binary(tools / fact["entry"], target) if fact else None
+    if node is None or not node.is_file():
+        raise RuntimeError("pinned Webapp build Node is missing")
+    source = stage / "source"
+    snapshot(upstream, commit, source)
+    npm_cache = (cache_root or stage) / "npm-cache"
+    env = dict(os.environ, PATH=str(node.parent) + os.pathsep + os.environ.get("PATH", ""),
+               npm_config_cache=str(npm_cache))
+    if require_cache:
+        env["npm_config_offline"] = "true"
+    subprocess.run([str(node), "apps/desktop/scripts/build-webapp.mjs"], cwd=source, env=env, check=True)
+    return source / "apps" / "desktop" / "dist-webapp"
+
+
+def stamp_runtime(upstream, repo, lock):
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=upstream, text=True).strip()
+
+    commit = lock["commit"]
+    base = lock["baseCommit"]
+    env = dict(os.environ, HERMES_DESKTOP_VARIANT="runtime", HERMES_PAYLOAD_TAG=lock["tag"])
+    env.pop("HERMES_BUILD_COMMIT", None)
+    subprocess.run([
+        sys.executable, str(upstream / "scripts" / "write_install_stamp.py"),
+        "--output", str(repo / "install-stamp.json"), "--commit", commit, "--branch", lock["branch"],
+        "--base-version", lock["tag"].removeprefix("v"), "--distance", git("rev-list", "--count", f"{base}..{commit}"),
+        "--commit-date", git("show", "-s", "--format=%ct", commit), "--distribution", "desktop-app",
+        "--update-mechanism", "external", "--runtime-dir", "..",
+    ], cwd=upstream, env=env, check=True)
 
 
 def main() -> None:
@@ -65,7 +107,8 @@ def main() -> None:
         subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(full)], check=True)
     out.mkdir(parents=True)
     repo = out / "hermes-agent"
-    commit = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))["commit"]
+    lock = json.loads((product / "runtime" / "upstream.lock.json").read_text(encoding="utf-8"))
+    commit = lock["commit"]
     snapshot(upstream, commit, repo, exclude=INERT_SNAPSHOT_DIRS)
     if (repo / "pm" / "lock.json").read_bytes() != lockfile_path().read_bytes():
         raise RuntimeError("staged PM lock differs from the selected upstream commit")
@@ -122,7 +165,7 @@ def main() -> None:
         # The staged PBS interpreter retains an AR path from its deleted build tree.
         os.environ["AR"] = "/usr/bin/ar"
     pm.build_environment(source=repo, out=venv, python=python_bin, cache=cache,
-                         extras=["messaging", "feishu"], all_extras=False,
+                         extras=["messaging", "feishu", "keychain"], all_extras=False,
                          sealed=True, offline=args.require_cache, explicit=True)
     features = installed_extras(repo, venv, python_exe=python_bin)
     write_features(features, out)
@@ -143,8 +186,12 @@ def main() -> None:
         features=out / "enabled-features.json",
     )
     prepared = publish_prepared(out, upstream, commit, inputs)
-    finish_native(prepared, {})
-    subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"), "--payload", str(out)], check=True)
+    with tempfile.TemporaryDirectory(prefix="webapp-source-", dir=build) as temporary:
+        webapp = build_webapp(upstream, commit, Path(temporary), target, cache_root, args.require_cache)
+        finish_native(prepared, {"webapp": webapp})
+    stamp_runtime(upstream, repo, lock)
+    subprocess.run([sys.executable, str(product / "scripts" / "verify-payload.py"),
+                    "--payload", str(out), "--require-webapp", "--require-install-stamp"], check=True)
     if cache_root and not args.require_cache:
         shutil.copytree(cache, cache_root / "uv-cache", dirs_exist_ok=True)
     print(f"core payload ready: {out}; extras={len(features)}, tools={names}")

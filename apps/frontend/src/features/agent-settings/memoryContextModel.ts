@@ -14,6 +14,8 @@ export type MemoryFieldGroup = {
 
 const SENSITIVE_FIELD = /(?:^|\.)(?:api_key|token|secret|password)$/i
 const SUPPORTED_FIELD_TYPES = new Set(['boolean', 'list', 'number', 'object', 'select', 'string', 'text'])
+const COMPRESSION_ROUTE_FIELDS = new Set(['provider', 'model', 'base_url', 'reasoning_effort', 'timeout']
+  .map(field => `auxiliary.compression.${field}`))
 const PERSISTENT_PRIORITY = [
   'memory.memory_enabled',
   'memory.user_profile_enabled',
@@ -26,7 +28,7 @@ export function isMemoryContextField(key: string): boolean {
   return key.startsWith('memory.')
     || key.startsWith('context.')
     || key.startsWith('compression.')
-    || key.startsWith('auxiliary.compression.')
+    || (key.startsWith('auxiliary.compression.') && !COMPRESSION_ROUTE_FIELDS.has(key))
 }
 
 export function isSensitiveConfigField(key: string): boolean {
@@ -75,8 +77,8 @@ export function memoryFieldGroups(schema: AgentConfigSchema | null, page: Memory
       id: 'compression-model',
       zh: '压缩模型',
       en: 'Compression model',
-      descriptionZh: '配置生成压缩摘要时使用的辅助模型参数。',
-      descriptionEn: 'Configures the auxiliary model used to produce compression summaries.',
+      descriptionZh: '在辅助模型页选择提供商和模型。此处可调整其余压缩参数。',
+      descriptionEn: 'Select a provider and model on the Auxiliary models page. Adjust other compression parameters here.',
       fields: entries.filter(([key]) => key.startsWith('auxiliary.compression.')),
     },
   ]
@@ -84,14 +86,14 @@ export function memoryFieldGroups(schema: AgentConfigSchema | null, page: Memory
 
 export function sensitiveMemoryFieldCount(schema: AgentConfigSchema | null, page: MemorySettingsPage): number {
   return Object.keys(schema?.fields || {}).filter(key => {
-    const inPage = page === 'memory-persistent' ? key.startsWith('memory.') : key.startsWith('context.') || key.startsWith('compression.') || key.startsWith('auxiliary.compression.')
+    const inPage = page === 'memory-persistent' ? key.startsWith('memory.') : !key.startsWith('memory.') && isMemoryContextField(key)
     return inPage && isSensitiveConfigField(key)
   }).length
 }
 
 export function unsupportedMemoryFieldCount(schema: AgentConfigSchema | null, page: MemorySettingsPage): number {
   return Object.entries(schema?.fields || {}).filter(([key, field]) => {
-    const inPage = page === 'memory-persistent' ? key.startsWith('memory.') : key.startsWith('context.') || key.startsWith('compression.') || key.startsWith('auxiliary.compression.')
+    const inPage = page === 'memory-persistent' ? key.startsWith('memory.') : !key.startsWith('memory.') && isMemoryContextField(key)
     return inPage && !isSensitiveConfigField(key) && !isSupportedConfigField(field)
   }).length
 }

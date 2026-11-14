@@ -1,7 +1,18 @@
 use super::{
-    archive_shape, import_shape, project_session_health, read_shape, rename_shape, write_shape,
+    archive_shape, import_shape, project_session_health, prompt_refresh_args, read_shape,
+    rename_shape, write_shape,
 };
 use serde_json::json;
+
+#[test]
+#[ignore = "run by the isolated locked Hermes CLI receiver probe"]
+fn print_production_gateway_feature_prompt_refresh() {
+    let args = prompt_refresh_args("default", "desktop-fixture");
+    println!(
+        "FEATURE_SHAPE={}",
+        json!({"id": "session-prompt-refresh", "args": args})
+    );
+}
 
 #[test]
 fn session_routes_are_profile_scoped_and_bounded() {

@@ -14,7 +14,6 @@ const pluginPath = (name: string) => name.split('/').map(encodeURIComponent).joi
 const profileScopedPrefixes = ['/api/status', '/api/sessions', '/api/chat/workspaces', '/api/gateway', '/api/analytics', '/api/cron', '/api/skills', '/api/tools/toolsets', '/api/config', '/api/env', '/api/mcp', '/api/messaging/platforms', '/api/messaging/telegram/onboarding', '/api/messaging/whatsapp/onboarding', '/api/providers/oauth', '/api/model/', '/api/local-models', '/api/pairing', '/api/memory', '/api/curator', '/api/webhooks', '/api/ops', '/api/logs', '/api/credentials', '/api/dashboard/agent-plugins', '/api/dashboard/plugin-providers', '/api/dashboard/theme', '/api/dashboard/font', '/api/dashboard/plugins', '/api/plugins/', '/api/shared-metrics']
 
 type ActionResponse = { name: string; ok: boolean; pid: number | null; error?: string; message?: string }
-const LOCKED_HERMES_VERSION = '0.22.5'
 
 function lifecyclePid(value: unknown) {
   if (!value || typeof value !== 'object') return null
@@ -45,7 +44,7 @@ export function dashboardPluginApiPath(input: string, profile: string) {
 export function createDashboardPluginApi(fetchJSON: JsonRequest, authedFetch: JsonRequest,
   buildWsUrl: (path: string, params?: Record<string, string>) => Promise<string>, profile: string,
   lifecycle: { start(): Promise<unknown>; stop(): Promise<unknown>; restart(): Promise<unknown> },
-  buildHttpUrl: (path: string) => string = path => path) {
+  buildHttpUrl: (path: string) => string, readHermesVersion: () => Promise<string>) {
   const appendQueryParam = (url: string, key: string, value?: string) => value
     ? `${url}${url.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}` : url
   const normalizeSessionQueryOptions = (value?: string | Record<string, unknown>, order = 'created') =>
@@ -92,8 +91,11 @@ export function createDashboardPluginApi(fetchJSON: JsonRequest, authedFetch: Js
       notices: ['Gateway lifecycle is managed by Hermess Agent Desktop.'], profiles: [] }),
     migrateGatewayToMultiplex: async (): Promise<ActionResponse> => ({ name: 'gateway-migrate', ok: true, pid: null,
       message: 'Gateway is already managed by Hermess Agent Desktop.' }),
-    checkHermesUpdate: async (_force = false) => ({ install_method: 'desktop-app', current_version: LOCKED_HERMES_VERSION, behind: null,
-      update_available: false, can_apply: false, update_command: '', message: 'Hermes updates are managed by Hermess Agent Desktop.' }),
+    checkHermesUpdate: async (_force = false) => {
+      const version = await readHermesVersion()
+      return { install_method: 'desktop-app', current_version: version.replace(/^v/, ''), behind: null,
+        update_available: false, can_apply: false, update_command: '', message: 'Hermes updates are managed by Hermess Agent Desktop.' }
+    },
     updateHermes: async (): Promise<ActionResponse> => ({ name: 'hermes-update', ok: false, pid: null,
       error: 'Hermes updates are managed by Hermess Agent Desktop.' }),
     getPortal: async () => ({ logged_in: false, portal_url: null, inference_url: null, provider: '', subscription_url: '', features: [] }),

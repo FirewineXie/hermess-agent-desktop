@@ -243,6 +243,11 @@ fn dashboard_api_allowed(method: &Method, path: &str) -> bool {
         || exact("/api/dashboard/plugins/rescan", &[Method::GET])
         || exact("/api/dashboard/plugins/hub", &[Method::GET])
         || exact("/api/dashboard/plugins/catalog", &[Method::GET])
+        || exact(
+            "/api/dashboard/plugins/auto-update",
+            &[Method::GET, Method::PUT],
+        )
+        || exact("/api/dashboard/agent-plugins/update-all", &[Method::POST])
         || exact("/api/dashboard/agent-plugins/install", &[Method::POST])
         || exact("/api/dashboard/plugin-providers", &[Method::PUT])
         || exact("/api/dashboard/themes", &[Method::GET])
@@ -851,14 +856,19 @@ pub(super) async fn request(
             return Err(DesktopFailure::operation_failed());
         }
         let bytes = bounded_response(response).await?;
-        let plugins = serde_json::from_slice::<Value>(&bytes)
+        let rows = serde_json::from_slice::<Value>(&bytes)
             .ok()
             .and_then(|value| value.as_array().cloned())
-            .ok_or_else(DesktopFailure::operation_failed)?
-            .iter()
-            .filter_map(safe_manifest)
-            .collect::<Vec<_>>();
+            .ok_or_else(DesktopFailure::operation_failed)?;
         scope.ensure_current(state).await?;
+        let plugins: Vec<_> = rows.iter().filter_map(safe_manifest).collect();
+        if plugins.len() != rows.len() {
+            crate::diagnostics::log_client_event(&format!(
+                "dashboard_plugin_manifest_invalid profile={} rejected_count={}",
+                scope.profile,
+                rows.len() - plugins.len()
+            ));
+        }
         return Ok(json!({
             "plugins": plugins,
             "asset_origin": format!("http://127.0.0.1:{port}"),

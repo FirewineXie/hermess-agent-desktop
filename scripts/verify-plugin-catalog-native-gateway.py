@@ -9,10 +9,11 @@ import secrets
 import runpy
 import subprocess
 import sys
-import tempfile
 import time
 
 import httpx
+
+from validation_workspace import validation_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = ROOT / "upstream" / "hermes-agent"
@@ -21,7 +22,7 @@ control = runpy.run_path(str(ROOT / "scripts" / "verify-provider-copy-native-gat
 
 def main() -> None:
     (ROOT / ".build").mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="plugin-catalog-native-", dir=ROOT / ".build", ignore_cleanup_errors=True) as temporary:
+    with validation_workspace(prefix="plugin-catalog-native-", dir=ROOT / ".build") as temporary:
         root = Path(temporary)
         home = root / "hermes-home"
         home.mkdir()

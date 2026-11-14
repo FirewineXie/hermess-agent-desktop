@@ -7,12 +7,25 @@
   --dark-muted: #9aa8bb;
   --dark-hover: #223249;
   --dark-selected: #18365f;
+  --dark-accent: #a8c9ff;
+  --dark-danger: #ffaaa6;
   --settings-surface: #182231;
   --settings-subtle: #223249;
   --settings-border: #2a394b;
   --border-color: #2a394b;
   --panel-bg: #182231;
 }
+
+:root[data-color-theme='dark'] :is(.profile-directory, .profile-info-panel, .profile-overview-card, .profile-data-panel, .profile-skill-list li) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.new-chat-heading h2, .profile-identity h2, .profile-info-list dd, .profile-overview-card-body ul, .profile-skill-list strong, .agent-migration-dialog header h2) { color: var(--dark-text); }
+:root[data-color-theme='dark'] :is(.profile-breadcrumb, .profile-breadcrumb strong, .profile-identity p, .profile-overview-card-body, .profile-info-list dt, .profile-section-heading p, .profile-skills-heading p, .profile-skill-list p, .profile-directory-heading p, .profile-directory-count, .profile-directory-item-text small, .profile-data-note) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] :is(.profile-info-panel-heading, .profile-data-toolbar) { background: var(--dark-hover); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .profile-management .profile-tabs button { background: transparent; color: var(--dark-muted); }
+:root[data-color-theme='dark'] .profile-management .profile-tabs button[aria-selected='true'] { color: var(--dark-accent); }
+:root[data-color-theme='dark'] .profile-management button.profile-directory-item.is-selected { background: var(--dark-selected); }
+:root[data-color-theme='dark'] .profile-management .profile-data-row { border-color: var(--dark-border); color: var(--dark-text); background: var(--dark-surface); }
+:root[data-color-theme='dark'] .agent-migration-dialog header { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .agent-migration-dialog :is(label, .expert-modal-body p) { color: var(--dark-muted); }
 
 :root[data-color-theme='dark'] .workspace-header,
 :root[data-color-theme='dark'] .custom-titlebar-shell .workspace-header {
@@ -204,15 +217,15 @@
 ) { color: #fff; background: #1b6ffd; border-color: #1b6ffd; }
 :root[data-color-theme='dark'] .unified-settings :is(
   .provider-model-preview-row span.current, .provider-model-row .provider-model-id.current,
-  .provider-card-actions button, .provider-add-model, .config-field-edit
+  .provider-card-actions button, .provider-add-model, .config-field-edit, .compression-model-link
 ) { color: #a8c9ff; }
 :root[data-color-theme='dark'] .unified-settings :is(
   .profile-info-panel-heading, .config-field.editing, .model-oauth-card-meta span
 ) { background: var(--dark-hover); }
 :root[data-color-theme='dark'] .unified-settings :is(
-  .profile-tabs, .memory-settings-fields .config-field,
-  .memory-settings-fields .compression-route-picker
+  .profile-tabs, .memory-settings-fields .config-field
 ) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] .unified-settings .compression-model-link:hover:not(:disabled) { background: var(--dark-hover); }
 
 /* Session management keeps its own cards and controls outside the legacy settings panel. */
 :root[data-color-theme='dark'] .unified-settings .sessions-page { color: var(--dark-text); }

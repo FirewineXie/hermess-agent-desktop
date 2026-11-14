@@ -31,9 +31,12 @@ type Props = {
   onReconnect: () => Promise<void>
   onRestart: () => Promise<unknown>
   onStop: () => Promise<void>
+  onConnectRemote: (id: string) => Promise<void>
+  remoteSetupRequested: boolean
+  onRemoteSetupOpened: () => void
 }
 
-export default function RuntimeView({ page, storagePath, onStoragePathChange: setStoragePath, storageLocked, pythonPath, backend, connected = Boolean(backend), connectionLabel, reconnecting, backendStatus, busy, profiles, onChooseStoragePath: chooseStoragePath, onStart, onPing, onReconnect, onRestart, onStop }: Props) {
+export default function RuntimeView({ page, storagePath, onStoragePathChange: setStoragePath, storageLocked, pythonPath, backend, connected = Boolean(backend), connectionLabel, reconnecting, backendStatus, busy, profiles, onChooseStoragePath: chooseStoragePath, onStart, onPing, onReconnect, onRestart, onStop, onConnectRemote, remoteSetupRequested, onRemoteSetupOpened }: Props) {
   const language = useLanguage()
   const t = React.useCallback((key: string, ...values: unknown[]) => translateApp(language, key, ...values), [language])
   return <section className="settings-panel flat-settings-panel">
@@ -42,7 +45,7 @@ export default function RuntimeView({ page, storagePath, onStoragePathChange: se
       <label className="system-language-setting">{t('ui.language')}<select value={language} onChange={event => changeLanguage(event.target.value as Language)}><option value="zh-CN">{t('ui.simplified.chinese')}</option><option value="en-US">{t('ui.english')}</option></select></label>
       <p>{import.meta.env.DEV ? t("ui.only.use.the.isolation.environment.prepared.in.this.product.s.build") : t("ui.using.the.bundled.pinned.runtime")}{t("ui.the.storage.directory.creates.product.specific.subdirectories")}</p>
       <RuntimeControls language={language} storageReady={Boolean(storagePath)} pythonReady={!import.meta.env.DEV || Boolean(pythonPath)} backend={backend} connected={connected} connectionLabel={connectionLabel} reconnecting={reconnecting} backendStatus={backendStatus} busy={busy} onStart={onStart} onPing={onPing} onReconnect={onReconnect} onRestart={onRestart} onStop={onStop} />
-      <RemoteGatewaySettings />
+      <RemoteGatewaySettings onConnect={onConnectRemote} setupRequested={remoteSetupRequested} onSetupOpened={onRemoteSetupOpened} />
       {backend && <section className="runtime-topology" aria-labelledby="runtime-topology-title">
         <div><h3 id="runtime-topology-title">{t('ui.runtime.topology')}</h3><span>{profiles?.gateway_mode || '—'}</span></div>
         {gatewayTopologyRows(profiles).map(row => <div className="runtime-topology-row" key={row.owner}><strong>{t('ui.runtime.gateway.owner', row.owner)}</strong><p>{row.served.join(' · ')}</p></div>)}

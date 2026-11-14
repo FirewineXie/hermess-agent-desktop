@@ -23,6 +23,7 @@ const DESKTOP_EQUIVALENT_OVERRIDES = [
   'logout', 'startGateway', 'stopGateway', 'restartGateway', 'getGatewayMigratePlan',
   'migrateGatewayToMultiplex', 'checkHermesUpdate', 'updateHermes', 'getPortal',
 ]
+const CLOUD_RELAY_METHODS = ['getRelayLinks', 'requestRelayLink', 'getRelayLinkState', 'unlinkRelayAccount']
 
 async function objectProperties(url, kind) {
   const source = await readFile(url, 'utf8')
@@ -50,22 +51,23 @@ const normalizedProperty = value => value.replace(/\s+/g, '')
 
 const create = (calls = [], lifecycle = {
   start: async () => ({ pid: 11 }), stop: async () => ({ pid: 12 }), restart: async () => ({ pid: 13 }),
-}, buildHttpUrl = path => `hermess-proxy:${path}`) => createDashboardPluginApi(
+}, buildHttpUrl = path => `hermess-proxy:${path}`, statusVersion = '') => createDashboardPluginApi(
   async (path, init = {}) => { calls.push([path, init]); return { ok: true } },
   async (path, init = {}) => { calls.push([path, init]); return { ok: true } },
   async path => `ws-proxy:${path}`,
   'research',
   lifecycle,
   buildHttpUrl,
+  async () => statusVersion,
 )
 
-test('dashboard plugin api contains every method exported by the locked Dashboard SDK', async () => {
+test('dashboard plugin api contains the locked Dashboard SDK methods except cloud relay', async () => {
   const source = await readFile(LOCKED_API_SOURCE, 'utf8')
   const start = source.indexOf('export const api = {')
   const object = source.slice(start, source.indexOf('\n};', start))
   const locked = [...object.matchAll(/^  ([A-Za-z][A-Za-z0-9_]*):/gm)].map(match => match[1])
   const exposed = Object.keys(create())
-  assert.deepEqual(locked.filter(name => !exposed.includes(name)), [])
+  assert.deepEqual(locked.filter(name => !exposed.includes(name)), CLOUD_RELAY_METHODS)
 })
 
 test('copied SDK request contracts stay byte-equivalent to the locked Dashboard API', async () => {
@@ -76,8 +78,8 @@ test('copied SDK request contracts stay byte-equivalent to the locked Dashboard 
     objectProperties(HOST_API_SOURCE, 'return'),
   ])
   const copied = new Map([...core, ...admin])
-  assert.equal(locked.size, 172)
-  assert.deepEqual([...locked.keys()].filter(name => !copied.has(name)), ['buildWsUrl'])
+  assert.deepEqual([...locked.keys()].filter(name => !copied.has(name)).sort(),
+    ['buildWsUrl', ...CLOUD_RELAY_METHODS].sort())
   for (const [name, source] of copied) {
     assert.equal(normalizedProperty(source), normalizedProperty(locked.get(name)), name)
   }
@@ -88,7 +90,8 @@ test('copied SDK request contracts stay byte-equivalent to the locked Dashboard 
 })
 
 test('desktop equivalents keep the locked SDK response shapes and propagate lifecycle failures', async () => {
-  const api = create()
+  const lockedVersion = JSON.parse(await readFile(UPSTREAM_LOCK, 'utf8')).tag.replace(/^v/, '')
+  const api = create([], undefined, undefined, lockedVersion)
   assert.deepEqual(await api.startGateway(), { name: 'gateway-start', ok: true, pid: 11 })
   assert.deepEqual(await api.stopGateway(), { name: 'gateway-stop', ok: true, pid: 12 })
   assert.deepEqual(await api.restartGateway(), { name: 'gateway-restart', ok: true, pid: 13 })
@@ -100,7 +103,6 @@ test('desktop equivalents keep the locked SDK response shapes and propagate life
     name: 'gateway-migrate', ok: true, pid: null, message: 'Gateway is already managed by Hermess Agent Desktop.',
   })
   const update = await api.checkHermesUpdate(true)
-  const lockedVersion = JSON.parse(await readFile(UPSTREAM_LOCK, 'utf8')).tag.replace(/^v/, '')
   assert.deepEqual(update, {
     install_method: 'desktop-app', current_version: lockedVersion, behind: null, update_available: false,
     can_apply: false, update_command: '', message: 'Hermes updates are managed by Hermess Agent Desktop.',
@@ -170,7 +172,7 @@ test('dashboard plugin api exposes no generic path escape hatch', () => {
 test('dashboard plugin loading ignores changing lifecycle object identities', async () => {
   const source = await readFile(new URL('../src/features/dashboard-plugins/DashboardPluginHost.tsx', import.meta.url), 'utf8')
   assert.match(source, /const lifecycleRef = React\.useRef\(lifecycle\)/)
-  assert.match(source, /exposeRuntime\(runtime, stableLifecycle\)/)
+  assert.match(source, /exposeRuntime\(runtime, stableLifecycle,/)
   assert.doesNotMatch(source, /language, lifecycle, profile/)
 })
 

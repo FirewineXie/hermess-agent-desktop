@@ -1,6 +1,6 @@
 import React from 'react'
 import type { ProfilesSnapshot } from '@hermess/contracts'
-import type { McpCatalogEntry } from './model'
+import type { McpCatalogEntry, McpSetupDraft } from './model'
 import type { labels } from './labels'
 import TargetProfilesDialog from './TargetProfilesDialog'
 import { marketLink } from './marketLink'
@@ -14,13 +14,15 @@ type Props = {
   installedTargets: (kind: 'mcp', targets: string[], identifier: string) => Promise<TargetStatus>
   runForProfiles: (operation: string, profiles: string[], payload: Record<string, unknown>, after: 'mcpCatalog') => Promise<boolean>
   onMessage: (message: string) => void
+  request: <R>(operation: string, payload?: Record<string, unknown>) => Promise<R>
+  onConfigure: (profile: string, draft: McpSetupDraft) => Promise<boolean>
 }
 
 const key = (item: McpCatalogEntry) => item.identifier || `bundled:${item.name}`
 const sourceLabel = (item: McpCatalogEntry, t: T) => item.source === 'modelscope'
   ? t('catalogModelScope') : item.identifier ? t('catalogRegistry') : t('catalogBundled')
 
-export default function McpCatalog({ entries, results, resultsSource, profiles, busy, loading, t, search, installedTargets, runForProfiles, onMessage }: Props) {
+export default function McpCatalog({ entries, results, resultsSource, profiles, busy, loading, t, search, installedTargets, runForProfiles, onMessage, request, onConfigure }: Props) {
   const [query, setQuery] = React.useState('')
   const [source, setSource] = React.useState('all')
   const [selected, setSelected] = React.useState<McpCatalogEntry | null>(null)
@@ -28,6 +30,10 @@ export default function McpCatalog({ entries, results, resultsSource, profiles, 
   const [openingId, setOpeningId] = React.useState('')
   const [env, setEnv] = React.useState<Record<string, string>>({})
   const [auth, setAuth] = React.useState('none')
+  const [setup, setSetup] = React.useState<{ operation: string; item: McpCatalogEntry; detailFailed: boolean } | null>(null)
+  const [setupIndex, setSetupIndex] = React.useState(0)
+  const [setupError, setSetupError] = React.useState(false)
+  const [navigating, setNavigating] = React.useState(false)
   React.useEffect(() => { void search('', 'all') }, [])
   const bundled = entries.filter(item => `${item.name} ${item.description || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
   const discovered = resultsSource === source ? results || [] : []
@@ -57,6 +63,44 @@ export default function McpCatalog({ entries, results, resultsSource, profiles, 
     }
   }
 
+  async function openSetup(item: McpCatalogEntry) {
+    if (!item.identifier || !profiles || openingId || busy) return
+    const operation = crypto.randomUUID()
+    setOpeningId(key(item))
+    setSetupError(false)
+    console.info('[mcp-setup] detail started', { operation })
+    try {
+      const detail = await request<McpCatalogEntry>('mcp.modelscope.preview', { identifier: item.identifier })
+      const options = detail.setup_options || []
+      const windows = navigator.userAgent.includes('Windows')
+      setSetupIndex(windows ? Math.max(0, options.findIndex(option => option.transport === 'stdio' && /^cmd(?:\.exe)?$/i.test(option.command))) : 0)
+      setSetup({ operation, item: detail, detailFailed: false })
+      console.info('[mcp-setup] detail completed', { operation, options: options.length })
+    } catch {
+      setSetupIndex(0)
+      setSetup({ operation, item, detailFailed: true })
+      console.warn('[mcp-setup] detail failed', { operation })
+    } finally { setOpeningId('') }
+  }
+
+  const documentation = setup && marketLink(setup.item.catalog_url, setup.item.repository)
+  const setupOptions = setup?.item.setup_options || []
+  async function continueSetup([profile]: string[]) {
+    if (!setup || !profile || navigating) return
+    setNavigating(true)
+    setSetupError(false)
+    try {
+      const opened = await onConfigure(profile, {
+        operation: setup.operation, name: setup.item.install_name || '', option: setupOptions[setupIndex], documentation: documentation || undefined,
+      })
+      if (opened) setSetup(null)
+      else throw new Error('Target Profile unavailable')
+    } catch {
+      setSetupError(true)
+      console.warn('[mcp-setup] navigation failed', { operation: setup.operation })
+    } finally { setNavigating(false) }
+  }
+
   async function installToTargets(targets: string[]) {
     if (!selected) return
     const success = selected.identifier
@@ -82,18 +126,30 @@ export default function McpCatalog({ entries, results, resultsSource, profiles, 
     {!visible.length && <p>{loading ? t('loading') : results && resultsSource === source ? t('noResults') : t('empty')}</p>}
     <div className="extension-list">{visible.map(item => {
       const link = marketLink(item.source, item.catalog_url, item.repository)
+      const manual = Boolean(item.identifier && !item.installable)
+      const configurable = manual && item.source === 'modelscope'
       return <article className="extension-card market-card" key={key(item)}>
         <div className="market-card-header">
           <h3 className="market-card-title">{link ? <a href={link} target="_blank" rel="noopener noreferrer" title={link}>{item.name}</a> : item.name}</h3>
           <span className="market-card-source">{sourceLabel(item, t)}</span>
         </div>
         <p className="market-card-description">{item.description}</p>
-        <div className="market-card-footer"><span className="market-card-meta">{t('transport')}: {item.transport}{item.version ? ` · v${item.version}` : ''}</span>
-          <button disabled={busy || !!openingId || !profiles || Boolean(item.identifier && !item.installable)} onClick={() => void openInstall(item)}>{openingId === key(item) ? t('loading') : t('install')}</button>
+        <div className="market-card-footer"><span className="market-card-meta">{t('transport')}: {configurable ? t('manualTransport') : item.transport}{item.version ? ` · v${item.version}` : ''}</span>
+          <button type="button" disabled={busy || !!openingId || !profiles || (manual && !configurable)} onClick={() => void (configurable ? openSetup(item) : openInstall(item))}>{openingId === key(item) ? t('loading') : configurable ? t('configure') : t('install')}</button>
         </div>
-        {item.identifier && !item.installable && <small className="market-card-hint">{t('catalogManualShort')}</small>}
+        {manual && <small className="market-card-hint">{t(configurable ? 'catalogProfileSetup' : 'catalogManualShort')}</small>}
       </article>
     })}</div>
+    {setup && profiles && <TargetProfilesDialog single itemName={setup.item.name} profiles={profiles} busy={navigating} onClose={() => setSetup(null)} onConfirm={continueSetup}>
+      <div className="target-install-options">
+        {setupOptions.length > 1 && <label>{t('catalogSetupOption')}<select value={setupIndex} onChange={event => setSetupIndex(Number(event.target.value))}>
+          {setupOptions.map((option, index) => <option key={index} value={index}>{option.transport === 'http' ? option.url : [option.command, ...option.args].join(' ')}</option>)}
+        </select></label>}
+        {!setupOptions.length && <p>{t(setup.detailFailed ? 'catalogSetupUnavailable' : 'catalogSetupMissing')}</p>}
+        {documentation && <a href={documentation} target="_blank" rel="noopener noreferrer">{t('catalogSetupDocs')}</a>}
+        {setupError && <p role="alert">{t('failed')}</p>}
+      </div>
+    </TargetProfilesDialog>}
     {selected && profiles && <TargetProfilesDialog itemName={selected.name} profiles={profiles} alreadyInstalled={targetStatus.installed} unavailable={targetStatus.unavailable} busy={busy} confirmDisabled={missing} onClose={() => setSelected(null)} onConfirm={installToTargets}>
       {!!selected.required_env?.length && <div className="target-install-options"><p>{t('required')}</p>{selected.required_env.map(spec => <label key={spec.name}>
         {spec.prompt || spec.name}{spec.required ? ' *' : ''}<input type="password" autoComplete="off" value={env[spec.name] || ''} onChange={event => setEnv(current => ({ ...current, [spec.name]: event.target.value }))} />

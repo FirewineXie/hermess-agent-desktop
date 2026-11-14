@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { ModelProvider } from '@hermess/contracts'
+import DaybreakSetting from '../../models/components/DaybreakSetting'
 
 type Props = {
   pickerRef: React.RefObject<HTMLDivElement | null>
@@ -18,10 +19,14 @@ type Props = {
   onProviderChange: (provider: string) => void
   onModelInputChange: (model: string) => void
   onPick: (provider: string, model: string, remember?: boolean, confirm?: string) => void
+  onRestoreDefault?: () => void
+  daybreakProfile?: string
   onOpenSettings: () => void
 }
 
-export default function ModelPicker({ pickerRef, position, busy, error, confirmation, providers, provider, models, modelInput, activeModel, turnBusy, t, onClose, onProviderChange, onModelInputChange, onPick, onOpenSettings }: Props) {
+export default function ModelPicker({ pickerRef, position, busy, error, confirmation, providers, provider, models, modelInput, activeModel, turnBusy, t, onClose, onProviderChange, onModelInputChange, onPick, onRestoreDefault, daybreakProfile, onOpenSettings }: Props) {
+  const daybreakAvailable = activeModel && providers.some(row => row.slug === activeModel.provider
+    && row.authenticated !== false && row.capabilities?.[activeModel.model]?.daybreak === true)
   return <div ref={pickerRef} className="model-picker" role="dialog" aria-label={t('ui.select.model')} style={position}>
     <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.close')} onClick={onClose}>×</button></span></div>
     {error && <p className="model-picker-message" role="alert">{error}</p>}
@@ -35,6 +40,8 @@ export default function ModelPicker({ pickerRef, position, busy, error, confirma
     </button>)}{models.length === 0 && <p className="model-picker-message">{t('ui.this.provider.currently.has.no.model.candidates.please.fill.in.the.model.id')}</p>}</div>
     <div className="model-picker-add"><input aria-label={t('ui.add.model.id')} value={modelInput} onChange={event => onModelInputChange(event.target.value)} maxLength={256} placeholder={t('ui.add.model.id.short')} /><button disabled={busy || turnBusy || !modelInput.trim()} onClick={() => onPick(provider, modelInput, true)}>{t('ui.add.model.short')}</button></div></>}
     {!busy && providers.length === 0 && <p className="model-picker-message">{t('ui.no.available.models')}</p>}
+    {onRestoreDefault && <button type="button" className="model-picker-settings" disabled={busy || turnBusy} onClick={onRestoreDefault}>{t('ui.model.restore.session.default')}</button>}
+    {daybreakProfile && daybreakAvailable && <DaybreakSetting key={daybreakProfile} profile={daybreakProfile} disabled={busy || turnBusy} />}
     <button className="model-picker-settings" onClick={onOpenSettings}>{t('ui.add.provider.or.configure.model')} →</button>
   </div>
 }

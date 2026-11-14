@@ -4,10 +4,11 @@ import { useDesktop } from '../../app/DesktopContext'
 import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
-import type { LocalSkill, McpServer } from '../extensions/model'
+import type { LocalSkill, McpServer, McpSetupDraft } from '../extensions/model'
 import ProfileMcp from './ProfileMcp'
 import { labels } from '../extensions/labels'
 import ProfileDataView from './ProfileDataView'
+import ProfileVaultKeys from './ProfileVaultKeys'
 import ProfileHermesPlugins from './ProfileHermesPlugins'
 import ProfileIdentityDialog from './ProfileIdentityDialog'
 import ProfileSkillEditor from './ProfileSkillEditor'
@@ -38,6 +39,8 @@ type Props = {
   profiles: ProfilesSnapshot | null
   activeProfile: string | null
   tabRequest: { id: number; tab: ProfileTab }
+  mcpSetup?: McpSetupDraft
+  onMcpSetupApplied?: () => void
   onTabChange: (tab: ProfileTab) => void
   onNewChat: () => void
   onLearnSkill: (command: string) => void
@@ -57,7 +60,7 @@ type Props = {
   onOpenExtensions: () => void
 }
 
-export default function ProfileOverview({ connected, epoch, profiles, activeProfile, tabRequest, onTabChange, onNewChat, onLearnSkill, onDeleteProfile, onRenameProfile, onRenameProfileId, onSaveDescription, onDescribeAuto, onExportProfile, profileBusy, onActivateProfile, onOpenMemory, onOpenSoul, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
+export default function ProfileOverview({ connected, epoch, profiles, activeProfile, tabRequest, mcpSetup, onMcpSetupApplied, onTabChange, onNewChat, onLearnSkill, onDeleteProfile, onRenameProfile, onRenameProfileId, onSaveDescription, onDescribeAuto, onExportProfile, profileBusy, onActivateProfile, onOpenMemory, onOpenSoul, onOpenConfiguration, onOpenChannels, onOpenUsage, onOpenExtensions }: Props) {
   const { extensions, personalFiles, profiles: profileApi } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
@@ -67,6 +70,7 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
   const useState = <T,>(initial: T | (() => T)) => useProfileState(workspace, initial, `profile-overview:${stateSlot++}`)
   const [tab, setTab] = useState<ProfileTab>('overview')
   React.useEffect(() => { if (tabRequest.id) setTab(tabRequest.tab) }, [tabRequest.id, tabRequest.tab])
+  React.useEffect(() => { if (mcpSetup && connected) setTab('mcp') }, [mcpSetup, connected])
   React.useEffect(() => { onTabChange(tab) }, [onTabChange, tab])
   const [skills, setSkills] = useState<LocalSkill[] | null>(null)
   const [toolsets, setToolsets] = useState<ProfileToolset[] | null>(null)
@@ -151,22 +155,23 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
   }, [served, epoch, profiles?.selected, extensions, personalFiles, profileApi, language, summaryRevision])
 
   const tabs: Array<[ProfileTab, string]> = zh
-    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['journey', '学习时间线'], ['data', '数据目录']]
-    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['journey', 'Learning timeline'], ['data', 'Data directory']]
+    ? [['overview', '概览'], ['tools', '工具集'], ['skills', '技能'], ['plugins', '插件'], ['mcp', 'MCP'], ['memory', '记忆'], ['journey', '学习时间线'], ['data', '数据']]
+    : [['overview', 'Overview'], ['tools', 'Toolsets'], ['skills', 'Skills'], ['plugins', 'Plugins'], ['mcp', 'MCP'], ['memory', 'Memory'], ['journey', 'Learning timeline'], ['data', 'Data']]
   const enabledToolsets = toolsets?.filter(toolset => toolset.enabled) || []
   const skillNames = skills?.filter(skill => skill.enabled).map(skill => skill.name) || []
   const filteredSkills = skills?.filter(skill => `${skill.name} ${skill.description || ''}`.toLocaleLowerCase().includes(skillQuery.trim().toLocaleLowerCase())) || []
-  const toggleSkill = async (skill: LocalSkill) => {
+  const setSkillFlag = async (skill: LocalSkill, flag: 'enabled' | 'locked') => {
     if (!served || !profiles || pendingSkill) return
     setPendingSkill(skill.name)
     setSkillActionError('')
     const scope = { kind: 'profile' as const, profile: profiles.selected }
+    const value = !skill[flag]
     try {
-      await extensions.request(scope, 'skills.toggle', { name: skill.name, enabled: !skill.enabled })
+      await extensions.request(scope, flag === 'locked' ? 'skills.lock' : 'skills.toggle', { name: skill.name, [flag]: value })
       try {
         setSkills(await extensions.request<LocalSkill[]>(scope, 'skills.list'))
       } catch {
-        setSkills(current => current?.map(item => item.name === skill.name ? { ...item, enabled: !skill.enabled } : item) || null)
+        setSkills(current => current?.map(item => item.name === skill.name ? { ...item, [flag]: value } : item) || null)
         setSkillActionError(zh ? '设置已保存，但最新列表读取失败。' : 'Setting saved, but the latest list could not be loaded.')
       }
     } catch (error) {
@@ -355,12 +360,17 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
       {skills !== null && (filteredSkills.length ? <ul className="profile-skill-list">{filteredSkills.map(skill => <li key={skill.name}>
         <div><strong>{skill.name}</strong>{skill.description && <p>{skill.description}</p>}</div>
         <button type="button" className="profile-skill-edit" disabled={!served || editingSkill !== null} onClick={() => setEditingSkill(skill)}>{zh ? '编辑' : 'Edit'}</button>
+        <button type="button" className="profile-skill-edit" disabled={!served || pendingSkill !== null}
+          title={zh ? 'Hermes 会阻止技能管理和文件编辑工具写入。Windows 上部分终端命令仍可写入。' : 'Hermes blocks writes from skill management and file editing tools. Some terminal commands can still write on Windows.'}
+          onClick={() => void setSkillFlag(skill, 'locked')}>
+          {skill.locked ? (zh ? '解锁技能' : 'Unlock skill') : (zh ? '锁定技能' : 'Lock skill')}
+        </button>
         {skill.provenance === 'hub' && <button type="button" className="profile-skill-edit" disabled={!served || pendingSkill !== null} onClick={() => { if (window.confirm(zh ? `卸载市场技能 ${skill.name}？` : `Uninstall market Skill ${skill.name}?`)) void runHubSkillAction('skills.uninstall', skill.name) }}>{pendingSkill === skill.name ? (zh ? '卸载中…' : 'Uninstalling…') : (zh ? '卸载' : 'Uninstall')}</button>}
         <button type="button" className="profile-skill-switch" role="switch" aria-checked={skill.enabled}
           aria-label={`${skill.name}：${skill.enabled ? (zh ? '已启用' : 'Enabled') : (zh ? '已关闭' : 'Off')}`}
           title={skill.name === 'hermes-agent' ? (zh ? '核心技能始终启用' : 'Core skill is always enabled') : undefined}
           disabled={!served || pendingSkill !== null || skill.name === 'hermes-agent'}
-          onClick={() => void toggleSkill(skill)}>
+          onClick={() => void setSkillFlag(skill, 'enabled')}>
           <span className="profile-skill-switch-status">{pendingSkill === skill.name ? (zh ? '保存中…' : 'Saving…') : skill.name === 'hermes-agent' ? (zh ? '始终启用' : 'Always on') : skill.enabled ? (zh ? '已启用' : 'Enabled') : (zh ? '已关闭' : 'Off')}</span>
           <span className="profile-skill-switch-track" aria-hidden="true"><span /></span>
         </button>
@@ -373,12 +383,15 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
       {mcpMessage && <p className="profile-skill-action-error" role="status">{mcpMessage}</p>}
       {!served ? <p>{zh ? '运行时未连接或尚未服务此专家。' : 'Runtime disconnected or not serving this expert.'}</p>
         : servers === null ? <p>{zh ? '读取 MCP 中…' : 'Loading MCP…'}</p>
-          : <ProfileMcp key={workspace} servers={servers} busy={mcpBusy} t={extensionLabels} request={requestMcp}
+          : <ProfileMcp key={workspace} servers={servers} busy={mcpBusy} t={extensionLabels} request={requestMcp} prefill={mcpSetup} onPrefillApplied={onMcpSetupApplied}
             cancelOAuth={cancelMcpOAuth}
             run={runMcp} onMessage={setMcpMessage} />}
     </section>}
     {tab === 'memory' && card(zh ? '此 Profile 的记忆' : 'Memory in this profile', zh ? '打开记忆编辑' : 'Open memory', onOpenMemory, memoryContent, undefined, !served)}
-    {tab === 'data' && <ProfileDataView key={workspace} profile={profiles?.selected || null} served={served} />}
+    {tab === 'data' && <>
+      {served && profiles && <ProfileVaultKeys key={`vault:${workspace}`} profile={profiles.selected} />}
+      <ProfileDataView key={workspace} profile={profiles?.selected || null} served={served} />
+    </>}
     {identityOpen && profile && <ProfileIdentityDialog key={profile.name} profile={profile} language={language} busy={profileBusy}
       onRenameId={onRenameProfileId} onSaveDescription={onSaveDescription} onDescribeAuto={onDescribeAuto}
       onOpenSoul={onOpenSoul} onClose={() => setIdentityOpen(false)} />}

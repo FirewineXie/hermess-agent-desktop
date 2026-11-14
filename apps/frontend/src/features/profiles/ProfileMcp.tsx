@@ -1,19 +1,21 @@
 import React from 'react'
 import type { McpOAuthCancelResult, McpOAuthFlow } from '@hermess/contracts'
-import type { McpServer } from '../extensions/model'
+import type { McpServer, McpSetupDraft } from '../extensions/model'
 import type { labels } from '../extensions/labels'
 import { isMcpOAuthTerminal, mcpOAuthPollDecision, shouldCancelMcpOAuthOnCleanup } from './mcpOAuthModel'
 
 type T = ReturnType<typeof labels>
 type Props = {
   servers: McpServer[]; busy: boolean; t: T;
+  prefill?: McpSetupDraft
+  onPrefillApplied?: () => void
   request: <R>(operation: string, payload?: Record<string, unknown>) => Promise<R>
   cancelOAuth: (flowId: string) => Promise<McpOAuthCancelResult>
   run: (operation: string, payload?: Record<string, unknown>, after?: 'mcp') => Promise<boolean>
   onMessage: (message: string) => void
 }
 
-export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run, onMessage }: Props) {
+export default function ProfileMcp({ servers, busy, t, prefill, onPrefillApplied, request, cancelOAuth, run, onMessage }: Props) {
   const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<string | null>(null)
   const [editUrl, setEditUrl] = React.useState('')
@@ -26,9 +28,11 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
   const [env, setEnv] = React.useState('')
   const [auth, setAuth] = React.useState('none')
   const [token, setToken] = React.useState('')
+  const [catalogDraft, setCatalogDraft] = React.useState<McpSetupDraft | null>(null)
   const [testBusy, setTestBusy] = React.useState('')
   const [testResults, setTestResults] = React.useState<Record<string, { ok: boolean; tools: Array<{ name: string }>; error?: string }>>({})
   const [authFlow, setAuthFlow] = React.useState<McpOAuthFlow | null>(null)
+  const [needsAuth, setNeedsAuth] = React.useState<ReadonlySet<string>>(new Set())
   const [cancelBusy, setCancelBusy] = React.useState(false)
   const pollGeneration = React.useRef(0)
   const pollTimer = React.useRef<number | null>(null)
@@ -42,6 +46,32 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
   cancelRef.current = cancelOAuth
   messageRef.current = onMessage
   labelsRef.current = t
+
+  React.useEffect(() => {
+    if (!prefill) return
+    const option = prefill.option
+    setName(prefill.name)
+    setUrl(option?.transport === 'http' ? option.url : '')
+    setCommand(option?.transport === 'stdio' ? option.command : '')
+    setArgs(option?.transport === 'stdio' ? option.args.join('\n') : '')
+    setEnv(option?.transport === 'stdio' ? option.env_keys.map(key => `${key}=`).join('\n') : '')
+    setAuth('none')
+    setToken('')
+    setCatalogDraft(prefill)
+    setEditing(null)
+    setAdding(true)
+    console.info('[mcp-setup] form opened', { operation: prefill.operation, transport: option?.transport })
+    onPrefillApplied?.()
+  }, [prefill, onPrefillApplied])
+
+  const approvedFlow = authFlow?.status === 'approved' ? authFlow.flow_id : null
+  React.useEffect(() => {
+    let active = true
+    void requestRef.current<{ needs_auth: string[] }>('mcp.status')
+      .then(value => { if (active) setNeedsAuth(new Set(value.needs_auth)) })
+      .catch(() => { if (active) setNeedsAuth(new Set()) })
+    return () => { active = false }
+  }, [servers, approvedFlow])
 
   React.useEffect(() => {
     if (!authFlow || isMcpOAuthTerminal(authFlow.status)) return
@@ -117,7 +147,7 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
 
   async function add() {
     if (Boolean(url.trim()) === Boolean(command.trim())) { onMessage(t('selectTransport')); return }
-    const environment: Record<string, string> = {}
+    const environment: Record<string, string> = Object.create(null)
     if (command.trim()) {
       for (const rawLine of env.split('\n')) {
         const line = rawLine.trim()
@@ -127,17 +157,36 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
         if (separator < 1 || !key) { onMessage(t('envFormat')); return }
         environment[key] = line.slice(separator + 1).trim()
       }
+      if (catalogDraft && Object.values(environment).some(value => !value)) { onMessage(t('catalogSetupEnvRequired')); return }
     }
     const success = await run('mcp.add', {
       name: name.trim(), ...(url.trim()
         ? { url: url.trim(), auth, ...(auth === 'header' ? { bearer_token: token.trim() } : {}) }
         : { command: command.trim(), args: args.split('\n').map(v => v.trim()).filter(Boolean), env: environment }),
     }, 'mcp')
-    if (success) { setAdding(false); setName(''); setUrl(''); setCommand(''); setArgs(''); setEnv(''); setToken(''); setAuth('none') }
+    if (catalogDraft) {
+      const event = { operation: catalogDraft.operation }
+      if (success) console.info('[mcp-setup] saved', event)
+      else console.warn('[mcp-setup] save failed', event)
+    }
+    if (success) resetAddForm()
+  }
+
+  function resetAddForm() {
+    setAdding(false)
+    setName('')
+    setUrl('')
+    setCommand('')
+    setArgs('')
+    setEnv('')
+    setToken('')
+    setAuth('none')
+    setCatalogDraft(null)
   }
 
   function startEdit(server: McpServer) {
-    setAdding(false)
+    if (catalogDraft) resetAddForm()
+    else setAdding(false)
     setEditing(server.name)
     setEditUrl(server.url || '')
     setEditCommand(server.command || '')
@@ -175,9 +224,14 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
   }
 
   return <>
-    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button disabled={busy} onClick={() => { setEditing(null); setAdding(!adding) }}>{adding ? t('cancel') : t('add')}</button></div>
+    <div className="row extension-toolbar"><p>{t('installedHint')}</p><button disabled={busy} onClick={() => {
+      setEditing(null)
+      if (adding && catalogDraft) resetAddForm()
+      else setAdding(!adding)
+    }}>{adding ? t('cancel') : t('add')}</button></div>
     {adding && <section className="extension-detail">
-      <label>{t('name')}<input value={name} onChange={event => setName(event.target.value)} /></label>
+      {catalogDraft && <p>{t('catalogSetupReview')} {catalogDraft.documentation && <a href={catalogDraft.documentation} target="_blank" rel="noopener noreferrer">{t('catalogSetupDocs')}</a>}</p>}
+      <label>{t('name')}<input autoFocus={Boolean(catalogDraft)} value={name} onChange={event => setName(event.target.value)} /></label>
       <label>{t('url')}<input value={url} onChange={event => setUrl(event.target.value)} /></label>
       {url && <label>{t('auth')}<select value={auth} onChange={event => setAuth(event.target.value)}>
         <option value="none">{t('authNone')}</option><option value="oauth">{t('authOAuth')}</option><option value="header">{t('authHeader')}</option>
@@ -210,7 +264,8 @@ export default function ProfileMcp({ servers, busy, t, request, cancelOAuth, run
       </section>}
       <div className="extension-actions">
         <button disabled={busy || Boolean(testBusy)} onClick={() => void test(server.name)}>{testBusy === server.name ? t('working') : t('test')}</button>
-        {server.auth === 'oauth' && server.source !== 'plugin' && <button disabled={busy} onClick={() => void authorize(server.name)}>{t('authorize')}</button>}
+        {server.enabled && needsAuth.has(server.name) && <span>{t('needsAuthorization')}</span>}
+        {server.auth === 'oauth' && server.source !== 'plugin' && <button disabled={busy} onClick={() => void authorize(server.name)}>{t(needsAuth.has(server.name) ? 'reauthorize' : 'authorize')}</button>}
         {server.source !== 'plugin' && <>
           <button disabled={busy} onClick={() => editing === server.name ? setEditing(null) : startEdit(server)}>{editing === server.name ? t('cancel') : t('edit')}</button>
           <button disabled={busy} onClick={() => void run('mcp.toggle', { name: server.name, enabled: !server.enabled }, 'mcp')}>

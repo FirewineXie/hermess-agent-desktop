@@ -5,6 +5,63 @@ use super::{
 use serde_json::json;
 
 #[test]
+#[ignore = "run by the isolated locked Gateway receiver probe"]
+fn print_production_gateway_feature_cron() {
+    let input = json!({"name":"desktop-cron-probe", "schedule":"0 0 1 1 *", "deliver":"local", "script":"stop-probe.py", "no_agent":true, "catch_up":true, "timezone":"Asia/Shanghai", "grace_minutes":0});
+    let create = cron_mutation(&input, true).unwrap();
+    let mut invalid = input.clone();
+    invalid["timezone"] = json!("Invalid/Zone");
+    let invalid_timezone = cron_mutation(&invalid, true).unwrap();
+    let mut room = input.clone();
+    room["deliver"] = json!("room:0cc45a54-c64f-41b8-b0c0-d6489806fbaa@default");
+    room["script"] = json!("room-probe.py");
+    let room_delivery = cron_mutation(&room, true).unwrap();
+    let mut edit = input;
+    edit["catch_up"] = json!(null);
+    edit["timezone"] = json!(null);
+    edit["grace_minutes"] = json!(null);
+    let update = cron_mutation(&edit, false).unwrap();
+    for (id, method, job, suffix, body) in [
+        ("cron-create", "POST", None, None, Some(create)),
+        ("cron-room-create", "POST", None, None, Some(room_delivery)),
+        (
+            "cron-invalid-timezone",
+            "POST",
+            None,
+            None,
+            Some(invalid_timezone),
+        ),
+        (
+            "cron-edit",
+            "PUT",
+            Some("123456abcdef"),
+            None,
+            Some(json!({"updates": update})),
+        ),
+        (
+            "cron-trigger",
+            "POST",
+            Some("123456abcdef"),
+            Some("trigger"),
+            None,
+        ),
+        (
+            "cron-stop",
+            "POST",
+            Some("123456abcdef"),
+            Some("cancel"),
+            None,
+        ),
+    ] {
+        let url = cron_job_url(1420, "default", job, suffix).unwrap();
+        println!(
+            "FEATURE_SHAPE={}",
+            json!({"id": id, "method": method, "path": format!("{}?{}", url.path(), url.query().unwrap()), "body": body})
+        );
+    }
+}
+
+#[test]
 fn saved_job_with_failed_registration_must_not_be_retried_as_create() {
     let result = partial_create_response(&json!({"detail":{
         "job_saved":true,"retry_create":false,"scheduler_registered":false,"job_id":"123456abcdef"

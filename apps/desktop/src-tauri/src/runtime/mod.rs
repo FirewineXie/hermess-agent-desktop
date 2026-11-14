@@ -1,5 +1,6 @@
 use crate::paths::{filesystem_path, plain_path, CanonicalizePlain};
 pub mod about;
+mod agent_migration;
 pub mod bots;
 pub mod browser_bridge;
 pub mod channel_manage;
@@ -8,8 +9,10 @@ pub mod channel_vendor_qr;
 pub mod channel_whatsapp;
 pub mod channels;
 pub mod chat;
+pub mod chat_connections;
 mod chat_create;
 mod chat_environment;
+pub(crate) mod chat_history;
 pub mod chat_rollback;
 pub mod chat_subagents;
 pub mod coding;
@@ -44,6 +47,7 @@ pub mod console_socket;
 mod credential_pool;
 pub mod curator;
 pub mod dashboard_plugins;
+mod daybreak;
 pub mod delegation;
 pub mod downloadable_tools;
 mod env_keys;
@@ -90,6 +94,7 @@ pub mod profiles;
 pub mod provider_copy;
 mod remote_config;
 pub mod remote_gateway;
+pub mod remote_sidebar;
 #[cfg(windows)]
 mod retired_payload;
 pub mod security;
@@ -100,6 +105,8 @@ mod system_actions;
 pub mod system_stats;
 pub mod tools;
 pub mod usage;
+mod vault_keys;
+pub mod web_access;
 mod webhooks;
 pub mod workbuddy_import;
 
@@ -143,9 +150,12 @@ pub struct BackendState(
     Mutex<()>,
     Mutex<Option<remote_gateway::ActiveRemote>>,
     gateway_recovery::RecoveryState,
+    Mutex<HashMap<String, remote_gateway::ActiveRemote>>,
 );
 
 struct OwnedBackend {
+    web_access: Option<web_access::Listener>,
+    webapp: Option<web_access::ManagedWebapp>,
     _storage_lock: fs::File,
     storage: PathBuf,
     child: Child,
@@ -318,7 +328,7 @@ async fn ping(port: u16, token: &str) -> Result<(), String> {
     Err("等待网关 ping 响应超时".to_string())
 }
 
-async fn verify_private_api(port: u16, token: &str) -> Result<(), String> {
+async fn verify_private_api(port: u16, token: &str, webapp: bool) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(5))
@@ -329,8 +339,13 @@ async fn verify_private_api(port: u16, token: &str) -> Result<(), String> {
         .send()
         .await
         .map_err(|_| "无法检查桌面私有接口".to_string())?;
-    if root.status() != reqwest::StatusCode::NOT_FOUND {
-        return Err("后端公开了桌面私有入口".into());
+    let expected = if webapp {
+        reqwest::StatusCode::OK
+    } else {
+        reqwest::StatusCode::NOT_FOUND
+    };
+    if root.status() != expected {
+        return Err("后端 Webapp 状态与桌面启动配置不符".into());
     }
     let mut browser = format!("ws://127.0.0.1:{port}/api/ws?token={token}")
         .into_client_request()
@@ -549,7 +564,7 @@ pub async fn restart_backend_gracefully(
     tokio::select! {
         biased;
         _ = cancellation.changed() => Err(DesktopFailure::runtime_unavailable()),
-        result = restart_backend_gracefully_inner(app, &state, &whatsapp_setups) => result,
+        result = restart_backend_gracefully_inner(app, &state, &whatsapp_setups, None) => result,
     }
 }
 
@@ -557,6 +572,7 @@ async fn restart_backend_gracefully_inner(
     app: AppHandle,
     state: &State<'_, BackendState>,
     whatsapp_setups: &State<'_, channel_whatsapp::WhatsAppSetupState>,
+    webapp: Option<web_access::ManagedWebapp>,
 ) -> Result<GracefulRestartResult, DesktopFailure> {
     let _restart_gate = state.1.try_lock().map_err(|_| DesktopFailure::conflict())?;
     let (pid, port, token, hermes, storage, disable_lazy_installs) = {
@@ -644,6 +660,9 @@ async fn restart_backend_gracefully_inner(
     {
         return Err("等待期间网关进程已改变，已取消重启".into());
     }
+    if let Some(listener) = backend.web_access.take() {
+        listener.close().await;
+    }
     let mut stop = tokio::process::Command::new(&hermes);
     stop.args(["gateway", "stop"])
         .env("HERMES_HOME", hermes_process_path(&home))
@@ -687,8 +706,9 @@ async fn restart_backend_gracefully_inner(
         .parent()
         .ok_or("无法定位网关存储目录")?
         .to_path_buf();
-    let info = gateway_recovery::launch_owned(app, &state, hermes, selected, disable_lazy_installs)
-        .await?;
+    let info =
+        gateway_recovery::launch_owned(app, state, hermes, selected, disable_lazy_installs, webapp)
+            .await?;
     Ok(GracefulRestartResult::Restarted { info })
 }
 
@@ -707,6 +727,9 @@ pub async fn stop_backend(
     channel_whatsapp::cancel_all(&state, &whatsapp_setups).await;
     let mut owned = state.0.lock().await;
     if let Some(backend) = owned.as_mut() {
+        if let Some(listener) = backend.web_access.take() {
+            listener.close().await;
+        }
         let _ = append_client_event(&backend.storage, "backend_stopping");
         if backend
             .child

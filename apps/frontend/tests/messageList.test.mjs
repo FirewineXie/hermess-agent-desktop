@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import { fileURLToPath } from 'node:url'
 import { appendMessage, appendReasoning, finishTurn, historyTimeline, pauseReasoning, updateTool } from '../src/features/chat/timeline.ts'
-import { appendCompletedAssistant, consumeAssistantSegment } from '../src/features/chat/assistantSegments.ts'
+import { appendCompletedAssistant, bindPersistedTurn, consumeAssistantSegment } from '../src/features/chat/assistantSegments.ts'
 
 const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true }, appType: 'custom' })
 after(() => server.close())
@@ -65,6 +65,36 @@ test('restored history keeps reasoning, text and tools in order across turns', (
   assertOrder(html, ['历史第一问', '历史思考甲', '历史说明甲', 'history_tool_a', '历史思考乙', '历史说明乙', 'history_tool_b', '历史最终回答', '历史第二问', 'history_tool_c', '第二问答案'])
   assert.equal((html.match(/复制回复/g) || []).length, 2)
   assert.ok(!html.includes('class="reasoning-block" open'))
+})
+
+test('a successful tool image appears in its tool card', () => {
+  let messages = appendMessage([], 'user', '截取页面')
+  messages = updateTool(messages, 'tool.start', { tool_id: 'shot', name: 'browser_exec' })
+  messages = updateTool(messages, 'tool.complete', { tool_id: 'shot', name: 'browser_exec', image_path: 'C:\\workspace\\tool-screenshot.png' })
+  messages = updateTool(messages, 'tool.complete', { tool_id: 'failed', name: 'browser_exec', image_path: 'bad-shot.png', result: { error: 'failed' } })
+  messages = updateTool(messages, 'tool.complete', { tool_id: 'url', name: 'browser_exec', image_path: 'https://example.com/remote-shot.png' })
+  const html = renderMessages(messages)
+  assert.ok(html.includes('<details class="tool-step" open'))
+  assert.ok(html.includes('tool-screenshot.png'))
+  assert.ok(!html.includes('bad-shot.png') && !html.includes('remote-shot.png'))
+})
+
+test('history actions use only active or durably committed message IDs', () => {
+  const history = historyTimeline([
+    { role: 'user', content: 'archived', row_id: 2, archived: true },
+    { role: 'assistant', content: 'active response', row_id: 5 },
+  ])
+  const live = appendMessage(appendMessage(history, 'user', 'new question', 50), 'assistant', 'new response')
+  const incomplete = bindPersistedTurn(live, 50, 'new response', { persisted_turn: { complete: false, user_row_id: 9 } })
+  assert.equal(incomplete, live)
+  const committed = bindPersistedTurn(live, 50, 'new response', {
+    persisted_turn: { complete: true, user_row_id: 9, final_assistant_row_id: 10 },
+  })
+  assert.deepEqual(committed.map(row => row.rowId), [undefined, 5, 9, 10])
+  const html = renderMessages(committed, { onHistoryAction: () => {}, editBlocked: true })
+  assert.equal((html.match(/从这里分叉/g) || []).length, 3)
+  assert.equal((html.match(/编辑重发/g) || []).length, 1)
+  assert.ok(html.includes('请先处理输入框中的草稿或附件'))
 })
 
 test('housekeeping tools after a reused final answer stay after that answer', () => {

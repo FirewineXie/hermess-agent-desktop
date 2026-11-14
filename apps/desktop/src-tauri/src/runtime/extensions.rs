@@ -1,8 +1,8 @@
 use super::{
-    config::config_request_for_scope, credential_pool, curator, dashboard_plugins, env_keys,
-    hermes_plugins, hooks, jobs, logs, managed_files, mcp_registry, modelscope, modelscope_mcp,
-    pairing, profile_scope::ResolvedProfileScope, session_management, system_actions, tools,
-    webhooks, BackendState,
+    agent_migration, config::config_request_for_scope, credential_pool, curator, dashboard_plugins,
+    daybreak, env_keys, hermes_plugins, hooks, jobs, logs, managed_files, mcp_registry, modelscope,
+    modelscope_mcp, pairing, profile_scope::ResolvedProfileScope, session_management,
+    system_actions, tools, vault_keys, webhooks, BackendState,
 };
 use crate::errors::DesktopFailure;
 use crate::paths::filesystem_path;
@@ -12,12 +12,23 @@ use std::time::Duration;
 use tauri::State;
 use uuid::Uuid;
 
+const MCP_STATUS_METHOD: &str = "mcp.servers.status";
+
 fn field<'a>(body: &'a Value, key: &str, max: usize) -> Result<&'a str, DesktopFailure> {
     let value = body.get(key).and_then(Value::as_str).unwrap_or("").trim();
     if value.is_empty() || value.len() > max || value.chars().any(char::is_control) {
         return Err(DesktopFailure::invalid_input());
     }
     Ok(value)
+}
+
+fn skill_lock_body(profile: &str, payload: &Value) -> Result<Value, DesktopFailure> {
+    Ok(serde_json::json!({
+        "name": field(payload, "name", 200)?,
+        "locked": payload.get("locked").and_then(Value::as_bool)
+            .ok_or_else(DesktopFailure::invalid_input)?,
+        "profile": profile,
+    }))
 }
 
 #[tauri::command]
@@ -33,6 +44,12 @@ pub async fn extension_request(
     }
     if operation.starts_with("jobs.") {
         return jobs::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("vault.key.") {
+        return vault_keys::request(&state, &scope, &operation, &payload).await;
+    }
+    if operation.starts_with("agent.migration.") {
+        return agent_migration::request(&state, &scope, &operation, &payload).await;
     }
     if operation.starts_with("hooks.") {
         return hooks::request(&state, &scope, &operation, &payload).await;
@@ -64,7 +81,14 @@ pub async fn extension_request(
     if operation.starts_with("managedFiles.") {
         return managed_files::request(&state, &scope, &operation, &payload).await;
     }
-    if operation.starts_with("toolsets.") && operation != "toolsets.toggle" {
+    if (operation.starts_with("toolsets.") && operation != "toolsets.toggle")
+        || operation == "skills.lock"
+    {
+        let payload = if operation == "skills.lock" {
+            skill_lock_body(&scope.profile, &payload)?
+        } else {
+            payload
+        };
         let operation_id = Uuid::new_v4();
         let _ = crate::diagnostics::append_client_event(
             &scope.storage,
@@ -101,6 +125,9 @@ pub async fn extension_request(
         return result;
     }
     match operation.as_str() {
+        "daybreak.status" | "daybreak.set" => {
+            return daybreak::request(&state, &scope, &operation, &payload).await
+        }
         "skills.review-capability" => {
             return review_capability(&state, &scope).await;
         }
@@ -115,6 +142,41 @@ pub async fn extension_request(
             return journey_request(&state, &scope, &profile, &operation, &payload).await;
         }
         "mcp.update" => return update_mcp_server(&state, &scope, &payload).await,
+        "mcp.status" => {
+            let id = Uuid::new_v4();
+            let log = |phase| {
+                let _ = crate::diagnostics::append_client_event(
+                    &scope.storage,
+                    &format!("mcp_status operation={id} profile={profile} phase={phase}"),
+                );
+            };
+            log("start");
+            let result = async {
+                scope.ensure_current(&state).await?;
+                let result = scope
+                    .gateway
+                    .request(MCP_STATUS_METHOD, serde_json::json!({}))
+                    .await;
+                scope.ensure_current(&state).await?;
+                let value = result.map_err(|_| DesktopFailure::operation_failed())?;
+                let servers = value["servers"]
+                    .as_array()
+                    .ok_or_else(DesktopFailure::operation_failed)?;
+                let names = servers
+                    .iter()
+                    .filter(|row| row["needs_auth"] == true)
+                    .filter_map(|row| row["name"].as_str())
+                    .collect::<Vec<_>>();
+                Ok(serde_json::json!({"needs_auth": names}))
+            }
+            .await;
+            log(if result.is_ok() {
+                "completed"
+            } else {
+                "failed"
+            });
+            return result;
+        }
         "mcp.modelscope.search" => {
             let query = payload.get("q").and_then(Value::as_str).unwrap_or("");
             return modelscope_mcp::search(query).await;
@@ -568,6 +630,7 @@ fn upstream_request_target(
         "skills.create" => (Method::POST, "/api/skills", None, None),
         "skills.edit" => (Method::PUT, "/api/skills/content", None, None),
         "skills.toggle" => (Method::PUT, "/api/skills/toggle", None, None),
+        "skills.lock" => (Method::PUT, "/api/skills/lock", None, None),
         "skills.official" => (Method::GET, "/api/skills/hub/official", None, None),
         "skills.sources" => (Method::GET, "/api/skills/hub/sources", None, None),
         "skills.search" => (Method::GET, "/api/skills/hub/search", None, Some("q")),

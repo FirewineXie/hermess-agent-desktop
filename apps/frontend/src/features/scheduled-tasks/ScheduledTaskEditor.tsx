@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ModelOptions, ProfileRow, ProfileToolset } from '@hermess/contracts'
+import type { BotGroup, ModelOptions, ProfileRow, ProfileToolset } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
@@ -20,7 +20,7 @@ export default function ScheduledTaskEditor({ editor, onChange, onClose, onSubmi
   onSubmit: (event: React.FormEvent) => void; available: ProfileRow[]; failedProfiles: string[]
   busy: boolean; loading: boolean
 }) {
-  const { extensions, models, profiles } = useDesktop()
+  const { bots, extensions, models, profiles } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
   const [resources, setResources] = React.useState<Resources>(empty)
@@ -34,19 +34,25 @@ export default function ScheduledTaskEditor({ editor, onChange, onClose, onSubmi
       extensions.request<LocalSkill[]>(scope, 'skills.list'),
       profiles.listToolsets(scope),
       extensions.request<{ targets: DeliveryTarget[] }>(scope, 'jobs.delivery.targets'),
+      bots.groups<{ rooms: BotGroup[] }>('default', 'list', {}),
     ]).then(results => {
       if (!active) return
       setResources({
         models: results[0].status === 'fulfilled' ? results[0].value : null,
         skills: results[1].status === 'fulfilled' ? results[1].value.filter(item => item.enabled) : [],
         toolsets: results[2].status === 'fulfilled' ? results[2].value : [],
-        targets: results[3].status === 'fulfilled' ? results[3].value.targets : empty.targets,
+        targets: [
+          ...(results[3].status === 'fulfilled' ? results[3].value.targets : empty.targets),
+          ...(results[4].status === 'fulfilled' ? results[4].value.rooms.filter(room => room.disbanded_at == null).map(room => ({
+            id: `room:${room.room_id}@default`, name: zh ? `群聊 · ${room.name}` : `Group chat · ${room.name}`, home_target_set: true,
+          })) : []),
+        ],
       })
       const failure = results.find(result => result.status === 'rejected')
       if (failure?.status === 'rejected') setResourceError(describeError(failure.reason, language))
     })
     return () => { active = false }
-  }, [editor.profile, extensions, models, profiles, language])
+  }, [editor.profile, bots, extensions, models, profiles, language, zh])
   const change = <K extends keyof Editor,>(key: K, value: Editor[K]) => onChange({ ...editor, [key]: value })
   const providers = (resources.models?.providers || []).filter(item => item.authenticated !== false)
   const provider = providers.find(item => item.slug === editor.provider)
@@ -74,6 +80,23 @@ export default function ScheduledTaskEditor({ editor, onChange, onClose, onSubmi
           {editor.mode === 'create' && <label>{zh ? '重复次数' : 'Repeat'}<input value={editor.repeat} maxLength={20} placeholder={zh ? '留空表示无限次；once 或数字' : 'Blank = forever; once or number'} onChange={event => change('repeat', event.target.value)} /></label>}</div>
         {editor.mode === 'create' && <label className="scheduled-checkbox"><input type="checkbox" checked={editor.paused} onChange={event => change('paused', event.target.checked)} />{zh ? '创建后先暂停' : 'Create paused'}</label>}
         <details className="scheduled-advanced" open><summary>{zh ? '高级配置' : 'Advanced settings'}</summary>
+          <div className="scheduled-field-pair">
+            <label>{zh ? '任务时区（IANA）' : 'Task time zone (IANA)'}
+              <input value={editor.timezone} maxLength={128} placeholder="Asia/Shanghai" onChange={event => change('timezone', event.target.value)} />
+              <small>{zh ? '留空时使用 Profile 的时区。' : 'Leave blank to use the Profile time zone.'}</small>
+            </label>
+            <label>{zh ? '错过调度的宽限时间（分钟）' : 'Missed run grace period (minutes)'}
+              <input type="number" value={editor.grace_minutes} min={0} step={1} onChange={event => change('grace_minutes', event.target.value)} />
+              <small>{zh ? '适用于 Cron 表达式。留空使用默认窗口，0 关闭宽限窗口。' : 'Applies to cron expressions. Blank uses the default window. Zero disables the grace window.'}</small>
+            </label>
+          </div>
+          <label>{zh ? '错过调度时' : 'When a run is missed'}
+            <select value={String(editor.catch_up)} onChange={event => change('catch_up', event.target.value === 'null' ? null : event.target.value === 'true')}>
+              <option value="null">{zh ? '使用默认策略' : 'Use default policy'}</option>
+              <option value="true">{zh ? '补跑一次' : 'Catch up once'}</option>
+              <option value="false">{zh ? '跳过' : 'Skip'}</option>
+            </select>
+          </label>
           <p>{zh ? '默认继承所属 Profile 的模型；全局模型与凭据在“设置”中管理。' : 'The job inherits its Profile model by default. Manage models and credentials in Settings.'}</p>
           <div className="scheduled-field-pair"><label>{zh ? '模型提供商覆盖' : 'Provider override'}<select value={editor.provider} onChange={event => onChange({ ...editor, provider: event.target.value, model: '' })}>
             <option value="">{zh ? '继承 Profile' : 'Profile default'}</option>{savedProvider && <option value={editor.provider}>{editor.provider}</option>}{providers.map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></label>

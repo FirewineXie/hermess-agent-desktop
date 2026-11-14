@@ -13,6 +13,13 @@ const messageKeys: Record<DesktopFailureCode, string> = {
   session_owner_unknown: 'ui.desktop.error.session_owner_unknown',
   session_profile_mismatch: 'ui.desktop.error.session_profile_mismatch',
   session_superseded: 'ui.desktop.error.session_superseded',
+  web_access_address: 'ui.desktop.error.web_access_address',
+  web_access_tls: 'ui.desktop.error.web_access_tls',
+  web_access_bind: 'ui.desktop.error.web_access_bind',
+  web_access_settings: 'ui.desktop.error.web_access_settings',
+  web_access_link: 'ui.desktop.error.web_access_link',
+  web_access_restart_deferred: 'ui.desktop.error.web_access_restart_deferred',
+  web_access_managed_policy: 'ui.desktop.error.web_access_managed_policy',
 }
 
 export function describeError(error: unknown, language: Language): string {

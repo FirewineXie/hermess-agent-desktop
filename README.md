@@ -34,6 +34,10 @@ Hermess Agent Desktop 是基于 [Hermes Agent](https://github.com/NousResearch/h
 
 参与开发的分支、提交、验证和 PR 约束见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+`v0.1.11` 开发分支提供一份可复制的 [Dashboard 插件开发样例](examples/dashboard-plugin/README.md)，包含插件清单、独立页面、聊天插槽和本地检查命令。
+
+在 Hermess 聊天里，可用内置 [插件开发 Skill](apps/desktop/agent-skills/hermess-plugin-development/SKILL.md) 从工作区生成完整的 Dashboard 插件。先选择插件工作区，再输入 `/hermess-plugin-development 开发一个在聊天顶部显示摘要的插件`。Skill 会按现有 Git 安装流程给出交付和验收步骤。
+
 已确认实施的产品功能与版本进度见 [路线图](ROADMAP.md)；讨论中的方案、产品设想与需求验证先放在 [dev](dev/README.md)，不因文档整理而加入路线图。**已确认范围的开发完成后，提交或提出 PR 前必须更新路线图中对应版本的内容**：记录本次新增或修复的功能、当前状态、实际验证范围及未完成项；发布 tag 后再标记为已发布。不能把开发分支或构建通过写成发布或实机验收。
 
 ### 按版本开发

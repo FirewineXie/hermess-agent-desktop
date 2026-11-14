@@ -1,11 +1,11 @@
 {
   "repository": "https://github.com/FirewineXie/hermes-agent.git",
   "officialRepository": "https://github.com/NousResearch/hermes-agent.git",
-  "tag": "v0.22.5",
-  "baseCommit": "bf0203a794a07aac3ff764972ab9087baa4e4f4e",
+  "tag": "v0.23.0",
+  "baseCommit": "2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19",
   "branch": "hermess-desktop",
-  "commit": "882037eb8745b505db438217513c4c94f95c93c1",
+  "commit": "b97d49d6bcb434affa48c38c3dae3283461a5d30",
   "python": "CPython 3.14",
   "nodeCandidateMajor": 22,
-  "status": "v0.22.5 base with fork-maintained Hermess desktop integration; product acceptance pending"
+  "status": "v0.23.0 base with fork-maintained Hermess desktop integration; product acceptance pending"
 }

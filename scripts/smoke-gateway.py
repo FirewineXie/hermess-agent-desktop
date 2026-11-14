@@ -10,10 +10,11 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
+
+from validation_workspace import validation_workspace
 
 
 def main() -> None:
@@ -40,7 +41,7 @@ def main() -> None:
 
     scratch = product / ".build"
     scratch.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="中文 空格 gateway-smoke-", dir=scratch, ignore_cleanup_errors=True) as temp:
+    with validation_workspace(prefix="中文 空格 gateway-smoke-", dir=scratch) as temp:
         root = Path(temp)
         home = root / "hermes-home"
         fixture = root / "notes.txt"
@@ -142,8 +143,8 @@ def main() -> None:
                     groups = {row["name"]: row for row in catalog.get("toolsets", [])}
                     if "terminal" not in groups or "terminal" not in groups["terminal"].get("tools", []):
                         raise RuntimeError("tools.list omitted the terminal tool")
-                    if "browser" not in groups or "browser_navigate" not in groups["browser"].get("tools", []):
-                        raise RuntimeError("tools.list omitted browser navigation")
+                    if "browser" not in groups or "browser_exec" not in groups["browser"].get("tools", []):
+                        raise RuntimeError("tools.list omitted browser_exec")
                     active_tools = asyncio.run(tool_catalog("tools.show"))
                     if not isinstance(active_tools.get("sections"), list):
                         raise RuntimeError("tools.show did not return active tool sections")

@@ -1,6 +1,7 @@
 use super::{gateway_control, profiles, BackendState};
 use crate::errors::{DesktopFailure, SESSION_OWNER_UNKNOWN, SESSION_PROFILE_MISMATCH};
 use crate::gateway::GatewayClient;
+use crate::paths::CanonicalizePlain;
 use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
@@ -88,6 +89,28 @@ impl ChatProfileScope {
 }
 
 impl ResolvedProfileScope {
+    pub(super) fn owned_home(&self) -> Result<PathBuf, DesktopFailure> {
+        let root = self
+            .storage
+            .join("hermes-home")
+            .canonicalize_plain()
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        let home = self
+            .home
+            .canonicalize_plain()
+            .map_err(|_| DesktopFailure::operation_failed())?;
+        let expected = if self.profile == "default" {
+            root
+        } else {
+            root.join("profiles").join(&self.profile)
+        };
+        if home == expected {
+            Ok(home)
+        } else {
+            Err(DesktopFailure::conflict())
+        }
+    }
+
     pub(super) async fn ensure_current(&self, state: &BackendState) -> Result<(), DesktopFailure> {
         let owned = state.0.lock().await;
         let backend = owned

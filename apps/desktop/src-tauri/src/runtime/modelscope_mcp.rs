@@ -115,21 +115,75 @@ fn direct_remote(data: &Value) -> Option<&str> {
             if servers.len() != 1 {
                 return None;
             }
-            servers.values().find_map(|server| {
-                if server.get("command").is_some()
-                    || server.get("env").is_some()
-                    || server.get("headers").is_some()
-                    || server.get("auth").is_some()
+            servers.values().find_map(plain_remote)
+        })
+}
+
+fn plain_remote(server: &Value) -> Option<&str> {
+    if ["command", "env", "headers", "auth"]
+        .iter()
+        .any(|key| server.get(*key).is_some())
+    {
+        return None;
+    }
+    let address = server.get("url")?.as_str()?;
+    if address.contains(['{', '}']) {
+        return None;
+    }
+    safe_web_url(address)
+}
+
+fn setup_options(data: &Value) -> Vec<Value> {
+    let Some(configs) = data.get("server_config").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    configs
+        .iter()
+        .filter_map(|config| {
+            let servers = config.get("mcpServers")?.as_object()?;
+            if servers.len() != 1 {
+                return None;
+            }
+            let server = servers.values().next()?;
+            if let Some(command) = server.get("command") {
+                let command = command.as_str()?;
+                if !form_value(command)
+                    || ["url", "headers", "auth"].iter().any(|key| server.get(*key).is_some())
                 {
                     return None;
                 }
-                let address = server.get("url")?.as_str()?;
-                if address.contains('{') || address.contains('}') {
-                    return None;
-                }
-                safe_web_url(address)
-            })
+                let args = match server.get("args") {
+                    Some(args) => args
+                        .as_array()?
+                        .iter()
+                        .map(|value| value.as_str().filter(|arg| form_value(arg)))
+                        .collect::<Option<Vec<_>>>()?,
+                    None => Vec::new(),
+                };
+                let env_keys = server
+                    .get("env")
+                    .and_then(Value::as_object)
+                    .into_iter()
+                    .flat_map(|env| env.keys())
+                    .filter(|key| {
+                        !key.is_empty()
+                            && key.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+                    })
+                    .collect::<Vec<_>>();
+                return Some(json!({"transport": "stdio", "command": command, "args": args, "env_keys": env_keys}));
+            }
+            let url = plain_remote(server)?;
+            let parsed = Url::parse(url).ok()?;
+            if parsed.password().is_some() || parsed.query().is_some() || parsed.fragment().is_some() {
+                return None;
+            }
+            Some(json!({"transport": "http", "url": url}))
         })
+        .collect()
+}
+
+fn form_value(value: &str) -> bool {
+    !value.is_empty() && value.trim() == value && !value.chars().any(char::is_control)
 }
 
 fn entry(data: &Value) -> Option<Value> {
@@ -221,7 +275,9 @@ pub(super) async fn preview(identifier: &str) -> Result<Value, DesktopFailure> {
     if data.get("id").and_then(Value::as_str) != Some(id) {
         return Err(DesktopFailure::operation_failed());
     }
-    entry(data).ok_or_else(DesktopFailure::operation_failed)
+    let mut item = entry(data).ok_or_else(DesktopFailure::operation_failed)?;
+    item["setup_options"] = json!(setup_options(data));
+    Ok(item)
 }
 
 #[cfg(test)]

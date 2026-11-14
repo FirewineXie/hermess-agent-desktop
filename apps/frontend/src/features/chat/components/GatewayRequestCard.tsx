@@ -25,26 +25,25 @@ function choicePresentation(choice: string): { label: string; recommended: boole
 
 export default function GatewayRequestCard({ request, answers, t, onAnswerChange, onSubmit }: Props) {
   const [supplements, setSupplements] = React.useState<Record<string, string>>({})
-  const supplement = (qid: string) => <label className="request-supplement">
-    <span>{t('ui.clarify.supplement')}</span>
-    <textarea className="request-freeform" value={supplements[qid] || ''} maxLength={600}
+  const supplement = (qid: string) => <details className="request-supplement-toggle">
+    <summary>{t('ui.clarify.supplement')}</summary>
+    <textarea aria-label={t('ui.clarify.supplement')} className="request-freeform" rows={2} value={supplements[qid] || ''} maxLength={600}
       placeholder={t('ui.clarify.supplement.hint')}
       onChange={event => setSupplements(current => ({ ...current, [qid]: event.target.value }))} />
-  </label>
+  </details>
   if (request.method === 'approval') return <div className="request-card request-card-approval" role="alertdialog" aria-label={t('ui.tool.execution.approval')}>
-    <header className="request-card-header"><span className="request-card-icon request-card-icon-approval" aria-hidden="true">!</span><div>
+    <header className="request-card-header"><div>
       <strong>{t('ui.tool.execution.approval')}</strong>
       <p>{request.params.description || request.params.tool_name || t('ui.hermes.requests.permission.to.run.a.tool')}</p>
     </div></header>
     {request.params.command && <pre className="request-command">{request.params.command}</pre>}
     <div className="request-card-actions">{(request.params.choices || ['deny']).map(choice =>
-      <button className={choice === 'deny' ? 'request-action-deny' : ''} key={choice} onClick={() => onSubmit(choice)}>{({ once: t('ui.allow.once'), session: t('ui.allow.for.this.session'), always: t('ui.always.allowed'), deny: t('ui.deny') })[choice]}</button>
+      <button className={choice === 'deny' ? 'request-action-deny' : choice === 'once' ? '' : 'request-action-secondary'} key={choice} onClick={() => onSubmit(choice)}>{({ once: t('ui.allow.once'), session: t('ui.allow.for.this.session'), always: t('ui.always.allowed'), deny: t('ui.deny') })[choice]}</button>
     )}</div>
   </div>
   return <div className="request-card request-card-clarify" role="group" aria-label={t('ui.clarifying.questions')}>
-    <header className="request-card-header"><span className="request-card-icon" aria-hidden="true">?</span><div>
+    <header className="request-card-header"><div>
       <strong>{t('ui.hermes.needs.additional.information')}</strong>
-      <p>{t('ui.clarifying.questions')}</p>
     </div></header>
     <div className="request-question-list">
     {request.params.questions.map(question => {

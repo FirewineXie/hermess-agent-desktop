@@ -51,6 +51,13 @@ const failureCategories: Record<DesktopFailureCode, DesktopFailureCategory> = {
   session_owner_unknown: 'validation',
   session_profile_mismatch: 'validation',
   session_superseded: 'validation',
+  web_access_address: 'operation',
+  web_access_tls: 'operation',
+  web_access_bind: 'operation',
+  web_access_settings: 'operation',
+  web_access_link: 'operation',
+  web_access_restart_deferred: 'operation',
+  web_access_managed_policy: 'operation',
 }
 
 export function isDesktopFailure(value: unknown): value is DesktopFailure {
@@ -115,7 +122,7 @@ export type MemoryProviderSummary = { name: string; description: string; availab
 export type MemoryProviderField = { key: string; label: string; kind: 'bool' | 'json' | 'number' | 'secret' | 'select' | 'text'; description: string; placeholder: string; group: string; is_set: boolean; value: string; options: Array<{ value: string; label: string }> }
 export type MemoryProviderConfig = { name: string; label: string; fields: MemoryProviderField[] }
 export type MemoryOAuthStatus = { state: 'idle' | 'pending' | 'connected' | 'error'; connected: boolean }
-export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean }
+export type ModelProvider = { slug: string; name: string; models: string[]; authenticated?: boolean; auth_type?: string; api_url?: string; is_current?: boolean; is_user_defined?: boolean; capabilities?: Record<string, { daybreak?: boolean }> }
 export type ModelOptions = { providers: ModelProvider[]; model?: string; provider?: string }
 export type CustomEndpoint = { id: string; name: string; base_url: string; model: string; models: string[]; source: string; is_current: boolean; discover_models?: boolean }
 export type ModelPickResult = { model?: string; provider?: string; status?: string; confirm_required?: boolean; confirm?: string; confirm_message?: string }
@@ -179,7 +186,7 @@ export type BotRosterRow = ProfileRow & { canonical_session?: { id: string; reso
 export type BotRoster = { profiles: BotRosterRow[]; bot_mode_protocol: boolean; install_id: string }
 export type BotGroupMember = { member_id: string; profile: string; handle: string; display_name?: string }
 export type BotGroup = { room_id: string; name: string; members: BotGroupMember[]; latest_seq?: number; disbanded_at?: number | null }
-export type BotGroupEvent = { room_id: string; seq: number; event_id: string; kind: string; actor: { kind: string; id: string }; payload: Record<string, unknown>; created_at: number }
+export type BotGroupEvent = { room_id: string; seq: number; event_id: string; kind: string; actor: { kind: string; id: string; display_name?: string }; payload: Record<string, unknown>; created_at: number }
 export type BotGroupCapabilities = { driver: boolean; seatable_profiles?: string[]; max_log_limit: number }
 export type ProfileDataListing = { path: string; relativePath: string; parent: string | null; entries: Array<{ name: string; relativePath: string; directory: boolean; link: boolean }> }
 export type ProfilesSnapshot = {
@@ -239,18 +246,27 @@ export type CommandCatalog = {
   warning?: string
 }
 export type CommandResult = { type?: string; output?: string; message?: string; display?: string; notice?: string }
+import type { ChatConnectionCommand, ChatConnectionResult } from './chat-connection'
+export type { ChatConnectionAnswer, ChatConnectionCommand, ChatConnectionResult, ChatConnectionSnapshot, ChatConnectionTarget } from './chat-connection'
+
 export type ResumeResult = {
+  pending_connection?: unknown
+  todo_state?: unknown
   session_id: string
   info?: { provider?: string; model?: string; cwd?: string; launch_request?: { cwd?: string; cwd_explicit?: boolean } }
   stored_session_id?: string
   session_key?: string
-  messages: Array<{ role: string; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
+  messages: Array<{ role: string; row_id?: number; archived?: boolean; display_kind?: string; display_metadata?: { display_text?: string }; content?: unknown; text?: string | null; tool_name?: string; name?: string; context?: string; args?: Record<string, unknown>; tool_call_id?: string; timestamp?: number; reasoning?: unknown; reasoning_content?: unknown; reasoning_details?: unknown }>
+  revision?: number
+  execution_generation?: number
   running?: boolean
   replay_epoch?: string
   last_sequence?: number
   inflight?: { assistant?: string; user?: string }
   open_requests?: GatewayRequest[]
 }
+export type ChatHistoryMutation = { operation: 'rewind' | 'branch'; rowId: number; requestId: string; revision: number; generation: number }
+export type ChatHistoryMutationResult = { rewound_count?: number; branched_session_id?: string }
 export type ChatUsage = { context_tokens?: number; last_prompt_tokens?: number; context_length?: number; config_context_length?: number | null; context_used?: number; context_max?: number; context_percent?: number; context_source?: string; context_estimated?: boolean }
 export type SubagentRow = { subagent_id: string; parent_id?: string | null; depth?: number | null; goal?: string | null; model?: string | null; started_at?: number | null; status?: string | null; tool_count?: number | null; last_tool?: string | null; accepting_steer?: boolean | null }
 export type SubagentRoster = { subagents: SubagentRow[]; delegations: unknown[] }
@@ -381,8 +397,10 @@ export type ChannelQrStart = { id: string; url: string; expires_in: number; poll
 export type ChannelQrPoll = { status: 'waiting' | 'scanned' | 'connected' | 'expired'; restart_required: boolean }
 export type ChannelAccess = 'pairing' | 'open'
 export type GracefulRestartResult = { status: 'restarted'; info: BackendInfo } | { status: 'deferred' }
-export type RemoteGatewayConfig = { id: string; label: string; url: string }
+export type RemoteGatewayConfig = { id: string; label: string; url: string; sshTarget?: string }
 export type RemoteGatewayProbe = { profiles: string[] }
+export type GatewaySidebarHost = { id: string | null; label: string | null; connected: boolean; profiles: { profile: string; sessions: SessionRow[] }[] }
+export type GatewayNotice = { gatewayId: string | null; id: string; text: string | null }
 export type ActiveGateway = { mode: 'local' } | { mode: 'remote'; config: RemoteGatewayConfig; replay_epoch: string; selected_profile: string }
 
 export type NotificationTarget = {
@@ -430,6 +448,24 @@ export type HermesConsoleSocket = {
 }
 
 /** The host capability boundary. Frontend features call named capabilities, never native command strings. */
+export interface WebAccessSettings {
+  origin: string
+  listenIp: string
+  certificatePath: string
+  privateKeyPath: string
+}
+
+export type WebAccessAction =
+  | { action: 'status' | 'enable' | 'disable' | 'launch' }
+  | { action: 'save'; settings: WebAccessSettings }
+
+export interface WebAccessStatus {
+  settings: WebAccessSettings
+  enabled: boolean
+  link: string | null
+  restarted: BackendInfo | null
+}
+
 export interface DesktopApi {
   coding: import('./coding').CodingApi
   hermesConsole: {
@@ -476,7 +512,7 @@ export interface DesktopApi {
   workspacePanel: {
     listDirectory(scope: WorkspaceScope, path?: string): Promise<{ path: string; name: string; entries: Array<{ path: string; name: string; directory: boolean }> }>
     readFile(scope: WorkspaceScope, path: string): Promise<{ path: string; name: string; kind: 'text' | 'image' | 'unsupported'; content: string; mime?: string }>
-    startTerminal(scope: WorkspaceScope): Promise<{ id: string; cwd: string }>
+    startTerminal(scope: WorkspaceScope, gatewayId?: string): Promise<{ id: string; cwd: string }>
     activateTerminal(scope: WorkspaceScope, id: string): Promise<void>
     writeTerminal(scope: WorkspaceScope, id: string, data: string): Promise<void>
     resizeTerminal(scope: WorkspaceScope, id: string, cols: number, rows: number): Promise<void>
@@ -523,6 +559,7 @@ export interface DesktopApi {
     devDefaults(): Promise<DevDefaults>
     packedDefaults(): Promise<PackedDefaults>
     storageLocation(request: StorageLocationAction): Promise<StorageLocationSettings>
+    webAccess(action: WebAccessAction): Promise<WebAccessStatus>
     startDev(storagePath: string, pythonPath: string): Promise<BackendInfo>
     startPacked(storagePath: string): Promise<BackendInfo>
     ping(): Promise<void>
@@ -530,13 +567,14 @@ export interface DesktopApi {
     reconnect(options?: { manualRetry?: boolean }): Promise<BackendInfo>
     restartGracefully(): Promise<GracefulRestartResult>
     stop(): Promise<void>
-    savedRemote(): Promise<RemoteGatewayConfig | null>
+    savedRemote(): Promise<RemoteGatewayConfig[]>
+    gatewaySidebarSessions(): Promise<GatewaySidebarHost[]>
     testRemote(url: string, token: string): Promise<RemoteGatewayProbe>
-    saveRemote(label: string, url: string, token: string): Promise<RemoteGatewayConfig>
-    /** Remove the matching saved configuration and credential; reject while a remote gateway is active. */
+    saveRemote(label: string, url: string, token: string, sshTarget?: string): Promise<RemoteGatewayConfig>
+    /** Remove a saved configuration and credential; reject if that gateway is active. */
     deleteRemote(id: string): Promise<void>
     activeGateway(): Promise<ActiveGateway>
-    activateSavedRemote(): Promise<ActiveGateway>
+    activateSavedRemote(id?: string): Promise<ActiveGateway>
     activateLocalGateway(): Promise<ActiveGateway>
     probeLocalTools(): Promise<RuntimeProbe[]>
     systemStats(): Promise<SystemStats>
@@ -620,7 +658,7 @@ export interface DesktopApi {
     deleteEndpoint(scope: ProfileScope, endpointId: string): Promise<void>
     setDefault(scope: ProfileScope, args: { provider: string; model: string; baseUrl: string; apiKey: string; confirmExpensiveModel: boolean }): Promise<ModelAssignment>
     checkRuntime(scope: ProfileScope): Promise<{ ok?: boolean; provider?: string; model?: string; error?: string }>
-    selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string }): Promise<ModelPickResult>
+    selectChat(scope: SessionScope, args: { provider: string; model: string; confirm?: string } | { provider?: never; model: 'reset' }): Promise<ModelPickResult>
     moa(scope: ProfileScope): Promise<MoaConfig>
     saveMoa(scope: ProfileScope, config: MoaConfig): Promise<MoaConfig>
     oauthProviders(scope: ProfileScope): Promise<{ providers: ModelOAuthProvider[] }>
@@ -632,6 +670,7 @@ export interface DesktopApi {
   delegation: {
     read(scope: ProfileScope): Promise<DelegationRouting>
     save(scope: ProfileScope, draft: DelegationRouting): Promise<{ routing: DelegationRouting; activated: boolean }>
+    saveModel(scope: ProfileScope, route: { provider: string; model: string }): Promise<{ provider: string; model: string }>
   }
   device: {
     status(): Promise<DeviceStatus>
@@ -651,6 +690,7 @@ export interface DesktopApi {
     groups<T>(profile: string, operation: string, params: Record<string, unknown>): Promise<T>
   }
   chat: {
+    connection(scope: SessionScope & { gatewayEpoch: string }, request: ChatConnectionCommand): Promise<ChatConnectionResult>
     createSession(scope: ProfileScope, args: { cwd?: string; provider?: string; model?: string; reasoning?: string }): Promise<{ session_id: string; stored_session_id: string; info?: ResumeResult['info'] }>
     resumeSession(scope: SessionScope): Promise<ResumeResult>
     listSessions(scope: ProfileScope): Promise<{ sessions: SessionRow[] }>
@@ -666,6 +706,7 @@ export interface DesktopApi {
     setReasoning(scope: SessionScope, value: string): Promise<{ value?: string }>
     commands(scope: ProfileScope | SessionScope): Promise<CommandCatalog>
     executeCommand(scope: SessionScope, command: string): Promise<CommandResult>
+    mutateHistory(scope: SessionScope, change: ChatHistoryMutation): Promise<ChatHistoryMutationResult>
     subagents(scope: SessionScope): Promise<SubagentRoster>
     subagentTail(scope: SessionScope, subagentId: string): Promise<SubagentTail>
     steerSubagent(scope: SessionScope, subagentId: string, text: string): Promise<{ status: 'queued' | 'rejected'; subagent_id: string }>
@@ -683,6 +724,7 @@ export interface DesktopApi {
   }
   events: {
     onGatewayEvent(handler: (event: GatewayEvent) => void): Promise<Unsubscribe>
+    onGatewayNotice(handler: (notice: GatewayNotice) => void): Promise<Unsubscribe>
     onGatewayRequest(handler: (request: GatewayRequest) => void): Promise<Unsubscribe>
     onDisconnect(handler: () => void): Promise<Unsubscribe>
   }

@@ -70,6 +70,9 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
   const featuresRef = React.useRef<HTMLDivElement>(null)
   const featuresButtonRef = React.useRef<HTMLButtonElement>(null)
   const zh = language === 'zh-CN'
+  const currentPluginLabel = view !== 'dashboard-plugin' ? undefined
+    : activeDashboardPlugin === achievementsPluginName ? (zh ? '成就' : 'Achievements')
+      : dashboardPlugins.find(plugin => plugin.name === activeDashboardPlugin)?.label
   const servedProfiles = new Set(profiles?.gateways.flatMap(gateway => [gateway.profile, ...(gateway.served_profiles || [])]) || [])
   const hasAnySession = groups.length > 0 || sessions.length > 0 || Object.values(otherProfileSessions).some(rows => rows.length > 0)
   React.useEffect(() => {
@@ -200,13 +203,15 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
       </div>
       {!remoteMode && <div id="sidebar-code-sessions" className="sidebar-sessions sidebar-code-sessions" hidden={chatMode}>{programmingSessions}</div>}
       {!remoteMode && <div className="sidebar-feature-nav" ref={featuresRef}>
-        <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>{zh ? '更多' : 'More'} <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span></button>
+        <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>
+          <span className="sidebar-feature-label">{zh ? '更多' : 'More'}{currentPluginLabel && <strong title={currentPluginLabel}> · {currentPluginLabel}</strong>}</span>
+          <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span>
+        </button>
         <nav id="sidebar-feature-menu" className="sidebar-feature-menu" aria-label={zh ? '功能导航' : 'Feature navigation'} hidden={!featuresOpen}>
           <span className="sidebar-feature-heading">{zh ? '其他功能' : 'Other features'}</span>
           <button className={view === 'dashboard-plugin' && activeDashboardPlugin === achievementsPluginName ? 'active' : ''} onClick={() => openFeaturePlugin(achievementsPluginName)}>◇ <span>{zh ? '成就' : 'Achievements'}</span></button>
           {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => openFeaturePlugin(plugin.name)}>◇ <span>{plugin.label}</span></button>)}
           <button className={view === 'webhooks' ? 'active' : ''} onClick={() => openFeatureView('webhooks')}>⌁ <span>Webhooks</span></button>
-          <button className={view === 'tools' ? 'active' : ''} onClick={() => openFeatureView('tools')}>▦ <span>{t('ui.tools.and.capabilities')}</span></button>
           <DashboardPluginSlot name="sidebar" />
         </nav>
       </div>}

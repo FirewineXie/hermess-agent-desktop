@@ -3,6 +3,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import type { HermesPluginRuntime, InstalledHermesPlugin } from '../extensions/HermesPlugins'
+import { refreshDashboardPlugins, useDashboardPluginDefinitions } from '../dashboard-plugins/DashboardPluginHost'
 import snapshot from '../extensions/hermesPluginCatalog.generated.json'
 
 type PluginScanFinding = { severity: string; category: string; file: string; line: number | null; description: string }
@@ -10,19 +11,31 @@ type PluginMutationResult = {
   ok: boolean; unchanged?: boolean; consent_required?: boolean; scan_blocked?: boolean;
   scan_verdict?: string; scan_findings?: PluginScanFinding[]; delta_lines?: string[];
   plugin_name?: string; warnings?: string[]; missing_env?: string[]; enabled?: boolean; error?: string
+  restart_required?: boolean; missing_dependencies?: boolean; next_session?: boolean
 }
 
 type MemoryState = { active: string; providers: Array<{ name: string }> }
+type BatchUpdate = {
+  results: Array<{ name: string; status: 'updated' | 'current' | 'failed' | 'needs_review' }>
+  skipped: number; current: number
+}
+type AutoUpdate = { auto_apply: boolean; check_hours: number }
 
 export default function ProfileHermesPlugins({ profile, served, onOpenSources, onOpenMemorySettings }: { profile: string | null; served: boolean; onOpenSources: () => void; onOpenMemorySettings: () => void }) {
   const { extensions, memory } = useDesktop()
   const language = useLanguage()
   const zh = language === 'zh-CN'
+  const dashboard = useDashboardPluginDefinitions(profile)
+  const dashboardStatus = zh
+    ? { loading: '正在加载入口', registered: '已有界面注册', unregistered: '入口已加载，尚未注册', 'asset-failed': '入口脚本加载失败' }
+    : { loading: 'Loading entry', registered: 'Interface registered', unregistered: 'Entry loaded; nothing registered yet', 'asset-failed': 'Entry script failed to load' }
   const [data, setData] = React.useState<HermesPluginRuntime | null>(null)
   const [memoryState, setMemoryState] = React.useState<MemoryState | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [busy, setBusy] = React.useState('')
   const [message, setMessage] = React.useState('')
+  const [batch, setBatch] = React.useState<BatchUpdate | null>(null)
+  const [autoUpdate, setAutoUpdate] = React.useState<AutoUpdate | null>(null)
   const [query, setQuery] = React.useState('')
   const [installId, setInstallId] = React.useState('')
   const [installForce, setInstallForce] = React.useState(false)
@@ -37,13 +50,15 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
     setMessage('')
     try {
       const scope = { kind: 'profile' as const, profile }
-      const [plugins, providers] = await Promise.allSettled([
+      const [plugins, providers, updates] = await Promise.allSettled([
         extensions.request<HermesPluginRuntime>(scope, 'hermesPlugins.list'),
         memory.providers(scope),
+        extensions.request<AutoUpdate>(scope, 'hermesPlugins.autoUpdate'),
       ])
       if (plugins.status === 'rejected') throw plugins.reason
       setData(plugins.value)
       setMemoryState(providers.status === 'fulfilled' ? providers.value : null)
+      setAutoUpdate(updates.status === 'fulfilled' ? updates.value : null)
     } catch (error) {
       setData(null)
       setMemoryState(null)
@@ -52,6 +67,38 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
   }, [served, profile, extensions, memory, language])
   React.useEffect(() => { void refresh() }, [refresh])
 
+  async function setPluginAutoUpdate(enabled: boolean) {
+    if (!served || !profile || busy || !autoUpdate) return
+    setBusy('__auto_update__')
+    setMessage('')
+    try {
+      const result = await extensions.request<AutoUpdate>({ kind: 'profile', profile }, 'hermesPlugins.autoUpdate.set', { enabled })
+      setAutoUpdate(result)
+    } catch (error) { setMessage(describeError(error, language)) }
+    finally { setBusy('') }
+  }
+
+  function activationNotice(result: PluginMutationResult) {
+    if (result.missing_dependencies) return zh ? '当前进程缺少插件依赖，重启后重新加载。' : 'The running process is missing plugin dependencies. Restart to reload them.'
+    if (result.restart_required) return zh ? 'Gateway 尚未重新加载插件，需要重启。' : 'The Gateway has not reloaded the plugin. Restart to apply it.'
+    if (result.next_session) return zh ? '插件的工具或提示词在新会话中生效。' : 'Plugin tools or prompts take effect in new sessions.'
+    return ''
+  }
+
+  async function updateAll() {
+    if (!served || !profile || busy || !data?.can_manage) return
+    setBusy('__update_all__')
+    setMessage('')
+    setBatch(null)
+    try {
+      const result = await extensions.request<BatchUpdate>({ kind: 'profile', profile }, 'hermesPlugins.updateAll')
+      setBatch(result)
+      if (result.results.some(item => item.status === 'updated')) refreshDashboardPlugins(profile, true)
+      await refresh()
+    } catch (error) { setMessage(describeError(error, language)) }
+    finally { setBusy('') }
+  }
+
   async function rescan() {
     if (!served || !profile || busy) return
     setBusy('__rescan__')
@@ -59,6 +106,7 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
     try {
       const result = await extensions.request<{ ok: boolean; count: number }>(
         { kind: 'profile', profile }, 'hermesPlugins.rescan')
+      if (result.ok) refreshDashboardPlugins(profile, true)
       await refresh()
       setMessage(result.ok
         ? (zh ? `重新扫描完成，发现 ${result.count} 个 Dashboard 扩展。` : `Rescan complete; found ${result.count} Dashboard extensions.`)
@@ -82,13 +130,15 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
           identifier, force: installForce, enable: installEnable,
         })
       if (!result.ok) throw new Error(result.error || (zh ? '插件安装未完成。' : 'Plugin installation did not complete.'))
+      if (result.enabled || installForce) refreshDashboardPlugins(profile, installForce)
       await refresh()
       setInstallId('')
       setInstallForce(false)
       const details = [
         ...(result.warnings || []),
         ...(result.missing_env?.length ? [zh ? `仍需配置：${result.missing_env.join(', ')}` : `Still required: ${result.missing_env.join(', ')}`] : []),
-      ]
+        activationNotice(result),
+      ].filter(Boolean)
       setMessage(`${zh ? `已安装 ${result.plugin_name || identifier}` : `Installed ${result.plugin_name || identifier}`}${result.enabled ? (zh ? '，并已启用。' : ' and enabled.') : (zh ? '，当前未启用。' : ' and left disabled.')}${details.length ? ` ${details.join(' ')}` : ''}`)
     } catch (error) { setMessage(describeError(error, language)) }
     finally { setBusy('') }
@@ -125,8 +175,9 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
         }
         return
       }
+      if (result.ok) refreshDashboardPlugins(profile, operation === 'update')
       await refresh()
-      setMessage(result.ok ? (zh ? '操作完成并已重新读取插件状态；加载变化可能需要新会话。' : 'Action completed and plugin state refreshed; loading changes may need a new session.')
+      setMessage(result.ok ? activationNotice(result) || (zh ? '操作完成，已重新读取插件状态。' : 'Action completed and plugin status refreshed.')
         : (zh ? 'Agent 要求额外确认或阻止了操作，本页未继续。' : 'The Agent requires confirmation or blocked this action.'))
     } catch (error) { setMessage(describeError(error, language)) }
     finally { setBusy('') }
@@ -149,21 +200,53 @@ export default function ProfileHermesPlugins({ profile, served, onOpenSources, o
   }
 
   const visible = (data?.installed || []).filter(item => `${item.name} ${item.catalog_name || ''} ${item.description}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const batchLabels = zh
+    ? { updated: '已更新', current: '已是最新', failed: '更新失败', needs_review: '待审核，请单独更新' }
+    : { updated: 'Updated', current: 'Up to date', failed: 'Failed', needs_review: 'Review required. Update individually.' }
   return <section className="profile-skills-panel profile-plugins-panel" aria-label={zh ? '此 Profile 已安装的 Hermes 插件' : 'Hermes plugins installed for this Profile'}>
-    <div className="profile-skills-heading"><div><h3>{zh ? 'Hermes 插件' : 'Hermes plugins'}</h3><p>{data ? (zh ? `${data.installed.length} 个已安装插件` : `${data.installed.length} installed plugins`) : (zh ? '读取当前 Profile 的插件中…' : 'Loading this Profile’s plugins…')}</p></div>
+    <div className="profile-skills-heading profile-plugins-heading"><div><h3>{zh ? 'Hermes 插件' : 'Hermes plugins'}</h3><p>{data ? (zh ? `${data.installed.length} 个已安装插件` : `${data.installed.length} installed plugins`) : (zh ? '读取当前 Profile 的插件中…' : 'Loading this Profile’s plugins…')}</p></div>
+      <div className="profile-plugin-actions">
       <button type="button" onClick={onOpenSources}>{zh ? '查看插件源列表' : 'View plugin sources'}</button>
       <button type="button" disabled={!served || loading || !!busy} onClick={() => void rescan()}>{busy === '__rescan__' ? '…' : zh ? '重新扫描' : 'Rescan'}</button>
-      <button type="button" disabled={!served || loading || !!busy} onClick={() => void refresh()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button></div>
+      <button type="button" disabled={!served || loading || !!busy || !data?.can_manage || !data.installed.length} onClick={() => void updateAll()}>
+        {busy === '__update_all__' ? (zh ? '正在检查并更新…' : 'Checking and updating…') : (zh ? '批量更新' : 'Update all')}
+      </button>
+      <button type="button" disabled={!served || loading || !!busy} onClick={() => void refresh()}>{loading ? '…' : zh ? '刷新' : 'Refresh'}</button></div></div>
     {!served && <p>{zh ? '当前 Profile 未由 Gateway 服务，无法核实插件。' : 'This Profile is not served by the Gateway.'}</p>}
     {data && !data.runtime_status_available && <p>{zh ? '加载状态暂不可用；已安装列表来自当前 Profile 的安装记录。' : 'Load status is unavailable; installations come from this Profile’s records.'}</p>}
     {message && <p role="status">{message}</p>}
+    {autoUpdate && <label className="profile-plugin-auto-update">
+      <input type="checkbox" checked={autoUpdate.auto_apply} disabled={!served || loading || !!busy} onChange={event => void setPluginAutoUpdate(event.target.checked)} />
+      {zh ? `自动更新（每 ${autoUpdate.check_hours} 小时检查）` : `Auto-update (checks every ${autoUpdate.check_hours} hours)`}
+    </label>}
+    {batch && <div role="status">
+      <p>{zh ? `批量更新完成，${batch.current} 个已是最新，${batch.skipped} 个已跳过。` : `Batch finished. ${batch.current} already current, ${batch.skipped} skipped.`}</p>
+      {batch.results.length > 0 && <ul>{batch.results.map(row => <li key={row.name}>{row.name} · {batchLabels[row.status]}</li>)}</ul>}
+      {batch.results.some(row => row.status === 'updated') && <p>{zh ? '更新后的 Python 工具在新会话中加载。' : 'Updated Python tools load in new sessions.'}</p>}
+    </div>}
     <form className="profile-plugin-install" onSubmit={event => void install(event)}>
       <div><strong>{zh ? '从其他来源安装' : 'Install from another source'}</strong><p>{zh ? '支持 owner/repo、owner/repo/子目录或 HTTPS 地址。此入口属于当前 Profile 的本地管理。' : 'Supports owner/repo, owner/repo/subdirectory, or an HTTPS URL. This is local management for the current Profile.'}</p></div>
       <label><span>{zh ? '插件标识' : 'Plugin identifier'}</span><input value={installId} disabled={!served || !!busy} spellCheck={false} placeholder="owner/repo or https://…" onChange={event => setInstallId(event.target.value)} /></label>
+      <div className="profile-plugin-actions">
       <label><input type="checkbox" checked={installForce} disabled={!served || !!busy} onChange={event => setInstallForce(event.target.checked)} />{zh ? '强制重新安装' : 'Force reinstall'}</label>
       <label><input type="checkbox" checked={installEnable} disabled={!served || !!busy} onChange={event => setInstallEnable(event.target.checked)} />{zh ? '安装后启用' : 'Enable after install'}</label>
       <button type="submit" disabled={!served || !!busy || !data?.can_manage || !installId.trim()}>{busy === '__install__' ? (zh ? '安装中…' : 'Installing…') : (zh ? '安装插件' : 'Install plugin')}</button>
+      </div>
     </form>
+    {(dashboard.definitions.length > 0 || dashboard.error) && <section className="profile-plugin-orphans" aria-label={zh ? 'Dashboard 界面状态' : 'Dashboard interface status'}>
+      <h4>{zh ? 'Dashboard 界面状态' : 'Dashboard interface status'}</h4>
+      {dashboard.error && <p role="alert">{dashboard.error}</p>}
+      <ul>{dashboard.definitions.map(({ manifest, status, pageRegistered, registeredSlots, styleFailed }) => <li key={manifest.name}>
+        <strong>{manifest.label}</strong> · {manifest.name} · {dashboardStatus[status]}
+        {manifest.version && <p>{zh ? '版本' : 'Version'} {manifest.version}</p>}
+        <p>{zh ? '声明页面' : 'Declared page'} {manifest.tab.path}{manifest.tab.hidden ? (zh ? '（隐藏）' : ' (hidden)') : ''}
+          {manifest.tab.override && ` · ${zh ? '覆盖' : 'Overrides'} ${manifest.tab.override}`}</p>
+        {manifest.slots.length > 0 && <p>{zh ? '声明插槽' : 'Declared slots'} {manifest.slots.join(', ')}</p>}
+        {pageRegistered && <p>{zh ? '页面组件已注册' : 'Page component registered'}</p>}
+        {registeredSlots.length > 0 && <p>{zh ? '实际注册插槽' : 'Registered slots'} {registeredSlots.join(', ')}</p>}
+        {styleFailed && <p>{zh ? '样式表加载失败' : 'Stylesheet failed to load'}</p>}
+      </li>)}</ul>
+    </section>}
     <label className="profile-skill-search"><span className="sr-only">{zh ? '搜索已安装插件' : 'Search installed plugins'}</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={zh ? '搜索已安装插件' : 'Search installed plugins'} /></label>
     {data && (visible.length ? <div className="extension-list">{visible.map(item => {
       const catalog = snapshot.entries.find(entry => entry.name === item.catalog_name)

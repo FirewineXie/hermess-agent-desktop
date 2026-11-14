@@ -1,0 +1,14 @@
+.gateway-switcher { position: relative; flex: none; }
+.gateway-switcher-trigger { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #24334a; font: inherit; font-size: 14px; cursor: pointer; }
+.gateway-switcher-trigger .window-title-status-dot { margin-left: 0; }
+.gateway-switcher-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gateway-switcher-menu { position: absolute; z-index: 100; top: calc(100% + 9px); left: 0; width: max-content; min-width: 190px; max-width: 280px; max-height: min(400px, calc(100vh - 90px)); overflow-y: auto; padding: 5px; border: 1px solid #d9e1ec; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px #1d2e4a20; }
+.gateway-switcher-menu button, .gateway-switcher-menu small { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 9px 11px; border: 0; border-radius: 6px; background: transparent; text-align: left; overflow-wrap: anywhere; }
+.gateway-switcher-menu button { color: #24334a; cursor: pointer; }
+.gateway-switcher-menu button:hover { background: #edf4ff; }
+.gateway-switcher-row { display: flex; align-items: stretch; }
+.gateway-switcher-menu .gateway-notice-toggle { justify-content: center; width: 34px; flex: none; padding: 0; font-size: 16px; }
+.gateway-notice-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #dc6c16; }
+.gateway-notice-list { margin: 4px 6px; padding: 8px 5px; border-top: 1px solid currentColor; font-size: 13px; overflow-wrap: anywhere; }
+.gateway-notice-list ul { margin: 6px 0 0; padding-left: 16px; }
+.gateway-notice-list li { margin: 4px 0; white-space: pre-wrap; }

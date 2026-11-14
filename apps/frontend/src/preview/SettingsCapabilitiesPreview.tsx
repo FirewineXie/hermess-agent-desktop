@@ -20,7 +20,7 @@ const configurations: Record<string,Record<string,unknown>> = {
   default: {agent:{max_turns:10},approvals:{mode:'manual'},command_allowlist:['echo hello'],security:{redact_secrets:true},checkpoints:{enabled:true},terminal:{timeout:30},tool_output:{max_bytes:2000},future:{option:'PREVIEW_ONLY'}},
   writer: {agent:{max_turns:20},approvals:{mode:'manual'},command_allowlist:[],security:{redact_secrets:true},checkpoints:{enabled:false}},
 }
-const consent = new Map<string,{enabled:boolean;send:boolean;decided:boolean;managed:boolean}>()
+const configurationDefaults = structuredClone(configurations.default)
 const schema = {category_order:[],fields:{'agent.max_turns':{type:'number'},'approvals.mode':{type:'select',options:['manual','smart']},command_allowlist:{type:'list'},'security.redact_secrets':{type:'boolean'},'checkpoints.enabled':{type:'boolean'},'terminal.timeout':{type:'number'},'tool_output.max_bytes':{type:'number'},'future.option':{type:'string'},'telemetry.shared_metrics.enabled':{type:'boolean'},'memory.provider':{type:'string'}}}
 
 
@@ -29,18 +29,18 @@ let device:DeviceStatus={preferences:{keepAwake:false,f12Devtools:false,quickEna
 let copied=false
 const api:DesktopApi={...previewDesktopApi,
   profiles:{...previewDesktopApi.profiles,async list(){return {profiles:[{name:'default',is_default:true},{name:'writer',is_default:false}],selected:'default',gateway_mode:'single',gateways:[],reason:null}}},
-  delegation:{async read(){return structuredClone(routing)},async save(_scope,draft){routing=structuredClone(draft);routing.model_map.options=routing.model_map.options.map(({credential,original_name,...row})=>({...row,has_api_key:credential?.action==='clear'?false:credential?.action==='replace'?true:row.has_api_key}));return {routing:structuredClone(routing),activated:true}}},
+  delegation:{...previewDesktopApi.delegation,async read(){return structuredClone(routing)},async save(_scope,draft){routing=structuredClone(draft);routing.model_map.options=routing.model_map.options.map(({credential,original_name,...row})=>({...row,has_api_key:credential?.action==='clear'?false:credential?.action==='replace'?true:row.has_api_key}));return {routing:structuredClone(routing),activated:true}}},
   device:{...previewDesktopApi.device,async status(){return structuredClone(device)},async save(preferences){if(preferences.shortcut==='taken')throw new Error('PREVIEW_ONLY: 快捷键已占用');device={...device,preferences,registered:preferences.quickEnabled,awake:preferences.keepAwake};return structuredClone(device)}},
   agentSettings:{...previewDesktopApi.agentSettings,
     async schema(){return structuredClone(schema)},
     async config(scope){return structuredClone(configurations[scope.profile])},
+    async defaults(){return structuredClone(configurationDefaults)},
     async saveField(scope,key,value){const parts=key.split('.');let target=configurations[scope.profile];for(const part of parts.slice(0,-1)){target[part]??={};target=target[part] as Record<string,unknown>}target[parts.at(-1)!]=structuredClone(value)},
     async raw(scope){return {path:'PREVIEW_ONLY/'+scope.profile+'/config.yaml',yaml:'agent:\n  max_turns: '+(configurations[scope.profile].agent as {max_turns:number}).max_turns+'\n'}},
     async saveRaw(){throw new Error('PREVIEW_ONLY: YAML 必须由桌面宿主校验并保存。')},
   },
   security:{
-    async consent(scope){return structuredClone(consent.get(scope.profile)||{enabled:false,send:false,decided:false,managed:false})},
-    async saveConsent(scope,enabled,send){const value={enabled,send:enabled&&send,decided:true,managed:false};consent.set(scope.profile,value);return structuredClone(value)},
+    ...previewDesktopApi.security,
     async checkpoints(scope){return scope.profile==='default'?{sessions:[],total_bytes:0}:{sessions:[{session:'PREVIEW_ONLY-session',files:3,bytes:2048}],total_bytes:2048}},
   },
   models:{...previewDesktopApi.models,async previewCopy(scope,endpointId,target){return {source:scope.profile,endpointId,target,digest:'PREVIEW_ONLY',eligible:!copied,reason:copied?'PREVIEW_ONLY: 目标已有此提供商':'PREVIEW_ONLY: 可以创建并同步密钥',name:'示例提供商',models:['preview-model']}},async copy(){copied=true;return {status:'copied',endpointId:'preview-copy',credentialCopied:true}}},

@@ -91,7 +91,7 @@ export function commandChoices(catalog: CommandCatalog, trigger: NonNullable<Ret
       '/btw': ['顺带提问：/btw 问题；主回合继续运行', 'Ask a side question: /btw question; main turn continues'],
       '/reload-mcp': ['重连当前 Profile 的 MCP 服务器', 'Reconnect MCP servers for this profile'],
       '/reload-skills': ['重扫当前会话可用的 Skill', 'Rescan skills for this session'],
-      '/browser': ['管理产品自有浏览器：connect|status|disconnect|use', 'Manage the product browser: connect|status|disconnect|use'],
+      '/browser': ['管理产品自有浏览器', 'Manage the product browser'],
       '/journey': ['打开当前 Profile 的学习时间线', 'Open the learning timeline for this profile'],
     }
     const localDescription = localDescriptions[name]?.[language === 'zh-CN' ? 0 : 1]

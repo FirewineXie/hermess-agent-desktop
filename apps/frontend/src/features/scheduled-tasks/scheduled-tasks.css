@@ -80,6 +80,17 @@
 .scheduled-blueprint-form input, .scheduled-blueprint-form select { min-height: 38px; box-sizing: border-box; border-color: #d8e0e9; outline: none; font: inherit; font-size: 12px; }
 .scheduled-blueprint-form input:focus, .scheduled-blueprint-form select:focus { border-color: #6e9eff; box-shadow: 0 0 0 3px rgb(27 111 253 / 12%); }
 
+:root[data-color-theme='dark'] :is(.scheduled-design-page, .scheduled-modal, .scheduled-row-task strong, .scheduled-blueprint-heading h3) { color: var(--dark-text); }
+:root[data-color-theme='dark'] :is(.scheduled-overview, .scheduled-jobs-toolbar, .scheduled-list, .scheduled-list-header, .scheduled-list-row, .scheduled-empty, .scheduled-view-tabs, .scheduled-runtime-state, .scheduled-blueprints-toolbar, .scheduled-blueprint-card, .scheduled-modal) { background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.scheduled-page-heading p, .scheduled-overview span, .scheduled-jobs-toolbar > span, .scheduled-search, .scheduled-profile-filter, .scheduled-list-header, .scheduled-list-row, .scheduled-row-task small, .scheduled-row-status small, .scheduled-empty, .scheduled-runtime-state, .scheduled-blueprint-heading p, .scheduled-blueprint-category, .scheduled-modal-body label, .scheduled-modal-body p) { color: var(--dark-muted); }
+:root[data-color-theme='dark'] :is(.scheduled-overview > div, .scheduled-modal-actions, .scheduled-modal-body fieldset, .scheduled-blueprint-form) { border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.scheduled-search input, .scheduled-profile-filter select, .scheduled-blueprints-controls select, .scheduled-modal-body input, .scheduled-modal-body select, .scheduled-modal-body textarea, .scheduled-blueprint-form input, .scheduled-blueprint-form select) { color: var(--dark-text); background: var(--dark-bg); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.scheduled-heading-actions button:not(.design-primary-button), .scheduled-row-actions button, .scheduled-blueprints-toolbar button, .scheduled-blueprint-action, .scheduled-modal-actions button[type='button']) { color: var(--dark-text); background: var(--dark-surface); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.scheduled-list-row:hover, .scheduled-row-actions button:hover:not(:disabled), .scheduled-heading-actions button:not(.design-primary-button):hover:not(:disabled), .scheduled-view-tabs button:hover) { background: var(--dark-hover); }
+:root[data-color-theme='dark'] :is(.scheduled-view-tabs button[aria-selected='true'], .scheduled-blueprint-tags span) { color: var(--dark-accent); background: var(--dark-selected); border-color: var(--dark-border); }
+:root[data-color-theme='dark'] :is(.scheduled-eyebrow, .scheduled-section-kicker) { color: var(--dark-accent); }
+:root[data-color-theme='dark'] .scheduled-row-actions button.scheduled-delete { color: var(--dark-danger); }
+
 @media (max-width: 900px) {
   .scheduled-page-heading, .scheduled-blueprints-toolbar { align-items: stretch; flex-direction: column; }
   .scheduled-heading-side { justify-items: start; }

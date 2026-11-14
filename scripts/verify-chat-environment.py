@@ -8,9 +8,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import uuid
+
+from validation_workspace import validation_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("recovery_driver", ROOT / "scripts/verify-gateway-recovery.py")
@@ -118,7 +119,12 @@ def main():
     head = subprocess.check_output(["git", "-C", str(driver.UPSTREAM), "rev-parse", "HEAD"], text=True,
                                    creationflags=subprocess.CREATE_NO_WINDOW).strip()
     assert head == lock["commit"], "Gateway does not match the product lock"
-    root = Path(tempfile.mkdtemp(prefix="chat-environment-", dir=ROOT / ".build"))
+    with validation_workspace(prefix="chat-environment-", dir=ROOT / ".build") as directory:
+        run(Path(directory), hermes)
+    print("PASS production session.create + real Gateway tool execution")
+
+
+def run(root: Path, hermes: Path) -> None:
     process = model = None
     try:
         storage = root / "HermessAgentDesktop"
@@ -164,17 +170,19 @@ Path(sys.argv[1]).write_text(json.dumps(data),encoding='utf-8')
             asyncio.run(verify(root, process, model, home, marker_a, marker_b))
             (root / "sync/finish").write_text("finished", encoding="utf-8")
             assert process.wait(timeout=30) == 0, "Native assertions failed; see rust.log"
-        print("PASS production session.create + real Gateway tool execution; evidence:", root.relative_to(ROOT))
     finally:
-        (root / "sync/finish").touch()
-        if process is not None and process.poll() is None:
-            try:
-                process.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True,
-                               creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
-        if model is not None:
-            model.stop()
+        try:
+            if process is not None and process.poll() is None:
+                (root / "sync/finish").touch()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True,
+                                   creationflags=subprocess.CREATE_NO_WINDOW, timeout=15, check=True)
+                    process.wait(timeout=15)
+        finally:
+            if model is not None:
+                model.stop()
 
 
 if __name__ == "__main__":

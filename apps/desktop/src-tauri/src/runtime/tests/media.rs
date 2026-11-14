@@ -66,6 +66,7 @@ async fn media_owner_rejects_replaced_connection_and_epoch() {
             id: "test".into(),
             label: "test".into(),
             url: "http://127.0.0.1".into(),
+            ssh_target: None,
         },
         gateway: std::sync::Arc::clone(&entry.owner.client),
         selected_profile: "different-profile".into(),

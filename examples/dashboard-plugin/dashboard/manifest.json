@@ -1,0 +1,8 @@
+{
+  "name": "hermess-dashboard-starter",
+  "label": "Dashboard Starter",
+  "version": "1.0.0",
+  "tab": { "path": "/hermess-dashboard-starter" },
+  "entry": "index.js",
+  "slots": ["chat:top"]
+}

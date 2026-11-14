@@ -435,6 +435,21 @@ pub(super) async fn ticket(
     issue_ticket(home, profile, instance, launched_pid, "interactive", "host").await
 }
 
+pub(super) async fn webapp_launch(home: &Path, launched_pid: u32) -> Result<Value, String> {
+    let gateway_pid = lock_pid(home)?.ok_or("自有网关锁不存在")?;
+    if !owned_process(launched_pid, gateway_pid) {
+        return Err("网关进程不属于当前桌面实例".into());
+    }
+    exchange(
+        home,
+        gateway_pid,
+        &json!({"protocol": 1, "id": 1, "verb": "webapp-launch", "params": {}}),
+        Duration::from_secs(5),
+    )
+    .await?
+    .ok_or_else(|| "网关未签发 Webapp 启动链接".into())
+}
+
 fn native_profile_id(control_home: &Path, profile_home: &Path) -> Result<String, String> {
     let control = control_home
         .canonicalize_plain()
