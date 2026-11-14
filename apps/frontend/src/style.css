@@ -219,14 +219,32 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .workspace-row-copy { display: grid; min-width: 0; gap: 6px; }
 .workspace-row-copy strong { overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-row-copy small { overflow: hidden; color: #66758c; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-row-copy .workspace-agent-assignment { color: #43536a; font-size: 12px; }
 .workspace-current-label { flex: none; padding: 4px 9px; border-radius: 6px; color: #1b6ffd; background: #e4eefd; font-size: 12px; }
 .settings-panel .workspace-chat-action { flex: none; padding: 7px; border: 0; color: #1b6ffd; background: transparent; font-size: 14px; }
 .workspace-row-menu { position: relative; flex: none; }
-.workspace-row-menu summary { padding: 9px 12px; border-radius: 8px; cursor: pointer; list-style: none; color: #425066; font-size: 20px; }
-.workspace-row-menu summary::-webkit-details-marker { display: none; }
-.workspace-row-menu > div { position: absolute; z-index: 4; right: 0; top: 100%; display: grid; min-width: 135px; padding: 5px; border: 1px solid #e3e8ef; border-radius: 9px; background: #fff; box-shadow: 0 12px 26px #1d2a401c; }
-.settings-panel .workspace-row-menu button { border: 0; color: #425066; background: transparent; text-align: left; font-size: 13px; }
-.settings-panel .workspace-row-menu button.danger-action { color: #c03c42; }
+.settings-panel .workspace-menu-trigger { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 8px; color: #53627a; background: transparent; font-size: 20px; line-height: 1; }
+.settings-panel .workspace-menu-trigger:hover, .settings-panel .workspace-menu-trigger[aria-expanded='true'] { color: #1f2937; background: #edf2f8; }
+.workspace-agent-popover { position: absolute; z-index: 4; right: 0; top: calc(100% + 8px); width: min(300px, calc(100vw - 32px)); overflow: hidden; border: 1px solid #dce3ec; border-radius: 10px; background: #fff; box-shadow: 0 14px 36px #18243a1f; }
+.workspace-agent-popover header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 14px 12px; border-bottom: 1px solid #edf0f4; }
+.workspace-agent-popover header > div { display: grid; gap: 3px; }
+.workspace-agent-popover header strong { color: #1f2937; font-size: 14px; }
+.workspace-agent-popover header small { color: #66758c; font-size: 11px; font-weight: 400; line-height: 1.4; }
+.settings-panel .workspace-popover-close { flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; color: #758298; background: transparent; font-size: 20px; line-height: 1; }
+.settings-panel .workspace-popover-close:hover { color: #1f2937; background: #f0f3f7; }
+.workspace-agent-options { display: grid; max-height: 224px; padding: 6px; overflow-y: auto; }
+.settings-panel .workspace-agent-option { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; margin: 0; padding: 7px 9px; border-radius: 7px; color: #425066; font-size: 13px; font-weight: 400; cursor: pointer; }
+.settings-panel .workspace-agent-option:hover { background: #f3f6fa; }
+.workspace-agent-identity { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.workspace-agent-identity span, .workspace-agent-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-agent-identity span { color: #273348; font-size: 13px; font-weight: 600; }
+.workspace-agent-option small { color: #7a8799; font-size: 11px; }
+.settings-panel .workspace-agent-option input { display: block; flex: none; width: 16px; height: 16px; margin: 0; padding: 0; border-radius: 4px; accent-color: #1b6ffd; }
+.settings-panel .workspace-agent-option input:disabled { opacity: .55; }
+.workspace-agent-empty { margin: 0; padding: 12px 10px; color: #66758c; font-size: 12px; }
+.workspace-agent-popover footer { padding: 6px; border-top: 1px solid #edf0f4; }
+.settings-panel .workspace-agent-popover footer .danger-action { width: 100%; min-height: 36px; padding: 7px 9px; border: 0; border-radius: 7px; color: #bd343b; background: transparent; text-align: left; font-size: 13px; }
+.settings-panel .workspace-agent-popover footer .danger-action:hover { background: #fff1f1; }
 .workspace-design-note { margin-top: 24px; color: #66758c; font-size: 14px; }
 .chat-panel.chat-design-new { position: relative; justify-content: safe center; gap: clamp(22px, 4vh, 42px); padding-top: clamp(20px, 5vh, 60px); padding-bottom: clamp(20px, 5vh, 60px); overflow-y: auto; }
 .chat-design-new .chat-content { display: none; }

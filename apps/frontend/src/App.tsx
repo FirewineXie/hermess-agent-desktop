@@ -127,8 +127,6 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
   const updateStatus = useUpdateStatus()
-  const workspaces = useWorkspaces()
-  const programmingController = useProgrammingController(language, workspaces.selected, view === 'chat' && programming && !remoteMode)
   const restoreConnectionRef = React.useRef<(info: BackendInfo, current: () => boolean) => Promise<void>>(async () => {})
   const cancelConnectionRecoveryRef = React.useRef<() => void>(() => {})
   const {
@@ -151,6 +149,8 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
     restart: () => restartBackend(),
   })
   const viewedProfile = profileController.snapshot?.selected || null
+  const workspaces = useWorkspaces(viewedProfile)
+  const programmingController = useProgrammingController(language, workspaces.selected, view === 'chat' && programming && !remoteMode)
   const groupRooms = useGroupRooms(connected, backend?.replay_epoch || null, language)
   const dashboardPluginLifecycle = React.useMemo(() => ({ start: startBackendStrict, stop: stopBackendStrict, restart: restartBackend }), [startBackendStrict, stopBackendStrict, restartBackend])
   const dashboardPlugins = useDashboardPlugins(connected && !remoteMode, viewedProfile, backend?.replay_epoch || null, language, dashboardPluginLifecycle)
@@ -529,8 +529,10 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
     {dashboardOverride ? <DashboardPluginPage manifest={dashboardOverride} component={dashboardPlugins.components.get(dashboardOverride.name)} error={dashboardPlugins.error} /> : <>
     {view === 'bots' && <BotsView active={view === 'bots'} connected={connected} language={language} gatewayMode={remoteMode ? 'remote' : 'local'} onOpenChat={(profile, id) => { void openProfileSession(profile, id) }} onOpenGroup={openGroup} onGroupsChanged={() => { void groupRooms.refresh() }} onOpenProfiles={() => { if (!remoteMode) openView('profiles') }} />}
     {view === 'files' && <FilesView connected={connected} profile={viewedProfile} profiles={profileController.snapshot} epoch={backend?.replay_epoch || null} initialRoot={workspaces.selected} onSelectProfile={name => profileController.select(name)} />}
-    {view === 'workspaces' && <WorkspacesView connected={connected} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy}
-      paths={workspaces.paths} selected={workspaces.selected} onAdd={workspaces.add} onSelect={workspaces.select} onRemove={workspaces.remove}
+    {view === 'workspaces' && <WorkspacesView connected={connected} busy={navigationBusy || sessionCreating || turnBusy || attachmentBusy || reasoningBusy || pickerBusy} profile={viewedProfile}
+      agents={(profileController.snapshot?.profiles || []).map(agent => ({ name: agent.name, label: agent.display_name || agent.name }))}
+      paths={workspaces.paths} selected={workspaces.selected} selectedForAgent={workspaces.selectedForProfile}
+      onAdd={workspaces.add} onSelect={workspaces.select} onAssignAgent={workspaces.assignProfile} onRemove={workspaces.remove}
       onNewChat={path => { if (openView('chat')) { workspaces.select(path); void openNewChat() } }} />}
     {view === 'scheduled' && <ScheduledTasksView key={workspaceGeneration} connected={connected} epoch={backend?.replay_epoch || null} profiles={profileController.snapshot} />}
     {view === 'personal-tasks' && <KanbanBoardView initialTaskId={personalTaskTarget?.id} connectionId={backend?.replay_epoch || null} storagePath={storagePath} />}
@@ -561,9 +563,9 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
       onExportProfile={profileController.exportArchive}
       onImportProfile={profileController.importArchive}
       onImportPackage={profileController.importPackage}
-      onDeleteProfile={profileController.deleteProfile}
+      onDeleteProfile={async name => { const result = await profileController.deleteProfile(name); workspaces.removeProfile(name); return result }}
       onRenameProfile={profileController.renameProfile}
-      onRenameProfileId={profileController.renameProfileId}
+      onRenameProfileId={async (name, nextName) => { const result = await profileController.renameProfileId(name, nextName); workspaces.renameProfile(name, result.name); return result }}
       onSaveDescription={profileController.saveDescription}
       onDescribeAuto={profileController.describeAuto}
       onActivateProfile={profileController.activate}
