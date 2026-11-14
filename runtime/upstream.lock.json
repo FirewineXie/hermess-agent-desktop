@@ -4,7 +4,7 @@
   "tag": "v0.23.0",
   "baseCommit": "2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19",
   "branch": "hermess-desktop",
-  "commit": "222b3748470c369050078ff3864100deb609918e",
+  "commit": "b97d49d6bcb434affa48c38c3dae3283461a5d30",
   "python": "CPython 3.14",
   "nodeCandidateMajor": 22,
   "status": "v0.23.0 base with fork-maintained Hermess desktop integration; product acceptance pending"
