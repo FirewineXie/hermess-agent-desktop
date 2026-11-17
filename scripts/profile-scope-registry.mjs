@@ -1,6 +1,7 @@
 // Every native command has one owner. Extend this inventory when adding a command.
 export const commandScopes = {
   'computer-activity': `get_computer_activity stop_computer_activity`,
+  'native-files': `read_clipboard_file_paths`,
   programming: `coding_provider_request get_coding_config save_coding_config coding_session_request get_coding_runtime install_coding_runtime`,
   'media-session': `prepare_chat_media`,
   'media-resource': `preview_chat_media save_chat_media reveal_chat_media release_chat_media`,

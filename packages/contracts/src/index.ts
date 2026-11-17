@@ -731,6 +731,7 @@ export interface DesktopApi {
   nativeFiles: {
     choose(options: NativeOpenOptions): Promise<string | string[] | null>
     save(defaultPath: string): Promise<string | null>
+    clipboardPaths(): Promise<string[]>
     onDrop(handler: (event: NativeDropEvent) => void): Promise<Unsubscribe>
   }
 }

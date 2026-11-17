@@ -3,12 +3,12 @@ import test from 'node:test'
 import { programmingAttachmentName, programmingAttachmentText, readProgrammingImages, splitProgrammingPaths } from '../src/features/programming/programmingAttachments.ts'
 
 test('mixed Windows/macOS paths retain spaces, Unicode and quoting; image paths are deduplicated', () => {
-  const paths = ['C:\\项目 空格\\截图.PNG', '/Users/test/my file.ts', '\\\\server\\share\\文件.pdf', 'C:\\项目 空格\\截图.PNG']
+  const paths = ['C:\\项目 空格\\截图.PNG', '/Users/test/my file.ts', '\\\\server\\share\\文件.pdf', '/Users/test/复制的文件夹', 'C:\\项目 空格\\截图.PNG']
   const result = splitProgrammingPaths(paths)
   assert.deepEqual(result.images, [paths[0]])
-  assert.deepEqual(result.files, paths.slice(1, 3))
+  assert.deepEqual(result.files, paths.slice(1, 4))
   const text = programmingAttachmentText('请检查这些文件', result.files)
-  assert.equal(text, `请检查这些文件\n@${JSON.stringify(paths[1])}\n@${JSON.stringify(paths[2])}`)
+  assert.equal(text, `请检查这些文件\n@${JSON.stringify(paths[1])}\n@${JSON.stringify(paths[2])}\n@${JSON.stringify(paths[3])}`)
   assert.equal(programmingAttachmentText('', [paths[1]]), `@${JSON.stringify(paths[1])}`)
   assert.equal(programmingAttachmentName('data:image/png;base64,AAAA', 0, true), '粘贴图片 1')
   assert.equal(programmingAttachmentName(paths[0], 0, true), '截图.PNG')

@@ -275,6 +275,7 @@ export const previewDesktopApi: DesktopApi = {
   nativeFiles: {
     async choose() { return null },
     async save() { return null },
+    async clipboardPaths() { return [] },
     async onDrop() { return () => {} },
   },
 }

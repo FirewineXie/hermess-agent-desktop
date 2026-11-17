@@ -10,6 +10,7 @@ mod device_power;
 mod diagnostics;
 mod errors;
 mod gateway;
+mod native_files;
 mod notifications;
 mod panel_terminal;
 mod paths;
@@ -131,6 +132,7 @@ fn main() {
             runtime::provider_copy::copy_provider,
             diagnostics::probe_local_tools,
             notifications::show_native_notification,
+            native_files::read_clipboard_file_paths,
             webview_cache::get_webview_cache_settings,
             webview_cache::set_webview_cache_settings,
             webview_cache::clear_webview_cache_now,

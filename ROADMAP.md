@@ -1,5 +1,13 @@
 # 产品路线图
 
+2026-11-17 `v0.1.12` 修复命名 Profile 的 Webhooks 页读取失败：Windows 原生开发窗口的 `hermess_clear` 请求用命名 Profile 票据读取 `?profile=default`，锁定 Dashboard 实际返回 403。桌面端改用自身持有的 default 作用域读取共享监听器状态和地址，订阅操作仍按所选 Profile 归属执行。Rust 格式和 `cargo check --locked` 通过；Tauri 自动重编译后的 Windows 原生窗口实际读取 `hermess_clear`，红色错误消失，显示接收器未启用和 0 项订阅，日志未再出现该 403。默认监听器启用、命名订阅创建与外部投递、macOS 原生窗口及安装包仍待验收，未发布。
+
+2026-11-17 `v0.1.12` Webhooks 支持命名 Profile：单一监听器仍由 default 管理，桌面端将各 Profile 的动态订阅统一写入产品自有 Gateway 的共享订阅文件，并绑定 Profile；列表、启停和删除按归属隔离，重名路由拒绝覆盖，命名订阅 URL 使用 `/p/<profile>/webhooks/<route>`。Windows Rust 全量单测 317 项通过、73 项按条件忽略，`cargo fmt --check`、`cargo check --locked`、前端类型检查、生产构建、架构与契约检查通过。锁定 Webhook HTTP 处理器对产品实际生成的命名订阅验证错误签名 401、正确签名进入事件过滤返回 200、default 裸路径返回 404；锁定上游提交与许可证检查通过。真实 Agent 处理、产品 Gateway 实际重启、Windows 原生订阅创建与投递、macOS 原生窗口和安装包尚未验收，未发布。
+
+2026-11-17 `v0.1.12` 编程输入支持从 macOS Finder 剪贴板读取复制的文件或文件夹路径：通过桌面原生命令读取 `NSPasteboard` 文件 URL，前端继续沿用现有附件路径去重、图片识别和文件引用流程；Windows 与其他平台保持原行为。桌面适配器 IPC 测试、附件路径测试、共享契约、架构边界、前端类型检查和生产构建通过；macOS 编译、Finder 实际粘贴、原生窗口和安装包尚未验收，未发布。
+
+2026-11-17 准备 `v0.1.12-rc.1`：锁定 Hermes fork `hermess-desktop` 合并提交 `de89d9331122e67f16f01ce5784cd9721a3aa131`，集成的 Chrome for Testing 升级到 `157.0.8103.78`，Playwright 升级到 `1.64.1`，Linux ARM64 改用官方原生 Chrome for Testing 构建，并同步插件目录来源提交。fork Chromium 单测 12 项、上游 14 项检查、Windows 实际浏览器启动与页面 DOM 探针通过；产品端锁定上游、许可证、生产构建和 Rust 全量测试通过。macOS 与 Linux 浏览器实机、两个默认平台安装包、签名、安装升级和真实模型尚未验收，未发布。版本说明见 [v0.1.12-rc.1](releases/v0.1.12-rc.1.md)。
+
 2026-11-17 `v0.1.12` 修复宽窗口下聊天主体仍然过窄的问题：普通聊天、编程聊天和新会话输入区共用 `1120px` 响应式阅读宽度，助手正文与思考区不再受第二层 `800px` 上限限制；窄窗口继续按可用宽度收缩。Windows Chrome 生产样式验证确认 `1800px` 窗口中的正文、助手消息和输入框宽度均为 `1120px`，`700px` 窗口中均收缩为 `670px`；前端类型检查、桌面生产构建及差异检查通过。Windows/macOS 原生窗口和安装包尚未验收，未发布。
 
 2026-11-14 准备 `v0.1.11` 正式候选：锁定 Hermes fork `hermess-desktop` 合并提交 `b97d49d6bcb434affa48c38c3dae3283461a5d30`，修复备份遇到 1980 年前文件时间戳时跳过文件并生成不完整归档的问题；ZIP 内时间截断为可表示的 `1980-01-01`，源文件内容与时间不变。Windows 上 322 项前端 Node 测试、TypeScript 类型检查、桌面生产构建、架构边界、插件目录、共享契约、生成契约、许可证、锁定上游及正式版本说明检查通过；fork 手动与自动完整备份的 2 项针对性回归通过。fork 完整 `test_backup.py` 在 Windows 仍有与本次改动无关的 5 项既有平台断言失败和 1 项 teardown 错误；`main` PR/CI、正式安装包、macOS 原生窗口及安装升级仍待后续门槛验证，尚未发布。正式版本说明见 [v0.1.11](releases/v0.1.11.md)。

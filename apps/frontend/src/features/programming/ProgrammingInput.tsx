@@ -122,9 +122,14 @@ export default function ProgrammingInput({ language, controller, onOpenSettings,
     <textarea ref={input} value={draft} disabled={disabled} aria-label={zh ? '编程任务' : 'Programming task'}
       onPaste={event => {
         const pasted = clipboardImages(event.clipboardData)
-        if (!pasted.length) return
+        if (pasted.length) {
+          event.preventDefault()
+          if (!disabled) void controller.pasteImages(pasted)
+          return
+        }
+        if (!event.clipboardData.files.length && !Array.from(event.clipboardData.items).some(item => item.kind === 'file')) return
         event.preventDefault()
-        if (!disabled) void controller.pasteImages(pasted)
+        if (!disabled) void controller.pastePaths()
       }}
       aria-controls={mode ? 'programming-input-menu' : undefined} aria-expanded={!!mode}
       aria-activedescendant={mode && rows.length ? `programming-input-option-${index}` : undefined}

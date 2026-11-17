@@ -543,6 +543,7 @@ export const tauriDesktopApi: DesktopApi = {
   nativeFiles: {
     choose: options => nativeCall(() => open(options)),
     save: defaultPath => nativeCall(() => save({ defaultPath })),
+    clipboardPaths: () => invoke('read_clipboard_file_paths'),
     onDrop: handler => nativeCall(() => getCurrentWebview().onDragDropEvent(event => {
       const payload = event.payload
       const mapped: NativeDropEvent = payload.type === 'drop'

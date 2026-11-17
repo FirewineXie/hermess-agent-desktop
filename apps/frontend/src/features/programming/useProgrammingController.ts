@@ -126,6 +126,20 @@ export function useProgrammingController(language: Language, workspace: string, 
       throw cause
     }
   })
+  const pastePaths = () => run(async () => {
+    if (!active || session?.status === 'running') return
+    const operationId = crypto.randomUUID()
+    console.info(`programming_clipboard_paths_start operation=${operationId}`)
+    try {
+      const paths = await nativeFiles.clipboardPaths()
+      if (!paths.length) throw new Error(zh ? '无法从剪贴板读取文件或文件夹路径。' : 'Could not read file or folder paths from the clipboard.')
+      appendPaths(paths)
+      console.info(`programming_clipboard_paths_result operation=${operationId} success=true count=${paths.length}`)
+    } catch (cause) {
+      console.error(`programming_clipboard_paths_result operation=${operationId} success=false`)
+      throw cause
+    }
+  })
   React.useEffect(() => {
     if (!active) { setDraggingFiles(false); return }
     let current = true
@@ -253,6 +267,6 @@ export function useProgrammingController(language: Language, workspace: string, 
     })
     return success
   }
-  return { coding, nativeFiles, catalog, applyCatalog, selectedModelId, selectModel, effort, setEffort, permissionRuntimeMissing, permissionProfiles, permissions, setPermissions, permissionLoading, permissionError, retryPermissions, projects, refresh, saveProject, draftProjectId, sessions, session, setSession, cwd, setCwd: (value: string) => { setCwd(value); setDraftProjectId(undefined) }, draft, setDraft, images, setImages, files, setFiles, draggingFiles, addPaths, chooseAttachments, pasteImages, busy, error, run, select, newSession, archive, remove, discardDraft, draftVisible, send, executeCommand, answerQuestion }
+  return { coding, nativeFiles, catalog, applyCatalog, selectedModelId, selectModel, effort, setEffort, permissionRuntimeMissing, permissionProfiles, permissions, setPermissions, permissionLoading, permissionError, retryPermissions, projects, refresh, saveProject, draftProjectId, sessions, session, setSession, cwd, setCwd: (value: string) => { setCwd(value); setDraftProjectId(undefined) }, draft, setDraft, images, setImages, files, setFiles, draggingFiles, addPaths, chooseAttachments, pasteImages, pastePaths, busy, error, run, select, newSession, archive, remove, discardDraft, draftVisible, send, executeCommand, answerQuestion }
 }
 export type ProgrammingController = ReturnType<typeof useProgrammingController>
