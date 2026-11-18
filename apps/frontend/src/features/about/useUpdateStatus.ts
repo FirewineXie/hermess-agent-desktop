@@ -2,9 +2,10 @@ import React from 'react'
 import type { ProductInfo, UpdateDownloadStatus, UpdateLookup } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { defaultUpdateChannel, selectUpdate, type UpdateChannel } from './updateRules'
+import { automaticUpdateCheckDelay } from './updateSchedule'
 
 const CHANNEL_KEY = 'hermess-desktop-update-channel'
-const CHECK_INTERVAL_MS = 60 * 60 * 1000
+const LAST_AUTOMATIC_CHECK_KEY = 'hermess-desktop-last-automatic-update-check'
 const emptyDownload: UpdateDownloadStatus = { state: 'idle', tagName: '', assetId: 0, downloaded: 0, total: 0, path: null, error: null }
 
 function mergeDownload(previous: UpdateDownloadStatus, incoming: UpdateDownloadStatus): UpdateDownloadStatus {
@@ -17,6 +18,11 @@ function mergeDownload(previous: UpdateDownloadStatus, incoming: UpdateDownloadS
 function savedChannel(): UpdateChannel | null {
   const value = localStorage.getItem(CHANNEL_KEY)
   return value === 'stable' || value === 'rc' ? value : null
+}
+
+function savedAutomaticCheckAt(): number | null {
+  const value = Number(localStorage.getItem(LAST_AUTOMATIC_CHECK_KEY))
+  return Number.isFinite(value) && value > 0 ? value : null
 }
 
 export function useUpdateStatus() {
@@ -78,10 +84,24 @@ export function useUpdateStatus() {
   }, [about, info])
 
   React.useEffect(() => {
-    void checkUpdates()
-    const timer = window.setInterval(() => void checkUpdates(), CHECK_INTERVAL_MS)
-    return () => window.clearInterval(timer)
-  }, [checkUpdates])
+    if (!info || info.version === '0.0.0') return
+    let active = true
+    let timer: number | undefined
+    const schedule = () => {
+      const delay = automaticUpdateCheckDelay(savedAutomaticCheckAt(), Date.now())
+      timer = window.setTimeout(async () => {
+        if (!active) return
+        localStorage.setItem(LAST_AUTOMATIC_CHECK_KEY, String(Date.now()))
+        await checkUpdates()
+        if (active) schedule()
+      }, delay)
+    }
+    schedule()
+    return () => {
+      active = false
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [checkUpdates, info])
 
   const effectiveChannel = channel ?? defaultUpdateChannel(info?.version ?? '')
   const candidate = info && info.version !== '0.0.0' && lookup?.status === 'available'
