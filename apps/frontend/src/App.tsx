@@ -92,6 +92,13 @@ import OnboardingDialog from './features/onboarding/OnboardingDialog'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 import HostTerminals from './features/workspace-panel/HostTerminals'
 
+const SIDEBAR_CONTEXT_COLLAPSED_KEY = 'hermess.sidebar.context-collapsed'
+
+function readSidebarContextCollapsed() {
+  try { return window.localStorage.getItem(SIDEBAR_CONTEXT_COLLAPSED_KEY) === 'true' }
+  catch { return false }
+}
+
 function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   gateway: ActiveGateway
   onRemote: (id: string) => Promise<boolean>
@@ -123,6 +130,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   const [profileCreateOpen, setProfileCreateOpen] = React.useState(false)
   const [pendingLearnCommand, setPendingLearnCommand] = React.useState('')
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
+  const [sidebarContextCollapsed, setSidebarContextCollapsed] = React.useState(readSidebarContextCollapsed)
   const [activeGroupId, setActiveGroupId] = React.useState<string | null>(null)
   const [panelOpen, setPanelOpen] = React.useState(false)
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = React.useState(false)
@@ -143,6 +151,15 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
   })
   const onboarding = useOnboarding(freshInstallation, storagePath)
   const commandPalette = useCommandPalette(!onboarding.visible)
+  const toggleSidebarContext = React.useCallback(() => {
+    setSidebarContextCollapsed(current => {
+      const collapsed = !current
+      try { window.localStorage.setItem(SIDEBAR_CONTEXT_COLLAPSED_KEY, String(collapsed)) }
+      catch { console.warn('[sidebar] context preference could not be persisted', { collapsed }) }
+      console.info('[sidebar] context visibility changed', { collapsed })
+      return collapsed
+    })
+  }, [])
   const profileController = useProfiles({
     connected, retainOffline: Boolean(backend),
     backendEpoch: backend?.replay_epoch || null,
@@ -502,12 +519,12 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
     if (id) await programmingController.select(id)
     else programmingController.newSession(directory, projectId)
   }
-  return <div className={`app-shell ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
+  return <div className={`app-shell ${sidebarContextCollapsed ? 'sidebar-context-collapsed' : ''} ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
     <div className="dashboard-plugin-backdrop" aria-hidden="true"><DashboardPluginSlot name="backdrop" /></div>
     <WorkspaceHeader view={view} sessionTitle={programming && !remoteMode ? programmingController.session?.title || (language === 'zh-CN' ? '新编程会话' : 'New programming chat') : activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId || programming ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={connected} connectionLabel={connectionText} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchGateway={id => void switchGateway(id)} onConfigureRemote={() => { if (openSettings('runtime')) setRemoteSetupRequested(true) }} onOpenHostTerminals={onOpenHostTerminals} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
     <DashboardPluginSlot name="header-banner" />
-    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={sidebarSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={programming ? '' : storedSessionRef.current} programmingActive={view === 'chat' && programming} onSwitchMode={mode => {
+    {view !== 'settings' && <Sidebar view={view} open={sidebarOpen} connected={connected} connectionLabel={connectionText} remoteMode={remoteMode} busy={!connected || navigationBusy || sessionCreating || attachmentBusy || reasoningBusy || pickerBusy} sessions={sessions} otherProfileSessions={sidebarSessions} groups={groupRooms.rooms} groupsError={groupRooms.error} activeGroupId={activeGroupId} sessionActivity={sessionActivity} activityKey={activityKey} sessionsState={sessionsState} activeSessionId={programming ? '' : storedSessionRef.current} programmingActive={view === 'chat' && programming} collapsed={sidebarContextCollapsed} onToggleCollapsed={toggleSidebarContext} onSwitchMode={mode => {
       if (remoteMode || !openView('chat')) return false
       if (mode === 'code') setActiveGroupId(null)
       setProgramming(mode === 'code')

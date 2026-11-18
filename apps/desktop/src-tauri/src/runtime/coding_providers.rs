@@ -68,6 +68,13 @@ struct Imported {
     name: String,
     models: Vec<String>,
 }
+fn models_to_validate(models: &[String], first_only: bool) -> &[String] {
+    if first_only {
+        &models[..models.len().min(1)]
+    } else {
+        models
+    }
+}
 async fn profile_data(
     app: &AppHandle,
     profile: &str,
@@ -218,7 +225,7 @@ async fn execute(
     request: ProviderRequest,
     operation: uuid::Uuid,
 ) -> Result<ProviderResult, DesktopFailure> {
-    let (snapshot, mut draft) = {
+    let (snapshot, mut draft, validate_first_only) = {
         let _guard = state.gate.lock().await;
         ensure_idle(state).await?;
         let mut store = coding_catalog::load(app)?;
@@ -278,7 +285,7 @@ async fn execute(
                     }
                 }
             }
-            ProviderRequest::Save { draft } => (store, draft),
+            ProviderRequest::Save { draft } => (store, draft, false),
             ProviderRequest::SyncProfile { profile, provider } => {
                 // Resolve the Profile outside the coding state gate; stopping tasks must remain responsive.
                 drop(_guard);
@@ -301,11 +308,13 @@ async fn execute(
                         api_key: Some(imported.api_key),
                         models: imported.models,
                     },
+                    true,
                 )
             }
         }
     };
     coding_catalog::validate_draft(&mut draft)?;
+    let validation_models = models_to_validate(&draft.models, validate_first_only);
     let key = draft
         .api_key
         .as_ref()
@@ -328,13 +337,14 @@ async fn execute(
     coding_config::log(
         app,
         &format!(
-            "programming_provider_validate operation={operation} models={}",
-            draft.models.len()
+            "programming_provider_validate operation={operation} models_total={} models_checked={}",
+            draft.models.len(),
+            validation_models.len()
         ),
     );
     let checked = tokio::time::timeout(
         Duration::from_secs(90),
-        coding_validation::validate(&draft.base_url, &key, &draft.models),
+        coding_validation::validate(&draft.base_url, &key, validation_models),
     )
     .await
     .unwrap_or(Err(ValidationStage::Timeout));

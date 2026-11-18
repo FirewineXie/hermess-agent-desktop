@@ -19,3 +19,36 @@
   color: #245bc2;
   background: #eaf2ff;
 }
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-context .sidebar-profile-heading { position: relative; }
+  .sidebar-context .sidebar-profile-heading > .sidebar-profile-manage {
+    position: absolute;
+    right: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .sidebar-context .sidebar-profile-heading:hover > .sidebar-profile-manage,
+  .sidebar-context .sidebar-profile-heading:focus-within > .sidebar-profile-manage {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sidebar-context .sidebar-profile-heading:hover > .sidebar-profile-row,
+  .sidebar-context .sidebar-profile-heading:focus-within > .sidebar-profile-row { padding-right: 40px; }
+
+  .sidebar-context .sidebar-session-entry { position: relative; }
+  .sidebar-context .sidebar-session-entry > :is(.sidebar-session-archive, .sidebar-session-delete) {
+    position: absolute;
+    right: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .sidebar-context .sidebar-session-entry > .sidebar-session-archive { right: 28px; }
+  .sidebar-context .sidebar-session-entry:hover > :is(.sidebar-session-archive, .sidebar-session-delete),
+  .sidebar-context .sidebar-session-entry:focus-within > :is(.sidebar-session-archive, .sidebar-session-delete) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sidebar-context .sidebar-session-entry:hover > .sidebar-profile-session,
+  .sidebar-context .sidebar-session-entry:focus-within > .sidebar-profile-session { padding-right: 60px; }
+}

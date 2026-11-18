@@ -1,6 +1,14 @@
-use super::{run_profile_helper, Imported, ProfileProvider, ProviderRequest};
+use super::{models_to_validate, run_profile_helper, Imported, ProfileProvider, ProviderRequest};
 use serde_json::json;
 use std::{fs, path::Path};
+
+#[test]
+fn profile_sync_validates_one_model_without_truncating_the_import() {
+    let models = vec!["first".into(), "second".into(), "third".into()];
+    assert_eq!(models_to_validate(&models, true), &["first"]);
+    assert_eq!(models_to_validate(&models, false), models.as_slice());
+    assert_eq!(models.len(), 3);
+}
 
 #[cfg(windows)]
 #[tokio::test]

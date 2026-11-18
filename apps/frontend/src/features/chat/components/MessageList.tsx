@@ -19,6 +19,16 @@ const toolNames: Record<string, [string, string]> = {
 
 function label(language: Language, zh: string, en: string) { return language === 'zh-CN' ? zh : en }
 function toolName(name: string, language: Language) { return toolNames[name]?.[language === 'zh-CN' ? 0 : 1] || name }
+function activityTitle(steps: ToolStep[], language: Language) {
+  const failures = steps.filter(step => step.state === 'failed').length
+  const running = steps.some(step => step.state === 'running')
+  const parts = language === 'zh-CN'
+    ? ['工具调用', `${steps.length} 项操作`]
+    : ['Tool calls', `${steps.length} ${steps.length === 1 ? 'action' : 'actions'}`]
+  if (running) parts.push(label(language, '正在执行', 'Running'))
+  if (failures) parts.push(language === 'zh-CN' ? `${failures} 项失败` : `${failures} failed`)
+  return parts.join(' · ')
+}
 function TaskNotice({ item, language }: { item: Extract<TimelineItem, { kind: 'task-notice' }>; language: Language }) {
   return <details className="chat-task-notice">
     <summary>{item.task === 'subagent' ? label(language, '子任务返回', 'Subagent returned') : label(language, '后台进程返回', 'Background process returned')}
@@ -32,7 +42,7 @@ function formatDuration(value: number, language: Language) {
   if (seconds < 60) return language === 'zh-CN' ? `${seconds} 秒` : `${seconds}s`
   const minutes = Math.floor(seconds / 60)
   const remainder = seconds % 60
-  return language === 'zh-CN' ? `${minutes} 分 ${remainder} 秒` : `${minutes}m ${remainder}s`
+  return language === 'zh-CN' ? `${minutes} 分钟 ${remainder} 秒` : `${minutes}m ${remainder}s`
 }
 function turnTimeText(message: Extract<TimelineItem, { kind: 'message' }>, now: number, language: Language) {
   const elapsed = formatDuration(message.duration ?? Math.max(0, (now - (message.startedAt || now)) / 1000), language)
@@ -83,7 +93,10 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
 }
 
 function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
-  return <div className="tool-activity">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
+  return <details className={`tool-activity${steps.some(step => step.state === 'failed') ? ' has-failure' : ''}`}>
+    <summary className="tool-activity-heading"><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
+  </details>
 }
 
 function AssistantMessage({ text, language, streaming = false, media, showCopy = false, actions }: { text: string; language: Language; streaming?: boolean; media?: string[]; showCopy?: boolean; actions?: React.ReactNode }) {
@@ -122,6 +135,30 @@ function ReasoningBlock({ text, streaming, expanded, language }: { text: string;
   </details>
 }
 
+function ProcessReasoning({ text, streaming, language }: { text: string; streaming: boolean; language: Language }) {
+  return <section className="turn-process-reasoning">
+    <div className="turn-process-label">{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</div>
+    <div className="turn-process-reasoning-content"><MarkdownMessage text={text} language={language} streaming={streaming} /></div>
+  </section>
+}
+
+function TurnProcess({ message, title, language, children }: { message: Extract<TimelineItem, { kind: 'message' }>; title: string; language: Language; children: React.ReactNode }) {
+  const running = message.turnState == null
+  const [open, setOpen] = React.useState(running)
+  const wasRunning = React.useRef(running)
+  React.useEffect(() => {
+    if (wasRunning.current !== running) setOpen(running)
+    wasRunning.current = running
+  }, [running])
+  const failed = message.turnState === 'failed'
+  return <details className={`turn-activity${failed ? ' has-failure' : ''}`} open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>
+      <span>{title}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div className="turn-process">{children}</div>
+  </details>
+}
+
 export default function MessageList({ messages, assistant, turnBusy, language, t, onHistoryAction, editBlocked }: { messages: TimelineItem[]; assistant: string; turnBusy: boolean; language: Language; t: (key: string) => string; onHistoryAction?: (selection: HistorySelection) => void; editBlocked?: boolean }) {
   const [now, setNow] = React.useState(Date.now)
   React.useEffect(() => {
@@ -151,6 +188,12 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       <button type="button" onClick={() => onHistoryAction({ operation: 'branch', rowId, text, role })}>{label(language, '从这里分叉', 'Branch from here')}</button>
     </>
   }
+  const renderItem = (item: TimelineItem, key: React.Key) => item.kind === 'tools'
+    ? <ToolActivity key={key} steps={item.steps} language={language} />
+    : item.kind === 'reasoning'
+      ? <ProcessReasoning key={key} text={item.text} streaming={item.streaming} language={language} />
+      : item.kind === 'task-notice' ? <TaskNotice key={key} item={item} language={language} />
+        : <AssistantMessage key={key} text={item.text} media={item.media} language={language} actions={historyActions(item)} />
   const blocks: React.ReactNode[] = []
   for (let index = 0; index < messages.length;) {
     const message = messages[index]
@@ -173,25 +216,25 @@ export default function MessageList({ messages, assistant, turnBusy, language, t
       const userText = message.attachments?.length && message.text === t('ui.please.see.attachment')
         ? label(language, `已发送 ${message.attachments.length} 个附件`, `Sent ${message.attachments.length} attachments`)
         : message.text
+      const activityItems = finalIndex < 0 ? following : following.slice(0, finalIndex)
+      const finalMessage = finalIndex < 0 ? null : following[finalIndex]
+      const trailingItems = finalIndex < 0 ? [] : following.slice(finalIndex + 1)
+      const activityTitleText = hasTime ? turnTimeText(message, now, language) : label(language, '执行过程', 'Activity')
       blocks.push(<React.Fragment key={`turn-${index}`}>
         <div className="message message-user"><p>{userText}</p>{message.attachments?.length ? <SentAttachmentList attachments={message.attachments} language={language} /> : null}<HistoryMedia sources={message.media} language={language} /></div>
         {message.rowId && onHistoryAction && !turnBusy && <div className="assistant-message-actions user-history-actions">{historyActions(message)}</div>}
-        {hasTime && <div className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>{turnTimeText(message, now, language)}</div>}
-        {following.map((item, position) => item.kind === 'tools'
-          ? <ToolActivity key={position} steps={item.steps} language={language} />
-          : item.kind === 'reasoning'
-            ? <ReasoningBlock key={position} text={item.text} streaming={item.streaming} expanded={item.expanded} language={language} />
-            : item.kind === 'task-notice' ? <TaskNotice key={position} item={item} language={language} />
-              : <AssistantMessage key={position} text={item.text} media={item.media} language={language} showCopy={position === finalIndex && message.turnState !== 'failed' && message.turnState !== 'interrupted'} actions={historyActions(item)} />)}
+        {activityItems.length
+          ? <TurnProcess message={message} title={activityTitleText} language={language}>{activityItems.map((item, position) => renderItem(item, position))}</TurnProcess>
+          : hasTime && <div className="turn-duration">{activityTitleText}</div>}
+        {finalMessage?.kind === 'message' && <AssistantMessage text={finalMessage.text} media={finalMessage.media} language={language}
+          showCopy={message.turnState !== 'failed' && message.turnState !== 'interrupted'} actions={historyActions(finalMessage)} />}
+        {trailingItems.map((item, position) => renderItem(item, `trailing-${position}`))}
       </React.Fragment>)
       index = end
     } else {
-      blocks.push(message.kind === 'tools'
-        ? <ToolActivity key={`orphan-${index}`} steps={message.steps} language={language} />
-        : message.kind === 'reasoning'
-          ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
-          : message.kind === 'task-notice' ? <TaskNotice key={`orphan-${index}`} item={message} language={language} />
-            : <AssistantMessage key={`orphan-${index}`} text={message.text} media={message.media} language={language} actions={historyActions(message)} />)
+      blocks.push(message.kind === 'reasoning'
+        ? <ReasoningBlock key={`orphan-${index}`} text={message.text} streaming={message.streaming} expanded={message.expanded} language={language} />
+        : renderItem(message, `orphan-${index}`))
       index++
     }
   }

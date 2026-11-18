@@ -14,7 +14,7 @@ await mkdir(output, { recursive: true })
 try {
   await writeFile(fixture, String.raw`<div id="root"></div><script type="module">
 import React from 'react'; import {createRoot} from 'react-dom/client';
-import '/src/style.css'; import '/src/features/desktop/dark-theme.css';
+import '/src/style.css'; import '/src/app/sidebar-shell.css'; import '/src/app/sidebar-session-actions.css'; import '/src/features/desktop/dark-theme.css';
 import {DesktopProvider} from '/src/app/DesktopContext.tsx';
 import GatewayRequestCard from '/src/features/chat/components/GatewayRequestCard.tsx';
 import ChatConnectionCard from '/src/features/chat/components/ChatConnectionCard.tsx';
@@ -25,8 +25,11 @@ import {historyTimeline} from '/src/features/chat/timeline.ts';
 import {translateApp} from '/src/i18n.tsx';
 window.calls={approval:[],answers:[],stop:0,connection:[]};
 const api={chat:{subagents:async()=>{if(location.search.includes('error'))throw new Error('预览：读取任务失败');return {subagents:location.search.includes('empty')?[]:[{subagent_id:'a',goal:'检查聊天交互与回归风险',status:'running',accepting_steer:true},{subagent_id:'b',goal:'整理界面优化建议',status:'completed'}]}},subagentTail:async()=>({available:true,text:'已完成组件检查，正在核对交互。'}),stopSubagent:async()=>{window.calls.stop++;return {found:true}}},events:{onGatewayEvent:async()=>()=>{}}};
-function Demo(){const [answers,setAnswers]=React.useState({});return <DesktopProvider api={api}><main className="compact-demo chat-panel">
+function Demo(){const [answers,setAnswers]=React.useState({});const [shellCollapsed,setShellCollapsed]=React.useState(false);return <DesktopProvider api={api}><main className="compact-demo chat-panel">
 <header><h1>聊天中的确认与任务</h1><p>界面预览 · 模拟数据，不执行真实审批或任务</p></header>
+<section className="layout-probe"><MessageList messages={[{kind:'message',role:'user',text:'宽窗口中的用户消息',duration:301,turnState:'completed'},{kind:'reasoning',text:'先确认当前布局和消息顺序。',streaming:false,expanded:false},{kind:'message',role:'assistant',text:'正在检查宽屏样式。'},{kind:'tools',steps:[{id:'read',name:'read_file',state:'finished',summary:'读取完成'}]},{kind:'message',role:'assistant',text:'宽窗口中的助手回复应保持在左侧，不占满整个阅读区。'}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/></section>
+<section className="scroll-probe chat-content"><MessageList messages={[{kind:'message',role:'assistant',text:'| 项目 | 值 |\n| --- | --- |\n| 可执行文件 | C:\\\\Workspace\\\\HermessAgentDesktop\\\\.build\\\\payload\\\\tools\\\\python-3.14.9-win32-x64\\\\python.exe |\n| 用户级包目录 | C:\\\\Users\\\\Example\\\\AppData\\\\Roaming\\\\Python\\\\Python314\\\\site-packages |\n\n'.repeat(6)}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/></section>
+<section className={'shell-probe app-shell '+(shellCollapsed?'sidebar-context-collapsed':'')}><aside className="sidebar"><nav className="sidebar-rail"><button className="sidebar-rail-brand" onClick={()=>setShellCollapsed(value=>!value)}>H</button></nav><div className="sidebar-context"><div className="sidebar-sessions"><div className="sidebar-profile-heading"><button className="sidebar-profile-row"><span className="sidebar-profile-avatar">D</span><span className="session-title">default-profile-with-a-very-long-name</span><span className="sidebar-profile-chevron">⌄</span></button><button className="sidebar-profile-manage">⚙</button></div><div className="sidebar-session-entry"><button className="sidebar-profile-session"><span>▤</span><span className="session-title">Locate Python environment with an intentionally long title</span></button><button className="sidebar-session-archive">□</button><button className="sidebar-session-delete">×</button></div></div></div></aside><main className="workspace" /></section>
 <div className="demo-columns"><div>
 <MessageList messages={[{kind:'message',role:'user',text:'帮我检查项目，并整理一下聊天界面的改进建议。'},{kind:'message',role:'assistant',text:'我会先检查项目类型，再运行检查。执行以下命令需要你的确认。'}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/>
 <GatewayRequestCard request={{id:'approve',method:'approval',params:{session_id:'preview',request_id:'approve',description:'运行项目检查，确认本次修改可以构建。',command:'pnpm --dir apps/frontend typecheck',choices:['once','session','deny']}}} answers={{}} t={k=>translateApp('zh-CN',k)} onAnswerChange={()=>{}} onSubmit={choice=>window.calls.approval.push(choice)}/>
@@ -42,6 +45,9 @@ createRoot(document.getElementById('root')).render(<Demo/>);
 html,body,#root {height:auto;min-height:100%;overflow:auto}
 .compact-demo.chat-panel {padding:24px;max-width:1120px;margin:auto;display:block}
 .compact-demo h1 {font-size:20px;margin:0 0 4px}.compact-demo header>p {font-size:13px;color:#697586;margin:0 0 16px}
+.layout-probe {margin-bottom:20px;border-bottom:1px solid #e3e8ef}
+.scroll-probe {position:fixed;left:-10000px;top:0;width:720px;height:220px}
+.shell-probe {position:fixed;left:-10000px;top:0;width:100vw;height:700px}
 .demo-columns {display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:20px}
 .demo-columns>div {min-width:0}.demo-background {min-width:0;border-left:1px solid #e3e8ef;padding-left:8px;display:flex;max-height:460px}
 @media(max-width:760px){.compact-demo.chat-panel{padding:12px}.demo-columns{grid-template-columns:minmax(0,1fr)}.demo-background{border-left:0;border-top:1px solid #e3e8ef;padding:10px 0;min-height:220px}}
@@ -71,6 +77,52 @@ html,body,#root {height:auto;min-height:100%;overflow:auto}
     await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
   }
   await wait(`document.querySelector('.subagent-header')?.textContent.includes('2')`)
+  const scrolling = await page.eval(`(()=>{const chat=document.querySelector('.scroll-probe');const table=chat.querySelector('.markdown-table-scroll');const value=table.querySelector('tbody tr td:nth-child(2)');chat.scrollTop=120;return {scrollbar:getComputedStyle(chat).scrollbarWidth,scrollTop:chat.scrollTop,scrollHeight:chat.scrollHeight,clientHeight:chat.clientHeight,tableScrollWidth:table.scrollWidth,tableClientWidth:table.clientWidth,valueScrollWidth:value.scrollWidth,valueClientWidth:value.clientWidth,valueHeight:value.getBoundingClientRect().height}})()`)
+  assert.equal(scrolling.scrollbar, 'none')
+  assert.ok(scrolling.scrollHeight > scrolling.clientHeight, JSON.stringify(scrolling))
+  assert.ok(scrolling.scrollTop > 0, JSON.stringify(scrolling))
+  assert.ok(scrolling.tableScrollWidth <= scrolling.tableClientWidth, JSON.stringify(scrolling))
+  assert.ok(scrolling.valueScrollWidth <= scrolling.valueClientWidth, JSON.stringify(scrolling))
+  assert.ok(scrolling.valueHeight > 30, JSON.stringify(scrolling))
+  async function assertSidebarLayout(width, expectedMin, expectedMax) {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    const shell = await page.eval(`(()=>{const shell=document.querySelector('.shell-probe');const sidebar=shell.querySelector('.sidebar');const rail=shell.querySelector('.sidebar-rail');const context=shell.querySelector('.sidebar-context');const title=shell.querySelector('.sidebar-session-entry .session-title');const shellRect=shell.getBoundingClientRect();const sidebarRect=sidebar.getBoundingClientRect();return {shellWidth:shellRect.width,sidebarWidth:sidebarRect.width,railWidth:rail.getBoundingClientRect().width,contextWidth:context.getBoundingClientRect().width,scrollWidth:shell.scrollWidth,clientWidth:shell.clientWidth,titleScrollWidth:title.scrollWidth,titleClientWidth:title.clientWidth,deleteWidth:shell.querySelector('.sidebar-session-delete').getBoundingClientRect().width}})()`)
+    assert.ok(shell.sidebarWidth >= expectedMin && shell.sidebarWidth <= expectedMax, JSON.stringify({ width, shell }))
+    assert.ok(shell.railWidth >= 51 && shell.railWidth <= 53, JSON.stringify({ width, shell }))
+    assert.ok(shell.contextWidth >= expectedMin - 53, JSON.stringify({ width, shell }))
+    assert.ok(shell.scrollWidth <= shell.clientWidth, JSON.stringify({ width, shell }))
+    assert.ok(shell.titleScrollWidth > shell.titleClientWidth, JSON.stringify({ width, shell }))
+    assert.ok(shell.deleteWidth >= 27, JSON.stringify({ width, shell }))
+  }
+  await assertSidebarLayout(1338, 259, 273)
+  const hiddenActions = await page.eval(`(()=>({manage:getComputedStyle(document.querySelector('.shell-probe .sidebar-profile-manage')).opacity,archive:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-archive')).opacity,remove:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-delete')).opacity}))()`)
+  assert.deepEqual(hiddenActions, { manage: '0', archive: '0', remove: '0' })
+  await page.eval(`document.querySelector('.shell-probe').style.left='0px'`)
+  const entryPoint = await page.eval(`(()=>{const rect=document.querySelector('.shell-probe .sidebar-session-entry').getBoundingClientRect();return {x:rect.left+rect.width/2,y:rect.top+rect.height/2}})()`)
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...entryPoint })
+  assert.deepEqual(await page.eval(`(()=>({archive:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-archive')).opacity,remove:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-delete')).opacity}))()`), { archive: '1', remove: '1' })
+  await page.eval(`document.querySelector('.shell-probe').style.left='-10000px'`)
+  await page.eval(`document.querySelector('.shell-probe .sidebar-rail-brand').click()`)
+  assert.deepEqual(await page.eval(`(()=>{const shell=document.querySelector('.shell-probe');return {sidebar:shell.querySelector('.sidebar').getBoundingClientRect().width,context:getComputedStyle(shell.querySelector('.sidebar-context')).display}})()`), { sidebar: 52, context: 'none' })
+  await page.eval(`document.querySelector('.shell-probe .sidebar-rail-brand').click()`)
+  await assertSidebarLayout(901, 259, 273)
+  await assertSidebarLayout(900, 249, 251)
+  await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  const layout = await page.eval(`(()=>{const root=document.querySelector('.layout-probe');const user=root.querySelector('.message-user').getBoundingClientRect();const assistant=root.querySelector(':scope > .messages > .message-assistant').getBoundingClientRect();const container=root.getBoundingClientRect();return {userLeft:user.left,assistantRight:assistant.right,containerLeft:container.left,containerRight:container.right,assistantWidth:assistant.width}})()`)
+  assert.ok(layout.userLeft - layout.containerLeft > 120, JSON.stringify(layout))
+  assert.ok(layout.containerRight - layout.assistantRight > 120, JSON.stringify(layout))
+  assert.ok(layout.assistantWidth <= 881, JSON.stringify(layout))
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .turn-activity').open`), false)
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .tool-activity').checkVisibility()`), false)
+  assert.equal(await page.eval(`document.querySelector('.layout-probe > .messages > .message-assistant')?.checkVisibility()`), true)
+  await click('.layout-probe .turn-activity > summary')
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .turn-activity').open`), true)
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .tool-activity').checkVisibility()`), true)
+  await click('.layout-probe .tool-activity > summary')
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .tool-activity').open`), true)
+  await page.screenshot({ path: fileURLToPath(new URL('turn-expanded.png', output)), format: 'png', fullPage: true })
+  await click('.layout-probe .turn-activity > summary')
+  assert.equal(await page.eval(`document.querySelector('.layout-probe .turn-activity').open`), false)
   assert.equal(await page.eval(`document.querySelector('.chat-task-notice').open`), false)
   assert.equal(await page.eval(`document.querySelector('.chat-task-notice pre').checkVisibility()`), false)
   assert.equal(await page.eval(`Array.from(document.querySelectorAll('.message-user')).some(e=>e.textContent.includes('INTERNAL_TASK_NOTICE_FIXTURE'))`), false)

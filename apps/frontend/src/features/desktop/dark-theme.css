@@ -136,6 +136,10 @@
   border-color: var(--dark-border);
 }
 :root[data-color-theme='dark'] .reasoning-heading,
+:root[data-color-theme='dark'] .turn-activity,
+:root[data-color-theme='dark'] .turn-duration,
+:root[data-color-theme='dark'] .turn-process-label,
+:root[data-color-theme='dark'] .turn-process-reasoning,
 :root[data-color-theme='dark'] .tool-activity,
 :root[data-color-theme='dark'] .tool-step,
 :root[data-color-theme='dark'] .tool-step summary small,
@@ -148,10 +152,14 @@
   color: var(--dark-text);
   background: var(--dark-surface);
 }
-:root[data-color-theme='dark'] .tool-step > summary:hover {
+:root[data-color-theme='dark'] .tool-step > summary:hover,
+:root[data-color-theme='dark'] .tool-activity > summary:hover {
   color: var(--dark-text);
   background: var(--dark-hover);
 }
+:root[data-color-theme='dark'] .turn-activity > summary:hover,
+:root[data-color-theme='dark'] .messages .turn-process > .message-assistant { color: var(--dark-text); }
+:root[data-color-theme='dark'] .tool-activity.has-failure > summary { color: #efa5aa; }
 :root[data-color-theme='dark'] .reasoning-block > summary:focus-visible {
   outline-color: #8bb7ff;
 }

@@ -46,6 +46,10 @@ test('live segments, tool updates and a following turn keep their original posit
   assert.equal((html.match(/复制回复/g) || []).length, 1)
   assert.ok(html.includes('搜索失败'))
   assert.equal((html.match(/<details class="tool-step">/g) || []).length, 2)
+  const activityCount = (html.match(/<details class="tool-activity/g) || []).length
+  assert.ok(activityCount >= 2)
+  assert.equal((html.match(/class="tool-activity-heading"/g) || []).length, activityCount)
+  assert.ok(html.includes('工具调用 · 1 项操作'))
   assert.ok(!html.includes('<details class="tool-step" open'))
 })
 
@@ -163,19 +167,19 @@ test('tools and reasoning stay interleaved in their original order while running
     assistant: '', turnBusy: true, language: 'zh-CN', t: key => key,
   }))
 
-  assert.equal((html.match(/class="reasoning-block"/g) || []).length, 2)
+  assert.equal((html.match(/class="turn-process-reasoning"/g) || []).length, 2)
   assert.equal((html.match(/class="tool-activity"/g) || []).length, 2)
   assert.ok(html.indexOf('第一段思考') < html.indexOf('browser_exec'))
   assert.ok(html.indexOf('browser_exec') < html.indexOf('第二段思考'))
   assert.ok(html.indexOf('第一段思考') < html.indexOf('第二段思考'))
   assert.ok(html.indexOf('第二段思考') < html.indexOf('vision_analyze'))
   assert.ok(html.indexOf('browser_exec') < html.indexOf('vision_analyze'))
-  assert.ok(html.includes('class="reasoning-block" open'))
-  assert.ok(!html.includes('turn-activity'))
-  assert.equal((html.match(/正在执行/g) || []).length, 1)
+  assert.ok(html.includes('class="turn-activity" open'))
+  assert.ok(!html.includes('reasoning-block'))
+  assert.equal((html.match(/正在执行/g) || []).length, 2)
 })
 
-test('completed reasoning is collapsed below the tool list and above the final answer', () => {
+test('completed process is collapsed below the user and above the final answer', () => {
   const html = renderToStaticMarkup(React.createElement(MessageList, {
     messages: [
       { kind: 'message', role: 'user', text: '历史问题', duration: 4, turnState: 'completed' },
@@ -188,12 +192,14 @@ test('completed reasoning is collapsed below the tool list and above the final a
 
   assert.ok(html.indexOf('browser_exec') < html.indexOf('历史思考'))
   assert.ok(html.indexOf('历史思考') < html.indexOf('最终回答'))
-  assert.ok(html.includes('<div class="tool-activity"'))
-  assert.ok(html.includes('<details class="reasoning-block"'))
-  assert.ok(!html.includes('class="reasoning-block" open'))
+  assert.ok(html.includes('<details class="tool-activity"'))
+  assert.ok(html.includes('<details class="turn-activity"'))
+  assert.ok(html.includes('class="turn-process-reasoning"'))
+  assert.ok(html.includes('用时 4 秒'))
+  assert.ok(!html.includes('class="turn-activity" open'))
 })
 
-test('reasoning remains expanded while tools run and before assistant text appears', () => {
+test('running turn process stays expanded while tools run and before assistant text appears', () => {
   const html = renderToStaticMarkup(React.createElement(MessageList, {
     messages: [
       { kind: 'message', role: 'user', text: '处理任务', startedAt: 1000 },
@@ -202,6 +208,7 @@ test('reasoning remains expanded while tools run and before assistant text appea
     ],
     assistant: '', turnBusy: true, language: 'zh-CN', t: key => key,
   }))
-  assert.ok(html.includes('class="reasoning-block" open'))
+  assert.ok(html.includes('class="turn-activity" open'))
+  assert.ok(html.includes('class="turn-process-reasoning"'))
   assert.ok(html.includes('思考过程'))
 })
