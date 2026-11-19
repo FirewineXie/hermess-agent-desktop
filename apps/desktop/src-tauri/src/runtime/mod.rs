@@ -141,6 +141,35 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GatewayStopWaitOutcome {
+    StopCommandExited,
+    BackendExited,
+    TimedOut,
+}
+
+async fn wait_for_gateway_stop<StopCommand, Backend>(
+    stop_command: StopCommand,
+    backend: Backend,
+    budget: Duration,
+) -> std::io::Result<GatewayStopWaitOutcome>
+where
+    StopCommand: std::future::Future<Output = std::io::Result<()>>,
+    Backend: std::future::Future<Output = std::io::Result<()>>,
+{
+    tokio::select! {
+        result = stop_command => {
+            result?;
+            Ok(GatewayStopWaitOutcome::StopCommandExited)
+        }
+        result = backend => {
+            result?;
+            Ok(GatewayStopWaitOutcome::BackendExited)
+        }
+        _ = sleep(budget) => Ok(GatewayStopWaitOutcome::TimedOut),
+    }
+}
+
 #[derive(Default)]
 pub struct BackendState(
     Mutex<Option<OwnedBackend>>,
@@ -753,10 +782,33 @@ pub async fn stop_backend(
                 .kill_on_drop(true);
             #[cfg(windows)]
             stop.creation_flags(0x08000000);
-            if let Ok((mut helper, _stop_registration)) =
+            if let Ok((mut helper, stop_registration)) =
                 process_manager::spawn_shutdown(&mut stop, "gateway_stop")
             {
-                let _ = timeout(Duration::from_secs(8), helper.wait()).await;
+                let outcome = wait_for_gateway_stop(
+                    async { helper.wait().await.map(|_| ()) },
+                    async { backend.child.wait().await.map(|_| ()) },
+                    Duration::from_secs(8),
+                )
+                .await
+                .map_err(|_| "后端停止状态读取失败".to_string())?;
+                let outcome_name = match outcome {
+                    GatewayStopWaitOutcome::StopCommandExited => "stop_command_exited",
+                    GatewayStopWaitOutcome::BackendExited => "backend_exited",
+                    GatewayStopWaitOutcome::TimedOut => "timeout",
+                };
+                let _ = append_client_event(
+                    &backend.storage,
+                    &format!("gateway_stop_wait outcome={outcome_name}"),
+                );
+                if outcome != GatewayStopWaitOutcome::StopCommandExited {
+                    if stop_registration.terminate_tree().await.is_err() {
+                        let _ = append_client_event(
+                            &backend.storage,
+                            "ERROR gateway_stop_helper_cleanup_failed",
+                        );
+                    }
+                }
             }
             if timeout(Duration::from_secs(5), backend.child.wait())
                 .await

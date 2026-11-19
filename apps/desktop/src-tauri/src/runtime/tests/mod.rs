@@ -6,8 +6,8 @@ use super::models::{
 use super::payload::validate_payload;
 use super::{acquire_storage_lock, hermes_process_path, running_storage_matches};
 use super::{
-    dev_backend_defaults, BackendInfo, BundledTool, BundledToolsInventory, GracefulRestartResult,
-    PackedDefaults,
+    dev_backend_defaults, wait_for_gateway_stop, BackendInfo, BundledTool, BundledToolsInventory,
+    GatewayStopWaitOutcome, GracefulRestartResult, PackedDefaults,
 };
 use crate::diagnostics::{
     append_client_event, daily_log_files, newest_log_entries_first, read_diagnostic_logs,
@@ -18,6 +18,45 @@ use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use uuid::Uuid;
+
+#[tokio::test]
+async fn gateway_shutdown_continues_when_backend_exits_before_stop_command() {
+    let outcome = wait_for_gateway_stop(
+        std::future::pending::<std::io::Result<()>>(),
+        std::future::ready(Ok(())),
+        std::time::Duration::from_secs(1),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome, GatewayStopWaitOutcome::BackendExited);
+}
+
+#[tokio::test]
+async fn gateway_shutdown_continues_when_stop_command_exits_first() {
+    let outcome = wait_for_gateway_stop(
+        std::future::ready(Ok(())),
+        std::future::pending::<std::io::Result<()>>(),
+        std::time::Duration::from_secs(1),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome, GatewayStopWaitOutcome::StopCommandExited);
+}
+
+#[tokio::test]
+async fn gateway_shutdown_keeps_a_bounded_fallback() {
+    let outcome = wait_for_gateway_stop(
+        std::future::pending::<std::io::Result<()>>(),
+        std::future::pending::<std::io::Result<()>>(),
+        std::time::Duration::from_millis(1),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome, GatewayStopWaitOutcome::TimedOut);
+}
 
 #[cfg(windows)]
 #[test]

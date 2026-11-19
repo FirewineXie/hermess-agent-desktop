@@ -45,7 +45,7 @@ createRoot(document.getElementById('root')).render(<Demo/>);
 html,body,#root {height:auto;min-height:100%;overflow:auto}
 .compact-demo.chat-panel {padding:24px;max-width:1120px;margin:auto;display:block}
 .compact-demo h1 {font-size:20px;margin:0 0 4px}.compact-demo header>p {font-size:13px;color:#697586;margin:0 0 16px}
-.layout-probe {margin-bottom:20px;border-bottom:1px solid #e3e8ef}
+.layout-probe {width:var(--chat-reading-width);max-width:1440px;margin:0 auto 20px;border-bottom:1px solid #e3e8ef}
 .scroll-probe {position:fixed;left:-10000px;top:0;width:720px;height:220px}
 .shell-probe {position:fixed;left:-10000px;top:0;width:100vw;height:700px}
 .demo-columns {display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:20px}
@@ -107,11 +107,22 @@ html,body,#root {height:auto;min-height:100%;overflow:auto}
   await page.eval(`document.querySelector('.shell-probe .sidebar-rail-brand').click()`)
   await assertSidebarLayout(901, 259, 273)
   await assertSidebarLayout(900, 249, 251)
-  await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  const layout = await page.eval(`(()=>{const root=document.querySelector('.layout-probe');const user=root.querySelector('.message-user').getBoundingClientRect();const assistant=root.querySelector(':scope > .messages > .message-assistant').getBoundingClientRect();const container=root.getBoundingClientRect();return {userLeft:user.left,assistantRight:assistant.right,containerLeft:container.left,containerRight:container.right,assistantWidth:assistant.width}})()`)
+  await page.eval(`document.querySelector('.compact-demo').style.maxWidth='none'`)
+  async function readMessageLayout(width, deviceScaleFactor = 1) {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor, mobile: false })
+    return page.eval(`(()=>{const root=document.querySelector('.layout-probe');const user=root.querySelector('.message-user').getBoundingClientRect();const assistant=root.querySelector(':scope > .messages > .message-assistant').getBoundingClientRect();const process=root.querySelector('.turn-activity').getBoundingClientRect();const container=root.getBoundingClientRect();return {userLeft:user.left,assistantRight:assistant.right,containerLeft:container.left,containerRight:container.right,containerWidth:container.width,assistantWidth:assistant.width,processWidth:process.width}})()`)
+  }
+  const compactDesktopLayout = await readMessageLayout(1024, 2)
+  assert.ok(compactDesktopLayout.assistantWidth / compactDesktopLayout.containerWidth >= .91, JSON.stringify(compactDesktopLayout))
+  assert.ok(compactDesktopLayout.processWidth / compactDesktopLayout.containerWidth >= .91, JSON.stringify(compactDesktopLayout))
+  assert.ok(compactDesktopLayout.containerRight - compactDesktopLayout.assistantRight < 100, JSON.stringify(compactDesktopLayout))
+  const layout = await readMessageLayout(1280)
   assert.ok(layout.userLeft - layout.containerLeft > 120, JSON.stringify(layout))
-  assert.ok(layout.containerRight - layout.assistantRight > 120, JSON.stringify(layout))
-  assert.ok(layout.assistantWidth <= 881, JSON.stringify(layout))
+  assert.ok(layout.assistantWidth / layout.containerWidth >= .91, JSON.stringify(layout))
+  assert.ok(layout.containerRight - layout.assistantRight > 80, JSON.stringify(layout))
+  const wideLayout = await readMessageLayout(1728, 2)
+  assert.ok(wideLayout.containerWidth >= 1439 && wideLayout.containerWidth <= 1441, JSON.stringify(wideLayout))
+  assert.ok(wideLayout.assistantWidth / wideLayout.containerWidth >= .91, JSON.stringify(wideLayout))
   assert.equal(await page.eval(`document.querySelector('.layout-probe .turn-activity').open`), false)
   assert.equal(await page.eval(`document.querySelector('.layout-probe .tool-activity').checkVisibility()`), false)
   assert.equal(await page.eval(`document.querySelector('.layout-probe > .messages > .message-assistant')?.checkVisibility()`), true)

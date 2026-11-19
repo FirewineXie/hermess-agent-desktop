@@ -1,6 +1,6 @@
 .reasoning-block,
 .turn-activity,
-.tool-activity { max-width: min(880px, 82%); }
+.tool-activity { max-width: var(--chat-response-width); }
 
 .reasoning-block { margin: 0 0 14px; border: 1px solid #e1e6ec; border-radius: 9px; color: #68717d; background: #f7f8fa; }
 .reasoning-heading,
