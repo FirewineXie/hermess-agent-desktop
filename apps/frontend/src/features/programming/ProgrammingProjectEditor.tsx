@@ -4,6 +4,7 @@ import type { CodingProject } from '@hermess/contracts'
 import type { Language } from '../../i18n'
 import { describeError } from '../../app/desktopErrors'
 import type { ProgrammingController } from './useProgrammingController'
+import Icon from '../../app/Icon'
 
 export default function ProgrammingProjectEditor({ project, controller, language, onClose, onCreated }: {
   project: CodingProject | null; controller: ProgrammingController; language: Language; onClose: () => void; onCreated: (project: CodingProject) => void
@@ -42,7 +43,7 @@ export default function ProgrammingProjectEditor({ project, controller, language
         onClose()
       })
     }}>
-      <header><h2 id="programming-project-title">{project ? (zh ? '编辑项目' : 'Edit project') : (zh ? '添加编程项目' : 'Add programming project')}</h2><button type="button" disabled={busy} aria-label={zh ? '关闭' : 'Close'} onClick={onClose}>×</button></header>
+      <header><h2 id="programming-project-title">{project ? (zh ? '编辑项目' : 'Edit project') : (zh ? '添加编程项目' : 'Add programming project')}</h2><button type="button" disabled={busy} aria-label={zh ? '关闭' : 'Close'} onClick={onClose}><Icon name="close" /></button></header>
       <label>{zh ? '项目名称' : 'Project name'}<input autoFocus value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} placeholder={zh ? '例如：我的网站' : 'For example: My website'} required /></label>
       <label>{zh ? '项目地址' : 'Project directory'}<span className="programming-directory-input"><input value={directory} disabled={busy} onChange={event => setDirectory(event.target.value)} placeholder={zh ? '本机项目目录的完整路径' : 'Absolute local project path'} required /><button type="button" disabled={busy} onClick={() => void perform(async () => {
         const chosen = await controller.nativeFiles.choose({ directory: true, multiple: false, title: zh ? '选择项目目录' : 'Choose project directory' })

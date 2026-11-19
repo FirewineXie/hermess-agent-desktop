@@ -10,10 +10,10 @@
   max-height: calc(100vh - 32px);
   overflow: auto;
   padding: 20px;
-  border: 1px solid var(--dark-border, #d9e1eb);
+  border: 1px solid var(--dark-border, var(--wb-border));
   border-radius: 12px;
   background: var(--dark-surface, #fff);
-  color: var(--dark-text, #172236);
+  color: var(--dark-text, var(--wb-text));
 }
 .runtime-remote-dialog::backdrop { background: rgb(15 23 42 / 35%); }
 .runtime-remote-dialog form { display: grid; gap: 12px; }

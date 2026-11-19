@@ -3,6 +3,7 @@ import type { Language } from '../../i18n'
 import type { ProgrammingController } from './useProgrammingController'
 import { projectKey } from './programmingProjects'
 import ProgrammingBranch from './ProgrammingBranch'
+import Icon from '../../app/Icon'
 
 export function ProgrammingWorkspace({ language, controller }: { language: Language; controller: ProgrammingController }) {
   const zh = language === 'zh-CN'
@@ -13,8 +14,8 @@ export function ProgrammingWorkspace({ language, controller }: { language: Langu
       : project.legacy_cwds.some(path => projectKey(path) === projectKey(directory)))
   const name = project?.name || directory.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) || directory
   return <div className="programming-workspace" aria-label={zh ? '编程工作空间' : 'Programming workspace'}>
-    <span title={directory || undefined}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5h6l2 2h10v12H3Z" /></svg><span>{name || (zh ? '未选择项目' : 'No project selected')}</span></span>
-    <span title={directory || undefined}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H4ZM2 20h20" /></svg>{zh ? '本地工作空间' : 'Local workspace'}</span>
+    <span title={directory || undefined}><Icon name="folderOpen" /><span>{name || (zh ? '未选择项目' : 'No project selected')}</span></span>
+    <span title={directory || undefined}><Icon name="monitor" />{zh ? '本地工作空间' : 'Local workspace'}</span>
     {directory && <ProgrammingBranch key={directory} directory={directory} controller={controller} language={language} />}
   </div>
 }

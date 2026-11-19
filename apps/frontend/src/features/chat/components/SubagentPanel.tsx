@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useSubagents } from '../useSubagents'
 import '../subagents.css'
+import Icon from '../../../app/Icon'
 
 type Controller = ReturnType<typeof useSubagents>
 
@@ -30,7 +31,7 @@ export default function SubagentPanel({ controller, language }: { controller: Co
     if (event.key === 'Escape' && controller.expanded) { event.stopPropagation(); close() }
   }}>
     <button ref={headerRef} type="button" className="subagent-header" aria-expanded={controller.expanded} onClick={() => controller.setExpanded(value => !value)}>
-      <strong>{zh ? '子任务' : 'Subagents'}</strong><span>{summary}</span><span>{controller.expanded ? '⌃' : '⌄'}</span>
+      <strong>{zh ? '子任务' : 'Subagents'}</strong><span>{summary}</span><Icon name={controller.expanded ? 'chevronUp' : 'chevronDown'} />
     </button>
     {controller.expanded && <div className="subagent-body">
       <button type="button" onClick={close}>{zh ? '关闭面板内容' : 'Close panel content'}</button>

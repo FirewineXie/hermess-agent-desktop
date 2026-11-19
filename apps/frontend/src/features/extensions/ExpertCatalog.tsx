@@ -4,6 +4,7 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { expertPresets, type ExpertPreset } from './expertPresets'
 import { keepFocusInside } from './dialogFocus'
+import Icon from '../../app/Icon'
 
 type CreateResult = { name: string; warnings?: string[]; served: boolean } | undefined
 type Props = {
@@ -108,7 +109,7 @@ export default function ExpertCatalog({ profiles, busy, onCreate }: Props) {
     </div>
     {chosen && <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
       <form className="expert-create-modal" role="dialog" aria-modal="true" aria-labelledby="expert-create-title" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close() } else keepFocusInside(event) }} onSubmit={event => void create(event)}>
-        <header><div><h2 id="expert-create-title">{zh ? `安装 ${chosen.title[language]}` : `Install ${chosen.title[language]}`}</h2><p>{zh ? '市场预设将安装为一个独立的 Profile。' : 'The market preset is installed as a separate profile.'}</p></div><button type="button" className="expert-modal-close" aria-label={zh ? '关闭' : 'Close'} disabled={submitting} onClick={close}>×</button></header>
+        <header><div><h2 id="expert-create-title">{zh ? `安装 ${chosen.title[language]}` : `Install ${chosen.title[language]}`}</h2><p>{zh ? '市场预设将安装为一个独立的 Profile。' : 'The market preset is installed as a separate profile.'}</p></div><button type="button" className="expert-modal-close" aria-label={zh ? '关闭' : 'Close'} disabled={submitting} onClick={close}><Icon name="close" /></button></header>
         <div className="expert-modal-body">
           <label className="expert-name-field">{zh ? 'Profile 名称' : 'Profile name'}<input ref={nameRef} required maxLength={64} spellCheck={false} autoComplete="off" value={name} onChange={event => setName(event.target.value)} placeholder="my-expert" /></label>
           <p className="expert-name-hint">{zh ? '名称用于本地标识，只能使用字母、数字、-、_。' : 'The local identifier uses letters, numbers, hyphens and underscores.'}</p>

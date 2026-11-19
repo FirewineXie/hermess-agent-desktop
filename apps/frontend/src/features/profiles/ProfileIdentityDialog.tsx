@@ -3,6 +3,7 @@ import type { ProfileRow } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { keepFocusInside } from '../extensions/dialogFocus'
+import Icon from '../../app/Icon'
 
 type Props = {
   profile: ProfileRow
@@ -130,7 +131,7 @@ export default function ProfileIdentityDialog({ profile, language, busy, onRenam
   return <div className="profile-delete-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
     <section className="profile-delete-dialog profile-identity-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-identity-title"
       onKeyDown={event => { if (event.key === 'Escape') close(); else keepFocusInside(event) }}>
-      <header><div><h2 id="profile-identity-title">{zh ? '身份与职责' : 'Identity and role'}</h2><p>{zh ? '管理看板分派依据、内部标识和 SOUL.md。' : 'Manage Kanban routing context, the internal ID and SOUL.md.'}</p></div><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={working} onClick={close}>×</button></header>
+      <header><div><h2 id="profile-identity-title">{zh ? '身份与职责' : 'Identity and role'}</h2><p>{zh ? '管理看板分派依据、内部标识和 SOUL.md。' : 'Manage Kanban routing context, the internal ID and SOUL.md.'}</p></div><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={working} onClick={close}><Icon name="close" /></button></header>
       <div className="profile-identity-dialog-body">
         <section><div className="profile-identity-section-heading"><div><h3>{zh ? '职责说明' : 'Role description'}</h3><small>{descriptionAuto ? (zh ? '当前由模型生成' : 'Currently model-generated') : (zh ? '当前由用户维护' : 'Currently user-maintained')}</small></div></div>
           <textarea ref={descriptionRef} rows={5} disabled={working || !identityLoaded} value={description} onChange={event => setDescription(event.target.value)} placeholder={zh ? '说明这个 Profile 擅长什么、适合接收哪些任务。' : 'Describe what this profile is good at and which tasks it should receive.'} />

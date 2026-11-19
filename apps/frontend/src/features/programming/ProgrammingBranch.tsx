@@ -3,6 +3,7 @@ import type { CodingGitState } from '@hermess/contracts'
 import type { Language } from '../../i18n'
 import type { ProgrammingController } from './useProgrammingController'
 import ProgrammingPicker from './ProgrammingPicker'
+import Icon from '../../app/Icon'
 
 export default function ProgrammingBranch({ controller, directory, language }: {
   controller: ProgrammingController; directory: string; language: Language
@@ -27,7 +28,7 @@ export default function ProgrammingBranch({ controller, directory, language }: {
     window.addEventListener('focus', refresh)
     return () => { ++generation.current; window.removeEventListener('focus', refresh) }
   }, [refresh, controller.session?.id, controller.session?.status])
-  const icon = <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M18 7c0 6-12 2-12 8" /></svg>
+  const icon = <Icon name="gitBranch" />
   const text = switching ? (zh ? '切换分支…' : 'Switching branch…') : !git ? (zh ? '读取分支…' : 'Reading branches…')
     : git.state === 'not_repository' ? (zh ? '未初始化 Git' : 'Not a Git repository')
       : git.state === 'unavailable' ? (zh ? '未找到 Git' : 'Git not found')

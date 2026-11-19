@@ -2,6 +2,7 @@ import React from 'react'
 import type { ChatTab } from './useChatTabs'
 import { chatTabKey } from './useChatTabs'
 import { chatTabsToClose, type ChatTabCloseMode, type ChatTabStatus } from './chatTabsState'
+import Icon from '../../app/Icon'
 import './chatTabs.css'
 
 type Props = {
@@ -55,12 +56,12 @@ export default function ChatTabs({ tabs, activeKey, disabled, language, title, s
           {tab.id && <button type="button" className="chat-tab-window" aria-label={`${language === 'zh-CN' ? '在新窗口打开' : 'Open in new window'}: ${label}`}
             title={language === 'zh-CN' ? '在新窗口打开' : 'Open in new window'} disabled={disabled} onClick={() => onOpenWindow(tab)}>↗</button>}
           <button type="button" className="chat-tab-close" aria-label={`${language === 'zh-CN' ? '关闭标签' : 'Close tab'}: ${label}`}
-            disabled={disabled || (!tab.id && tabs.length === 1)} onClick={() => onClose(tab)}>×</button>
+            disabled={disabled || (!tab.id && tabs.length === 1)} onClick={() => onClose(tab)}><Icon name="close" /></button>
         </div>
       })}
     </div>
     <button type="button" className="chat-tab-new" aria-label={language === 'zh-CN' ? '新建聊天标签' : 'New chat tab'}
-      title={language === 'zh-CN' ? '新建聊天' : 'New chat'} disabled={disabled} onClick={onNew}>＋</button>
+      title={language === 'zh-CN' ? '新建聊天' : 'New chat'} disabled={disabled} onClick={onNew}><Icon name="plus" /></button>
     <details className="chat-tabs-bulk" ref={menuRef}>
       <summary aria-label={zh ? '批量关闭聊天标签' : 'Close multiple chat tabs'}>{zh ? '批量关闭' : 'Close tabs'}</summary>
       <div className="chat-tabs-close-options">

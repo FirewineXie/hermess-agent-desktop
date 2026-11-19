@@ -3,6 +3,7 @@ import type { ProfileDataListing } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
+import Icon from '../../app/Icon'
 
 export default function ProfileDataView({ profile, served }: { profile: string | null; served: boolean }) {
   const api = useDesktop().profiles
@@ -61,7 +62,7 @@ export default function ProfileDataView({ profile, served }: { profile: string |
       {state === 'ready' && listing && <div className="profile-data-list">
         {listing.entries.length === 0 && <p className="profile-data-note">{zh ? '此目录为空。' : 'This folder is empty.'}</p>}
         {listing.entries.map(entry => entry.directory
-          ? <button className="profile-data-row" type="button" key={entry.relativePath} onClick={() => setRelativePath(entry.relativePath)}><span className="profile-data-row-icon" aria-hidden="true">▣</span><span className="profile-data-row-name">{entry.name}</span><small>{zh ? '文件夹' : 'Folder'}</small><span aria-hidden="true">›</span></button>
+          ? <button className="profile-data-row" type="button" key={entry.relativePath} onClick={() => setRelativePath(entry.relativePath)}><span className="profile-data-row-icon" aria-hidden="true"><Icon name="files" /></span><span className="profile-data-row-name">{entry.name}</span><small>{zh ? '文件夹' : 'Folder'}</small><Icon name="chevronRight" /></button>
           : <div className="profile-data-row" key={entry.relativePath}><span className="profile-data-row-icon" aria-hidden="true">▤</span><span className="profile-data-row-name">{entry.name}</span><small>{entry.link ? (zh ? '链接' : 'Link') : (zh ? '文件' : 'File')}</small></div>)}
       </div>}
     </>}

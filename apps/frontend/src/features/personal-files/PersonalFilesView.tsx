@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { useProfileRef, useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWorkspace'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
+import Icon from '../../app/Icon'
 import { displayPath } from '../../shared/displayPath'
 
 const tabNames: Record<PersonalFileKind, [string, string]> = {
@@ -124,7 +125,7 @@ export default function PersonalFilesView({ connected, profile, epoch, onDirtyCh
   return <section className="settings-panel flat-settings-panel personal-files-panel">
     <div className="row"><h2>{say('人格与记忆', 'Persona and memory')}</h2>
       <div className="personal-files-heading-actions"><button disabled={!connected || busy} onClick={() => { if (canDiscard()) void load(tab) }}>{say('重新读取', 'Reload')}</button>
-        {onClose && <button type="button" className="personal-files-close" aria-label={say('关闭记忆编辑', 'Close memory editor')} title={say('关闭', 'Close')} onClick={onClose}>×</button>}
+        {onClose && <button type="button" className="personal-files-close" aria-label={say('关闭记忆编辑', 'Close memory editor')} title={say('关闭', 'Close')} onClick={onClose}><Icon name="close" /></button>}
       </div>
     </div>
     <p>{say('仅管理本桌面程序启动的 Hermes 实例。当前会话使用已缓存的提示内容；磁盘文件与会话实际内容可能不同。',

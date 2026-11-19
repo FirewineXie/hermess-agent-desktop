@@ -2,6 +2,7 @@ import React from 'react'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
+import Icon from '../../app/Icon'
 import './JourneyView.css'
 
 type JourneyNode = {
@@ -168,7 +169,7 @@ export default function JourneyView({ connected, profile, epoch, embedded = fals
       <aside ref={detailRef} className="journey-detail" role="dialog" aria-modal="true" aria-labelledby="journey-detail-title">
         <header className="journey-detail-header">
           <div><span className={`journey-kind journey-kind-${selected.kind}`}>{selected.kind === 'skill' ? 'Skill' : (zh ? '记忆' : 'Memory')}</span><h3 id="journey-detail-title">{selected.label}</h3></div>
-          <button type="button" className="journey-detail-close" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={closeDetail}>×</button>
+          <button type="button" className="journey-detail-close" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={closeDetail}><Icon name="close" /></button>
         </header>
         <div className="journey-detail-body">
           {error && <p className="journey-error" role="alert">{error}</p>}

@@ -3,11 +3,10 @@ import type { CodingMessage, CodingTool } from '@hermess/contracts'
 import type { Language } from '../../i18n'
 import MarkdownMessage from '../chat/components/MarkdownMessage'
 import ProgrammingTiming from './ProgrammingTiming'
+import Icon from '../../app/Icon'
 
 function ToolIcon({ file = false }: { file?: boolean }) {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">{file
-    ? <><path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14Z" /></>
-    : <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="m7 9 3 3-3 3m6 0h4" /></>}</svg>
+  return <Icon name={file ? 'fileEdit' : 'terminal'} />
 }
 
 function Tool({ tool, language, running }: { tool: CodingTool; language: Language; running: boolean }) {
@@ -44,7 +43,7 @@ function ToolGroup({ tools, language, running }: { tools: CodingTool[]; language
   const commands = tools.some(tool => tool.type === 'commandExecution')
   const label = zh ? (files && commands ? '编辑了文件，运行了命令' : files ? '编辑了文件' : commands ? '运行了命令' : '使用了工具')
     : files && commands ? 'Changed files and ran commands' : files ? 'Changed files' : commands ? 'Ran commands' : 'Used tools'
-  return <details className="programming-tool-group" open><summary><ToolIcon file={files} /><span>{label}</span><svg className="programming-tool-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div className="programming-tool-list">{tools.map(tool => <Tool key={tool.id} tool={tool} language={language} running={running} />)}</div></details>
+  return <details className="programming-tool-group" open><summary><ToolIcon file={files} /><span>{label}</span><Icon name="chevronDown" className="programming-tool-chevron" /></summary><div className="programming-tool-list">{tools.map(tool => <Tool key={tool.id} tool={tool} language={language} running={running} />)}</div></details>
 }
 
 export default function ProgrammingTimeline({ messages, language, running }: { messages: CodingMessage[]; language: Language; running: boolean }) {

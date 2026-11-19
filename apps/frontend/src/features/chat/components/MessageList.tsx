@@ -5,6 +5,7 @@ import MarkdownMessage from './MarkdownMessage'
 import SentAttachmentList from './SentAttachmentList'
 import MediaAttachment from './MediaAttachment'
 import type { HistorySelection } from './HistoryActionDialog'
+import Icon from '../../../app/Icon'
 
 type Language = 'zh-CN' | 'en-US'
 
@@ -73,11 +74,11 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
   const progressText = progress?.percent != null ? `${progress.percent}%`
     : progress?.value != null ? [progress.value, progress.total].filter(value => value != null).join('/') : ''
   const heading = <>
-          <span className="tool-step-icon" aria-hidden="true">{step.name === 'terminal' || step.name === 'execute_code' ? '›' : step.name === 'read_file' || step.name === 'search_files' ? '▤' : '◇'}</span>
+          <span className="tool-step-icon" aria-hidden="true"><Icon name={step.name === 'terminal' || step.name === 'execute_code' ? 'code' : step.name === 'read_file' || step.name === 'search_files' ? 'file' : 'sparkles'} /></span>
           <span className="tool-step-name">{toolName(step.name, language)}</span>
           <small>{toolState(step, language)}{progressText && ` · ${progressText}`}{step.duration != null ? ` · ${step.duration.toFixed(1)}s` : ''}</small>
           {step.riskFindings && <strong>{language === 'zh-CN' ? '工具输出存在风险' : 'Risk detected in tool output'}</strong>}
-          {hasDetail && <span className="tool-step-chevron" aria-hidden="true">⌄</span>}
+          {hasDetail && <span className="tool-step-chevron" aria-hidden="true"><Icon name="chevronDown" /></span>}
   </>
   if (!hasDetail) return <div className="tool-step"><div className="tool-step-heading">{heading}</div>
     {progress?.message && <div className="tool-step-summary">{progress.message}</div>}</div>
@@ -94,7 +95,7 @@ function ToolRow({ step, language }: { step: ToolStep; language: Language }) {
 
 function ToolActivity({ steps, language }: { steps: ToolStep[]; language: Language }) {
   return <details className={`tool-activity${steps.some(step => step.state === 'failed') ? ' has-failure' : ''}`}>
-    <summary className="tool-activity-heading"><span className="tool-activity-icon" aria-hidden="true">▤</span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <summary className="tool-activity-heading"><span className="tool-activity-icon" aria-hidden="true"><Icon name="sparkles" /></span><span>{activityTitle(steps, language)}</span><span className="tool-activity-chevron" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
     <div className="tool-steps">{steps.map((step, index) => <ToolRow key={`${step.id}-${index}`} step={step} language={language} />)}</div>
   </details>
 }
@@ -130,7 +131,7 @@ function ReasoningBlock({ text, streaming, expanded, language }: { text: string;
     if (expanded && streaming && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight
   }, [text, streaming, expanded])
   return <details className="reasoning-block" open={expanded}>
-    <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span></summary>
+    <summary className="reasoning-heading"><span>{streaming ? label(language, '正在思考…', 'Thinking…') : label(language, '思考过程', 'Reasoning')}</span><span className="tool-activity-chevron" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
     <div ref={contentRef} className="reasoning-content"><MarkdownMessage text={text} language={language} streaming={streaming} /></div>
   </details>
 }
@@ -153,7 +154,7 @@ function TurnProcess({ message, title, language, children }: { message: Extract<
   const failed = message.turnState === 'failed'
   return <details className={`turn-activity${failed ? ' has-failure' : ''}`} open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary className="turn-duration" title={message.estimated ? label(language, '根据消息记录时间估算', 'Estimated from message timestamps') : undefined}>
-      <span>{title}</span><span className="tool-activity-chevron" aria-hidden="true">⌄</span>
+      <span>{title}</span><span className="tool-activity-chevron" aria-hidden="true"><Icon name="chevronDown" /></span>
     </summary>
     <div className="turn-process">{children}</div>
   </details>

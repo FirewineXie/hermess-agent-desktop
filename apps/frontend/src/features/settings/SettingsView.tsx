@@ -3,6 +3,7 @@ import { describeError } from '../../app/desktopErrors'
 import type { Language } from '../../i18n'
 import { settingsCategories, settingsPages, type SettingsPage } from './model'
 import './unified-settings.css'
+import Icon from '../../app/Icon'
 
 type Props = {
   language: Language
@@ -39,7 +40,7 @@ export default function SettingsView({ language, page, connected, profile, profi
   }
   return <section className="unified-settings" aria-label={zh ? '设置' : 'Settings'}>
     <aside className="settings-category-nav" aria-label={zh ? '设置分类' : 'Settings categories'}>
-      <div className="settings-nav-heading"><button type="button" onClick={onExit}>{zh ? '← 返回' : '← Back'}</button><strong>{zh ? '设置' : 'Settings'}</strong></div>
+      <div className="settings-nav-heading"><button type="button" onClick={onExit}><Icon name="chevronLeft" />{zh ? '返回' : 'Back'}</button><strong>{zh ? '设置' : 'Settings'}</strong></div>
       <button type="button" onClick={onOpenOnboarding}>{zh ? '重新打开使用引导' : 'Open setup guide'}</button>
       {settingsCategories.filter(item => item.id !== 'diagnostics' || diagnosticsUnlocked).map(item => <button type="button" key={item.id} className={category === item.id ? 'selected' : ''} onClick={() => navigate(item.page)}>{zh ? item.zh : item.en}</button>)}
     </aside>

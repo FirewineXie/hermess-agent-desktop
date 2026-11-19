@@ -20,14 +20,14 @@
 .programming-chat .composer-actions .programming-picker-trigger > svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .programming-chat .composer-actions .programming-picker-trigger > .programming-picker-chevron { width: 12px; height: 12px; color: #9299a4; }
 .programming-chat .composer-actions .programming-picker-trigger:hover:not(:disabled),
-.programming-chat .composer-actions .programming-picker-trigger[aria-expanded='true'] { background: #f0f2f5; color: #202936; }
+.programming-chat .composer-actions .programming-picker-trigger[aria-expanded='true'] { background: var(--wb-raised); color: #202936; }
 .programming-chat .composer-actions .programming-picker-trigger:focus-visible { outline: 2px solid #7f9bbd; outline-offset: 1px; }
 .programming-chat .composer-actions .programming-picker-trigger:disabled { color: #8b929d; opacity: 1; cursor: default; }
 .programming-chat .composer-actions .programming-picker-trigger.is-warning { color: #9a6632; }
 .programming-chat .programming-model-controls { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 100%; margin-left: auto; }
 .programming-chat .programming-model-controls > .programming-picker-trigger:first-child { color: #283240; }
 .programming-chat .composer-actions .programming-attach { flex: none; display: grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #546071; font-size: 25px; }
-.programming-chat .composer-actions .programming-attach:hover:not(:disabled) { background: #f0f2f5; }
+.programming-chat .composer-actions .programming-attach:hover:not(:disabled) { background: var(--wb-raised); }
 .programming-chat .composer-actions .composer-submit { margin-left: 6px; }
 .programming-picker-menu {
   position: fixed; z-index: 1200; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
@@ -53,18 +53,18 @@
 .programming-picker-menu.is-permissions > button[aria-checked='true'] { background: transparent; color: inherit; }
 .programming-picker-menu.is-permissions > button.is-danger[aria-checked='true'],
 .programming-picker-menu.is-permissions > button.is-danger[aria-checked='true'] small { color: #e86b23; }
-.programming-chat .composer-actions .programming-picker-trigger.is-permissions[aria-expanded='true'] { background: #f0f2f5; }
+.programming-chat .composer-actions .programming-picker-trigger.is-permissions[aria-expanded='true'] { background: var(--wb-raised); }
 .programming-chat .composer-actions .programming-picker-trigger.is-permissions.is-warning { color: #d76a26; }
 .programming-picker-menu > button small { display: block; margin-top: 3px; color: #7b8594; font-size: 12px; line-height: 1.45; }
 .programming-picker-menu > button[aria-checked='true'] { background: #f0f4f9; color: #315c8c; }
-.programming-picker-menu > button:hover:not(:disabled), .programming-picker-menu > button:focus-visible { background: #f0f2f5; outline: none; }
+.programming-picker-menu > button:hover:not(:disabled), .programming-picker-menu > button:focus-visible { background: var(--wb-raised); outline: none; }
 .programming-picker-menu > button:disabled { color: #939ba6; cursor: default; }
 .programming-picker-check { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .programming-picker-message { margin: 0; padding: 4px 10px 10px; color: #788393; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .programming-picker-message[role='alert'] { color: #99612d; }
-.programming-picker-footer { margin-top: 4px; padding: 5px 4px 0; border-top: 1px solid #edf0f4; }
+.programming-picker-footer { margin-top: 4px; padding: 5px 4px 0; border-top: 1px solid var(--wb-rule); }
 .programming-picker-footer > button { width: 100%; min-height: 36px; padding: 7px 6px; border: 0; border-radius: 6px; background: transparent; color: #315c8c; font: inherit; text-align: left; cursor: pointer; }
-.programming-picker-footer > button:hover, .programming-picker-footer > button:focus-visible { background: #f0f2f5; outline: none; }
+.programming-picker-footer > button:hover, .programming-picker-footer > button:focus-visible { background: var(--wb-raised); outline: none; }
 @media (max-width: 640px) {
   .programming-chat .composer-actions { gap: 2px; padding: 4px 4px 6px; }
   .programming-chat .composer-actions > .composer-spacer { flex-basis: 0; }
@@ -106,7 +106,7 @@
 :root[data-color-theme='dark'] .programming-usage summary:hover,
 :root[data-color-theme='dark'] .programming-chat .composer-actions .programming-attach:hover:not(:disabled) { background: var(--dark-hover); }
 :root[data-color-theme='dark'] .programming-usage .usage-track { stroke: var(--dark-border); }
-:root[data-color-theme='dark'] .programming-usage .usage-value { stroke: #8bb7ff; }
+:root[data-color-theme='dark'] .programming-usage .usage-value { stroke: var(--wb-link); }
 .programming-input { position: relative; min-width: 0; }
 .programming-input textarea { box-sizing: border-box; width: 100%; }
 .programming-input-menu { position: absolute; bottom: calc(100% + 10px); left: 0; right: 0; z-index: 12; max-height: min(400px, 50vh); overflow: auto; padding: 6px; border: 1px solid var(--dark-border, #e8e8e8); border-radius: 18px; background: var(--dark-surface, #fff); color: var(--dark-text, #55585e); box-shadow: 0 2px 8px #00000006; }
@@ -123,20 +123,20 @@
 .programming-input-option .programming-command-arrow { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; color: var(--dark-muted, #8b8f94); }
 .programming-chat .programming-input-menu .programming-input-option:focus-visible { outline: 2px solid #7f9bbd; outline-offset: -2px; }
 .programming-turn-timing { margin: 0 0 10px; color: var(--dark-muted, #777); font-size: 12px; font-variant-numeric: tabular-nums; }
-.programming-goal button { padding: 7px 12px; border: 1px solid var(--dark-border, #dce2e9); border-radius: 7px; background: var(--dark-surface, #fff); color: var(--dark-text, #34445a); font: inherit; cursor: pointer; }
+.programming-goal button { padding: 7px 12px; border: 1px solid var(--dark-border, var(--wb-border)); border-radius: 7px; background: var(--dark-surface, #fff); color: var(--dark-text, var(--wb-control)); font: inherit; cursor: pointer; }
 .programming-goal button:disabled { opacity: .5; cursor: default; }
-.programming-goal { margin: 12px 0; padding: 16px; border: 1px solid var(--dark-border, #e3e8ef); border-radius: 10px; overflow-wrap: anywhere; }
+.programming-goal { margin: 12px 0; padding: 16px; border: 1px solid var(--dark-border, var(--wb-border)); border-radius: 10px; overflow-wrap: anywhere; }
 .programming-goal p { margin: 8px 0; }
 .programming-goal > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .programming-goal fieldset { min-width: 0; margin: 8px 0; border: 0; padding: 0; }
 .programming-goal fieldset label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
 .programming-goal fieldset input:not([type=radio]) { width: 100%; box-sizing: border-box; }
 .programming-goal fieldset small { flex-basis: 100%; }
-.programming-mode { font-size: 12px; color: var(--dark-muted, #66758c); }
-.programming-command-hints { padding: 8px 12px; border-bottom: 1px solid var(--dark-border, #e8e8e8); color: var(--dark-muted, #66758c); }
+.programming-mode { font-size: 12px; color: var(--dark-muted, var(--wb-muted)); }
+.programming-command-hints { padding: 8px 12px; border-bottom: 1px solid var(--dark-border, #e8e8e8); color: var(--dark-muted, var(--wb-muted)); }
 .programming-command-hints p, .programming-command-error { margin: 4px 0 8px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .programming-command-hints > div { display: flex; flex-wrap: wrap; gap: 6px; }
-.programming-chat .programming-command-hints button { width: auto; height: auto; min-height: 28px; padding: 3px 8px; border: 1px solid var(--dark-border, #e3e8ef); border-radius: 5px; background: transparent; color: inherit; box-shadow: none; font: inherit; font-size: 12px; cursor: pointer; }
+.programming-chat .programming-command-hints button { width: auto; height: auto; min-height: 28px; padding: 3px 8px; border: 1px solid var(--dark-border, var(--wb-border)); border-radius: 5px; background: transparent; color: inherit; box-shadow: none; font: inherit; font-size: 12px; cursor: pointer; }
 .programming-chat .programming-command-hints button:hover { color: var(--dark-text, #253247); background: var(--dark-hover, #f0f1f3); }
 .programming-command-error { padding: 4px 12px; color: #a33d31; }
 .programming-input-option .programming-command-name { flex: 0 1 auto; max-width: 28%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dark-text, #394252); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: inherit; line-height: inherit; opacity: 1; }
@@ -155,9 +155,9 @@
 .programming-goal-details > button { margin-left: 12px; }
 .programming-current-goal .programming-goal-objective { max-height: 84px; overflow: auto; white-space: pre-wrap; line-height: 1.5; }
 .programming-goal-editor label { display: grid; gap: 6px; font-size: 13px; margin-top: 10px; }
-.programming-chat .programming-goal-editor textarea { box-sizing: border-box; min-height: 80px; max-height: 150px; padding: 9px 10px; border: 1px solid var(--dark-border, #dce2e9); border-radius: 7px; background: var(--dark-bg, #fff); }
+.programming-chat .programming-goal-editor textarea { box-sizing: border-box; min-height: 80px; max-height: 150px; padding: 9px 10px; border: 1px solid var(--dark-border, var(--wb-border)); border-radius: 7px; background: var(--dark-bg, #fff); }
 .programming-goal-editor > div { display: flex; gap: 8px; margin: 10px 0; }
-.programming-goal-editor button:last-child { color: #fff; background: #1b6ffd; border-color: #1b6ffd; }
+.programming-goal-editor button:last-child { color: #fff; background: var(--wb-primary); border-color: var(--wb-primary); }
 .programming-session-indicators { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 5px; min-width: 0; padding: 3px 4px; }
 .programming-session-indicators > span { font-size: 10.5px; line-height: 18px; padding: 0 3px; color: var(--dark-muted, #81868e); white-space: nowrap; }
 .programming-session-indicators > span[data-active=true] { color: var(--dark-text, #44688f); }

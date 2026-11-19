@@ -1,5 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
+import Icon from '../../app/Icon'
 
 export type ProgrammingOption = { value: string; label: string; group?: string; description?: string; disabled?: boolean; icon?: React.ReactNode; danger?: boolean }
 
@@ -40,7 +41,7 @@ export default function ProgrammingPicker({ label, value, text, options, disable
     <button ref={trigger} type="button" className={`programming-picker-trigger${warning ? ' is-warning' : ''}${variant ? ' is-permissions' : ''}`} aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} disabled={disabled} title={text} onClick={toggle} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); if (!open) toggle() }
     }}>
-      {icon}<span>{text}</span><svg className="programming-picker-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      {icon}<span>{text}</span><Icon name="chevronDown" className="programming-picker-chevron" />
     </button>
     {open && createPortal(<div ref={menu} id={id} role="menu" aria-label={label} className={`programming-picker-menu${variant ? ' is-permissions' : ''}`} style={position} tabIndex={-1} onBlur={event => {
       if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) close()
@@ -60,7 +61,7 @@ export default function ProgrammingPicker({ label, value, text, options, disable
         {option.group && option.group !== options[index - 1]?.group && <div className="programming-picker-group">{option.group}</div>}
         <button type="button" role="menuitemradio" className={option.danger ? 'is-danger' : undefined} aria-checked={value === option.value} disabled={option.disabled} onClick={() => { onChange(option.value); close(true) }}>
           {option.icon}<span className="programming-picker-option-copy"><span className="programming-picker-option-label">{option.label}</span>{option.description && <small>{option.description}</small>}</span>
-          {value === option.value && <svg className="programming-picker-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8" /></svg>}
+          {value === option.value && <Icon name="check" className="programming-picker-check" />}
         </button>
       </React.Fragment>)}
       {footer && <div className="programming-picker-footer" onClick={() => close(true)}>{footer}</div>}

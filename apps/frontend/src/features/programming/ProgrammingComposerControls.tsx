@@ -2,12 +2,10 @@ import React from 'react'
 import type { Language } from '../../i18n'
 import type { ProgrammingController } from './useProgrammingController'
 import ProgrammingPicker from './ProgrammingPicker'
+import Icon from '../../app/Icon'
 
 function PermissionIcon({ mode }: { mode: string }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{mode === 'request' ? <path d="M8 13V6a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v9c0 4-3 6-6 6h-1c-3 0-5-2-7-5l-2-3a2 2 0 0 1 3-2l1 1Z" />
-    : mode === 'auto' ? <><path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7Z" /><path d="m8 10 3 2-3 3m5 0h3" /></>
-    : mode === 'custom' ? <><path d="m9 3-1 3-3 1-2 5 2 5 3 1 1 3h6l1-3 3-1 2-5-2-5-3-1-1-3Z" /><circle cx="12" cy="12" r="3" /></>
-    : <><path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7Z" /><path d="M12 8v5m0 3v1" /></>}</svg>
+  return <Icon name={mode === 'request' ? 'hand' : mode === 'auto' ? 'shieldCheck' : mode === 'custom' ? 'settings' : 'shieldAlert'} />
 }
 
 export function ProgrammingPermissions({ controller, language, onOpenSettings }: {

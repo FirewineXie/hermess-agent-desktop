@@ -1,9 +1,11 @@
 import React from 'react'
 import './style.css'
+import './app/theme-tokens.css'
 import DeviceSettings from './features/desktop/DeviceSettings'
 import { useQuickInputBridge } from './features/desktop/useQuickInputBridge'
 import DelegationSettings from './features/models/DelegationSettings'
 import './features/desktop/desktop-settings.css'
+import Icon from './app/Icon'
 import ConfigurationSettings from './features/configuration/ConfigurationSettings'
 import { isConfigurationPage } from './features/configuration/model'
 import { useLanguage, translateApp } from './i18n'
@@ -91,6 +93,7 @@ import { paletteItems, type PaletteItem } from './features/command-palette/model
 import OnboardingDialog from './features/onboarding/OnboardingDialog'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 import HostTerminals from './features/workspace-panel/HostTerminals'
+import './app/workbench-theme.css'
 
 const SIDEBAR_CONTEXT_COLLAPSED_KEY = 'hermess.sidebar.context-collapsed'
 
@@ -519,7 +522,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
     if (id) await programmingController.select(id)
     else programmingController.newSession(directory, projectId)
   }
-  return <div className={`app-shell ${sidebarContextCollapsed ? 'sidebar-context-collapsed' : ''} ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''}`}>
+  return <div className={`app-shell ${sidebarContextCollapsed ? 'sidebar-context-collapsed' : ''} ${windowChrome.customTitlebar ? 'custom-titlebar-shell' : ''} ${view === 'profiles' ? 'profile-page-shell' : ''} ${view === 'settings' ? 'settings-shell' : ''} ${onboarding.visible ? 'onboarding-active' : ''}`}>
     <div className="dashboard-plugin-backdrop" aria-hidden="true"><DashboardPluginSlot name="backdrop" /></div>
     <WorkspaceHeader view={view} sessionTitle={programming && !remoteMode ? programmingController.session?.title || (language === 'zh-CN' ? '新编程会话' : 'New programming chat') : activeGroupId ? groupRooms.rooms.find(room => room.room_id === activeGroupId)?.name : activeSession?.title} sessionSource={activeGroupId || programming ? undefined : activeSession?.source} pluginTitle={dashboardManifest?.label} connected={connected} connectionLabel={connectionText} gateway={gateway} updateVersion={updateStatus.candidate?.asset ? updateStatus.candidate.version : null} onOpenNavigation={() => setSidebarOpen(true)} onOpenView={next => { if (next === 'settings' && !remoteMode) openSettings(); else if (!remoteMode) { if (next === 'personal-tasks') setPersonalTaskTarget(null); openView(next) } }} onOpenUpdate={() => { if (!remoteMode) openSettings('update') }} onOpenCommandPalette={commandPalette.show} onSwitchGateway={id => void switchGateway(id)} onConfigureRemote={() => { if (openSettings('runtime')) setRemoteSetupRequested(true) }} onOpenHostTerminals={onOpenHostTerminals} />
     <CommandPalette open={commandPalette.open} language={language} items={commandItems} onClose={commandPalette.close} onExecute={executeCommand} />
@@ -539,7 +542,7 @@ function WorkspaceApp({ gateway, onRemote, onLocal, onOpenHostTerminals }: {
         setProfileTabRequest(current => ({ id: current.id + 1, tab: 'overview' }))
         if (openView('profiles') && profileController.snapshot?.selected !== name) void profileController.select(name).catch(() => {})
       }} dashboardPlugins={dashboardPlugins.manifests} activeDashboardPlugin={activeDashboardPlugin} onOpenDashboardPlugin={openDashboardPlugin} />}
-    <main className="workspace">
+    <main className="workspace" aria-hidden={onboarding.visible || undefined}>
     <GatewayRecoveryNotice state={connectionState} message={backendStatus} onRetry={reconnectBackend} />
     <DashboardPluginSlot name="pre-main" />
     {dashboardSlotPage && <DashboardPluginSlot name={`${dashboardSlotPage}:top`} />}
@@ -731,7 +734,7 @@ function App() {
   return <GatewayNoticesProvider>
     {storageBlocked ? <div className="app-shell"><main className="settings-panel"><StorageLocationSettings /></main></div> : gateway ? <WorkspaceApp key={gateway.mode === 'remote' ? `remote:${gateway.config.id}:${gateway.replay_epoch}` : 'local'} gateway={gateway} onRemote={switchRemote} onLocal={switchLocal} onOpenHostTerminals={() => setHostTerminalsOpen(true)} />
       : <div className="app-shell"><div className="chat-gate" role="status">{language === 'zh-CN' ? '正在读取 Gateway 连接…' : 'Loading gateway connection…'}</div></div>}
-    {switchError && <div className="gateway-switch-error" role="alert">{switchError}<button type="button" onClick={() => setSwitchError('')}>×</button></div>}
+    {switchError && <div className="gateway-switch-error" role="alert">{switchError}<button type="button" aria-label={language === 'zh-CN' ? '关闭错误提示' : 'Dismiss error'} onClick={() => setSwitchError('')}><Icon name="close" /></button></div>}
     {gateway && !storageBlocked && <HostTerminals open={hostTerminalsOpen} onHide={() => setHostTerminalsOpen(false)} />}
   </GatewayNoticesProvider>
 }

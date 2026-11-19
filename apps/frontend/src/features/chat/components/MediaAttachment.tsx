@@ -5,6 +5,7 @@ import { useDesktop } from '../../../app/DesktopContext'
 import { useChatMediaScope } from '../ChatMediaContext'
 import { mediaName } from '../mediaModel'
 import { prepareMediaResource } from '../mediaResource'
+import Icon from '../../../app/Icon'
 import './media-attachment.css'
 
 type Language = 'zh-CN' | 'en-US'
@@ -153,7 +154,7 @@ function ImageLightbox({ url, name, language, close }: { url: string; name: stri
     return () => { window.removeEventListener('keydown', key); if (previous instanceof HTMLElement) previous.focus() }
   }, [])
   return createPortal(<div className="chat-media-lightbox" role="dialog" aria-modal="true" aria-label={name} onClick={close}>
-    <button ref={button} type="button" onClick={close} aria-label={language === 'zh-CN' ? '关闭图片预览' : 'Close image preview'}>×</button>
+    <button ref={button} type="button" onClick={close} aria-label={language === 'zh-CN' ? '关闭图片预览' : 'Close image preview'}><Icon name="close" /></button>
     <img src={url} alt={name} onClick={event => event.stopPropagation()} />
   </div>, document.body)
 }

@@ -5,9 +5,9 @@
   gap: 16px;
   flex: 0 0 auto;
   padding: 10px 20px;
-  border-bottom: 1px solid var(--border-color, #dce3ec);
+  border-bottom: 1px solid var(--border-color, var(--wb-border));
   background: var(--panel-bg, #fff);
-  color: var(--muted-text, #66758c);
+  color: var(--muted-text, var(--wb-muted));
   font-size: 13px;
 }
 

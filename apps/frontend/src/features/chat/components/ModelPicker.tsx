@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { ModelProvider } from '@hermess/contracts'
 import DaybreakSetting from '../../models/components/DaybreakSetting'
+import Icon from '../../../app/Icon'
 
 type Props = {
   pickerRef: React.RefObject<HTMLDivElement | null>
@@ -28,7 +29,7 @@ export default function ModelPicker({ pickerRef, position, busy, error, confirma
   const daybreakAvailable = activeModel && providers.some(row => row.slug === activeModel.provider
     && row.authenticated !== false && row.capabilities?.[activeModel.model]?.daybreak === true)
   return <div ref={pickerRef} className="model-picker" role="dialog" aria-label={t('ui.select.model')} style={position}>
-    <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.close')} onClick={onClose}>×</button></span></div>
+    <div className="model-picker-header"><strong>{t('ui.select.model')}</strong><span><button type="button" title={t('ui.close')} aria-label={t('ui.close')} onClick={onClose}><Icon name="close" /></button></span></div>
     {error && <p className="model-picker-message" role="alert">{error}</p>}
     {confirmation && <div className="model-picker-confirm" role="alert"><p>{confirmation.message}</p><button disabled={busy} onClick={() => onPick(confirmation.provider, confirmation.model, confirmation.remember, confirmation.token)}>{t('ui.confirm.this.model')}</button></div>}
     {busy && <p className="model-picker-message" role="status">{t('ui.loading.model.options')}</p>}

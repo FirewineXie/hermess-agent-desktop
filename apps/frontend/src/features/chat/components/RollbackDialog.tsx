@@ -1,5 +1,6 @@
 import type { RollbackController, RollbackRestoreMode } from '../useRollbackController'
 import '../rollback.css'
+import Icon from '../../../app/Icon'
 
 function label(mode: RollbackRestoreMode, zh: boolean) {
   if (mode === 'file') return zh ? '恢复这个文件' : 'Restore this file'
@@ -13,7 +14,7 @@ export default function RollbackDialog({ controller, language }: { controller: R
   const selectedHash = controller.selected?.hash
   return <div className="rollback-overlay" role="presentation">
     <section className="rollback-dialog" role="dialog" aria-modal="true" aria-label={zh ? '文件回滚' : 'File rollback'}>
-      <header><div><span>HERMESS · ROLLBACK</span><h2>{zh ? '恢复文件检查点' : 'Restore a checkpoint'}</h2><p>{zh ? '先查看差异，再恢复单个文件或整个工作区。' : 'Review the diff, then restore one file or the workspace.'}</p></div><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={controller.busy} onClick={controller.close}>×</button></header>
+      <header><div><span>HERMESS · ROLLBACK</span><h2>{zh ? '恢复文件检查点' : 'Restore a checkpoint'}</h2><p>{zh ? '先查看差异，再恢复单个文件或整个工作区。' : 'Review the diff, then restore one file or the workspace.'}</p></div><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={controller.busy} onClick={controller.close}><Icon name="close" /></button></header>
       {controller.error && <p className="rollback-error" role="alert">{controller.error}</p>}
       {controller.notice && <p className="rollback-notice" role="status">{controller.notice}</p>}
       {controller.restoreResult && <div className="rollback-result"><strong>{zh ? '恢复结果' : 'Restore result'}</strong>{[

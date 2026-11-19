@@ -3,6 +3,7 @@ import type { CodingProviderDraft, ModelProvider } from '@hermess/contracts'
 import { translateApp, type Language } from '../../i18n'
 import ProviderPresetOptions from '../models/components/ProviderPresetOptions'
 import { VOLCENGINE_PRESETS } from '../models/model'
+import Icon from '../../app/Icon'
 
 export default function ProgrammingProviderEditor({ language, providers, draft, mode, busy, error, onChange, onClose, onSave }: {
   language: Language; providers: ModelProvider[]; draft: CodingProviderDraft; mode: 'configuration' | 'models'; busy: boolean; error: string
@@ -29,7 +30,7 @@ export default function ProgrammingProviderEditor({ language, providers, draft, 
   }
   return <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose() }}>
     <form className="provider-add-form programming-provider-dialog" role="dialog" aria-modal="true" aria-labelledby="programming-provider-title" onKeyDown={keyDown} onSubmit={event => { event.preventDefault(); onSave() }}>
-      <div className="row model-editor-heading"><h3 id="programming-provider-title">{mode === 'models' ? `${draft.name} · ${zh ? '编辑模型' : 'Edit models'}` : draft.id ? (zh ? '编辑提供商' : 'Edit provider') : (zh ? '新增模型提供商' : 'Add model provider')}</h3><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}>×</button></div>
+      <div className="row model-editor-heading"><h3 id="programming-provider-title">{mode === 'models' ? `${draft.name} · ${zh ? '编辑模型' : 'Edit models'}` : draft.id ? (zh ? '编辑提供商' : 'Edit provider') : (zh ? '新增模型提供商' : 'Add model provider')}</h3><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}><Icon name="close" /></button></div>
       {mode === 'configuration' ? <>
         {!draft.id && <label>{zh ? '提供商模板' : 'Provider preset'}<select autoFocus disabled={busy} value={preset} onChange={event => choose(event.target.value)}><ProviderPresetOptions providers={providers} language={language} t={key => translateApp(language, key)} /></select></label>}
         <label>{zh ? '提供商名称' : 'Provider name'}<input required autoFocus={Boolean(draft.id)} maxLength={80} disabled={busy} value={draft.name} onChange={event => patch({ name: event.target.value })} /></label>
@@ -37,7 +38,7 @@ export default function ProgrammingProviderEditor({ language, providers, draft, 
         {!draft.id && <label>{zh ? '初始模型 ID' : 'Initial model ID'}<input required disabled={busy} value={draft.models[0] || ''} onChange={event => patch({ models: [event.target.value] })} /></label>}
         <label>API Key<input required={!draft.id} type="password" autoComplete="off" disabled={busy} value={draft.api_key || ''} onChange={event => patch({ api_key: event.target.value })} /></label>
         {draft.id && <small>{zh ? '留空保留原密钥。模型在“编辑模型”中管理。' : 'Leave blank to retain the key. Manage models in Edit models.'}</small>}
-      </> : <div className="provider-model-list"><div className="provider-model-items">{draft.models.map((model, index) => <div className="provider-model-row" key={index}><input required autoFocus={index === 0} aria-label={`${zh ? '模型 ID' : 'Model ID'} ${index + 1}`} disabled={busy} value={model} onChange={event => patch({ models: draft.models.map((value, i) => i === index ? event.target.value : value) })} /><button type="button" className="provider-model-delete" disabled={busy || draft.models.length <= 1} onClick={() => patch({ models: draft.models.filter((_, i) => i !== index) })}>{zh ? '删除' : 'Delete'}</button></div>)}</div><button type="button" className="provider-add-model" disabled={busy || draft.models.length >= 32} onClick={() => patch({ models: [...draft.models, ''] })}>{zh ? '＋ 添加模型' : '+ Add model'}</button></div>}
+      </> : <div className="provider-model-list"><div className="provider-model-items">{draft.models.map((model, index) => <div className="provider-model-row" key={index}><input required autoFocus={index === 0} aria-label={`${zh ? '模型 ID' : 'Model ID'} ${index + 1}`} disabled={busy} value={model} onChange={event => patch({ models: draft.models.map((value, i) => i === index ? event.target.value : value) })} /><button type="button" className="provider-model-delete" disabled={busy || draft.models.length <= 1} onClick={() => patch({ models: draft.models.filter((_, i) => i !== index) })}>{zh ? '删除' : 'Delete'}</button></div>)}</div><button type="button" className="provider-add-model" disabled={busy || draft.models.length >= 32} onClick={() => patch({ models: [...draft.models, ''] })}><Icon name="plus" />{zh ? '添加模型' : 'Add model'}</button></div>}
       <p className="programming-validation-hint">{zh ? '仅支持 Responses API；保存前验证流式响应与工具调用。' : 'Responses API only. Streaming and tool calls are validated before saving.'}</p>
       {error && <p className="programming-error" role="alert">{error}</p>}
       <div className="actions"><button type="submit" disabled={busy || !draft.models.length}>{busy ? (zh ? '正在验证…' : 'Validating…') : (zh ? '验证并保存' : 'Validate and save')}</button><button type="button" disabled={busy} onClick={onClose}>{zh ? '取消' : 'Cancel'}</button></div>

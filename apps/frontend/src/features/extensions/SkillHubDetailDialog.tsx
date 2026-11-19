@@ -2,6 +2,7 @@ import React from 'react'
 import { useLanguage } from '../../i18n'
 import type { HubPreview, HubScan, HubSkill } from './model'
 import { keepFocusInside } from './dialogFocus'
+import Icon from '../../app/Icon'
 
 type Props = {
   item: HubSkill
@@ -56,7 +57,7 @@ export default function SkillHubDetailDialog({ item, busy, request, onClose, onI
   return <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy && !scanning) onClose() }}>
     <section className="skill-hub-detail" role="dialog" aria-modal="true" aria-labelledby="skill-hub-detail-title"
       onKeyDown={event => { if (event.key === 'Escape' && !busy && !scanning) onClose(); else keepFocusInside(event) }}>
-      <header><div><h2 id="skill-hub-detail-title">{item.name}</h2><p>{item.identifier}</p></div><button ref={closeRef} type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy || scanning} onClick={onClose}>×</button></header>
+      <header><div><h2 id="skill-hub-detail-title">{item.name}</h2><p>{item.identifier}</p></div><button ref={closeRef} type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy || scanning} onClick={onClose}><Icon name="close" /></button></header>
       <div className="skill-hub-detail-body">
         <p>{preview?.description || item.description}</p>
         <div className="skill-hub-detail-meta"><span>{preview?.source || item.source}</span><span>{preview?.trust_level || item.trust_level || (zh ? '信任级别未知' : 'Unknown trust')}</span></div>

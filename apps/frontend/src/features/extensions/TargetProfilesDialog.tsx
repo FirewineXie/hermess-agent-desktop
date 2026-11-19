@@ -2,6 +2,7 @@ import React from 'react'
 import type { ProfilesSnapshot } from '@hermess/contracts'
 import { useLanguage } from '../../i18n'
 import { keepFocusInside } from './dialogFocus'
+import Icon from '../../app/Icon'
 
 type Props = {
   itemName: string
@@ -40,7 +41,7 @@ export default function TargetProfilesDialog({ itemName, profiles, alreadyInstal
 
   return <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose() }}>
     <section className="target-profiles-dialog" role="dialog" aria-modal="true" aria-labelledby="target-profiles-title" onKeyDown={event => { if (event.key === 'Escape' && !busy) onClose(); else keepFocusInside(event) }}>
-      <header><div className="target-profiles-heading"><h2 id="target-profiles-title">{single ? (zh ? `配置 ${itemName}` : `Configure ${itemName}`) : (zh ? `添加 ${itemName}` : `Add ${itemName}`)}</h2><p>{single ? (zh ? '选择要配置的 Profile。' : 'Choose a Profile to configure.') : (zh ? `请选择添加到哪些专家，已选择 ${selected.length} 个` : `Choose experts to add this to. ${selected.length} selected.`)}</p></div><button ref={closeRef} type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}>×</button></header>
+      <header><div className="target-profiles-heading"><h2 id="target-profiles-title">{single ? (zh ? `配置 ${itemName}` : `Configure ${itemName}`) : (zh ? `添加 ${itemName}` : `Add ${itemName}`)}</h2><p>{single ? (zh ? '选择要配置的 Profile。' : 'Choose a Profile to configure.') : (zh ? `请选择添加到哪些专家，已选择 ${selected.length} 个` : `Choose experts to add this to. ${selected.length} selected.`)}</p></div><button ref={closeRef} type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}><Icon name="close" /></button></header>
       <div className="target-profiles-dialog-body">
         <div className="target-profiles-list">{profiles.profiles.map(profile => <label key={profile.name} className={!served.has(profile.name) || alreadyInstalled.includes(profile.name) || unavailable.includes(profile.name) ? 'unavailable' : ''}>
           <input ref={available[0]?.name === profile.name ? firstRef : undefined} type={single ? 'radio' : 'checkbox'} name={single ? 'mcp-target-profile' : undefined} disabled={busy || !served.has(profile.name) || alreadyInstalled.includes(profile.name) || unavailable.includes(profile.name)} checked={selected.includes(profile.name)} onChange={event => single ? setSelected([profile.name]) : toggle(profile.name, event.target.checked)} />

@@ -3,6 +3,7 @@ import type { ActiveGateway, RemoteGatewayConfig } from '@hermess/contracts'
 import { useLanguage } from '../i18n'
 import { useDesktop } from './DesktopContext'
 import { useGatewayNotices } from '../features/notifications/GatewayNoticesProvider'
+import Icon from './Icon'
 import './GatewaySwitcher.css'
 
 type Props = {
@@ -79,7 +80,7 @@ export default function GatewaySwitcher({ gateway, connected, onSwitch, onConfig
     const isViewing = viewing !== null && viewing.id === id
     return <div className="gateway-switcher-row" role="none" key={id ?? 'local'}>
       <button type="button" role="menuitemradio" aria-checked={activeId === id} onClick={() => choose(id)}>
-        <span>{label}</span>{activeId === id && <span aria-hidden="true">✓</span>}
+        <span>{label}</span>{activeId === id && <Icon name="check" />}
       </button>
       {notices.length > 0 && <button type="button" className="gateway-notice-toggle" role="menuitem" aria-expanded={isViewing}
         aria-label={zh ? `${label} 通知${hasUnread ? '（未读）' : ''}` : `${label} notifications${hasUnread ? ' (unread)' : ''}`}
@@ -96,7 +97,7 @@ export default function GatewaySwitcher({ gateway, connected, onSwitch, onConfig
       <span className={`window-title-status-dot ${connected ? 'ready' : ''}`} aria-hidden="true" />
       <span className="gateway-switcher-label" title={activeLabel}>{activeLabel}</span>
       {unread && <span className="gateway-notice-dot" role="img" aria-label={unreadLabel} title={unreadLabel} />}
-      <span aria-hidden="true">▾</span>
+      <Icon name="chevronDown" />
     </button>
     {open && <div className="gateway-switcher-menu">
       <div role="menu">

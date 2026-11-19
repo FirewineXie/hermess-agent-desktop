@@ -1,5 +1,6 @@
 import React from 'react'
 import type { SentAttachment } from '../sentAttachments'
+import Icon from '../../../app/Icon'
 import './sent-attachments.css'
 
 export default function SentAttachmentList({ attachments, language }: { attachments: SentAttachment[]; language: 'zh-CN' | 'en-US' }) {
@@ -20,7 +21,7 @@ export default function SentAttachmentList({ attachments, language }: { attachme
       <small>{attachment.bytes} {language === 'zh-CN' ? '字节' : 'bytes'}</small>
     </li>)}</ul>
     {active?.preview && <div className="sent-attachment-lightbox" role="dialog" aria-modal="true" aria-label={active.name} onClick={() => setSelected(null)}>
-      <button type="button" className="sent-attachment-close" onClick={() => setSelected(null)} aria-label={language === 'zh-CN' ? '关闭预览' : 'Close preview'}>×</button>
+      <button type="button" className="sent-attachment-close" onClick={() => setSelected(null)} aria-label={language === 'zh-CN' ? '关闭预览' : 'Close preview'}><Icon name="close" /></button>
       <img src={active.preview} alt={active.name} onClick={event => event.stopPropagation()} />
     </div>}
   </>

@@ -8,6 +8,7 @@ import ChatView from '../chat/ChatView'
 import { useModelController } from '../models/useModelController'
 import type { ModelPick } from '../models/model'
 import '../../style.css'
+import '../../app/theme-tokens.css'
 import './chat-window.css'
 
 export default function ChatWindowApp() {

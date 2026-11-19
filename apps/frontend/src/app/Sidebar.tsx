@@ -8,6 +8,7 @@ import type { SessionActivity } from '../features/chat/useSessionActivity'
 import { describeError } from './desktopErrors'
 import { DashboardPluginSlot, type DashboardPluginManifest } from '../features/dashboard-plugins/DashboardPluginHost'
 import { achievementsPluginName, secondaryDashboardPluginTabs } from '../features/dashboard-plugins/dashboardRouteModel'
+import Icon from './Icon'
 import './sidebar-session-actions.css'
 import './sidebar-mode-switch.css'
 import './sidebar-shell.css'
@@ -51,22 +52,6 @@ type Props = {
   dashboardPlugins: DashboardPluginManifest[]
   activeDashboardPlugin: string | null
   onOpenDashboardPlugin: (name: string) => void
-}
-
-type RailIconName = 'chat' | 'code' | 'bots' | 'files' | 'workspaces' | 'tasks' | 'scheduled' | 'extensions'
-
-function RailIcon({ name }: { name: RailIconName }) {
-  const paths: Record<RailIconName, React.ReactNode> = {
-    chat: <path d="M5 6h14v10H9l-4 3V6Z" />,
-    code: <><path d="m8 8-4 4 4 4M16 8l4 4-4 4" /><path d="m14 5-4 14" /></>,
-    bots: <><circle cx="12" cy="12" r="7" /><path d="M9 10h.01M15 10h.01M9 15c2 1 4 1 6 0M12 3V1" /></>,
-    files: <path d="M3 6h7l2 2h9v10H3V6Z" />,
-    workspaces: <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
-    tasks: <><path d="M5 5h14v14H5V5Z" /><path d="m8 10 1.5 1.5L12 9M13 10h3m-8 5 1.5 1.5L12 14m1 1h3" /></>,
-    scheduled: <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>,
-    extensions: <><path d="M12 3v18M3 12h18" /><path d="m6 6 12 12M18 6 6 18" /></>,
-  }
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
 function RailButton({ tooltip, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tooltip: string }) {
@@ -184,23 +169,23 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`} aria-label={t('ui.main.navigation')}>
       <nav className="sidebar-rail" aria-label={zh ? '全局功能' : 'Global features'}>
         <RailButton type="button" className="sidebar-rail-brand" aria-label={collapsed ? (zh ? '展开侧栏' : 'Expand sidebar') : (zh ? '收起侧栏' : 'Collapse sidebar')} tooltip={collapsed ? (zh ? '展开侧栏' : 'Expand sidebar') : (zh ? '收起侧栏' : 'Collapse sidebar')} onClick={onToggleCollapsed}>H</RailButton>
-        <RailButton type="button" className={`sidebar-rail-button ${view === 'chat' && chatMode ? 'active' : ''}`} aria-pressed={view === 'chat' && chatMode} aria-label={zh ? '聊天' : 'Chat'} tooltip={zh ? '聊天' : 'Chat'} onClick={() => switchMode('chat')}><RailIcon name="chat" /></RailButton>
-        {!remoteMode && <RailButton type="button" className={`sidebar-rail-button ${view === 'chat' && !chatMode ? 'active' : ''}`} aria-pressed={view === 'chat' && !chatMode} aria-label={zh ? '编程' : 'Code'} tooltip={zh ? '编程' : 'Code'} onClick={() => switchMode('code')}><RailIcon name="code" /></RailButton>}
+        <RailButton type="button" className={`sidebar-rail-button ${view === 'chat' && chatMode ? 'active' : ''}`} aria-pressed={view === 'chat' && chatMode} aria-label={zh ? '聊天' : 'Chat'} tooltip={zh ? '聊天' : 'Chat'} onClick={() => switchMode('chat')}><Icon name="chat" /></RailButton>
+        {!remoteMode && <RailButton type="button" className={`sidebar-rail-button ${view === 'chat' && !chatMode ? 'active' : ''}`} aria-pressed={view === 'chat' && !chatMode} aria-label={zh ? '编程' : 'Code'} tooltip={zh ? '编程' : 'Code'} onClick={() => switchMode('code')}><Icon name="code" /></RailButton>}
         <span className="sidebar-rail-separator" aria-hidden="true" />
-        <RailButton type="button" className={`sidebar-rail-button ${view === 'bots' ? 'active' : ''}`} aria-pressed={view === 'bots'} aria-label={zh ? 'Bot 模式' : 'Bot Mode'} tooltip={zh ? 'Bot 模式' : 'Bot Mode'} onClick={() => openFeatureView('bots')}><RailIcon name="bots" /></RailButton>
+        <RailButton type="button" className={`sidebar-rail-button ${view === 'bots' ? 'active' : ''}`} aria-pressed={view === 'bots'} aria-label={zh ? 'Bot 模式' : 'Bot Mode'} tooltip={zh ? 'Bot 模式' : 'Bot Mode'} onClick={() => openFeatureView('bots')}><Icon name="bots" /></RailButton>
         {!remoteMode && <>
-          <RailButton type="button" className={`sidebar-rail-button ${view === 'files' ? 'active' : ''}`} aria-pressed={view === 'files'} aria-label={zh ? '文件管理' : 'Files'} tooltip={zh ? '文件管理' : 'Files'} onClick={() => openFeatureView('files')}><RailIcon name="files" /></RailButton>
-          <RailButton type="button" className={`sidebar-rail-button ${view === 'workspaces' ? 'active' : ''}`} aria-pressed={view === 'workspaces'} aria-label={t('ui.workspace.title')} tooltip={t('ui.workspace.title')} onClick={() => openFeatureView('workspaces')}><RailIcon name="workspaces" /></RailButton>
-          <RailButton type="button" className={`sidebar-rail-button ${view === 'personal-tasks' ? 'active' : ''}`} aria-pressed={view === 'personal-tasks'} aria-label={zh ? '持续任务' : 'Ongoing tasks'} tooltip={zh ? '持续任务' : 'Ongoing tasks'} onClick={() => openFeatureView('personal-tasks')}><RailIcon name="tasks" /></RailButton>
-          <RailButton type="button" className={`sidebar-rail-button ${view === 'scheduled' ? 'active' : ''}`} aria-pressed={view === 'scheduled'} aria-label={zh ? '定时任务' : 'Scheduled tasks'} tooltip={zh ? '定时任务' : 'Scheduled tasks'} onClick={() => openFeatureView('scheduled')}><RailIcon name="scheduled" /></RailButton>
-          <RailButton type="button" className={`sidebar-rail-button ${view === 'extensions' ? 'active' : ''}`} aria-pressed={view === 'extensions'} aria-label={zh ? '扩展中心' : 'Extension Center'} tooltip={zh ? '扩展中心' : 'Extension Center'} onClick={() => openFeatureView('extensions')}><RailIcon name="extensions" /></RailButton>
+          <RailButton type="button" className={`sidebar-rail-button ${view === 'files' ? 'active' : ''}`} aria-pressed={view === 'files'} aria-label={zh ? '文件管理' : 'Files'} tooltip={zh ? '文件管理' : 'Files'} onClick={() => openFeatureView('files')}><Icon name="files" /></RailButton>
+          <RailButton type="button" className={`sidebar-rail-button ${view === 'workspaces' ? 'active' : ''}`} aria-pressed={view === 'workspaces'} aria-label={t('ui.workspace.title')} tooltip={t('ui.workspace.title')} onClick={() => openFeatureView('workspaces')}><Icon name="workspaces" /></RailButton>
+          <RailButton type="button" className={`sidebar-rail-button ${view === 'personal-tasks' ? 'active' : ''}`} aria-pressed={view === 'personal-tasks'} aria-label={zh ? '持续任务' : 'Ongoing tasks'} tooltip={zh ? '持续任务' : 'Ongoing tasks'} onClick={() => openFeatureView('personal-tasks')}><Icon name="tasks" /></RailButton>
+          <RailButton type="button" className={`sidebar-rail-button ${view === 'scheduled' ? 'active' : ''}`} aria-pressed={view === 'scheduled'} aria-label={zh ? '定时任务' : 'Scheduled tasks'} tooltip={zh ? '定时任务' : 'Scheduled tasks'} onClick={() => openFeatureView('scheduled')}><Icon name="scheduled" /></RailButton>
+          <RailButton type="button" className={`sidebar-rail-button ${view === 'extensions' ? 'active' : ''}`} aria-pressed={view === 'extensions'} aria-label={zh ? '扩展中心' : 'Extension Center'} tooltip={zh ? '扩展中心' : 'Extension Center'} onClick={() => openFeatureView('extensions')}><Icon name="extensions" /></RailButton>
         </>}
       </nav>
       <div className="sidebar-context">
-      <header className="sidebar-context-header"><strong>{chatMode ? (zh ? '聊天' : 'Chat') : (zh ? '编程' : 'Code')}</strong><button type="button" aria-label={zh ? '收起侧栏' : 'Collapse sidebar'} title={zh ? '收起侧栏' : 'Collapse sidebar'} onClick={onToggleCollapsed}>«</button></header>
+      <header className="sidebar-context-header"><strong>{chatMode ? (zh ? '聊天' : 'Chat') : (zh ? '编程' : 'Code')}</strong><button type="button" aria-label={zh ? '收起侧栏' : 'Collapse sidebar'} title={zh ? '收起侧栏' : 'Collapse sidebar'} onClick={onToggleCollapsed}><Icon name="chevronLeft" /></button></header>
       {chatMode && <>
       <nav className="primary-nav" aria-label={zh ? '新建会话' : 'New conversation'}>
-        <button aria-expanded={newMenuOpen} onClick={() => setNewMenuOpen(current => !current)}><span>{t('ui.new.session')}</span></button>
+        <button aria-expanded={newMenuOpen} onClick={() => setNewMenuOpen(current => !current)}><Icon name="plus" /><span>{t('ui.new.session').replace(/^＋\s*/, '')}</span></button>
         {newMenuOpen && <div className="sidebar-new-menu"><button type="button" onClick={() => { setNewMenuOpen(false); onNewChat() }}>{zh ? '单独聊天' : 'One-to-one chat'}</button><button type="button" onClick={() => { setNewMenuOpen(false); onNewGroup() }}>{zh ? '多人群聊' : 'Group chat'}</button></div>}
       </nav>
       </>}
@@ -210,7 +195,7 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
       <div id="sidebar-chat-sessions" className="sidebar-sessions" hidden={!chatMode}>
         {connected && (groups.length > 0 || groupsError) && <div className="sidebar-group-history"><div className="sidebar-section-heading"><strong>{zh ? '群聊' : 'GROUP CHATS'}</strong></div>
           {groupsError && <p role="alert">{groupsError} <button type="button" onClick={onRefreshGroups}>{zh ? '重试' : 'Retry'}</button></p>}
-          {groups.map(group => <button type="button" key={group.room_id} className={`sidebar-profile-session ${view === 'chat' && activeGroupId === group.room_id ? 'active' : ''}`} title={group.name} onClick={() => onOpenGroup(group.room_id)}><span aria-hidden="true">◉</span><span className="session-title">{group.name}</span><span className="session-source">{group.members.length} Bot</span></button>)}
+          {groups.map(group => <button type="button" key={group.room_id} className={`sidebar-profile-session ${view === 'chat' && activeGroupId === group.room_id ? 'active' : ''}`} title={group.name} onClick={() => onOpenGroup(group.room_id)}><Icon name="bots" /><span className="session-title">{group.name}</span><span className="session-source">{group.members.length} Bot</span></button>)}
         </div>}
         <div className="sidebar-profile-divider" aria-hidden="true" />
         {(profiles?.profiles || [{ name: 'default', is_default: true }]).map(profile => {
@@ -222,12 +207,12 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
             <span className="sidebar-profile-avatar" aria-hidden="true">{(profile.display_name || profile.name).slice(0, 1).toUpperCase()}</span>
             <span className="session-title">{profile.display_name || profile.name}</span>
             {connected && profiles && !servedProfiles.has(profile.name) && <span className="profile-unserved" title={zh ? 'Gateway 尚未服务此 Profile' : 'Gateway is not serving this profile'}>{zh ? '待启用' : 'Unavailable'}</span>}
-            <span className="sidebar-profile-chevron" aria-hidden="true">⌄</span>
-          </button>{!remoteMode && <button type="button" className="sidebar-profile-manage" disabled={!connected || profileBusy || !servedProfiles.has(profile.name)} aria-label={zh ? `管理 ${profile.display_name || profile.name}` : `Manage ${profile.display_name || profile.name}`} title={zh ? '管理专家' : 'Manage expert'} onClick={() => onOpenProfile(profile.name)}>⚙</button>}</div>
+            <span className="sidebar-profile-chevron" aria-hidden="true"><Icon name="chevronDown" /></span>
+          </button>{!remoteMode && <button type="button" className="sidebar-profile-manage" disabled={!connected || profileBusy || !servedProfiles.has(profile.name)} aria-label={zh ? `管理 ${profile.display_name || profile.name}` : `Manage ${profile.display_name || profile.name}`} title={zh ? '管理专家' : 'Manage expert'} onClick={() => onOpenProfile(profile.name)}><Icon name="settings" /></button>}</div>
           {connected && expandedProfiles.has(profile.name) && profileSessions.slice(0, visibleCount).map(session => <div className="sidebar-session-entry" key={session.id}><button
             className={`sidebar-profile-session ${view === 'chat' && !activeGroupId && profiles?.selected === profile.name && session.id === activeSessionId ? 'active' : ''} ${pendingSession?.profile === profile.name && pendingSession.id === session.id ? 'pending' : ''}`}
             aria-busy={pendingSession?.profile === profile.name && pendingSession.id === session.id} title={session.title || session.preview || session.id}
-            onClick={() => selectSession(profile.name, session.id)}><span aria-hidden="true">▤</span><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button>{!remoteMode && <><button type="button" className="sidebar-session-archive" disabled={busy || deleteBusy || archiveBusy !== null || session.running} aria-label={zh ? `归档会话 ${session.title || session.preview || session.id}` : `Archive session ${session.title || session.preview || session.id}`} title={session.running ? (zh ? '运行中的会话不能归档' : 'Running sessions cannot be archived') : (zh ? '归档会话' : 'Archive session')} onClick={() => void archiveSession(profile.name, session)}>{archiveBusy === `${profile.name}:${session.id}` ? '…' : '□'}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy || archiveBusy !== null} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}>×</button></>}</div>)}
+            onClick={() => selectSession(profile.name, session.id)}><Icon name="chat" /><span className="session-title">{session.title || session.preview || session.id}</span>{sessionActivity[activityKey(profile.name, session.id)] && <span className={`session-activity ${sessionActivity[activityKey(profile.name, session.id)]}`} role="status">{{ running: zh ? '正在运行' : 'Running', approval: zh ? '待审批' : 'Approval needed', suggestion: zh ? '待建议' : 'Input needed', completed: zh ? '运行完成' : 'Completed', failed: zh ? '运行失败' : 'Failed' }[sessionActivity[activityKey(profile.name, session.id)]]}</span>}{sessionSourceLabel(session.source, language) && <span className="session-source">{sessionSourceLabel(session.source, language)}</span>}</button>{!remoteMode && <><button type="button" className="sidebar-session-archive" disabled={busy || deleteBusy || archiveBusy !== null || session.running} aria-label={zh ? `归档会话 ${session.title || session.preview || session.id}` : `Archive session ${session.title || session.preview || session.id}`} title={session.running ? (zh ? '运行中的会话不能归档' : 'Running sessions cannot be archived') : (zh ? '归档会话' : 'Archive session')} onClick={() => void archiveSession(profile.name, session)}>{archiveBusy === `${profile.name}:${session.id}` ? '…' : <Icon name="archive" />}</button><button type="button" className="sidebar-session-delete" disabled={busy || deleteBusy || archiveBusy !== null} aria-label={zh ? `删除会话 ${session.title || session.preview || session.id}` : `Delete session ${session.title || session.preview || session.id}`} title={zh ? '删除会话' : 'Delete session'} onClick={() => { setDeleteError(''); setDeleteTarget({ profile: profile.name, session }) }}><Icon name="close" /></button></>}</div>)}
           {connected && expandedProfiles.has(profile.name) && profileSessions.length > 5 && <button type="button" className="sidebar-profile-more" onClick={() => toggleMoreSessions(profile.name, profileSessions.length)}>{allVisible ? (zh ? '收起' : 'Show less') : (zh ? '展示更多' : 'Show more')}</button>}
         </div>})}
         {!connected && <p>{t('ui.show.history.sessions.after.starting.runtime')}</p>}
@@ -239,13 +224,13 @@ export default function Sidebar({ view, open, connected, connectionLabel, remote
       {!remoteMode && <div className="sidebar-feature-nav" ref={featuresRef}>
         <button ref={featuresButtonRef} type="button" className="sidebar-feature-trigger" aria-expanded={featuresOpen} aria-controls="sidebar-feature-menu" onClick={() => { setNewMenuOpen(false); setFeaturesOpen(current => !current) }}>
           <span className="sidebar-feature-label">{zh ? '更多' : 'More'}{currentPluginLabel && <strong title={currentPluginLabel}> · {currentPluginLabel}</strong>}</span>
-          <span aria-hidden="true">{featuresOpen ? '⌄' : '⌃'}</span>
+          <Icon name={featuresOpen ? 'chevronDown' : 'chevronUp'} />
         </button>
         <nav id="sidebar-feature-menu" className="sidebar-feature-menu" aria-label={zh ? '功能导航' : 'Feature navigation'} hidden={!featuresOpen}>
           <span className="sidebar-feature-heading">{zh ? '其他功能' : 'Other features'}</span>
-          <button className={view === 'dashboard-plugin' && activeDashboardPlugin === achievementsPluginName ? 'active' : ''} onClick={() => openFeaturePlugin(achievementsPluginName)}>◇ <span>{zh ? '成就' : 'Achievements'}</span></button>
-          {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => openFeaturePlugin(plugin.name)}>◇ <span>{plugin.label}</span></button>)}
-          <button className={view === 'webhooks' ? 'active' : ''} onClick={() => openFeatureView('webhooks')}>⌁ <span>Webhooks</span></button>
+          <button className={view === 'dashboard-plugin' && activeDashboardPlugin === achievementsPluginName ? 'active' : ''} onClick={() => openFeaturePlugin(achievementsPluginName)}><Icon name="sparkles" /><span>{zh ? '成就' : 'Achievements'}</span></button>
+          {secondaryDashboardPluginTabs(dashboardPlugins).map(plugin => <button key={plugin.name} className={view === 'dashboard-plugin' && activeDashboardPlugin === plugin.name ? 'active' : ''} onClick={() => openFeaturePlugin(plugin.name)}><Icon name="extensions" /><span>{plugin.label}</span></button>)}
+          <button className={view === 'webhooks' ? 'active' : ''} onClick={() => openFeatureView('webhooks')}><Icon name="webhook" /> <span>Webhooks</span></button>
           <DashboardPluginSlot name="sidebar" />
         </nav>
       </div>}

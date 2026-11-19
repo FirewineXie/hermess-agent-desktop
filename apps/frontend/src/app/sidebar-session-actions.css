@@ -4,7 +4,7 @@
   width: 28px;
   min-height: 28px;
   padding: 0;
-  color: #66758c;
+  color: var(--wb-muted);
   background: transparent;
   font-size: 15px;
   opacity: .7;
@@ -16,8 +16,8 @@
 }
 
 .sidebar-sessions .sidebar-session-archive:hover:not(:disabled) {
-  color: #245bc2;
-  background: #eaf2ff;
+  color: var(--wb-primary);
+  background: var(--wb-active);
 }
 
 @media (hover: hover) and (pointer: fine) {

@@ -1,5 +1,6 @@
 import React from 'react'
 import { normalizedEndpoint, VOLCENGINE_PRESETS, type CustomEndpoint, type ModelProvider, type SavedModel } from '../model'
+import Icon from '../../../app/Icon'
 
 type Props = {
   provider: ModelProvider
@@ -81,11 +82,11 @@ export default function ProviderCard({ provider, endpoint, models, modelListKey,
     </div>
     {editingModels && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !modelBusy && !modelListBusy) closeModelEditor() }}>
       <div className="provider-add-form provider-model-editor" role="dialog" aria-modal="true" aria-labelledby={`provider-model-editor-${modelListKey}`} onKeyDown={modelEditorKeyDown}>
-        <div className="row model-editor-heading"><h3 id={`provider-model-editor-${modelListKey}`}>{providerName} · {t('ui.edit.models')}</h3><button type="button" autoFocus aria-label={t('ui.close')} disabled={modelBusy || modelListBusy} onClick={closeModelEditor}>×</button></div>
+        <div className="row model-editor-heading"><h3 id={`provider-model-editor-${modelListKey}`}>{providerName} · {t('ui.edit.models')}</h3><button type="button" autoFocus aria-label={t('ui.close')} disabled={modelBusy || modelListBusy} onClick={closeModelEditor}><Icon name="close" /></button></div>
         <div className="provider-model-list"><div className="provider-model-items" role="region" aria-label={`${providerName} ${t('ui.model.options')}`} tabIndex={0}>{models.map(modelRow)}</div>
           {newModelId !== null ? <div className="provider-model-row provider-model-add-row"><input autoFocus aria-label={t('ui.new.model.id')} value={newModelId} onChange={event => setNewModelId(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !modelListBusy && !modelListLoading) void saveAddition(); if (event.key === 'Escape') setNewModelId(null) }} placeholder={t('ui.model.id')} />
             <button type="button" disabled={modelListBusy || modelListLoading} onClick={() => void saveAddition()}>{t('ui.save')}</button><button type="button" onClick={() => setNewModelId(null)}>{t('ui.cancel')}</button></div>
-            : <button type="button" className="provider-add-model" onClick={() => setNewModelId('')}>{t('ui.add.model')}</button>}
+            : <button type="button" className="provider-add-model" onClick={() => setNewModelId('')}><Icon name="plus" />{t('ui.add.model').replace(/^＋\s*/, '')}</button>}
         </div>
       </div>
     </div>}

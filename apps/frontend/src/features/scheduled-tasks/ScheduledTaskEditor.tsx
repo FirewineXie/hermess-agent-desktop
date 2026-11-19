@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import type { LocalSkill } from '../extensions/model'
+import Icon from '../../app/Icon'
 import type { Editor } from './scheduledTaskModel'
 import ScheduledScheduleBuilder from './ScheduledScheduleBuilder'
 
@@ -68,7 +69,7 @@ export default function ScheduledTaskEditor({ editor, onChange, onClose, onSubmi
   return <div className="scheduled-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose() }}>
     <form className="scheduled-modal scheduled-modal-wide" role="dialog" aria-modal="true" aria-labelledby="scheduled-modal-title" onSubmit={onSubmit}>
       <div className="row"><h3 id="scheduled-modal-title">{editor.mode === 'create' ? (zh ? '新建定时任务' : 'New scheduled task') : (zh ? '编辑定时任务' : 'Edit scheduled task')}</h3>
-        <button type="button" disabled={busy} onClick={onClose} aria-label={zh ? '关闭' : 'Close'}>×</button></div>
+        <button type="button" disabled={busy} onClick={onClose} aria-label={zh ? '关闭' : 'Close'}><Icon name="close" /></button></div>
       <div className="scheduled-modal-body">
         <label>{zh ? '所属 Profile' : 'Profile'}<select value={editor.profile} disabled={editor.mode === 'edit'} onChange={event => change('profile', event.target.value)}>{available.map(item =>
           <option key={item.name} value={item.name} disabled={failedProfiles.includes(item.name)}>{item.display_name || item.name}</option>)}</select></label>

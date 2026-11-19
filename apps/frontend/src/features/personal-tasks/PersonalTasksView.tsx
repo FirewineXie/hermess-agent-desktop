@@ -5,6 +5,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { taskEventTime, visibleTaskEvents } from './taskProgress'
+import Icon from '../../app/Icon'
 import './personal-tasks.css'
 
 type Props = { connected: boolean; profiles: ProfilesSnapshot | null; target: { profile: string; id: string } | null; onOpenModelSettings: (profile: string) => void }
@@ -200,7 +201,7 @@ export default function PersonalTasksView({ connected, profiles, target, onOpenM
       {connected && !loading && !available && <p className="personal-tasks-notice" role="status">{zh ? '当前运行时未提供 Kanban 插件接口，请检查运行时和插件状态。' : 'The Kanban plugin API is unavailable. Check the runtime and plugin status.'}</p>}
       {error && <p className="personal-tasks-notice error" role="alert">{error}</p>}
       {available && <>
-        <div className="personal-tasks-toolbar"><div><strong>{zh ? '任务看板' : 'Task board'}</strong><span>{zh ? `共 ${tasks.length} 项任务` : `${tasks.length} tasks`}</span></div><button type="button" className="personal-tasks-primary" onClick={openCreate}>{zh ? '＋ 新建任务' : '+ New task'}</button></div>
+        <div className="personal-tasks-toolbar"><div><strong>{zh ? '任务看板' : 'Task board'}</strong><span>{zh ? `共 ${tasks.length} 项任务` : `${tasks.length} tasks`}</span></div><button type="button" className="personal-tasks-primary" onClick={openCreate}><Icon name="plus" />{zh ? '新建任务' : 'New task'}</button></div>
         <div className="personal-tasks-context"><span className="personal-tasks-context-dot" />{zh ? '任务只在本机 Hermess 运行期间执行；退出应用或电脑休眠时暂停。' : 'Tasks run while Hermess is open on this computer and pause when it closes or sleeps.'}</div>
         <div className="personal-tasks-board" aria-label={zh ? '持续任务看板' : 'Ongoing task board'}>
           {boardLanes.map(lane => {
@@ -215,7 +216,7 @@ export default function PersonalTasksView({ connected, profiles, target, onOpenM
         </div>
         {pane && <div className="personal-tasks-overlay" onMouseDown={event => { if (event.target === event.currentTarget) closePane() }}>
           <section ref={paneRef} className="personal-tasks-content" role="dialog" aria-modal="true" aria-label={pane === 'create' ? (zh ? '新建任务' : 'Create task') : (zh ? '任务详情' : 'Task details')}>
-            <button type="button" className="personal-tasks-close" onClick={closePane} aria-label={zh ? '关闭' : 'Close'}>×</button>
+            <button type="button" className="personal-tasks-close" onClick={closePane} aria-label={zh ? '关闭' : 'Close'}><Icon name="close" /></button>
             {pane === 'create' ? <form className="personal-tasks-form" onSubmit={event => void create(event)}>
               <div className="personal-tasks-panel-heading"><h2>{zh ? '新建持续任务' : 'New ongoing task'}</h2><p>{zh ? '描述目标、交付内容和需要遵守的条件；任务将使用当前助理已配置的工具。' : 'Describe the outcome, deliverables and constraints. The task uses this Profile’s configured tools.'}</p></div>
               {modelError && <p className="personal-tasks-model-notice" role="alert">{zh ? `无法读取当前助理的模型：${modelError}` : `Could not read this Profile's model: ${modelError}`}</p>}

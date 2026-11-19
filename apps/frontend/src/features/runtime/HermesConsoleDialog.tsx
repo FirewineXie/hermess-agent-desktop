@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import type { HermesConsoleSocket } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
+import Icon from '../../app/Icon'
 import { describeError } from '../../app/desktopErrors'
 import { parseConsoleFrame, type ConsoleFrame } from './consoleModel'
 import './hermes-console.css'
@@ -217,7 +218,7 @@ export default function HermesConsoleDialog({ open, profile, language, onClose }
   return <div className="hermes-console-backdrop" role="dialog" aria-modal="true" aria-labelledby="hermes-console-title" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section className="hermes-console-dialog">
       <header><div><h2 id="hermes-console-title">Hermes Console</h2><p><span data-state={state}>{state}</span><code>{consoleProfile}</code></p></div>
-        <div className="hermes-console-actions">{(state === 'closed' || state === 'error') && <button type="button" onClick={() => setReconnect(value => value + 1)}>{zh ? '重新连接' : 'Reconnect'}</button>}<button type="button" aria-label={zh ? '关闭控制台' : 'Close console'} onClick={onClose}>×</button></div></header>
+        <div className="hermes-console-actions">{(state === 'closed' || state === 'error') && <button type="button" onClick={() => setReconnect(value => value + 1)}>{zh ? '重新连接' : 'Reconnect'}</button>}<button type="button" aria-label={zh ? '关闭控制台' : 'Close console'} onClick={onClose}><Icon name="close" /></button></div></header>
       <div className="hermes-console-terminal" ref={hostRef} />
       <footer>{zh ? '这是锁定 Hermes 的受限管理控制台，不是系统 Shell。Ctrl+C 取消，Ctrl+L 清屏。' : 'This is the locked Hermes management console, not a system shell. Ctrl+C cancels; Ctrl+L clears.'}</footer>
     </section>

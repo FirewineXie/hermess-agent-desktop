@@ -6,6 +6,7 @@ import KanbanTaskDrawer from './KanbanTaskDrawer'
 import KanbanSettings from './KanbanSettings'
 import KanbanPinnedBoards from './KanbanPinnedBoards'
 import KanbanModelOverrideField from './KanbanModelOverrideField'
+import Icon from '../../app/Icon'
 import { EMPTY_TASK_MODEL, bulkStatusPatch, failedBulkTaskIds, taskModelCreateFields } from './kanbanTaskModel'
 import type { TaskModelOverride } from './kanbanTaskModel'
 import { taskCreateOptions } from './kanbanTaskCreate'
@@ -429,7 +430,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null, st
         const next = new Set(current)
         if (next.has(row.task.id)) next.delete(row.task.id); else next.add(row.task.id)
         return next
-      })}><span aria-hidden="true">⌄</span></button> : <span className="kanban-native-tree-spacer" aria-hidden="true" />}
+      })}><Icon name="chevronDown" /></button> : <span className="kanban-native-tree-spacer" aria-hidden="true" />}
       <div className="kanban-native-tree-card">{renderCard(row.task, includeCrossStatus)}</div>
     </div>
   })
@@ -437,7 +438,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null, st
   return <main className="kanban-native-page">
     <header className="kanban-native-heading">
       <div><p className="kanban-native-eyebrow">HERMESS · 持续任务</p><h1>持续任务</h1><p>从安排、执行到审核，按状态查看每项任务的下一步。</p></div>
-      <button type="button" className="kanban-native-primary" onClick={() => openCreate()}>＋ 新建任务</button>
+      <button type="button" className="kanban-native-primary" onClick={() => openCreate()}><Icon name="plus" />新建任务</button>
     </header>
     <div className="kanban-native-toolbar">
       <div className="kanban-native-board-picker">
@@ -488,14 +489,14 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null, st
           onDrop={event => { event.preventDefault(); if (dragged && accepts) void move(dragged, column.name); setDragged(null) }}>
           <div className="kanban-native-status-heading">
             <button type="button" className="kanban-native-status-toggle" aria-expanded={!statusCollapsed} aria-controls={`kanban-status-${column.name}`} onClick={toggleStatus}>
-              <span className="kanban-native-status-chevron" aria-hidden="true">⌄</span>
+              <span className="kanban-native-status-chevron" aria-hidden="true"><Icon name="chevronDown" /></span>
               <span className="kanban-native-status-icon" aria-hidden="true">{step?.icon || '◻'}</span>
               <span className="kanban-native-status-title">{statusLabel}</span>
               <span className="kanban-native-status-count">{cards.length}</span>
               <span className="kanban-native-status-description">{statusDescriptions[column.name] || ''}</span>
             </button>
             {!statusCollapsed && !!cards.length && <label className="kanban-native-status-select"><input type="checkbox" checked={cards.every(task => selectedIds.has(task.id))} aria-label={`全选${statusLabel}`} onChange={() => toggleSelection(cards.map(task => task.id))} /><span>全选</span></label>}
-            {!statusCollapsed && step?.drag_target !== false && <button type="button" className="kanban-native-status-create" aria-label={`在${statusLabel}新建任务`} onClick={() => openCreate(column.name)}>＋ 新建</button>}
+            {!statusCollapsed && step?.drag_target !== false && <button type="button" className="kanban-native-status-create" aria-label={`在${statusLabel}新建任务`} onClick={() => openCreate(column.name)}><Icon name="plus" />新建</button>}
           </div>
           {!statusCollapsed && <div className="kanban-native-status-children" id={`kanban-status-${column.name}`}>
             {column.name === 'review'
@@ -521,7 +522,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null, st
       <label><input type="checkbox" checked={bulkReclaim} disabled={busy} onChange={event => setBulkReclaim(event.target.checked)} />先回收运行中的任务</label>
       <button type="button" disabled={busy} onClick={() => void bulkUpdate({ archive: true })}>归档</button>
       <button type="button" className={bulkDeleteConfirm ? 'is-danger-confirm' : ''} disabled={busy} onClick={() => void bulkDelete()}>{bulkDeleteConfirm ? '再次点击永久删除' : '永久删除'}</button>
-      <button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkDeleteConfirm(false) }} aria-label="清除选择">×</button>
+      <button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkDeleteConfirm(false) }} aria-label="清除选择"><Icon name="close" /></button>
     </div>}
     {bulkStatus && <div className="kanban-native-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setBulkStatus('') }}><div className="kanban-native-bulk-confirm" role="dialog" aria-modal="true" aria-labelledby="kanban-bulk-confirm-title">
       <h2 id="kanban-bulk-confirm-title">确认批量移至{kanbanStatusLabel(bulkStatus)}</h2>
@@ -530,7 +531,7 @@ export default function KanbanBoardView({ initialTaskId, connectionId = null, st
       <div><button type="button" onClick={() => setBulkStatus('')}>取消</button><button type="button" className="kanban-native-primary" disabled={busy} onClick={() => { const patch = bulkStatusPatch(bulkStatus, bulkSummary); setBulkStatus(''); void bulkUpdate(patch) }}>确认修改</button></div>
     </div></div>}
     {creating && <div className="kanban-native-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setCreating(false) }}><form className="kanban-native-panel kanban-native-create" onSubmit={event => void create(event)}>
-      <div className="kanban-native-panel-head"><div><p>新建到 {kanbanStatusLabel(targetStatus)}</p><h2>定义目标、执行环境与负责人</h2></div><button type="button" onClick={() => setCreating(false)} aria-label="关闭">×</button></div>
+      <div className="kanban-native-panel-head"><div><p>新建到 {kanbanStatusLabel(targetStatus)}</p><h2>定义目标、执行环境与负责人</h2></div><button type="button" onClick={() => setCreating(false)} aria-label="关闭"><Icon name="close" /></button></div>
       <label>任务标题<input autoFocus value={title} onChange={event => { creationKey.current = null; setTitle(event.target.value) }} placeholder="希望完成什么？" required /></label>
       <label>目标与完成标准<textarea value={body} onChange={event => { creationKey.current = null; setBody(event.target.value) }} placeholder="说明成果、限制和验收条件" rows={5} /></label>
       <label>初始状态<select value={targetStatus} onChange={event => { creationKey.current = null; setTargetStatus(event.target.value) }}>{(workflow?.columns || []).filter(item => item.drag_target).map(item => <option key={item.key} value={item.key}>{kanbanStatusLabel(item.key)}</option>)}</select></label>

@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { localizeAppMessage } from '../../i18n'
 import { getField } from '../agent-settings/model'
+import Icon from '../../app/Icon'
 import { endpointForProvider } from './model'
 import ProviderCard from './components/ProviderCard'
 import ProviderPresetOptions from './components/ProviderPresetOptions'
@@ -107,7 +108,7 @@ export default function ModelSettingsView({ connected, profile, language, t, con
   }, [addingProvider, modelBusy])
   return <section className="settings-panel model-settings-panel">
     {!connected || !profile ? <div className="empty-panel"><h2>{t('ui.start.the.runtime.first')}</h2><p>{t('ui.model.settings.require.a.connection.to.the.local.hermes.runtime')}</p><button onClick={onOpenRuntime}>{t('ui.go.to.runtime.storage')}</button></div> : <>
-      <div className="row model-page-heading"><h2>{t('ui.model.providers')}</h2><div className="model-page-actions"><button disabled={modelBusy} onClick={() => void loadModelOptions()}>{t('ui.reload.settings.and.options')}</button><button type="button" onClick={openEditor}>{t('ui.add.provider')}</button></div></div>
+      <div className="row model-page-heading"><h2>{t('ui.model.providers')}</h2><div className="model-page-actions"><button disabled={modelBusy} onClick={() => void loadModelOptions()}>{t('ui.reload.settings.and.options')}</button><button type="button" onClick={openEditor}><Icon name="plus" />{t('ui.add.provider').replace(/^＋\s*/, '')}</button></div></div>
       <p>{t('ui.provider.model.list.local.note')}</p>
       {!modelOptionsLoaded && <p role={modelOptionsError ? 'alert' : 'status'}>{modelOptionsError || t('ui.loading.runtime.model.settings')}</p>}
       <div className="provider-section">{modelOptionsLoaded && providerCards.length === 0 && !oauthProviders.some(provider => provider.status.logged_in) && <p>{t('ui.no.configured.providers')}</p>}
@@ -131,7 +132,7 @@ export default function ModelSettingsView({ connected, profile, language, t, con
         <div className="actions"><button type="button" disabled={modelBusy || checkingReferences} onClick={() => { const target = customEndpoints.find(item => item.id === deleteTarget); setDeleteTarget(null); if (target) void deleteProvider(target) }}>{t('ui.delete.provider')}</button><button type="button" autoFocus onClick={() => setDeleteTarget(null)}>{t('ui.cancel')}</button></div>
       </div></div>}
       {addingProvider && <div className="provider-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !modelBusy) closeEditor() }}><div className="provider-add-form" role="dialog" aria-modal="true" aria-labelledby="provider-add-title" onKeyDown={event => dialogKeyDown(event, closeEditor)}>
-        <div className="row model-editor-heading"><h3 id="provider-add-title">{editingEndpoint ? t('ui.edit.provider') : (language === 'zh-CN' ? '新增模型提供商' : 'Add model provider')}</h3><button type="button" aria-label={t('ui.close')} disabled={modelBusy} onClick={closeEditor}>×</button></div>
+        <div className="row model-editor-heading"><h3 id="provider-add-title">{editingEndpoint ? t('ui.edit.provider') : (language === 'zh-CN' ? '新增模型提供商' : 'Add model provider')}</h3><button type="button" aria-label={t('ui.close')} disabled={modelBusy} onClick={closeEditor}><Icon name="close" /></button></div>
         {!editingEndpoint && <label>{t('ui.provider.preset')}<select autoFocus value={newProviderPreset} onChange={event => chooseAddProvider(event.target.value)}>{oauthProviders.some(provider => !provider.status.logged_in) && <optgroup label={language === 'zh-CN' ? '账户授权（推荐）' : 'Account authorization (recommended)'}>{oauthProviders.filter(provider => !provider.status.logged_in).map(provider => <option key={provider.id} value={`oauth:${provider.id}`}>{provider.name} · {provider.flow === 'device_code' ? (language === 'zh-CN' ? '设备码' : 'Device code') : (language === 'zh-CN' ? '外部流程' : 'External')}</option>)}</optgroup>}<ProviderPresetOptions providers={modelProviders} language={language} t={t} /></select></label>}
         <label>{t('ui.provider.name')}<input autoFocus={Boolean(editingEndpoint)} value={newProviderName} onChange={event => setNewProviderName(event.target.value)} /></label>
         <label>{t('ui.provider.endpoint')}<input type="url" value={newProviderUrl} onChange={event => setNewProviderUrl(event.target.value)} placeholder="https://api.your-provider.example/v1" /></label>

@@ -2,6 +2,7 @@ import React from 'react'
 import type { CodingGoal, CodingQuestion } from '@hermess/contracts'
 import type { Language } from '../../i18n'
 import type { ProgrammingController } from './useProgrammingController'
+import Icon from '../../app/Icon'
 
 function goalLabel(status: CodingGoal['status'], language: Language, connected: boolean) {
   if (status === 'active' && !connected) return language === 'zh-CN' ? '状态待确认' : 'Unconfirmed'
@@ -47,19 +48,18 @@ export function ProgrammingGoal({ controller, language }: { controller: Programm
   const connected = controller.session?.status === 'running' && controller.session.context?.active_command === 'goal'
   const seconds = Math.floor(goal.timeUsedSeconds)
   const elapsed = `${seconds >= 3600 ? `${Math.floor(seconds / 3600)}h ` : ''}${seconds >= 60 ? `${Math.floor(seconds % 3600 / 60)}m ` : ''}${seconds % 60}s`
-  const icon = (paths: React.ReactNode) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
   return <section className="programming-goal programming-current-goal" aria-label={zh ? '会话目标' : 'Session goal'}>
     <div className="programming-goal-strip">
-      {icon(<><circle cx="12" cy="12" r="8" /><path d="m12 12 8-8m-2 0h2v2M12 8a4 4 0 1 0 4 4" /></>)}
+      <Icon name="target" />
       <span className="programming-goal-status" title={goalLabel(goal.status, language, connected)}>{goalLabel(goal.status, language, connected)}{zh ? '的目标' : ' goal'}</span>
       <button className="programming-goal-title" type="button" title={goal.objective} aria-label={`${zh ? '编辑目标' : 'Edit goal'}: ${goal.objective}`} disabled={controller.busy || editing} onClick={() => setEditing(true)}>{goal.objective}</button>
       <small className="programming-goal-time" title={zh ? '原生目标累计运行时间' : 'Native goal accumulated run time'}>· {elapsed}</small>
       {!editing && <div className="programming-goal-actions">
-        <button type="button" title={zh ? '编辑目标' : 'Edit goal'} aria-label={zh ? '编辑目标' : 'Edit goal'} disabled={controller.busy} onClick={() => setEditing(true)}>{icon(<path d="m15 4 5 5M4 20l5-1L20 8a3.5 3.5 0 0 0-5-5L4 14Z" />)}</button>
-        <button type="button" title={zh ? '清除目标' : 'Clear goal'} aria-label={zh ? '清除目标' : 'Clear goal'} disabled={controller.busy} onClick={() => void controller.executeCommand({ type: 'goal', action: 'clear' })}>{icon(<><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" /></>)}</button>
-        {goal.status === 'active' ? <button type="button" title={zh ? '暂停目标' : 'Pause goal'} aria-label={zh ? '暂停目标' : 'Pause goal'} disabled={controller.busy} onClick={() => void controller.executeCommand({ type: 'goal', action: 'pause' })}>{icon(<><circle cx="12" cy="12" r="9" /><path d="M9 8v8m6-8v8" /></>)}</button>
-          : goal.status !== 'complete' && <button type="button" title={zh ? '恢复目标' : 'Resume goal'} aria-label={zh ? '恢复目标' : 'Resume goal'} disabled={controller.busy || controller.session?.status === 'running'} onClick={() => void controller.executeCommand({ type: 'goal', action: 'resume' })}>{icon(<><circle cx="12" cy="12" r="9" /><path d="m10 8 6 4-6 4Z" /></>)}</button>}
-        <button type="button" title={zh ? '展开目标详情' : 'Expand goal details'} aria-label={zh ? '展开目标详情' : 'Expand goal details'} aria-expanded={expanded} onClick={() => setExpanded(current => !current)}>{icon(<path d={expanded ? 'M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5' : 'M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5'} />)}</button>
+        <button type="button" title={zh ? '编辑目标' : 'Edit goal'} aria-label={zh ? '编辑目标' : 'Edit goal'} disabled={controller.busy} onClick={() => setEditing(true)}><Icon name="pencil" /></button>
+        <button type="button" title={zh ? '清除目标' : 'Clear goal'} aria-label={zh ? '清除目标' : 'Clear goal'} disabled={controller.busy} onClick={() => void controller.executeCommand({ type: 'goal', action: 'clear' })}><Icon name="trash" /></button>
+        {goal.status === 'active' ? <button type="button" title={zh ? '暂停目标' : 'Pause goal'} aria-label={zh ? '暂停目标' : 'Pause goal'} disabled={controller.busy} onClick={() => void controller.executeCommand({ type: 'goal', action: 'pause' })}><Icon name="pause" /></button>
+          : goal.status !== 'complete' && <button type="button" title={zh ? '恢复目标' : 'Resume goal'} aria-label={zh ? '恢复目标' : 'Resume goal'} disabled={controller.busy || controller.session?.status === 'running'} onClick={() => void controller.executeCommand({ type: 'goal', action: 'resume' })}><Icon name="play" /></button>}
+        <button type="button" title={zh ? '展开目标详情' : 'Expand goal details'} aria-label={zh ? '展开目标详情' : 'Expand goal details'} aria-expanded={expanded} onClick={() => setExpanded(current => !current)}><Icon name={expanded ? 'minimize' : 'maximize'} /></button>
       </div>}
     </div>
     {editing && <GoalEditor controller={controller} language={language} objective={goal.objective} onClose={() => setEditing(false)} />}

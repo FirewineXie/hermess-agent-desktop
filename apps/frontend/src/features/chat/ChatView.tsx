@@ -16,6 +16,7 @@ import { clipboardImages } from './clipboardImages'
 import RollbackDialog from './components/RollbackDialog'
 import HistoryActionDialog, { type HistorySelection } from './components/HistoryActionDialog'
 import { SubagentPanelForSession } from './components/SubagentPanel'
+import Icon from '../../app/Icon'
 
 type Picker = {
   modelButtonRef: React.RefObject<HTMLButtonElement | null>
@@ -170,8 +171,8 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
   return <section ref={panelRef} className={`chat-panel ${draggingFiles ? 'drop-active' : ''} ${empty ? 'chat-empty chat-design-new' : ''}`} onClick={handleClick}>
       <RollbackDialog controller={rollback} language={language} />
       {tabs}
-      {!runtimeAvailable ? <div className="chat-gate"><span className="hero-mark">H</span><h2>{t("ui.ready.to.chat")}</h2><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
-      {empty && <div className="new-chat-heading"><h2>{language === 'zh-CN' ? '开始新会话' : 'Start a new chat'}</h2><p>{remoteMode ? (language === 'zh-CN' ? '向远程 Gateway 描述任务。' : 'Describe a task to the remote gateway.') : language === 'zh-CN' ? '向 Hermess 描述任务，或添加文件一起处理。' : 'Describe a task to Hermess, or add files to work on together.'}</p></div>}
+      {!runtimeAvailable ? <div className="chat-gate"><h1>{t("ui.ready.to.chat")}</h1><p>{t("ui.after.starting.the.native.runtime.and.configuring.the.model.you.can.create")}</p><button onClick={onOpenRuntime}>{t("ui.start.the.runtime")}</button><small>{localizeAppMessage(language, backendStatus)}</small></div> : <>
+      {empty && <div className="new-chat-heading"><h1>{language === 'zh-CN' ? '新建会话' : 'New chat'}</h1><p>{remoteMode ? (language === 'zh-CN' ? '向远程 Gateway 描述任务。' : 'Describe a task to the remote gateway.') : language === 'zh-CN' ? '选择 Profile 和工作区，然后描述要完成的任务。' : 'Choose a profile and workspace, then describe the task to complete.'}</p></div>}
       {!empty && !remoteMode && <div className="chat-workspace"><span>{t('ui.workspace.current')}: <strong title={sessionId ? sessionWorkspacePath : workspacePath}>{(sessionId ? sessionWorkspacePath : workspacePath) || t('ui.workspace.default')}</strong></span>
         <div className="chat-workspace-actions">{!standalone && <button type="button" onClick={onOpenWorkspaces}>{t('ui.workspace.change')}</button>}{panelToggle}</div></div>}
       <div ref={contentRef} className="chat-content" onScroll={event => {
@@ -197,7 +198,7 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
           return true
         }} />}
       {sideQuestions.map(item => <article className="side-question" key={`${item.sessionId}:${item.taskId}`}>
-        <div className="side-question-header"><strong>{language === 'zh-CN' ? '顺带提问' : 'Side question'}</strong><span>{item.status === 'running' ? language === 'zh-CN' ? '回答中' : 'Answering' : item.status === 'unknown' ? language === 'zh-CN' ? '结果待确认' : 'Result uncertain' : item.status === 'failed' ? language === 'zh-CN' ? '失败' : 'Failed' : language === 'zh-CN' ? '已完成' : 'Complete'}</span><button type="button" onClick={() => dismissSideQuestion(item.taskId, item.profile, item.sessionId)} aria-label={language === 'zh-CN' ? '关闭旁路提问卡片' : 'Dismiss side question'}>×</button></div>
+        <div className="side-question-header"><strong>{language === 'zh-CN' ? '顺带提问' : 'Side question'}</strong><span>{item.status === 'running' ? language === 'zh-CN' ? '回答中' : 'Answering' : item.status === 'unknown' ? language === 'zh-CN' ? '结果待确认' : 'Result uncertain' : item.status === 'failed' ? language === 'zh-CN' ? '失败' : 'Failed' : language === 'zh-CN' ? '已完成' : 'Complete'}</span><button type="button" onClick={() => dismissSideQuestion(item.taskId, item.profile, item.sessionId)} aria-label={language === 'zh-CN' ? '关闭旁路提问卡片' : 'Dismiss side question'}><Icon name="close" /></button></div>
         <p>{item.question}</p>{item.answer && <div className="side-question-answer">{item.answer}</div>}
       </article>)}
       {serverRequest && <GatewayRequestCard key={serverRequest.id} request={serverRequest} answers={clarifyAnswers} t={t}
@@ -241,7 +242,7 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
       <CommandSuggestions visible={Boolean(trigger)} choices={choices} activeChoice={activeChoice} catalog={commandCatalog} error={commandCatalogError} hint={controller.argumentHint} t={t} onChoose={chooseCommand} />
       {!remoteMode && <AttachmentQueue attachments={attachments} busy={attachmentBusy || turnBusy || navigationBusy} t={t} onRemove={index => void removeAttachment(index)} />}
       <div className="composer-actions">
-        {!remoteMode && <button className="secondary-button" disabled={!connected || turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}>{t("ui.attach")}</button>}
+        {!remoteMode && <button className="secondary-button" disabled={!connected || turnBusy || attachmentBusy || navigationBusy} onClick={() => void chooseAttachments()}><Icon name="paperclip" />{t("ui.attach").replace(/^＋\s*/, '')}</button>}
         {!sessionId && profiles && <label className="composer-profile-picker"><span className="sr-only">Profile</span><select aria-label="Profile" value={profiles.selected} disabled={!connected || profileBusy || navigationBusy} onChange={event => onSelectProfile(event.target.value)}>
           {profiles.profiles.map(profile => <option value={profile.name} key={profile.name} disabled={!connected || profile.name !== 'default' && !servedProfiles.has(profile.name)}>{profile.display_name || profile.name}</option>)}
         </select></label>}
@@ -275,7 +276,7 @@ export default function ChatView({ active, connected, runtimeAvailable = connect
         onRestoreDefault={sessionId ? () => void restoreDefaultModel() : undefined}
         daybreakProfile={mediaScope?.profile || profiles?.selected}
         onOpenSettings={() => { setModelPickerOpen(false); onOpenModelSettings() }} />}
-      </div>{empty && !standalone && !remoteMode && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}>▣ {language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong>⌄</button>{panelToggle}</div>}
+      </div>{empty && !standalone && !remoteMode && <div className="chat-workspace-controls"><button type="button" className="chat-workspace-below" onClick={onOpenWorkspaces} title={workspacePath || t('ui.workspace.default')}><Icon name="workspaces" />{language === 'zh-CN' ? '选择工作区' : 'Choose workspace'} <strong>{workspacePath ? workspacePath.split(/[\\/]/).filter(Boolean).at(-1) : t('ui.workspace.default')}</strong><Icon name="chevronDown" /></button>{panelToggle}</div>}
       <small className="composer-hint">{!remoteMode && !turnBusy && <>{draggingFiles ? t("ui.release.to.stage.file") : t("ui.files.can.be.dragged.in.individual.attachments.cannot.exceed.20.mib")} · {language === 'zh-CN' ? '复制图片后在聊天区粘贴' : 'Paste copied images in chat'} · </>}{choices.length
         ? language === 'zh-CN' ? 'Enter 选择候选，Ctrl+Enter 换行' : 'Enter to select, Ctrl+Enter for a new line'
         : turnBusy && busyActionsAvailable && (!message || busyPlainText) ? language === 'zh-CN' ? 'Enter 排队 · /steer 插入 · Ctrl+Enter 换行' : 'Enter to queue · /steer to steer · Ctrl+Enter for a new line'

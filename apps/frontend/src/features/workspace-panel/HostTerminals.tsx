@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import TerminalTab from './TerminalTab'
+import Icon from '../../app/Icon'
 import './host-terminals.css'
 
 const scope: WorkspaceScope = { kind: 'workspace', path: '' }
@@ -67,7 +68,7 @@ export default function HostTerminals({ open, onHide }: { open: boolean; onHide:
     {tabs.length > 0 && <div className="host-terminal-tabs">
       {tabs.map(tab => <div key={tab.id}>
         <button type="button" aria-pressed={tab.id === active} onClick={() => setActive(tab.id)}>{tab.label}</button>
-        <button type="button" disabled={busy} aria-label={zh ? `关闭 ${tab.label} 终端` : `Close ${tab.label} terminal`} onClick={() => void close(tab.id)}>×</button>
+        <button type="button" disabled={busy} aria-label={zh ? `关闭 ${tab.label} 终端` : `Close ${tab.label} terminal`} onClick={() => void close(tab.id)}><Icon name="close" /></button>
       </div>)}
     </div>}
     {error ? <p className="host-terminal-feedback" role="alert">{error}</p> : tabs.length === 0 && <p className="host-terminal-feedback">{zh ? '选择主机后打开终端。' : 'Choose a host and open a terminal.'}</p>}

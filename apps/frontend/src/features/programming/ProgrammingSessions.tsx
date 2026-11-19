@@ -7,6 +7,7 @@ import type { ProgrammingController } from './useProgrammingController'
 import { programmingProjects, projectKey } from './programmingProjects'
 import './programming.css'
 import '../../app/sidebar-session-actions.css'
+import Icon from '../../app/Icon'
 
 export default function ProgrammingSessions({ controller, language, active, onOpen }: {
   controller: ProgrammingController; language: Language; active: boolean; onOpen: (id?: string, directory?: string, projectId?: string) => void
@@ -32,7 +33,7 @@ export default function ProgrammingSessions({ controller, language, active, onOp
   }
   return <section className="programming-session-list" aria-label={zh ? '编程会话' : 'Programming chats'}>
     <div className="sidebar-section-heading"><strong>{zh ? '编程会话' : 'PROGRAMMING CHATS'}</strong>
-      <button type="button" className="sidebar-profile-manage" disabled={busy} aria-label={zh ? '添加编程项目' : 'Add programming project'} title={zh ? '添加编程项目' : 'Add programming project'} onClick={() => setEditor(null)}>＋</button>
+      <button type="button" className="sidebar-profile-manage" disabled={busy} aria-label={zh ? '添加编程项目' : 'Add programming project'} title={zh ? '添加编程项目' : 'Add programming project'} onClick={() => setEditor(null)}><Icon name="plus" /></button>
     </div>
     {!projects.length && <button type="button" className="sidebar-profile-session" disabled={busy} onClick={() => setEditor(null)}><span className="session-title">{zh ? '添加项目' : 'Add project'}</span></button>}
     {projects.map((project, index) => {
@@ -42,20 +43,20 @@ export default function ProgrammingSessions({ controller, language, active, onOp
       return <div className="programming-project" key={project.key}>
         <div className="sidebar-profile-heading">
           <button type="button" className="sidebar-profile-row" title={project.cwd} aria-expanded={open} onClick={() => setExpanded(current => ({ ...current, [project.key]: !open }))}>
-            <svg className="programming-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M3 7V5.5A1.5 1.5 0 0 1 4.5 4H9l2 3h8.5A1.5 1.5 0 0 1 21 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V7Zm0 3h18" /></svg>
-            <span className="session-title">{project.name}</span><span className="sidebar-profile-chevron" aria-hidden="true">⌄</span>
+            <Icon name="folderOpen" className="programming-folder" />
+            <span className="session-title">{project.name}</span><span className="sidebar-profile-chevron" aria-hidden="true"><Icon name="chevronDown" /></span>
           </button>
           {registered && <button type="button" className="sidebar-profile-manage programming-project-menu" aria-label={zh ? `项目详情 ${project.name}` : `Project details ${project.name}`} aria-expanded={info?.id === registered.id} title={zh ? '项目详情与编辑' : 'Project details and editing'} onClick={event => {
             const rect = event.currentTarget.getBoundingClientRect()
             setInfo({ id: registered.id, left: Math.max(12, Math.min(rect.right + 8, window.innerWidth - 372)), top: Math.max(12, Math.min(rect.top, window.innerHeight - 260)) })
-          }}>···</button>}
-          <button type="button" className="sidebar-profile-manage" disabled={busy} aria-label={zh ? `在 ${project.name} 新建编程会话` : `New programming chat in ${project.name}`} title={zh ? '在此项目新建会话' : 'New chat in this project'} onClick={() => start(project.cwd, registered?.id)}>＋</button>
+          }}><Icon name="ellipsis" /></button>}
+          <button type="button" className="sidebar-profile-manage" disabled={busy} aria-label={zh ? `在 ${project.name} 新建编程会话` : `New programming chat in ${project.name}`} title={zh ? '在此项目新建会话' : 'New chat in this project'} onClick={() => start(project.cwd, registered?.id)}><Icon name="plus" /></button>
         </div>
         {open && <div className="programming-project-chats">
-          {active && !session && controller.draftVisible && currentProject === project.key && <div className="programming-session-entry"><button type="button" className="sidebar-profile-session active" disabled={busy} onClick={() => start(project.cwd, registered?.id)}><span className="session-title">{zh ? '新编程会话' : 'New programming chat'}</span></button><button type="button" className="sidebar-session-archive programming-session-archive" disabled aria-label={zh ? '归档新编程会话草稿' : 'Archive new programming chat draft'} title={zh ? '发送第一条消息后才能归档' : 'Send the first message before archiving'}>□</button><button type="button" className="sidebar-session-delete programming-session-delete" disabled={busy} aria-label={zh ? '删除新编程会话草稿' : 'Delete new programming chat draft'} title={zh ? '删除草稿' : 'Delete draft'} onClick={() => { if ((!controller.draft.trim() && !controller.images.length && !controller.files.length) || window.confirm(zh ? '删除新编程会话草稿和附件？' : 'Delete the new programming chat draft and attachments?')) controller.discardDraft() }}>×</button></div>}
+          {active && !session && controller.draftVisible && currentProject === project.key && <div className="programming-session-entry"><button type="button" className="sidebar-profile-session active" disabled={busy} onClick={() => start(project.cwd, registered?.id)}><span className="session-title">{zh ? '新编程会话' : 'New programming chat'}</span></button><button type="button" className="sidebar-session-archive programming-session-archive" disabled aria-label={zh ? '归档新编程会话草稿' : 'Archive new programming chat draft'} title={zh ? '发送第一条消息后才能归档' : 'Send the first message before archiving'}><Icon name="archive" /></button><button type="button" className="sidebar-session-delete programming-session-delete" disabled={busy} aria-label={zh ? '删除新编程会话草稿' : 'Delete new programming chat draft'} title={zh ? '删除草稿' : 'Delete draft'} onClick={() => { if ((!controller.draft.trim() && !controller.images.length && !controller.files.length) || window.confirm(zh ? '删除新编程会话草稿和附件？' : 'Delete the new programming chat draft and attachments?')) controller.discardDraft() }}><Icon name="close" /></button></div>}
           {project.sessions.slice(0, count).map(row => <div className="programming-session-entry" key={row.id}><button type="button" disabled={busy} title={row.title} className={`sidebar-profile-session ${active && session?.id === row.id ? 'active' : ''}`} onClick={() => onOpen(row.id)}>
             <span className="session-title">{row.title}</span>{status[row.status] && <span className="programming-session-state" role="status" aria-label={status[row.status]} title={status[row.status]}>{row.status === 'running' ? <span className="programming-session-spinner" aria-hidden="true" /> : status[row.status]}</span>}
-          </button><button type="button" className="sidebar-session-archive programming-session-archive" disabled={busy || row.status === 'running'} aria-label={zh ? `归档编程会话 ${row.title}` : `Archive programming chat ${row.title}`} title={row.status === 'running' ? (zh ? '请先停止运行中的会话' : 'Stop the running chat first') : (zh ? '归档会话' : 'Archive chat')} onClick={() => void controller.archive(row.id, true)}>□</button><button type="button" className="sidebar-session-delete programming-session-delete" disabled={busy || row.status === 'running'} aria-label={zh ? `删除编程会话 ${row.title}` : `Delete programming chat ${row.title}`} title={row.status === 'running' ? (zh ? '请先停止运行中的会话' : 'Stop the running chat first') : (zh ? '删除会话' : 'Delete chat')} onClick={() => remove(row.id, row.title)}>×</button></div>)}
+          </button><button type="button" className="sidebar-session-archive programming-session-archive" disabled={busy || row.status === 'running'} aria-label={zh ? `归档编程会话 ${row.title}` : `Archive programming chat ${row.title}`} title={row.status === 'running' ? (zh ? '请先停止运行中的会话' : 'Stop the running chat first') : (zh ? '归档会话' : 'Archive chat')} onClick={() => void controller.archive(row.id, true)}><Icon name="archive" /></button><button type="button" className="sidebar-session-delete programming-session-delete" disabled={busy || row.status === 'running'} aria-label={zh ? `删除编程会话 ${row.title}` : `Delete programming chat ${row.title}`} title={row.status === 'running' ? (zh ? '请先停止运行中的会话' : 'Stop the running chat first') : (zh ? '删除会话' : 'Delete chat')} onClick={() => remove(row.id, row.title)}><Icon name="close" /></button></div>)}
           {project.sessions.length > 5 && <button type="button" className="sidebar-profile-session programming-project-more" onClick={() => setVisible(current => ({ ...current, [project.key]: count >= project.sessions.length ? 5 : count + 5 }))}>{count >= project.sessions.length ? (zh ? '收起' : 'Show less') : (zh ? '展开显示' : 'Show more')}</button>}
         </div>}
       </div>

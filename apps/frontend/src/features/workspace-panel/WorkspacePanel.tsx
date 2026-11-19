@@ -7,6 +7,7 @@ import TerminalTab from './TerminalTab'
 import DirectoryTree from './DirectoryTree'
 import type { BackgroundTask } from '../chat/backgroundTasks'
 import BackgroundTaskContent from './BackgroundTaskContent'
+import Icon from '../../app/Icon'
 
 type PanelFile = Awaited<ReturnType<DesktopApi['workspacePanel']['readFile']>>
 type PanelDirectory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
@@ -136,21 +137,21 @@ export default function WorkspacePanel({ open, onOpenChange, cwd, profile, epoch
     <div className="panel-tabs">
       <div className="panel-tab-list">{tabs.map(tab => <div key={tab.id} className={`panel-tab ${tab.id === activeId ? 'active' : ''}`}>
         <button type="button" title={tab.scope.owner ? `${tab.title} · ${tab.scope.owner.profile} / ${tab.scope.owner.sessionId}` : tab.title} onClick={() => setActiveId(tab.id)}>{tab.kind === 'terminal' ? '›' : '▤'} {tab.title}</button>
-        <button type="button" aria-label={`${zh ? '关闭' : 'Close'} ${tab.title}`} onClick={() => closeTab(tab)}>×</button>
+        <button type="button" aria-label={`${zh ? '关闭' : 'Close'} ${tab.title}`} onClick={() => closeTab(tab)}><Icon name="close" /></button>
       </div>)}</div>
       <div className="panel-add-wrap">
-        <button type="button" className="panel-add" aria-label={zh ? '新建标签' : 'New tab'} onClick={() => setMenuOpen(value => !value)}>＋</button>
+        <button type="button" className="panel-add" aria-label={zh ? '新建标签' : 'New tab'} onClick={() => setMenuOpen(value => !value)}><Icon name="plus" /></button>
         {menuOpen && <div className="panel-add-menu">
           <button type="button" onClick={() => void showDirectory()}>▤ {zh ? '打开文件' : 'Open file'}</button>
           <button type="button" onClick={() => void openTerminal()}>› {zh ? '新建终端' : 'New terminal'}</button>
           {backgroundTasks.map(task => <button type="button" key={task.taskId} onClick={() => openBackgroundTask(task)}>◷ BG {task.taskId.slice(3, 9)} · {task.status === 'running' ? zh ? '运行中' : 'Running' : task.status === 'unknown' ? zh ? '待确认' : 'Uncertain' : task.status === 'failed' ? zh ? '失败' : 'Failed' : zh ? '已完成' : 'Complete'}</button>)}
         </div>}
       </div>
-      <button type="button" className="panel-collapse" aria-label={zh ? '收起工作区' : 'Collapse workspace'} onClick={() => onOpenChange(false)}>»</button>
+      <button type="button" className="panel-collapse" aria-label={zh ? '收起工作区' : 'Collapse workspace'} onClick={() => onOpenChange(false)}><Icon name="panelClose" /></button>
     </div>
     {error && <p className="panel-error">{error}</p>}
     <div className="panel-body">
-      {!active && <div className="panel-empty">{zh ? '点击 ＋ 打开文件或终端' : 'Click + to open a file or terminal'}</div>}
+      {!active && <div className="panel-empty">{zh ? '使用“新建标签”打开文件或终端' : 'Use New tab to open a file or terminal'}</div>}
       {tabs.filter(tab => tab.kind !== 'terminal').map(tab => <div key={tab.id} className="panel-tab-content" style={{ display: tab.id === activeId ? 'flex' : 'none' }}>
         {tab.kind === 'background' && (() => {
           const task = backgroundTasks.find(item => item.taskId === tab.taskId && item.profile === tab.scope.owner?.profile && item.sessionId === tab.scope.owner?.sessionId)

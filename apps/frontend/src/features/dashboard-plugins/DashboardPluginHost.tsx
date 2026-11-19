@@ -12,6 +12,7 @@ import { DashboardPluginToast as Toast } from './dashboardPluginSdkComponents'
 import { dashboardIsoTimeAgo, dashboardTimeAgo } from './dashboardPluginSdkUtils'
 import { dashboardPluginDefinition, dashboardPluginEntryKey } from './dashboardPluginDefinition'
 import type { DashboardPluginAssets, DashboardPluginManifest } from './dashboardPluginDefinition'
+import Icon from '../../app/Icon'
 import './dashboard-plugin-host.css'
 
 export type { DashboardPluginManifest } from './dashboardPluginDefinition'
@@ -619,7 +620,7 @@ export function DashboardPluginPage({ manifest, component: Component, error, onB
   if (!onBack) return content
   return <div className="dashboard-plugin-view">
     <header className="dashboard-plugin-navigation">
-      <button type="button" onClick={onBack}><span aria-hidden="true">← </span>{zh ? '返回' : 'Back'}</button>
+      <button type="button" onClick={onBack}><Icon name="chevronLeft" />{zh ? '返回' : 'Back'}</button>
       <span>{zh ? 'Dashboard 插件' : 'Dashboard plugin'}</span>
       {manifest && <strong title={manifest.label}>{manifest.label}</strong>}
     </header>

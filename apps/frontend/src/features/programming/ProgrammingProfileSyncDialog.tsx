@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import type { Language } from '../../i18n'
 import { keepFocusInside } from '../extensions/dialogFocus'
+import Icon from '../../app/Icon'
 
 export default function ProgrammingProfileSyncDialog({ language, profiles, profile, busy, error, onSelect, onClose, onSync }: {
   language: Language; profiles: { name: string; display_name?: string }[]; profile: string; busy: boolean; error: string
@@ -34,7 +35,7 @@ export default function ProgrammingProfileSyncDialog({ language, profiles, profi
       if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose() }
       keepFocusInside(event)
     }} onSubmit={event => { event.preventDefault(); if (selected && !busy) onSync(selected.id) }}>
-      <div className="row model-editor-heading"><h3 id="programming-sync-title">{zh ? '从 Profile 同步' : 'Import from Profile'}</h3><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}>×</button></div>
+      <div className="row model-editor-heading"><h3 id="programming-sync-title">{zh ? '从 Profile 同步' : 'Import from Profile'}</h3><button type="button" aria-label={zh ? '关闭' : 'Close'} disabled={busy} onClick={onClose}><Icon name="close" /></button></div>
       <label>Profile<select autoFocus required value={profile} disabled={busy} onChange={event => onSelect(event.target.value)}>{profiles.map(item => <option key={item.name} value={item.name}>{item.display_name || item.name}</option>)}</select></label>
       {loadingError ? <p role="alert">{loadingError} <button type="button" disabled={busy} onClick={() => setReload(value => value + 1)}>{zh ? '重新读取' : 'Retry'}</button></p> : loadedProfile !== profile ? <p role="status">{zh ? '正在读取提供商…' : 'Loading providers…'}</p> : providers.length ? <>
         <label>{zh ? '选择一个模型提供商' : 'Select one model provider'}<select required value={providerId} disabled={busy} onChange={event => setProviderId(event.target.value)}><option value="" disabled>{zh ? '请选择要同步的提供商' : 'Choose a provider to import'}</option>{providers.map(provider => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>

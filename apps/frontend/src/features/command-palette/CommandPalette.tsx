@@ -1,6 +1,7 @@
 import React from 'react'
 import type { PaletteItem } from './model'
 import { searchPalette } from './model'
+import Icon from '../../app/Icon'
 import './command-palette.css'
 
 export function useCommandPalette(enabled = true) {
@@ -81,7 +82,7 @@ export default function CommandPalette({ open, language, items, onClose, onExecu
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
       }
     }}>
-      <div className="command-palette-search"><span aria-hidden="true">⌕</span><input ref={inputRef} role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="command-palette-results" aria-activedescendant={results[selected] ? `command-palette-option-${selected}` : undefined} value={query} onChange={event => setQuery(event.target.value)} placeholder={zh ? '搜索会话、页面、设置或操作…' : 'Search sessions, pages, settings or actions…'} /><kbd>Esc</kbd></div>
+      <div className="command-palette-search"><Icon name="search" /><input ref={inputRef} role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="command-palette-results" aria-activedescendant={results[selected] ? `command-palette-option-${selected}` : undefined} value={query} onChange={event => setQuery(event.target.value)} placeholder={zh ? '搜索会话、页面、设置或操作…' : 'Search sessions, pages, settings or actions…'} /><kbd>Esc</kbd></div>
       <div id="command-palette-results" className="command-palette-results" role="listbox" aria-label={zh ? '搜索结果' : 'Search results'}>
         {results.length ? results.map((item, index) => <button id={`command-palette-option-${index}`} key={item.id} type="button" role="option" aria-selected={index === selected} className={index === selected ? 'selected' : ''} disabled={busy} onMouseEnter={() => setSelected(index)} onClick={() => void execute(item)}><span className="command-palette-kind">{{ action: zh ? '操作' : 'Action', page: zh ? '页面' : 'Page', setting: zh ? '设置' : 'Setting', session: zh ? '会话' : 'Session' }[item.kind]}</span><span className="command-palette-label"><strong>{item.title}</strong><small>{item.detail}</small></span><span aria-hidden="true">↵</span></button>) : <p>{zh ? '没有匹配结果' : 'No matching results'}</p>}
       </div>

@@ -4,6 +4,7 @@ import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateAgentUi } from '../../i18n'
 import AuxiliaryTaskCard from './components/AuxiliaryTaskCard'
 import { configValuesEqual } from './memoryContextModel'
+import Icon from '../../app/Icon'
 import { getField, type Provider, type Schema } from './model'
 import type { AuxiliaryModels } from '@hermess/contracts'
 
@@ -210,9 +211,9 @@ export default function ModelRouteSettings({ page, connected, profile, epoch, st
             {rows.map((row, index) => <div className="fallback-row" key={index}><span>{index + 1}</span>
               <select aria-label={`${index + 1} ${zh ? '提供商' : 'Provider'}`} value={row.provider} onChange={event => setRows(current => current.map((item, i) => i === index ? { ...item, provider: event.target.value, model: '' } : item))}><option value="">{zh ? '选择提供商' : 'Select provider'}</option>{row.provider && !providers.some(item => item.slug === row.provider) && <option value={row.provider}>{row.provider}</option>}{providers.map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select>
               <input aria-label={`${index + 1} ${zh ? '模型 ID' : 'Model ID'}`} list={`fallback-models-${index}`} value={row.model} onChange={event => setRows(current => current.map((item, i) => i === index ? { ...item, model: event.target.value } : item))} placeholder={zh ? '模型 ID' : 'Model ID'} /><datalist id={`fallback-models-${index}`}>{providers.find(item => item.slug === row.provider)?.models.map(item => <option key={item} value={item} />)}</datalist>
-              <button type="button" disabled={busy || index === 0} aria-label={`${index + 1} ${zh ? '上移' : 'Move up'}`} onClick={() => setRows(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next })}>↑</button>
-              <button type="button" disabled={busy || index === rows.length - 1} aria-label={`${index + 1} ${zh ? '下移' : 'Move down'}`} onClick={() => setRows(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next })}>↓</button>
-              <button type="button" disabled={busy} aria-label={`${index + 1} ${zh ? '移除' : 'Remove'}`} onClick={() => setRows(current => current.filter((_, i) => i !== index))}>×</button>
+              <button type="button" disabled={busy || index === 0} aria-label={`${index + 1} ${zh ? '上移' : 'Move up'}`} onClick={() => setRows(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next })}><Icon name="chevronUp" /></button>
+              <button type="button" disabled={busy || index === rows.length - 1} aria-label={`${index + 1} ${zh ? '下移' : 'Move down'}`} onClick={() => setRows(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next })}><Icon name="chevronDown" /></button>
+              <button type="button" disabled={busy} aria-label={`${index + 1} ${zh ? '移除' : 'Remove'}`} onClick={() => setRows(current => current.filter((_, i) => i !== index))}><Icon name="close" /></button>
             </div>)}
             <div className="actions"><button type="button" disabled={busy} onClick={() => setRows(current => [...current, { provider: '', model: '' }])}>{zh ? '添加回退模型' : 'Add fallback'}</button><button type="button" className="primary" disabled={busy || !dirty || rows.some(row => !row.provider.trim() || !row.model.trim())} onClick={() => void saveFallbacks()}>{zh ? '保存回退链' : 'Save fallback chain'}</button></div>
           </> : tasks.length === 0 && !hasDelegationModel ? <p role="status">{zh ? '当前运行时没有可配置的辅助任务。' : 'No configurable auxiliary tasks in this runtime.'}</p>

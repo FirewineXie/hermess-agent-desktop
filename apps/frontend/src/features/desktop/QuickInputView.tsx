@@ -4,6 +4,8 @@ import { QuickInputFlight } from './quickFlight'
 import { initializeAppearance } from './appearanceRuntime'
 import './desktop-settings.css'
 import './appearance.css'
+import '../../app/theme-tokens.css'
+import Icon from '../../app/Icon'
 
 initializeAppearance()
 
@@ -52,7 +54,7 @@ export default function QuickInputView({ api }: { api: QuickInputApi }) {
     } catch { if (pending.current.settle(requestId)) { setBusy(false); setError('目标已变化、会话忙碌或主窗口未就绪，请刷新目标后重试。') } }
   }
   return <main className="quick-composer" onKeyDown={e => { if (e.key === 'Escape') void api.hide() }}>
-    <header><strong>Hermess · 快捷输入</strong><button disabled={busy} onClick={() => { setBound(current); setError('') }}>刷新目标</button><button onClick={() => void api.hide()} aria-label="隐藏">×</button></header>
+    <header><strong>Hermess · 快捷输入</strong><button disabled={busy} onClick={() => { setBound(current); setError('') }}>刷新目标</button><button onClick={() => void api.hide()} aria-label="隐藏"><Icon name="close" /></button></header>
     <div className="quick-target">{bound ? `${bound.profile} · ${bound.sessionId || '新会话'}` : '等待主窗口连接运行时'}</div>
     <textarea ref={input} autoFocus disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }} />
     <footer><span role="status">{error || (changed ? '发送目标已变化，请刷新目标确认。' : bound?.busy ? '主窗口有草稿、附件或正在处理任务。' : 'Enter 发送 · Shift+Enter 换行')}</span><button disabled={!ready || busy || changed || !bound || bound.busy || !text.trim()} onClick={() => void send()}>{busy ? '提交中…' : '发送'}</button></footer>

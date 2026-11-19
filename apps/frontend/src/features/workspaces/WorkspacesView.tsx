@@ -2,6 +2,7 @@ import React from 'react'
 import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage, translateApp } from '../../i18n'
+import Icon from '../../app/Icon'
 
 type Props = {
   connected: boolean
@@ -53,10 +54,10 @@ function WorkspaceAgentMenu({ title, path, agents, selectedForAgent, onAssignAge
 
   return <div className="workspace-row-menu" ref={rootRef}>
     <button ref={triggerRef} type="button" className="workspace-menu-trigger" aria-haspopup="dialog" aria-expanded={open}
-      aria-label={zh ? `${title} 的 Agent 分配` : `Agent assignments for ${title}`} onClick={() => setOpen(current => !current)}>···</button>
+      aria-label={zh ? `${title} 的 Agent 分配` : `Agent assignments for ${title}`} onClick={() => setOpen(current => !current)}><Icon name="ellipsis" /></button>
     {open && <div className="workspace-agent-popover" role="dialog" aria-label={zh ? `${title} 的 Agent 分配` : `Agent assignments for ${title}`}>
       <header><div><strong>{zh ? '分配 Agent' : 'Assign Agents'}</strong><small>{zh ? '可多选；每个 Agent 只保留一个默认工作区。' : 'Select multiple; each Agent keeps one default workspace.'}</small></div>
-        <button type="button" className="workspace-popover-close" aria-label={zh ? '关闭' : 'Close'} onClick={() => setOpen(false)}>×</button></header>
+        <button type="button" className="workspace-popover-close" aria-label={zh ? '关闭' : 'Close'} onClick={() => setOpen(false)}><Icon name="close" /></button></header>
       <div className="workspace-agent-options">
         {agents.map(agent => {
           const checked = selectedForAgent(agent.name) === path
@@ -99,7 +100,7 @@ export default function WorkspacesView({ connected, busy, profile, agents, paths
         const assignedAgents = agents.filter(agent => selectedForAgent(agent.name) === path)
         return <article className={`workspace-design-row ${selected === path ? 'is-selected' : ''}`} key={path || 'default'}>
           <button type="button" className="workspace-select-area" disabled={!profile} onClick={() => onSelect(path)} aria-pressed={selected === path} title={detail}>
-            <span className="workspace-folder-icon" aria-hidden="true">▣</span><span className="workspace-row-copy"><strong>{title}</strong><small>{detail}</small>
+            <span className="workspace-folder-icon" aria-hidden="true"><Icon name="files" /></span><span className="workspace-row-copy"><strong>{title}</strong><small>{detail}</small>
               <small className="workspace-agent-assignment">{zh ? '使用此工作区：' : 'Assigned Agents: '}{assignedAgents.length ? assignedAgents.map(agent => agent.label).join('、') : (zh ? '未分配 Agent' : 'None')}</small></span>
             {selected === path && <span className="workspace-current-label">{zh ? '当前 Agent 默认' : 'Agent default'}</span>}
           </button>

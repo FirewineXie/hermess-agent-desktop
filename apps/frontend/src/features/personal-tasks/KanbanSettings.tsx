@@ -5,6 +5,7 @@ import type { BoardMeta, KanbanBridge, KanbanDiagnostics } from './kanbanApi'
 import KanbanWorkers from './KanbanWorkers'
 import ConfirmActionButton from './ConfirmActionButton'
 import KanbanDiagnosticCard from './KanbanDiagnosticCard'
+import Icon from '../../app/Icon'
 
 type Profile = { name: string; model: string; description: string; description_auto: boolean; skill_count: number }
 type Project = { id: string; slug: string; name: string; primary_path: string }
@@ -132,7 +133,7 @@ export default function KanbanSettings({ bridge, board, boards, onClose, onOpenT
   }
 
   return <div className="kanban-native-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="kanban-native-panel kanban-native-settings" role="dialog" aria-modal="true" aria-label="看板与编排设置">
-    <div className="kanban-native-panel-head"><div><p>看板管理</p><h2>看板与编排设置</h2></div><button type="button" onClick={onClose} aria-label="关闭">×</button></div>
+    <div className="kanban-native-panel-head"><div><p>看板管理</p><h2>看板与编排设置</h2></div><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" /></button></div>
     <nav className="kanban-native-tabs" aria-label="设置分类"><button type="button" className={tab === 'boards' ? 'active' : ''} onClick={() => setTab('boards')}>看板</button><button type="button" className={tab === 'orchestration' ? 'active' : ''} onClick={() => setTab('orchestration')}>多 Profile 编排</button><button type="button" className={tab === 'diagnostics' ? 'active' : ''} onClick={() => setTab('diagnostics')}>诊断</button></nav>
     {error && <div className="kanban-native-error" role="alert">{error}</div>}
     <div className="kanban-native-settings-body">

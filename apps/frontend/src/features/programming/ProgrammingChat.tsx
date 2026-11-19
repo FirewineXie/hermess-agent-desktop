@@ -2,6 +2,7 @@ import React from 'react'
 import MarkdownMessage from '../chat/components/MarkdownMessage'
 import type { Language } from '../../i18n'
 import type { ProgrammingController } from './useProgrammingController'
+import Icon from '../../app/Icon'
 import { ProgrammingUsage, ProgrammingWorkspace } from './ProgrammingContext'
 import { ProgrammingPermissions, ProgrammingModel, ProgrammingEffort } from './ProgrammingComposerControls'
 import './programming.css'
@@ -41,7 +42,7 @@ export default function ProgrammingChat({ language, controller, onOpenSettings }
       {controller.draggingFiles && <p role="status">{zh ? '松开以添加图片或文件引用' : 'Drop to attach images or file references'}</p>}
       <ProgrammingInput ref={input} language={language} controller={controller} onOpenSettings={onOpenSettings} />
       <div className="composer-actions">
-        <button className="secondary-button programming-attach" title={zh ? '添加图片或文件；也可粘贴图片、拖入文件（图片最多四张，共 20 MiB）' : 'Attach images or files; paste images or drop files (up to four images, 20 MiB total)'} disabled={busy || session?.status === 'running'} onClick={() => void controller.chooseAttachments()} aria-label={zh ? '添加图片或文件' : 'Attach images or files'}>＋</button>
+        <button className="secondary-button programming-attach" title={zh ? '添加图片或文件；也可粘贴图片、拖入文件（图片最多四张，共 20 MiB）' : 'Attach images or files; paste images or drop files (up to four images, 20 MiB total)'} disabled={busy || session?.status === 'running'} onClick={() => void controller.chooseAttachments()} aria-label={zh ? '添加图片或文件' : 'Attach images or files'}><Icon name="paperclip" /></button>
         <ProgrammingPermissions controller={controller} language={language} onOpenSettings={onOpenSettings} />
         <ProgrammingSessionIndicators controller={controller} language={language} />
         <span className="composer-spacer" />
@@ -49,13 +50,13 @@ export default function ProgrammingChat({ language, controller, onOpenSettings }
           <ProgrammingModel controller={controller} language={language} />
           <ProgrammingEffort controller={controller} language={language} />
         <ProgrammingUsage language={language} controller={controller} />
-        {session?.status === 'running' ? <button className="composer-submit" disabled={busy} onClick={() => void run(async () => { await coding.stop(session.id) })}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /></svg><span className="sr-only">{zh ? '停止' : 'Stop'}</span></button>
-          : <button className="composer-submit" disabled={busy || !draft.trim() && !images.length && !files.length || !session && !cwd} onClick={() => input.current?.submit()}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 11 6-6 6 6M12 5v14" /></svg><span className="sr-only">{zh ? '发送' : 'Send'}</span></button>}
+        {session?.status === 'running' ? <button className="composer-submit" disabled={busy} onClick={() => void run(async () => { await coding.stop(session.id) })}><Icon name="square" /><span className="sr-only">{zh ? '停止' : 'Stop'}</span></button>
+          : <button className="composer-submit" disabled={busy || !draft.trim() && !images.length && !files.length || !session && !cwd} onClick={() => input.current?.submit()}><Icon name="arrowUp" /><span className="sr-only">{zh ? '发送' : 'Send'}</span></button>}
         </div>
       </div>
       <div className="programming-attachments">{images.map((path, index) => <button type="button" key={`image-${index}`} disabled={busy} onClick={() => setImages(current => current.filter((_, i) => i !== index))}>
-        {path.startsWith('data:') && <img src={path} alt="" width="28" height="28" />}{programmingAttachmentName(path, index, zh)} ×
-      </button>)}{files.map((path, index) => <button type="button" key={`file-${index}`} title={path} disabled={busy} onClick={() => setFiles(current => current.filter((_, i) => i !== index))}>{zh ? '文件引用：' : 'File reference: '}{programmingAttachmentName(path, index, zh)} ×</button>)}</div>
+        {path.startsWith('data:') && <img src={path} alt="" width="28" height="28" />}{programmingAttachmentName(path, index, zh)} <Icon name="close" />
+      </button>)}{files.map((path, index) => <button type="button" key={`file-${index}`} title={path} disabled={busy} onClick={() => setFiles(current => current.filter((_, i) => i !== index))}>{zh ? '文件引用：' : 'File reference: '}{programmingAttachmentName(path, index, zh)} <Icon name="close" /></button>)}</div>
     </div></div>
   </section>
 }

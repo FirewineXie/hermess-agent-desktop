@@ -4,6 +4,7 @@ import { useLanguage } from '../../i18n'
 import { describeError } from '../../app/desktopErrors'
 import { DashboardPluginPage, refreshDashboardPlugins } from './DashboardPluginHost'
 import type { useDashboardPlugins } from './DashboardPluginHost'
+import Icon from '../../app/Icon'
 
 type Props = {
   plugin: string | null
@@ -39,7 +40,7 @@ export default function DashboardPluginView({ plugin, plugins, profiles, connect
   }
   return <div className="dashboard-plugin-view">
     <header className="dashboard-plugin-navigation">
-      <button type="button" onClick={onBack}><span aria-hidden="true">← </span>{zh ? '返回' : 'Back'}</button>
+      <button type="button" onClick={onBack}><Icon name="chevronLeft" />{zh ? '返回' : 'Back'}</button>
       <strong title={manifest?.label || plugin || ''}>{manifest?.label || plugin || (zh ? 'Dashboard 插件' : 'Dashboard plugin')}</strong>
       <label className="dashboard-plugin-profile">Profile
         <select aria-label={zh ? '插件所属 Profile' : 'Plugin Profile'} value={profile} disabled={!connected || busy || switching || !profiles}

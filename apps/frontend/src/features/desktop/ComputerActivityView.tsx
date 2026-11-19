@@ -1,6 +1,7 @@
 import React from 'react'
 import type { ComputerActivityApi, ComputerActivityStatus } from '@hermess/contracts'
 import './computer-activity.css'
+import '../../app/theme-tokens.css'
 
 export default function ComputerActivityView({ api }: { api: ComputerActivityApi }) {
   const [status, setStatus] = React.useState<ComputerActivityStatus>()

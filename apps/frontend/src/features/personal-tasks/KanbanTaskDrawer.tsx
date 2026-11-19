@@ -6,6 +6,7 @@ import KanbanModelOverrideField from './KanbanModelOverrideField'
 import { EMPTY_TASK_MODEL, taskModelFrom, taskModelPatch } from './kanbanTaskModel'
 import type { TaskModelOverride } from './kanbanTaskModel'
 import ConfirmActionButton from './ConfirmActionButton'
+import Icon from '../../app/Icon'
 import { kanbanStatusLabel } from './kanbanLabels'
 import KanbanDiagnosticCard from './KanbanDiagnosticCard'
 import { presentKanbanEventPayload } from './kanbanEventPresentation'
@@ -185,7 +186,7 @@ export default function KanbanTaskDrawer({ bridge, board, taskId, workflow, assi
     detailBodyRef.current?.scrollTo({ top: 0 })
   }
   return <div className="kanban-native-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><aside className="kanban-native-panel kanban-native-detail" role="dialog" aria-modal="true" aria-label="任务详情">
-    <div className="kanban-native-panel-head"><div><p>{task?.id || taskId}</p><h2>{task?.title || '读取任务中…'}</h2></div><button type="button" onClick={onClose} aria-label="关闭">×</button></div>
+    <div className="kanban-native-panel-head"><div><p>{task?.id || taskId}</p><h2>{task?.title || '读取任务中…'}</h2></div><button type="button" onClick={onClose} aria-label="关闭"><Icon name="close" /></button></div>
     {error && <div className="kanban-native-error" role="alert">{error}</div>}
     {detail && <nav className="kanban-native-detail-tabs" aria-label="任务详情分区">
       <button type="button" aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => selectTab('overview')}>概览与处理</button>

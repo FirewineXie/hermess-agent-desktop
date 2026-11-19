@@ -4,6 +4,7 @@ import { useDesktop } from '../../app/DesktopContext'
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import { keepFocusInside } from '../extensions/dialogFocus'
+import Icon from '../../app/Icon'
 
 type Props = {
   profiles: ProfilesSnapshot | null
@@ -92,7 +93,7 @@ export default function WorkBuddyImportDialog({ profiles, busy, onImport, onNoti
     {error && !preview && <p className="expert-create-error" role="alert">{error}</p>}
     {preview && <div className="expert-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
       <form className="expert-create-modal" role="dialog" aria-modal="true" aria-labelledby="workbuddy-import-title" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); close() } else keepFocusInside(event) }} onSubmit={event => void submit(event)}>
-        <header><div><h2 id="workbuddy-import-title">{zh ? '导入预览' : 'Import preview'}</h2><p>{preview.displayName} · {preview.version}</p></div><button type="button" className="expert-modal-close" disabled={loading} onClick={close}>×</button></header>
+        <header><div><h2 id="workbuddy-import-title">{zh ? '导入预览' : 'Import preview'}</h2><p>{preview.displayName} · {preview.version}</p></div><button type="button" className="expert-modal-close" aria-label={zh ? '关闭' : 'Close'} disabled={loading} onClick={close}><Icon name="close" /></button></header>
         <div className="expert-modal-body">
           <label className="expert-name-field">{zh ? 'Profile 名称' : 'Profile name'}<input ref={input} required maxLength={64} value={name} onChange={event => setName(event.target.value)} /></label>
           <section className="expert-recipe-summary"><h3>{zh ? '主理人' : 'Lead'}</h3><p>{preview.lead}</p><h3>{zh ? '成员原文' : 'Member files'}</h3><p>{preview.members.join(zh ? '、' : ', ') || (zh ? '无' : 'None')}</p></section>

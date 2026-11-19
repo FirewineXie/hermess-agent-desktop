@@ -2,6 +2,7 @@ import React from 'react'
 import type { DesktopApi, WorkspaceScope } from '@hermess/contracts'
 import { useDesktop } from '../../app/DesktopContext'
 import { useLanguage } from '../../i18n'
+import Icon from '../../app/Icon'
 
 type Directory = Awaited<ReturnType<DesktopApi['workspacePanel']['listDirectory']>>
 type Entry = Directory['entries'][number]
@@ -28,7 +29,7 @@ function TreeEntry({ scope, entry, onFile, depth }: { scope: WorkspaceScope; ent
   return <>
     <button type="button" className="panel-tree-entry" style={{ paddingLeft: 12 + depth * 16 }} title={entry.path}
       aria-expanded={entry.directory ? expanded : undefined} onClick={() => void activate()}>
-      <span aria-hidden="true">{entry.directory ? (expanded ? '⌄' : '›') : '▤'}</span> {entry.name}
+      <span aria-hidden="true"><Icon name={entry.directory ? (expanded ? 'chevronDown' : 'chevronRight') : 'file'} /></span> {entry.name}
     </button>
     {entry.directory && expanded && <>
       {error && <div className="panel-tree-note" style={{ paddingLeft: 28 + depth * 16 }}>{zh ? '无法读取目录，点击目录重试' : 'Could not read folder; click to retry'}</div>}

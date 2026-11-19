@@ -1,4 +1,4 @@
-.scheduled-detail { min-width: 830px; padding: 20px 24px; border-top: 1px solid #dce6f4; background: #f8fbff; color: #32445d; font-size: 13px; }
+.scheduled-detail { min-width: 830px; padding: 20px 24px; border-top: 1px solid #dce6f4; background: var(--wb-active); color: #32445d; font-size: 13px; }
 .scheduled-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
 .scheduled-detail-grid > div { min-width: 0; }
 .scheduled-detail-grid span { display: block; margin-bottom: 5px; color: #71819a; font-size: 11px; }
@@ -9,5 +9,5 @@
 .scheduled-runs { list-style: none; margin: 0; padding: 0; }
 .scheduled-runs li { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid #e3eaf3; }
 .scheduled-runs li time { color: #687994; font-variant-numeric: tabular-nums; }
-.scheduled-runs li p { width: 100%; margin: 0; color: #536273; }
+.scheduled-runs li p { width: 100%; margin: 0; color: var(--wb-text-secondary); }
 .scheduled-detail-error { color: #b34444; }

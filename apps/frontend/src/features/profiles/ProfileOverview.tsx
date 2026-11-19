@@ -5,6 +5,7 @@ import { useProfileState, workspaceKey } from '../../app/profile-scope/ProfileWo
 import { describeError } from '../../app/desktopErrors'
 import { useLanguage } from '../../i18n'
 import type { LocalSkill, McpServer, McpSetupDraft } from '../extensions/model'
+import Icon from '../../app/Icon'
 import ProfileMcp from './ProfileMcp'
 import { labels } from '../extensions/labels'
 import ProfileDataView from './ProfileDataView'
@@ -21,16 +22,11 @@ export type ProfileTab = 'overview' | 'tools' | 'skills' | 'plugins' | 'mcp' | '
 type CardIconKind = 'tools' | 'settings' | 'skills' | 'mcp' | 'memory' | 'data' | 'channels' | 'usage'
 
 function CardIcon({ kind }: { kind: CardIconKind }) {
-  return <span className="profile-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    {kind === 'tools' && <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11" /></>}
-    {kind === 'settings' && <><circle cx="12" cy="12" r="3.5" /><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1" /></>}
-    {kind === 'skills' && <path d="m12 2 2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2Z" />}
-    {kind === 'mcp' && <><path d="m9 15 6-6M8 9l-2 2a4 4 0 0 0 5.7 5.7l2-2M16 15l2-2a4 4 0 0 0-5.7-5.7l-2 2" /></>}
-    {kind === 'memory' && <><path d="M12 6c-2.3-1.6-5-1.6-9-1v14c4-.6 6.7-.6 9 1 2.3-1.6 5-1.6 9-1V5c-4-.6-6.7-.6-9 1Z" /><path d="M12 6v14" /></>}
-    {kind === 'data' && <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z" />}
-    {kind === 'channels' && <path d="M4 5h16v11H9l-5 4V5Z" />}
-    {kind === 'usage' && <path d="M4 20V12m6 8V8m6 12V4m4 16H2" />}
-  </svg></span>
+  const icons: Record<CardIconKind, Parameters<typeof Icon>[0]['name']> = {
+    tools: 'tools', settings: 'settings', skills: 'sparkles', mcp: 'link', memory: 'list',
+    data: 'files', channels: 'chat', usage: 'chart',
+  }
+  return <span className="profile-card-icon" aria-hidden="true"><Icon name={icons[kind]} /></span>
 }
 
 type Props = {
@@ -303,7 +299,7 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
         {profile && <button className="profile-rename" type="button" disabled={!connected || profileBusy} onClick={onExportProfile}>{zh ? '导出归档' : 'Export archive'}</button>}
         {profile && <button className="profile-rename" type="button" disabled={!connected || profileBusy} onClick={onRenameProfile}>{zh ? '显示名称' : 'Display name'}</button>}
         {profile && profile.name !== 'default' && <button className="profile-delete" type="button" disabled={!connected || profileBusy} onClick={onDeleteProfile}>{zh ? '删除专家' : 'Delete expert'}</button>}
-        <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}>{zh ? '＋ 新建会话' : '＋ New chat'}</button>
+        <button className="profile-new-chat" type="button" disabled={!served} onClick={onNewChat}><Icon name="plus" />{zh ? '新建会话' : 'New chat'}</button>
       </div>
     </div>
     {activationMessage && <p className="profile-activation-message" role="status">{activationMessage}</p>}
@@ -352,7 +348,7 @@ export default function ProfileOverview({ connected, epoch, profiles, activeProf
           </details>)}</div>}</>, undefined, !served)}
     {tab === 'tools' && toolsetConfig && toolsets?.find(item => item.name === toolsetConfig) && <ProfileToolsetConfig key={`${workspace}:${toolsetConfig}`} toolset={toolsets.find(item => item.name === toolsetConfig)!} language={language} request={requestSkill} onClose={() => setToolsetConfig(null)} onChanged={refreshToolsets} />}
     {tab === 'skills' && <section className="profile-skills-panel" aria-label={zh ? '此 Profile 的技能' : 'Skills in this profile'}>
-      <div className="profile-skills-heading"><div><h3>{zh ? '技能' : 'Skills'}</h3><p>{skills === null ? (zh ? '读取技能中…' : 'Loading skills…') : (zh ? `${skills.length} 项技能，${skillNames.length} 项已启用` : `${skills.length} skills, ${skillNames.length} enabled`)}</p></div><div className="profile-skill-heading-actions">{skills?.some(skill => skill.provenance === 'hub') && <button type="button" disabled={!served || pendingSkill !== null} onClick={() => void runHubSkillAction('skills.update')}>{pendingSkill === 'update' ? (zh ? '更新中…' : 'Updating…') : (zh ? '更新市场技能' : 'Update market Skills')}</button>}<button type="button" disabled={!served || learningSkill} onClick={() => setLearningSkill(true)}>{zh ? '学习技能' : 'Learn a skill'}</button><button type="button" disabled={!served || editingSkill !== null || pendingSkill !== null} onClick={() => setEditingSkill('new')}>{zh ? '＋ 新建技能' : '＋ New skill'}</button></div></div>
+      <div className="profile-skills-heading"><div><h3>{zh ? '技能' : 'Skills'}</h3><p>{skills === null ? (zh ? '读取技能中…' : 'Loading skills…') : (zh ? `${skills.length} 项技能，${skillNames.length} 项已启用` : `${skills.length} skills, ${skillNames.length} enabled`)}</p></div><div className="profile-skill-heading-actions">{skills?.some(skill => skill.provenance === 'hub') && <button type="button" disabled={!served || pendingSkill !== null} onClick={() => void runHubSkillAction('skills.update')}>{pendingSkill === 'update' ? (zh ? '更新中…' : 'Updating…') : (zh ? '更新市场技能' : 'Update market Skills')}</button>}<button type="button" disabled={!served || learningSkill} onClick={() => setLearningSkill(true)}>{zh ? '学习技能' : 'Learn a skill'}</button><button type="button" disabled={!served || editingSkill !== null || pendingSkill !== null} onClick={() => setEditingSkill('new')}><Icon name="plus" />{zh ? '新建技能' : 'New skill'}</button></div></div>
       <label className="profile-skill-search"><span className="sr-only">{zh ? '搜索技能' : 'Search skills'}</span><input type="search" value={skillQuery} onChange={event => setSkillQuery(event.target.value)} placeholder={zh ? '搜索技能名称或说明' : 'Search skills by name or description'} /></label>
       {skillActionError && <p className="profile-skill-action-error" role="alert">{skillActionError}</p>}
       {editingSkill !== null && <ProfileSkillEditor key={`${workspace}:${editingSkill === 'new' ? 'new' : editingSkill.name}`} skill={editingSkill === 'new' ? null : editingSkill} language={language} request={requestSkill} onClose={() => setEditingSkill(null)} onSaved={refreshSkills} />}
