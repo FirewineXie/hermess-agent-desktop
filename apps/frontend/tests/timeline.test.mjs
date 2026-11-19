@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { appendReasoning, finishReasoning, historyTimeline, pauseReasoning, updateTool } from '../src/features/chat/timeline.ts'
+import { appendMessage, appendReasoning, finishReasoning, historyTimeline, pauseReasoning, updateTool } from '../src/features/chat/timeline.ts'
 import { sessionSourceLabel } from '../src/features/chat/sessionSource.ts'
 
 test('typed task notifications are collapsed notices, never human questions or timed turns', () => {
@@ -37,6 +37,36 @@ test('restored channel history shows user and assistant content alongside reason
   assert.equal(sessionSourceLabel('weixin', 'zh-CN'), '微信')
   assert.equal(sessionSourceLabel('feishu', 'zh-CN'), '飞书')
   assert.equal(sessionSourceLabel('desktop', 'zh-CN'), '')
+})
+
+test('steer guidance and the reasoning after it remain visible as a separate live segment', () => {
+  let timeline = [{ kind: 'message', role: 'user', text: '原始问题', startedAt: 10 }]
+  timeline = appendReasoning(timeline, '插入前思考')
+  timeline = appendMessage(pauseReasoning(timeline), 'user', '改为同时比较两个方案')
+  timeline = appendReasoning(timeline, '插入后思考')
+  assert.deepEqual(timeline.map(item => [item.kind, item.text, item.kind === 'reasoning' ? item.streaming : undefined]), [
+    ['message', '原始问题', undefined],
+    ['reasoning', '插入前思考', false],
+    ['message', '改为同时比较两个方案', undefined],
+    ['reasoning', '插入后思考', true],
+  ])
+})
+
+test('restored steer history displays user guidance without the internal control frame', () => {
+  const marker = '[OUT-OF-BAND USER MESSAGE — a direct message from the user]\n改为同时比较两个方案\n[/OUT-OF-BAND USER MESSAGE]'
+  const timeline = historyTimeline([
+    { role: 'user', content: '原始问题' },
+    { role: 'assistant', reasoning: '插入前思考' },
+    { role: 'user', content: marker, display_kind: 'steer' },
+    { role: 'assistant', reasoning_content: '插入后思考', content: '最终回答' },
+  ])
+  assert.deepEqual(timeline.map(item => [item.kind, item.text]), [
+    ['message', '原始问题'],
+    ['reasoning', '插入前思考'],
+    ['message', '改为同时比较两个方案'],
+    ['reasoning', '插入后思考'],
+    ['message', '最终回答'],
+  ])
 })
 
 test('older text rows remain visible', () => {

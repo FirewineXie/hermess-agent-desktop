@@ -14,7 +14,7 @@ await mkdir(output, { recursive: true })
 try {
   await writeFile(fixture, String.raw`<div id="root"></div><script type="module">
 import React from 'react'; import {createRoot} from 'react-dom/client';
-import '/src/style.css'; import '/src/app/sidebar-shell.css'; import '/src/app/sidebar-session-actions.css'; import '/src/features/desktop/dark-theme.css';
+import '/src/style.css'; import '/src/app/theme-tokens.css'; import '/src/app/sidebar-shell.css'; import '/src/app/sidebar-session-actions.css'; import '/src/features/desktop/dark-theme.css'; import '/src/app/workbench-theme.css'; import '/src/features/chat-window/chat-window.css';
 import {DesktopProvider} from '/src/app/DesktopContext.tsx';
 import GatewayRequestCard from '/src/features/chat/components/GatewayRequestCard.tsx';
 import ChatConnectionCard from '/src/features/chat/components/ChatConnectionCard.tsx';
@@ -27,7 +27,8 @@ window.calls={approval:[],answers:[],stop:0,connection:[]};
 const api={chat:{subagents:async()=>{if(location.search.includes('error'))throw new Error('预览：读取任务失败');return {subagents:location.search.includes('empty')?[]:[{subagent_id:'a',goal:'检查聊天交互与回归风险',status:'running',accepting_steer:true},{subagent_id:'b',goal:'整理界面优化建议',status:'completed'}]}},subagentTail:async()=>({available:true,text:'已完成组件检查，正在核对交互。'}),stopSubagent:async()=>{window.calls.stop++;return {found:true}}},events:{onGatewayEvent:async()=>()=>{}}};
 function Demo(){const [answers,setAnswers]=React.useState({});const [shellCollapsed,setShellCollapsed]=React.useState(false);return <DesktopProvider api={api}><main className="compact-demo chat-panel">
 <header><h1>聊天中的确认与任务</h1><p>界面预览 · 模拟数据，不执行真实审批或任务</p></header>
-<section className="layout-probe"><MessageList messages={[{kind:'message',role:'user',text:'宽窗口中的用户消息',duration:301,turnState:'completed'},{kind:'reasoning',text:'先确认当前布局和消息顺序。',streaming:false,expanded:false},{kind:'message',role:'assistant',text:'正在检查宽屏样式。'},{kind:'tools',steps:[{id:'read',name:'read_file',state:'finished',summary:'读取完成'}]},{kind:'message',role:'assistant',text:'宽窗口中的助手回复应保持在左侧，不占满整个阅读区。'}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/></section>
+<section className="layout-probe chat-content"><MessageList messages={[{kind:'message',role:'user',text:'宽窗口中的用户消息',duration:301,turnState:'completed'},{kind:'reasoning',text:'先确认当前布局和消息顺序。',streaming:false,expanded:false},{kind:'message',role:'assistant',text:'正在检查宽屏样式。'},{kind:'tools',steps:[{id:'read',name:'read_file',state:'finished',summary:'读取完成'}]},{kind:'message',role:'assistant',text:'宽窗口中的助手回复应保持在左侧，不占满整个阅读区。\n\n> 暗色引用应保持清晰。\n\n| 状态 | 结果 |\n| --- | --- |\n| 暗色表格 | 可读 |\n\n代码块：\n\n    const visible = true'}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/></section>
+<section className="chat-window-theme-probe chat-window-shell"><header className="chat-window-header"><strong>Hermess Chat</strong><span>default</span><button type="button">关闭窗口</button></header><div className="chat-window-notice">连接主窗口</div></section>
 <section className="scroll-probe chat-content"><MessageList messages={[{kind:'message',role:'assistant',text:'| 项目 | 值 |\n| --- | --- |\n| 可执行文件 | C:\\\\Workspace\\\\HermessAgentDesktop\\\\.build\\\\payload\\\\tools\\\\python-3.14.9-win32-x64\\\\python.exe |\n| 用户级包目录 | C:\\\\Users\\\\Example\\\\AppData\\\\Roaming\\\\Python\\\\Python314\\\\site-packages |\n\n'.repeat(6)}]} assistant="" turnBusy={false} language="zh-CN" t={k=>translateApp('zh-CN',k)}/></section>
 <section className={'shell-probe app-shell '+(shellCollapsed?'sidebar-context-collapsed':'')}><aside className="sidebar"><nav className="sidebar-rail"><button className="sidebar-rail-brand" onClick={()=>setShellCollapsed(value=>!value)}>H</button></nav><div className="sidebar-context"><div className="sidebar-sessions"><div className="sidebar-profile-heading"><button className="sidebar-profile-row"><span className="sidebar-profile-avatar">D</span><span className="session-title">default-profile-with-a-very-long-name</span><span className="sidebar-profile-chevron">⌄</span></button><button className="sidebar-profile-manage">⚙</button></div><div className="sidebar-session-entry"><button className="sidebar-profile-session"><span>▤</span><span className="session-title">Locate Python environment with an intentionally long title</span></button><button className="sidebar-session-archive">□</button><button className="sidebar-session-delete">×</button></div></div></div></aside><main className="workspace" /></section>
 <div className="demo-columns"><div>
@@ -45,7 +46,8 @@ createRoot(document.getElementById('root')).render(<Demo/>);
 html,body,#root {height:auto;min-height:100%;overflow:auto}
 .compact-demo.chat-panel {padding:24px;max-width:1120px;margin:auto;display:block}
 .compact-demo h1 {font-size:20px;margin:0 0 4px}.compact-demo header>p {font-size:13px;color:#697586;margin:0 0 16px}
-.layout-probe {width:var(--chat-reading-width);max-width:1440px;margin:0 auto 20px;border-bottom:1px solid #e3e8ef}
+.layout-probe {margin:0 auto 20px;border-bottom:1px solid #e3e8ef}
+.chat-window-theme-probe {position:fixed;left:-10000px;height:auto}
 .scroll-probe {position:fixed;left:-10000px;top:0;width:720px;height:220px}
 .shell-probe {position:fixed;left:-10000px;top:0;width:100vw;height:700px}
 .demo-columns {display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:20px}
@@ -88,8 +90,8 @@ html,body,#root {height:auto;min-height:100%;overflow:auto}
     await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
     const shell = await page.eval(`(()=>{const shell=document.querySelector('.shell-probe');const sidebar=shell.querySelector('.sidebar');const rail=shell.querySelector('.sidebar-rail');const context=shell.querySelector('.sidebar-context');const title=shell.querySelector('.sidebar-session-entry .session-title');const shellRect=shell.getBoundingClientRect();const sidebarRect=sidebar.getBoundingClientRect();return {shellWidth:shellRect.width,sidebarWidth:sidebarRect.width,railWidth:rail.getBoundingClientRect().width,contextWidth:context.getBoundingClientRect().width,scrollWidth:shell.scrollWidth,clientWidth:shell.clientWidth,titleScrollWidth:title.scrollWidth,titleClientWidth:title.clientWidth,deleteWidth:shell.querySelector('.sidebar-session-delete').getBoundingClientRect().width}})()`)
     assert.ok(shell.sidebarWidth >= expectedMin && shell.sidebarWidth <= expectedMax, JSON.stringify({ width, shell }))
-    assert.ok(shell.railWidth >= 51 && shell.railWidth <= 53, JSON.stringify({ width, shell }))
-    assert.ok(shell.contextWidth >= expectedMin - 53, JSON.stringify({ width, shell }))
+    assert.ok(shell.railWidth >= 45 && shell.railWidth <= 47, JSON.stringify({ width, shell }))
+    assert.ok(shell.contextWidth >= expectedMin - 47, JSON.stringify({ width, shell }))
     assert.ok(shell.scrollWidth <= shell.clientWidth, JSON.stringify({ width, shell }))
     assert.ok(shell.titleScrollWidth > shell.titleClientWidth, JSON.stringify({ width, shell }))
     assert.ok(shell.deleteWidth >= 27, JSON.stringify({ width, shell }))
@@ -100,13 +102,14 @@ html,body,#root {height:auto;min-height:100%;overflow:auto}
   await page.eval(`document.querySelector('.shell-probe').style.left='0px'`)
   const entryPoint = await page.eval(`(()=>{const rect=document.querySelector('.shell-probe .sidebar-session-entry').getBoundingClientRect();return {x:rect.left+rect.width/2,y:rect.top+rect.height/2}})()`)
   await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...entryPoint })
+  await wait(`getComputedStyle(document.querySelector('.shell-probe .sidebar-session-archive')).opacity === '1'`)
   assert.deepEqual(await page.eval(`(()=>({archive:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-archive')).opacity,remove:getComputedStyle(document.querySelector('.shell-probe .sidebar-session-delete')).opacity}))()`), { archive: '1', remove: '1' })
   await page.eval(`document.querySelector('.shell-probe').style.left='-10000px'`)
   await page.eval(`document.querySelector('.shell-probe .sidebar-rail-brand').click()`)
-  assert.deepEqual(await page.eval(`(()=>{const shell=document.querySelector('.shell-probe');return {sidebar:shell.querySelector('.sidebar').getBoundingClientRect().width,context:getComputedStyle(shell.querySelector('.sidebar-context')).display}})()`), { sidebar: 52, context: 'none' })
+  assert.deepEqual(await page.eval(`(()=>{const shell=document.querySelector('.shell-probe');return {sidebar:shell.querySelector('.sidebar').getBoundingClientRect().width,context:getComputedStyle(shell.querySelector('.sidebar-context')).display}})()`), { sidebar: 46, context: 'none' })
   await page.eval(`document.querySelector('.shell-probe .sidebar-rail-brand').click()`)
-  await assertSidebarLayout(901, 259, 273)
-  await assertSidebarLayout(900, 249, 251)
+  await assertSidebarLayout(901, 243, 245)
+  await assertSidebarLayout(900, 243, 245)
   await page.eval(`document.querySelector('.compact-demo').style.maxWidth='none'`)
   async function readMessageLayout(width, deviceScaleFactor = 1) {
     await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor, mobile: false })
@@ -123,6 +126,10 @@ html,body,#root {height:auto;min-height:100%;overflow:auto}
   const wideLayout = await readMessageLayout(1728, 2)
   assert.ok(wideLayout.containerWidth >= 1439 && wideLayout.containerWidth <= 1441, JSON.stringify(wideLayout))
   assert.ok(wideLayout.assistantWidth / wideLayout.containerWidth >= .91, JSON.stringify(wideLayout))
+  await page.eval(`document.documentElement.dataset.colorTheme='dark'`)
+  await wait(`getComputedStyle(document.querySelector('.layout-probe > .messages > .message-assistant')).color === 'rgb(241, 243, 242)'`)
+  const darkChat = await page.eval(`(()=>{const root=document.querySelector('.layout-probe');const shell=document.querySelector('.chat-window-theme-probe');return {assistant:getComputedStyle(root.querySelector(':scope > .messages > .message-assistant')).color,blockquote:getComputedStyle(root.querySelector('blockquote')).color,tableText:getComputedStyle(root.querySelector('th')).color,tableBackground:getComputedStyle(root.querySelector('th')).backgroundColor,codeBackground:getComputedStyle(root.querySelector('.markdown-code-block')).backgroundColor,shellBackground:getComputedStyle(shell).backgroundColor,headerBackground:getComputedStyle(shell.querySelector('.chat-window-header')).backgroundColor,buttonBackground:getComputedStyle(shell.querySelector('button')).backgroundColor,noticeBackground:getComputedStyle(shell.querySelector('.chat-window-notice')).backgroundColor}})()`)
+  assert.deepEqual(darkChat, { assistant: 'rgb(241, 243, 242)', blockquote: 'rgb(143, 152, 147)', tableText: 'rgb(241, 243, 242)', tableBackground: 'rgb(39, 43, 40)', codeBackground: 'rgb(32, 35, 33)', shellBackground: 'rgb(24, 27, 25)', headerBackground: 'rgb(21, 23, 22)', buttonBackground: 'rgb(32, 35, 33)', noticeBackground: 'rgb(59, 48, 32)' })
   assert.equal(await page.eval(`document.querySelector('.layout-probe .turn-activity').open`), false)
   assert.equal(await page.eval(`document.querySelector('.layout-probe .tool-activity').checkVisibility()`), false)
   assert.equal(await page.eval(`document.querySelector('.layout-probe > .messages > .message-assistant')?.checkVisibility()`), true)

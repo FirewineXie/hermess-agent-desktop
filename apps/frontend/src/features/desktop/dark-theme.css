@@ -173,14 +173,32 @@
 :root[data-color-theme='dark'] .subagent-body .subagent-error { color: #efa5aa; }
 
 /* Both chat modes render Markdown through the same component. */
+:root[data-color-theme='dark'] .messages .message-assistant,
+:root[data-color-theme='dark'] .markdown-body {
+  color: var(--dark-text);
+}
+:root[data-color-theme='dark'] .markdown-body blockquote {
+  color: var(--dark-muted);
+  border-color: var(--dark-border);
+}
 :root[data-color-theme='dark'] .markdown-body :not(pre) > code {
   color: #c6d5e8;
   background: var(--dark-hover);
 }
 :root[data-color-theme='dark'] .markdown-code-block {
+  color: var(--dark-text);
   background: var(--dark-surface);
   border-color: var(--dark-border);
 }
+:root[data-color-theme='dark'] .markdown-table-scroll :is(th, td),
+:root[data-color-theme='dark'] .markdown-body hr {
+  border-color: var(--dark-border);
+}
+:root[data-color-theme='dark'] .markdown-table-scroll th {
+  color: var(--dark-text);
+  background: var(--dark-hover);
+}
+:root[data-color-theme='dark'] .markdown-image-alt { color: var(--dark-muted); }
 :root[data-color-theme='dark'] .chat-panel .markdown-copy {
   color: var(--dark-text);
   background: var(--dark-hover);

@@ -53,6 +53,16 @@ test('live segments, tool updates and a following turn keep their original posit
   assert.ok(!html.includes('<details class="tool-step" open'))
 })
 
+test('live steer guidance separates and renders the reasoning on both sides', () => {
+  let messages = appendMessage([], 'user', '原始问题', 1000)
+  messages = appendReasoning(messages, '插入前思考')
+  messages = appendMessage(pauseReasoning(messages), 'user', '改为同时比较两个方案')
+  messages = appendReasoning(messages, '插入后思考')
+  const html = renderMessages(messages, { assistant: '正在按新要求回答', turnBusy: true })
+  assertOrder(html, ['原始问题', '插入前思考', '改为同时比较两个方案', '插入后思考', '正在按新要求回答'])
+  assert.equal((html.match(/class="turn-process-reasoning"/g) || []).length, 2)
+})
+
 test('restored history keeps reasoning, text and tools in order across turns', () => {
   const messages = historyTimeline([
     { role: 'user', text: '历史第一问', timestamp: 10 },

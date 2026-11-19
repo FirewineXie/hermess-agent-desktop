@@ -437,13 +437,15 @@ a:focus-visible {
 }
 
 .composer-wrap {
-  width: min(920px, 100%);
+  width: var(--chat-reading-width);
+  max-width: 1440px;
   padding-bottom: 14px;
 }
 
 .chat-content,
 .chat-workspace {
-  width: min(920px, 100%);
+  width: var(--chat-reading-width);
+  max-width: 1440px;
 }
 
 .composer,

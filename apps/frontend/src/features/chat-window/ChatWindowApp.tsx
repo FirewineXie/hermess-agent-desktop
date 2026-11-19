@@ -7,9 +7,13 @@ import { useChatController } from '../chat/useChatController'
 import ChatView from '../chat/ChatView'
 import { useModelController } from '../models/useModelController'
 import type { ModelPick } from '../models/model'
+import { initializeAppearance } from '../desktop/appearanceRuntime'
 import '../../style.css'
 import '../../app/theme-tokens.css'
+import '../desktop/dark-theme.css'
 import './chat-window.css'
+
+initializeAppearance()
 
 export default function ChatWindowApp() {
   const { chatWindows, events, windowChrome } = useDesktop()

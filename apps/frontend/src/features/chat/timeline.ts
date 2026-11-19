@@ -45,7 +45,13 @@ function contentText(content: unknown): string {
 }
 
 function historyText(row: HistoryRow): string {
-  return contentText(row.content) || row.text || ''
+  const text = contentText(row.content) || row.text || ''
+  if (row.display_kind !== 'steer') return text
+  const lines = text.split(/\r?\n/)
+  if (lines[0]?.startsWith('[OUT-OF-BAND USER MESSAGE') && lines.at(-1) === '[/OUT-OF-BAND USER MESSAGE]') {
+    return lines.slice(1, -1).join('\n').trim()
+  }
+  return text
 }
 
 function reasoningText(row: HistoryRow): string {

@@ -11,7 +11,7 @@ export async function runSteerCommand(options: {
   language: 'zh-CN' | 'en-US'
   setDraft: (value: string | ((current: string) => string)) => void
   setStatus: (value: string) => void
-  onQueued: () => void
+  onQueued: (text: string) => void
   describeError: (cause: unknown) => string
 }) {
   const { chat, scope, draft, busy, hasAttachments, inFlight, isCurrent, language, setDraft, setStatus, onQueued, describeError } = options
@@ -30,7 +30,7 @@ export async function runSteerCommand(options: {
         : language === 'zh-CN' ? '当前回合未接收这条插入消息；输入已保留。' : 'The running turn did not accept this message. The input is preserved.')
       return false
     }
-    if (isCurrent()) { setDraft(current => current.trim() === draft ? '' : current); onQueued(); setStatus(language === 'zh-CN' ? '已插入当前运行的回合。' : 'Sent to the running turn.') }
+    if (isCurrent()) { setDraft(current => current.trim() === draft ? '' : current); onQueued(text); setStatus(language === 'zh-CN' ? '已插入当前运行的回合。' : 'Sent to the running turn.') }
     return true
   } catch (cause) {
     if (isCurrent()) setStatus(describeError(cause))
